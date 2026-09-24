@@ -315,7 +315,7 @@ Sipariş başına en fazla **4 otomatik durum mesajı**; Akış A'daki karşıla
 | `on_the_way` | **3. Yolda** (+ ödeme yöntemi hatırlatması) | Açık | |
 | `delivered` | **4. Teslim edildi + değerlendirme butonları** | Açık | |
 | `rejected` | Reddedildi + sebep | Açık | "Reddet"ten **30 sn sonra** gider ("bekleyen ret", aşağıda); "Geri al" basılırsa hiç gitmez. Kalan mesajların yerini alır (toplam 2). Sebep metni §5.2. WhatsApp'sız modda SMS |
-| `cancelled` | İptal + sebep | Açık | `awaiting_customer→cancelled` (Akış B/C zaman aşımı), `new→cancelled` (müşteri iptali veya 15 dk `tenant_no_response`) ve onay sonrası iptalleri kapsar. `tenant_no_response`'ta özür + işletme telefonu (bütçe dışı). Akış B'nin 30 dk `customer_timeout` iptalinde mesaj gitmez (müşteri henüz doğrulamadı). WhatsApp'sız modda SMS |
+| `cancelled` | İptal + sebep | Açık | `awaiting_customer→cancelled` (müşteri iptali, Akış C zaman aşımı), `new→cancelled` (müşteri iptali veya 15 dk `tenant_no_response`) ve onay sonrası iptalleri kapsar. `tenant_no_response`'ta özür + işletme telefonu (bütçe dışı). Akış B'nin 30 dk `customer_timeout` iptalinde mesaj gitmez (müşteri henüz doğrulamadı, pencere yok). WhatsApp'sız modda SMS |
 
 **Kurallar:**
 - Otomatik mesaj sayacı sipariş başına tutulur; 4'e ulaşınca sonraki otomatik mesaj gönderilmez (terminal durum mesajı hariç: `rejected`/`cancelled` her zaman gider, gerekirse önceki bekleyen mesajı iptal ederek).
@@ -622,7 +622,7 @@ function matchOrderCode(m: InboundMessage): string | null {
 |---|---|---|
 | Konu dışı metin | Karşılama + "Menüyü aç" (30 dk soğuma); tekrar ederse sessiz, panelde okunmamış | [Faz 2] AI kibar ret + menü butonu; genel sohbete girmez |
 | Görsel / video / belge | Medya indirilir (§7.7), panelde gösterilir; bot yanıtı yok | — |
-| Sesli mesaj | Panelde oynatılır; bot: "Sesli mesajınızı işletmeye ilettik. Hızlı sipariş için menüyü açabilirsiniz." (1 kez/30 dk) | [Faz 2+] konuşmadan metne + AI (KVKK saklama kuralıyla, teyit edilmeli) |
+| Sesli mesaj | Panelde oynatılır; bot: "Sesli mesajınızı işletmeye ilettik. Hızlı sipariş için menüyü açabilirsiniz." (1 kez/30 dk) | [Faz 2–3] konuşmadan metne + AI (KVKK saklama kuralıyla, teyit edilmeli) |
 | Konum | Konuşmaya iliştirilir, panelde harita pini; aktif siparişte "müşteri konum paylaştı" notu | [Faz 2] storefront adres adımında "WhatsApp'ta paylaştığınız konumu kullan" |
 | Kişi kartı, tepki (reaction), çıkartma | Saklanır, yanıt yok | — |
 | Desteklenmeyen (131051) | "Bu içeriği okuyamadık, lütfen yazarak iletin." (1 kez/gün) | — |
@@ -976,20 +976,24 @@ Hedef: sipariş kaçırma %0. Zamanlama kanoniktir ([00](00-kararlar-ve-sozluk.m
 
 ## 12. Açık konular
 
+Proje sahibine sorulacak kararlar [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13'te tutulur; bu doküman oradaki varsayılanlarla yazılmıştır (özellikle §13 madde 5 Meta modeli, madde 8 AI serbest metin paketleri, madde 4 barındırma).
+
 | # | Konu | Not / öneri |
 |---|---|---|
-| 1 | **Araştırma–karar farkları (KARARLAR uygulandı):** A02 §6 MVP'de BSP kredi hattı + pazarlama kredisi satışı öneriyor → Tech Provider + pass-through, MPS Faz 3. Mesaj bütçesi A01 "≤5", A02 "2–3" → 4 durum + 1 karşılama. Flows A01'de Faz 2 → Faz 3. A02 "su/tüp bayileri" → tüp hedeflenmez. Kur A02'de 48,8 → 48,4. | Bilgi amaçlı; karar gerekmez. |
-| 2 | **KARARLAR iç tutarsızlıkları:** (a) 6.6 "Faz 2 MPS'e kadar" derken 6.2 ve 11 MPS'i Faz 3'e koyuyor. (b) AI özet butonları: 7 (Akış C) [Onayla][Değiştir][Menüyü aç], 10 [Onayla][Düzenle][İptal], 9 "Siparişi onayla (ödeme yükümlülüğü doğar)". (c) Su bayi: 11'de segment 2, Faz 3 dikey listesinde de var. | Bu doküman: MPS Faz 3; butonlar [Siparişi onayla][Değiştir][Menüyü aç]. KARARLAR'da tekilleştirilmeli. |
-| 3 | **Onay butonu metni:** "Siparişi onayla (ödeme yükümlülüğü doğar)" ~41 karakter; reply button başlığı ~20 karakter (teyit edilmeli). | Butonda "Siparişi onayla", ibare hemen üstte gövdede (§6.5). Hukuk teyidi ([08](08-mevzuat-kvkk-odeme-fatura.md)). |
-| 4 | **Müşteriye gecikme bilgisi** 4 durum mesajı bütçesinin dışında istisna sayıldı (sipariş başına ≤1). | Onay gerekli (§4.3, §10.3). |
-| 5 | **Kişi senkronu (`smb_app_state_sync`) varsayılanı:** KARARLAR yalnız geçmiş senkronunu "varsayılan kapalı" diyor. | Öneri: kişi senkronu da varsayılan kapalı (esnafın kişisel rehberi). KVKK görüşü gerekli; senkron hiç çağrılmazsa Coexistence'ın başka bir işlevinin etkilenip etkilenmediği teyit edilmeli. |
-| 6 | **Token modeli:** tenant başına BISU token mı, kendi System User token'ımız mı (hibrit)? ES token süresi (süresiz / 60 gün)? | MVP: tenant başına token. Meta'nın güncel önerisi teyit edilmeli (A01 §2.3). |
+| 1 | **Araştırma–karar farkları ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) uygulandı):** A02 §6 MVP'de BSP kredi hattı + pazarlama kredisi satışı öneriyor → Tech Provider + pass-through, MPS Faz 3. Mesaj bütçesi A01 "≤5", A02 "2–3" → 4 durum + 1 karşılama. Flows A01'de Faz 2 → Faz 3. A02 "su/tüp bayileri" → tüp hedeflenmez. Kur A02'de 48,8 → 48,4. | Bilgi amaçlı; karar gerekmez. |
+| 2 | ~~00 iç tutarsızlıkları (MPS fazı, AI özet butonları, su bayi fazı)~~ | **Karara bağlandı:** MPS/kredi hattı Faz 3 ([00](00-kararlar-ve-sozluk.md) §6.2, §6.6, §11); AI özet butonları [Onayla] [Düzenle] [İptal], ibare gövdede, [Düzenle] sepeti dolu storefront linki (00 §7 Akış C, §9, §10); su bayileri segment 2, Faz 2 (00 §11). Bu doküman buna göre güncellendi (§6.1, §6.5). |
+| 3 | ~~Onay butonu metni ve ibarenin yeri~~ | **Karara bağlandı:** buton "Onayla" (≤ 20 karakter); "“Onayla”ya bastığınızda siparişiniz kesinleşir ve ödeme yükümlülüğü doğar" ibaresi mesaj gövdesinde (00 §7, §9). Nihai hukuk metni avukat onayıyla [08](08-mevzuat-kvkk-odeme-fatura.md)'de. |
+| 4 | ~~Müşteriye gecikme bilgisinin bütçe dışı sayılması~~ | **Karara bağlandı:** gecikme/iptal bilgilendirmesi gibi olağan dışı mesajlar bütçe dışıdır (00 §6.5); gecikme bilgisi sipariş başına ≤ 1 (§4.3, §10.3). |
+| 5 | **Kişi senkronu kapalıyken Coexistence:** Geçmiş ve kişi senkronunun varsayılan kapalı olması karara bağlandı (00 §6.4). | Senkron hiç çağrılmazsa Coexistence'ın başka bir işlevinin etkilenip etkilenmediği pilot öncesi saha testinde teyit edilmeli (§11). |
+| 6 | **Token modeli:** tenant başına BISU token mı, kendi System User token'ımız mı (hibrit)? ES token süresi (süresiz / 60 gün)? | Faz 1: tenant başına token. Meta'nın güncel önerisi teyit edilmeli (A01 §2.3). |
 | 7 | **`business_management` izni** gerekli mi? **Access Verification** hâlâ şart mı? | App Review başvurusunda netleşecek (A01 §1.3 [?]). |
 | 8 | **Türkiye rate card:** fiyatlar [3P] üçgenleme. | Canlı öncesi Meta rate card CSV'si ile teyit; konfigürasyon güncellenir (§4.2). |
 | 9 | **Coexistence Türkiye'de** çalışıyor mu? | Pilot öncesi +90 numarayla saha testi zorunlu (§11). |
-| 10 | **Teyit edilecek API ayrıntıları:** ES v4 `extras` alanları; `debug_token` kapsam alanı; BSUID'ye gönderimde istek alan adı; REQUEST_CONTACT_INFO yükü; interaktif gövde ve buton karakter sınırları; ücretsiz service kotasının webhook'ta işaretlenmesi ve ay sınırının saat dilimi; FEP'te 24 saati aşan serbest mesaj izni; `biz_opaque_callback_data`; `account_update` olay tipleri; ödeme yönteminin API'den okunabilirliği; kullanıcı adlarının Türkiye açılış tarihi. | Faz 1 ilk sprintinde resmi dokümandan ve test numarasıyla doğrulanır; ilgili bölümler (§3.3, §3.7, §4.4, §4.5, §6.5, §6.8, §7.5, §8.2) güncellenir. |
+| 10 | **Teyit edilecek API ayrıntıları:** ES v4 `extras` alanları; `debug_token` kapsam alanı; BSUID'ye gönderimde istek alan adı; REQUEST_CONTACT_INFO yükü; interaktif gövde ve buton karakter sınırları; ücretsiz service kotasının webhook'ta işaretlenmesi ve ay sınırının saat dilimi; FEP'te 24 saati aşan serbest mesaj izni; `biz_opaque_callback_data`; `account_update` olay tipleri; ödeme yönteminin API'den okunabilirliği; kullanıcı adlarının Türkiye açılış tarihi; `request_welcome` olayının Türkiye numarasında gelip gelmediği (sprint 1, 00 §7). | Faz 1 ilk sprintinde resmi dokümandan ve test numarasıyla doğrulanır; ilgili bölümler (§3.3, §3.7, §4.4, §4.5, §6.5, §6.8, §7.5, §8.2) güncellenir. |
 | 11 | **`siparis_teslim_v1`** (değerlendirme linki), **`yanit_bekliyor_v1`** ve **`deneme_bitiyor_v1`** utility kalır mı? | İlk tenant'larda izlenecek; marketing'e çevrilirse değerlendirme linkisiz sürüm. |
 | 12 | **Meta faturasının** (USD, yurt dışı kart) muhasebesi ve KDV'si. | [08](08-mevzuat-kvkk-odeme-fatura.md), mali müşavir görüşü. |
 | 13 | **Çok şubeli zincir:** şube başına numara mı, tek numara + şube seçimi mi; parent BSUID gerekecek mi? | Faz 2 çoklu şube tasarımında karar. |
 | 14 | **Meta Business Agent** ile ilişki (rakip mi, işletmenin açabileceği seçenek mi)? | Ürün kararı; Coexistence'ta ikisinin aynı numarada çakışması test edilmeli. |
-| 15 | **Pilot takvimi riski:** App Review/Business Verification Hafta 8'e kadar yoksa Plan A' (tester rolü) veya Plan B (Solution Partner). | Plan A' seçeneğinin standart erişimle çalıştığı teyit edilmeli (§2.5). |
+| 15 | **Pilot takvimi riski:** App Review/Business Verification Hafta 8'e kadar yoksa Plan A' (tester rolü) veya Plan B (Solution Partner). | Proje sahibi kararı: 00 §13 madde 5 (varsayılan: Tech Provider + Plan B). Plan A' seçeneğinin standart erişimle çalıştığı teyit edilmeli (§2.5). |
+| 16 | **Platform şablonlarının kategorisi:** `kurye_giris_v1` (giriş linki) Meta tarafından authentication sayılabilir; `platform_planli_bakim_v1`, `platform_hizmet_bildirimi_v1`, `platform_hizmet_duzeldi_v1` marketing'e çevrilebilir. | Pilot öncesi onaya gönderilir; kurye şablonu reddedilirse kod tabanlı authentication şablonu veya SMS (§5.3 notları). |
+| 17 | **Durum sayfası:** olay duyurularındaki "Durumu gör" butonu `status.siparisinonunde.com`'a bağlanır; tam sayfa Faz 2. | Pilot öncesi basit sürüm önerisi [10](10-riskler-operasyon-ve-metrikler.md) §6.4; açılmazsa buton "Paneli aç" sürümüyle onaylatılır. |

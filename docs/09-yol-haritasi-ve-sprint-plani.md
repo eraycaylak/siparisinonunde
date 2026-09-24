@@ -298,15 +298,15 @@ Plan B, pilotun bir **Türk Solution Partner** üzerinden başlatılmasıdır (K
 | F0-T02 | GitHub organizasyonu, korumalı `main`, secret manager, herkes için 2FA | TL | Gün 1–2 | — | Erişimler |
 | F0-T03 | Monorepo, `CLAUDE.md` v1 ([06](06-teknik-mimari.md) §4.4), CI | TL, FE, AI | S1 | T01 | Yeşil CI |
 | F0-T04 | Geçici staging VM (TR) | TL | H1 | — | `staging` ortamı |
-| F0-T05 | D3 için statik menü sayfası şablonu: kodlu `wa.me` linki, çerezsiz sunucu tarafı sayım | FE, AI | H1–H2 | — | 8 işletmelik sayfa |
-| F0-T06 | Açılış sayfası ve komisyon hesaplayıcı v0 (D5): iki mesaj varyantı, demo formu | FE, AI | H2 | H05, avukat metin kontrolü | Yayında sayfa |
+| F0-T05 | D3: `siparisinonunde.com/q/{kod}` sayım yönlendirmesi (yalnız tarama sayısı) ve statik menü sayfası şablonu (işletmelerin yarısı için, çerezsiz) | FE, AI | H1–H2 | — | Yönlendirme + ~4 menü sayfası |
+| F0-T06 | Açılış sayfası ve komisyon hesaplayıcı v0 (D5): 2 değer önerisi × 3 fiyat varyantı, demo formu, çerezsiz ölçüm | FE, AI | H2 | H05, avukat metin kontrolü | Yayında sayfa (H3) |
 
 ### 3.4 Talep ve GTM
 
 | ID | Görev | Sahip | Süre | Bağımlılık | Çıktı |
 |---|---|---|---|---|---|
 | F0-G01 | D1 listesi (25 işletme: 15 paket restoranı, 5 su bayisi, 5 pastane) ve görüşme kılavuzu ([10](10-riskler-operasyon-ve-metrikler.md) §4.3) | OPS | Gün 1–2 | H01 (ilçeler) | Randevu takvimi |
-| F0-G02 | D1 görüşmeleri: en az 20, hedef 25 (KARARLAR §11: 20+ esnaf) | KUR, OPS | H0–H3 | G01 | Notlar, acı sıralaması |
+| F0-G02 | D1 görüşmeleri: en az 20, hedef 25 (KARARLAR §11: 20+ esnaf) | KUR, OPS | H0–H2 | G01 | Notlar, acı sıralaması, Van Westendorp yanıtları |
 | F0-G03 | D2: 10 restorandan izinli ve anonim kesinti dökümü | OPS | H1–H3 | G02 | Efektif kesinti oranı |
 | F0-G04 | D3: 8 işletme seçimi (5–6 restoran + 2 su bayisi), 1 haftalık başlangıç sayımı, kodlu QR'lar, menü sayfaları, kart ve magnet baskısı (§4.3) | OPS, FE, TAS | H1–H3 | G02, T05 | 8 kurulu işletme |
 | F0-G05 | D3/D4 ölçüm defteri ve kasiyer günlük formu | OPS | H2 | G04 | Paylaşılan tablo |
@@ -374,7 +374,7 @@ Plan B, pilotun bir **Türk Solution Partner** üzerinden başlatılmasıdır (K
 - **KUR:** Vergi levhası ve sicil gazetesi geldiyse **Business Verification başvurusu** yapılır. Gelmediyse T1 izlenir (en geç 16 Ekim).
 - **FE:** Web sitesi v0 yayında: künye, gizlilik, kullanım koşulları, veri silme talimatı.
 - **TL:** Gizlilik URL'si Meta App'e girilir. Webhook DLQ. S1 demo senaryosu hazırlanır.
-- **OPS:** D3 materyalleri baskıdan alınır. Mağaza içi materyal (kasa standı, magnet, Instagram ve Google linki) ve paket içi kartlar başlangıç sayımı bitince ve D10'un ilk okumasından sonra, 12 Ekim haftasında yerleştirilir.
+- **OPS:** D3 materyal yerleşim planı hazırlanır. Mağaza içi materyal (kasa standı, magnet, Instagram ve Google linki) ve paket içi kartlar, başlangıç sayımı bitince ve D10'un ilk okumasından sonra 12 Ekim haftasında yerleştirilir.
 
 **Gün 10 — Perşembe 8 Ekim (ES v2 kalkıyor; bizi etkilemez)**
 - **TL + FE:** S1 kabul kriterleri kontrol edilir, demo provası yapılır. D12 raporu yazılır ve [02](02-whatsapp-entegrasyonu.md) §6.3'e işlenir (S4 tasarımına girdi).
@@ -805,7 +805,7 @@ Kanonik liste [10](10-riskler-operasyon-ve-metrikler.md) §8.7'deki **pilot baş
 | F2-01 | **Ticari altyapı** | Paket hakları (`plan_feature`), PSP kart saklama ve tekrarlayan çekim, faturalama motoru, Paraşüt e-Arşiv/e-Fatura, havale/EFT, dunning (G+1/3/7 → G+10 salt-okunur → G+21 askı → G+75), deneme bitişi, kurucu üye sayacı | L | PSP üye işyeri başvurusu (site şartları [08](08-mevzuat-kvkk-odeme-fatura.md) §7.2), Paraşüt API paketi, sözleşmenin dunning eki | Ticari lansmanın ve pilotların Mart 2027'de ücretliye geçişinin ön koşulu | S7–S8 (H14–17) |
 | F2-02 | Harici pentest, düzeltmeler, yeniden test | Gri kutu ([06](06-teknik-mimari.md) §15.8) | M | Faz 1 kapsamı sabit; firma teklifi H10'da | KARARLAR: ticari lansmandan önce zorunlu; pre-mortem #5 | H16–H18 |
 | F2-03 | 3 sunucu topolojisi | PG primary + hot standby, Valkey replikası ([06](06-teknik-mimari.md) §13.3) | M | Barındırma sözleşmesi | %99,9 SLO ve RTO; pre-mortem #3 | S8 |
-| F2-04 | Self-servis onboarding v1 | Sihirbazın (P-38) iyileştirilmesi, AI menü çıkarma self-servis (insan onayıyla), Excel içe/dışa aktarmanın tamamı (P-14), Meta kart video rehberi, 14 gün kartsız deneme ile self-servis kayıt | M | A-14 iç aracının pilot hata verisi | CAC ≤ 4.000 TL hedefi ve destek maliyeti (R03) | S9 |
+| F2-04 | Self-servis onboarding v1 | Sihirbazın (P-38) iyileştirilmesi, AI menü çıkarma self-servis (insan onayıyla), Excel içe/dışa aktarmanın tamamı (P-14), Meta kart video rehberi, 14 gün kartsız deneme ile self-servis kayıt | M | A-22 iç aracının pilot hata verisi | CAC ≤ 4.000 TL hedefi ve destek maliyeti (R03) | S9 |
 | F2-05 | SambaPOS/Adisyo entegrasyonu + GloriaFood geçiş kampanyası | Sipariş aktarımı, entegrasyonlar ekranı (P-46), `/gloriafood-gecis` sayfası | M–L | Partnerlerin API erişimi (teyit edilmeli) | GloriaFood 30.04.2027'de kapanıyor; Pro paketine dahil ([01](01-vizyon-pazar-is-modeli.md) §6.3) | S10–S11 (Mart 2027'ye hazır) |
 | F2-06 | Referans programı | Panelde davet linki, getiren ve gelene 1'er ay ücretsiz ([05](05-admin-paneli-ve-pazarlama-sitesi.md) B.6) | S | F2-01 | En ucuz edinme kanalı ([01](01-vizyon-pazar-is-modeli.md) §7.3) | S10 |
 | F2-07 | Capacitor 8 Android uygulaması | Güvenilir alarm (native bildirim kanalı), otomatik ESC/POS (USB/BT/LAN), Sunmi, raster fiş | L | Pilot cihaz ve yazıcı envanteri | R05 sipariş kaçırma; esnafın fiş ihtiyacı. **D8 PWA alarm sorunu gösterirse S10'a çekilir** | S12–S13 |

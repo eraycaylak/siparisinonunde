@@ -73,7 +73,7 @@ Sürümler lockfile ile sabitlenir. Major yükseltme ayrı PR ile yapılır ve s
 - Supabase bölgeleri arasında Türkiye yok (teyit edilmeli). Bu, KVKK barındırma kararıyla (§13.1) çelişir. Firestore ilişkisel sipariş/menü verisine ve PostGIS'e uymaz.
 
 ### 2.5 Bilinçli olarak kullanılmayanlar
-Socket.IO (Connection State Recovery bellek içidir, klasik Redis adaptörüyle çalışmaz, A04 §3.1) · Kubernetes (Faz 3'e kadar gereksiz) · Vercel/Supabase barındırma (veri yeri) · Lucia (npm'de deprecated) · BullMQ Pro (grup sıralama yerine advisory lock, §8.1) · WebUSB'yi ana yazdırma yolu yapmak (yalnız Chromium) · resmi olmayan WhatsApp kütüphaneleri (KARARLAR §6.1).
+Socket.IO (Connection State Recovery bellek içidir, klasik Redis adaptörüyle çalışmaz, A04 §3.1) · Kubernetes (Faz 3'e kadar gereksiz) · Vercel/Supabase barındırma (veri yeri) · Lucia (npm'de deprecated) · BullMQ Pro (grup sıralama yerine advisory lock, §8.1) · WebUSB'yi ana yazdırma yolu yapmak (yalnız Chromium) · resmi olmayan WhatsApp kütüphaneleri ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.1).
 
 ## 3. Sistem görünümü
 ### 3.1 Sistem bağlam diyagramı
@@ -435,7 +435,7 @@ Zamanlama [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10'daki **kanon
 | Zaman (varsayılan) | Koşul | Kanal | Not |
 |---|---|---|---|
 | t = 0 | `new` | Panel: döngüsel ses, kırmızı bant, başlık/favicon, `setAppBadge`; **Web Push** tüm kayıtlı cihazlara | Push yükünde PII yok: "Yeni sipariş #1234" |
-| t + 60 sn | Henüz ack yok | **Ses tekrarı (yükselen** ton/seviye); push tekrarlanır | |
+| t + 60 sn | Henüz ack yok | **Ses tekrarı (yükselen):** ton/seviye artar; push tekrarlanır | |
 | t + 2 dk | Hâlâ `new` | **Platform WhatsApp numarasından** `owner`'a (ve ayarda seçili `manager`'a) `isletme_yeni_siparis_v1` ([02](02-whatsapp-entegrasyonu.md) §5.3) | Şablon `failed` olursa veya opt-in yoksa SMS hemen gider |
 | t + 5 dk | Hâlâ `new` | **SMS** (`owner`); platform WhatsApp uyarısı da tekrarlanır ([02](02-whatsapp-entegrasyonu.md) §10.3) | SMS ≈ 0,16–0,43 TL (A04 §3.8); platform maliyeti, adil kullanım kotasına sayılır (§17) |
 | t + 10 dk (işletme ayarı 8–15) | Hâlâ `new` | **Müşteriye gecikme bilgisi:** "İşletme henüz onaylamadı" + [Bekle] [İptal] | Metin [03](03-musteri-deneyimi-ve-storefront.md)'te; bütçe dışı istisna. [İptal] → `new → cancelled` (`cancelled_by = customer`, `customer_request`) |
@@ -465,7 +465,7 @@ Vardiya başındaki **"Siparişleri almaya başla"** düğmesi zorunludur. Bu ku
 Kaynak: MDN BCD üzerinden A04 §3.4–3.6. Wake Lock sayfa gizlenince düşer ve `visibilitychange`'de yeniden istenir. **Öneri:** Mutfak/kasa cihazı sürekli şarjda 8–10" Android tablet olsun. iOS desteklenir ama "ana ekrana ekle" ve açık ekran koşuluyla. Dükkân Wi-Fi'ı düşerse 4G yedeği önerilir (A04 §3.7).
 
 ### 7.9 Kabul kriterleri (gerçek zamanlılık)
-- Webhook alımından panelde sesli uyarıya **p95 < 3 sn** (KARARLAR §12). Storefront siparişinden panele p95 < 2 sn [T].
+- Webhook alımından panelde sesli uyarıya **p95 < 3 sn** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12). Storefront siparişinden panele p95 < 2 sn [T].
 - SSE bağlantısı 10 dk koparılıp geri verildiğinde arada oluşan tüm olaylar sırayla ve tekrarsız uygulanır (e2e testi).
 - NOTIFY dinleyicisi zorla öldürüldüğünde sipariş en geç 60 sn içinde emniyet sorgusuyla panelde görünür.
 - `new` sipariş 2 dk onaylanmazsa platform WABA uyarısı 2 dk ± 15 sn içinde gönderilir. Onaylanmış, reddedilmiş veya bekleyen retteki siparişe hiçbir eskalasyon gitmez (sahte saatle test).
@@ -483,7 +483,7 @@ Kaynak: MDN BCD üzerinden A04 §3.4–3.6. Wake Lock sayfa gizlenince düşer v
 
 - **Hariç tutma:** `test_kind = 'canary'` (ve `onboarding_test`) siparişleri raporlardan, rollup'lardan (`report_daily_*`), aylık değer raporundan, `tenant_usage_daily` sayaçlarından, müşteri istatistiklerinden ve faturalama/kota hesaplarından hariçtir; işletmenin gördüğü sipariş numarası sayacını tüketmez. Alarm zinciri (§7.6) canary için çalışmaz; gerçek WhatsApp gönderimi yalnız platform canary'sinde, `sandbox` tenant'ı ile canary numarası arasında yapılır.
 - **Temizlik:** Canary kaydı ack alınınca veya en geç 10 dk sonra `sys_purge_canary()` ile kalıcı silinir (FSM'de iptal geçişi kullanılmaz); ölçüm yalnız metriklerde kalır.
-- **Güvenlik:** `X-Canary` imzası platform sırrıyla HMAC'lidir ve Turnstile'ı yalnız bu istek için atlatır; imzasız istekte `test_kind` alanı yok sayılır.
+- **Güvenlik:** `X-Canary` imzası platform sırrıyla HMAC'lidir ve Turnstile'ı yalnız bu istek için atlatır; imzasız istekte `test_kind` alanı yok sayılır. Canary sabit sentetik sepet kullanır; şubenin `paused` durumu, stok ve min sepet kuralları yanlış alarm üretmesin diye canary'de atlanır, ama fiyat hesabı ve DB yazımı gerçek yoldan geçer.
 - Canary numaraları arası otomatik mesajlaşmanın Meta politikasına uygunluğu ve aylık maliyeti teyit edilmeli ([10](10-riskler-operasyon-ve-metrikler.md) §7.3).
 
 **Kabul kriterleri (canary):** Ingress durdurulduğunda platform canary ≤ 10 dk içinde P1 üretir; SSE katmanı bozulup ingress sağlamken de P1 üretir; canary siparişleri hiçbir işletme ekranında, raporunda ve faturasında görünmez (sözleşme testi).
@@ -662,7 +662,7 @@ ORDER BY priority DESC LIMIT 1;
 - LLM yalnız **serbest metin siparişinde** (Akış C) ve **menü içe aktarmada** kullanılır. Varsayılan akış LLM'siz web sepetidir (Akış A).
 - **Fiyatı asla LLM hesaplamaz.** LLM yalnız aday listesindeki ürün/seçenek kimliklerini ve adetleri döner. Fiyat `packages/core/pricing` ile hesaplanır.
 - **Müşteri onayı olmadan sipariş oluşmaz.** Özet mesajı kanonik 3 butonla gönderilir: **[Onayla] [Düzenle] [İptal]** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 Akış C, §10). Buton kimlikleri `order:{id}:confirm|edit|cancel` ([07](07-veri-modeli-ve-api.md) §4.2); başlıklar ≤ 20 karakter. "Onayla'ya bastığınızda siparişiniz kesinleşir ve ödeme yükümlülüğü doğar" ibaresi ve ön bilgilendirme linki **mesaj gövdesindedir**. [Düzenle] sepeti dolu storefront linkini gönderir (`storefront_link_tokens.prefill_cart`); [İptal] `awaiting_customer → cancelled` (`customer`, `customer_request`) yapar. Özet aşamasında sipariş `awaiting_customer` durumundadır.
-- Bot yalnız menü/sipariş/adres/çalışma saati konularında çalışır. Konu dışı mesaja kibar ret + menü butonu döner, "Yetkiliyle görüş" her zaman açıktır (KARARLAR §6.9, [02](02-whatsapp-entegrasyonu.md) §6.5). Model araç çağırmaz ve yan etki üretmez. Müşteri metni talimat değil **veri** olarak işlenir (prompt injection'a karşı). Çıktı yalnız şemadır.
+- Bot yalnız menü/sipariş/adres/çalışma saati konularında çalışır. Konu dışı mesaja kibar ret + menü butonu döner, "Yetkiliyle görüş" her zaman açıktır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.9, [02](02-whatsapp-entegrasyonu.md) §6.5). Model araç çağırmaz ve yan etki üretmez. Müşteri metni talimat değil **veri** olarak işlenir (prompt injection'a karşı). Çıktı yalnız şemadır.
 
 ### 11.2 Sipariş ayrıştırma boru hattı
 ```mermaid
@@ -718,7 +718,7 @@ const quote = priceCart(draft, branchMenu, deliveryZone);                       
 TL karşılıkları 1 USD ≈ 48,4 TL varsayımıyla yaklaşıktır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8).
 
 - **Sayaç:** `llm_usage(tenant_id, date, model, purpose, input_tokens, output_tokens, cost)` + `llm_calls` ([07](07-veri-modeli-ve-api.md) §3.7). Anlık sayaç Redis'te, günlük özet PostgreSQL'de tutulur. Süper admin tenant bazında görür.
-- **Tenant kotası (adil kullanım):** Paket bazında aylık AI ayrıştırma sayısı sınırlanır (paket kararı KARARLAR §13.8: varsayılan Pro ve üstü). Kota dolunca AI modu kapanır, bot Akış A menü linkine düşer ve `owner` bilgilendirilir.
+- **Tenant kotası (adil kullanım):** Paket bazında aylık AI ayrıştırma sayısı sınırlanır (paket kararı [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13.8: varsayılan Pro ve üstü). Kota dolunca AI modu kapanır, bot Akış A menü linkine düşer ve `owner` bilgilendirilir.
 - **Global devre kesici:** Günlük platform LLM harcaması eşiği [T] aşılırsa veya hata oranı 5 dk boyunca > %20 olursa AI tüm platformda geçici kapanır (kill-switch `llm_parsing`, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4) ve menü linki akışı devreye girer.
 - **Konuşma limiti:** 10 dk'da en fazla 3 LLM çağrısı, mesaj başına en fazla 1.000 karakter, zaman aşımı 20 sn. Zaman aşımında menü linki gönderilir.
 
@@ -732,7 +732,7 @@ Faz 1'de yalnız ekip içi concierge aracıdır: platform ekibi admin panelinden
 
 1. İşletme (Faz 1'de ekip) menü fotoğraflarını veya PDF'ini yükler. Dosya TR obje depolamaya gider, EXIF temizlenir.
 2. `llm` kuyruğunda `menu_import` işi çalışır: **`claude-sonnet-5` vision** (görseller veya PDF belge bloğu) + structured output → `categories[{name, products[{name, description, price_kurus, option_hints[], confidence, source_page}]}]`.
-3. Sunucu doğrulaması: fiyat pozitif tam sayı mı, kopya ürün adı var mı, alkol/tütün anahtar kelimesi var mı (varsa "WhatsApp'ta gösterme/satma" bayrağı önerilir, KARARLAR §6.10), kategori boş mu.
+3. Sunucu doğrulaması: fiyat pozitif tam sayı mı, kopya ürün adı var mı, alkol/tütün anahtar kelimesi var mı (varsa "WhatsApp'ta gösterme/satma" bayrağı önerilir, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.10), kategori boş mu.
 4. Sonuç `menu_import_drafts` tablosunda saklanır, yayındaki menüye dokunulmaz.
 5. **İnsan onayı:** Panelde görsel ve tablo yan yana gösterilir, düşük güvenli satırlar sarı olur. İşletme her fiyatı görüp onaylar, düzeltir, sonra "Yayınla" der. Fiyatlar LLM'in *hesabı* değil, basılı menüden *okumasıdır*; bu yüzden onaysız yayınlanmaz.
 6. Maliyet menü başına ≈ $0,05–0,30 [T] (4–10 sayfa varsayımı, doğrulanmadı). Aynı dosya tekrar ayrıştırılmaz (§8.3). Seçenek grupları (porsiyon, ekstralar) yalnız öneri olarak gelir, işletme tamamlar.
@@ -761,7 +761,7 @@ Faz 1'de yalnız ekip içi concierge aracıdır: platform ekibi admin panelinden
 
 ## 13. Barındırma ve altyapı
 ### 13.1 Türkiye'de kişisel veri kararı ve veri akış haritası
-KARARLAR §10 bağlayıcıdır: **PostgreSQL, yedekler ve müşteri medyası Türkiye'de** tutulur, ikinci yedek başka bir TR lokasyonundadır. KVKK genel bir yerelleştirme zorunluluğu getirmez. Ancak yurt dışı aktarım (m.9, 2024 değişikliği) için pratik tek yol standart sözleşme + 5 iş günü içinde bildirimdir. Kendi altyapımızı yurt içinde tutmak bu yükü ortadan kaldırır (A03 §2.10–2.12).
+[00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10 bağlayıcıdır: **PostgreSQL, yedekler ve müşteri medyası Türkiye'de** tutulur, ikinci yedek başka bir TR lokasyonundadır. KVKK genel bir yerelleştirme zorunluluğu getirmez. Ancak yurt dışı aktarım (m.9, 2024 değişikliği) için pratik tek yol standart sözleşme + 5 iş günü içinde bildirimdir. Kendi altyapımızı yurt içinde tutmak bu yükü ortadan kaldırır (A03 §2.10–2.12).
 
 | Veri / akış | Konum | Yurt dışı? | Önlem |
 |---|---|---|---|
@@ -780,7 +780,7 @@ KARARLAR §10 bağlayıcıdır: **PostgreSQL, yedekler ve müşteri medyası Tü
 
 Yurt dışından üretim verisine **uzaktan erişim de aktarım sayılır** (A03 §2.10). Üretim DB'sine yalnız TR'deki bastion üzerinden, kayıtlı ve kişiye özel erişim verilir.
 
-### 13.2 Sağlayıcı değerlendirme kriterleri (teklif aşaması, KARARLAR §13.4)
+### 13.2 Sağlayıcı değerlendirme kriterleri (teklif aşaması, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13.4)
 Adaylar: Turkcell Bulut, Türk Telekom, Huawei Cloud İstanbul, Radore, Bulutistan (fiyatlar doğrulanmadı, teklif alınacak).
 
 | Kriter | Eşik |
@@ -815,7 +815,7 @@ DNS; wildcard sertifika ve TLS; WAF ve DDoS koruması; rate limiting kuralları 
 
 ### 13.5 Yedekleme, PITR, restore tatbikatı
 - **pgBackRest:** Sürekli WAL arşivi (`archive_timeout = 60 s`) + haftalık tam + günlük diferansiyel yedek. İki repo kullanılır: `repo1` aynı sağlayıcının farklı TR lokasyonunda, `repo2` farklı bir TR sağlayıcısında (object lock). Repo şifreleme açıktır ve yedek hesabının kimlik bilgileri ayrıdır. Saklama 35 gündür (A03 §2.7).
-- **Hedefler (KARARLAR §13.10 varsayılanı):** **RPO ≤ 5 dk, RTO ≤ 1 saat.** Faz 2'de hot standby ile RPO saniyeler, RTO ≤ 15 dk olur (standby promote) [T]. **Redis:** Kaynak doğruluk değildir. Kaybında kuyruklar outbox ve ham olay süpürücüleriyle PostgreSQL'den yeniden kurulur. AOF yalnız toparlanmayı hızlandırır.
+- **Hedefler ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13.10 varsayılanı):** **RPO ≤ 5 dk, RTO ≤ 1 saat.** Faz 2'de hot standby ile RPO saniyeler, RTO ≤ 15 dk olur (standby promote) [T]. **Redis:** Kaynak doğruluk değildir. Kaybında kuyruklar outbox ve ham olay süpürücüleriyle PostgreSQL'den yeniden kurulur. AOF yalnız toparlanmayı hızlandırır.
 - **Tatbikat:** Haftalık otomatik geri yükleme (izole sunucuya son yedek + smoke test) ve **aylık elle tatbikat** (rastgele bir zamana PITR). Başarı ölçütü: ölçülen RTO ≤ 1 sa, hedef zamana kadarki veri eksiksiz, tablo satır sayıları ve checksum'lar tutarlı, uygulama smoke testi yeşil. Sonuçlar `infra/runbooks/restore-log.md`'ye yazılır. Yılda 2 tam DR tatbikatı yapılır (tüm bölge kaybı).
 
 ### 13.6 Felaket kurtarma senaryoları
@@ -935,10 +935,10 @@ await saveSecret({ tenantId, kind: 'wa_token', ciphertext, iv, tag, wrapped, kek
 2. **Turnstile (görünmez)** storefront checkout'unda **[Faz 1]** çalışır. Başarısız doğrulamada sipariş reddedilir.
 3. **Hız kuralları:** IP başına en çok 3 açık `awaiting_customer`, aynı BSUID'den 15 dk'da 3'ten fazla sipariş "şüpheli" rozeti alır, honeypot alanı kullanılır.
 4. **İşletme kontrolleri:** Müşteri engelleme (tenant içi), "ilk sipariş ve tutar > X TL" uyarısı (işletme ayarı).
-5. Platform geneli müşteri profili **tutulmaz** (KARARLAR §9). Platform düzeyinde yalnız güvenlik amaçlı IP/ASN kötüye kullanım listesi tutulur, kısa saklanır.
+5. Platform geneli müşteri profili **tutulmaz** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9). Platform düzeyinde yalnız güvenlik amaçlı IP/ASN kötüye kullanım listesi tutulur, kısa saklanır.
 
 ### 15.6 OWASP ASVS hedefleri
-- **ASVS 5.0.0** (Mayıs 2025): genel olarak **L1**. Kimlik doğrulama, oturum yönetimi, yetkilendirme ve tenant yalıtımı için **L2** (KARARLAR §10).
+- **ASVS 5.0.0** (Mayıs 2025): genel olarak **L1**. Kimlik doğrulama, oturum yönetimi, yetkilendirme ve tenant yalıtımı için **L2** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10).
 - Öncelikli kontroller: IDOR/BOLA testleri, webhook imzası, güvenli dosya yükleme (tür/boyut sınırı, EXIF temizleme, obje depolamada ayrı alan adı), CSP (storefront'ta `script-src 'self'` + Turnstile), `SameSite` çerezler, CSRF (same-origin + `SameSite=Lax` + değiştiren isteklerde özel başlık), güvenlik başlıkları (HSTS, `X-Content-Type-Options`, `frame-ancestors`), hata mesajlarında iç ayrıntı yok.
 - ASVS kontrol listesi `docs/` altında izlenir, her maddenin sorumlusu ve test bağlantısı bulunur.
 
@@ -1033,7 +1033,7 @@ Varsayımlar (A04 §12, tümü [T]): işletme başına 900 sipariş/ay, %30 serb
 | İşletme başı | — | ~$6–12 | ~$3,5–7 |
 
 - **En büyük değişken LLM'dir.** 1.000 işletmede altyapıyı geçebilir. Kaldıraçlar: menü linkini varsayılan tutmak, AI'yı üst pakete/kotaya bağlamak (§11.5).
-- **SMS platform maliyetidir:** SMS OTP ve kritik durum SMS'leri aboneliğe adil kullanım kotasıyla dahildir (Esnaf 100, Pro 300 SMS/ay; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4). Sayaç `tenant_usage_daily.sms_count` + `sms_messages`; kota aşımında işletme uyarılır (Faz 2'de ek SMS paketi). Alarm SMS'i kota dolsa bile gönderilir [T].
+- **SMS platform maliyetidir:** SMS OTP ve kritik durum SMS'leri aboneliğe adil kullanım kotasıyla dahildir (Esnaf 100, Pro 300 SMS/ay, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4; Zincir şube başına 300 SMS/ay, Faz 2). Sayaç `tenant_usage_daily.sms_count` + `sms_messages`; kota aşımında işletme uyarılır (Faz 2'de ek SMS paketi). Alarm SMS'i kota dolsa bile gönderilir [T].
 - Tenant başına LLM, SMS ve platform WABA sayaçları süper admin panelinde görünür. Paketleme kararları bu veriye dayanır ([01](01-vizyon-pazar-is-modeli.md) §7).
 
 ## 18. Açık konular

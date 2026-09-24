@@ -1295,8 +1295,8 @@ Olay adları SSE ile ortaktır (D06 §7.2). Her olay, kaynak değişiklikle ayn�
 
 | Olay | Üretici | Tüketiciler ve yan etkiler |
 |---|---|---|
-| `order.created` | storefront API, panel API, wa-inbound (Faz 2 AI) | SSE + ses (awaiting hariç); alarm zinciri; "alındı" (debounce); yazdırma; rapor rollup |
-| `order.updated` (durum geçişleri, doğrulama, ret isteği/geri alma, ETA, ödeme, kurye, iptal talebi) | panel, kurye, wa-inbound, storefront, `cron` | SSE; geçişe göre mesaj (§4.1); alarm iptali; yazdırma; `customers` istatistikleri; iade (Faz 2) |
+| `order.created` | storefront API, panel API, wa-inbound (Faz 2 AI), `cron` (canary) | SSE + ses (awaiting ve canary hariç); alarm zinciri; "alındı" (Akış A'da 60 sn debounce); yazdırma; rapor rollup |
+| `order.updated` (durum geçişleri, doğrulama, bekleyen ret/geri alma, ETA, gecikme, ödeme, kurye, iptal talebi ve kararı, düzenleme, edinim kaynağı) | panel, kurye, wa-inbound, storefront, `cron` | SSE; geçişe göre mesaj (§4.1); alarm iptali; yazdırma; `customers` istatistikleri; iade (Faz 2) |
 | `order.acked` | panel | SSE: diğer cihazlarda ses susar ("Elif gördü") |
 | `alarm.escalated` | `notify` işçisi | `notifications`; SSE |
 | `conversation.message` | wa-inbound, panel | SSE; gelen kutusu; konuşma FSM'i; bot yanıtı |
@@ -1308,7 +1308,10 @@ Olay adları SSE ile ortaktır (D06 §7.2). Her olay, kaynak değişiklikle ayn�
 | `device.presence` | heartbeat, `panel-offline-detector` | SSE; çevrimdışı alarmı |
 | `menu.changed` | panel | `menus.revision++`; storefront yeniden doğrulama |
 | `wa.number_status_changed` / `wa.template_status_changed` | wa-inbound, sağlık cron'u | Gönderim duraklatma; `notifications`; admin alarmı |
-| `subscription.status_changed` | faturalama cron'u, PSP webhook'u, admin | Erişim kapıları (§4.3); `lifecycle_stage`; bildirim |
+| `subscription.status_changed` | faturalama cron'u, PSP webhook'u, admin | Erişim kapıları (§4.3); `lifecycle_stage` yeniden türetilir; bildirim |
+| `tenant.lifecycle_changed` / `tenant.onboarding_step_completed` | `core.deriveLifecycleStage()`, onboarding servisi | `tenant_lifecycle_events`, `tenant_onboarding_steps`; admin hunisi; takılan adım görevi (`admin_tasks`) |
+| `tenant.suspended` / `tenant.unsuspended` / `tenant.ordering_toggled` | admin, dunning | Storefront/bot askı modu; `branch.settings_changed`; işletmeye bildirim |
+| `sms.quota_threshold` | `sms.send` işi | %80 ve %100'de `notifications` (`sms_quota_warning` / `sms_quota_exceeded`); SMS kesilmez |
 | `invoice.paid` **[Faz 2]** | PSP webhook'u, admin | Paraşüt e-Fatura/e-Arşiv |
 
 ### 7.2 Outbox konuları → kuyruklar
@@ -1319,7 +1322,8 @@ Olay adları SSE ile ortaktır (D06 §7.2). Her olay, kaynak değişiklikle ayn�
 | `sms.send` | `notify` | `sms:{otp_id}:{n}` · `order:{id}:{event}:sms` | OTP ve WhatsApp'sız mod bildirimleri |
 | `notify.alarm` | `notify` | `alarm:{order_id}:{step}` | Her adım önce `status = new` ve bekleyen ret yok mu diye bakar |
 | `notify.push` / `notify.platform_wa` / `notify.email` | `notify` | `{kind}:{entity}:{window}` | İşletme kullanıcılarına |
-| `order.finalize_rejection` | `notify` | `order:{id}:reject:{n}` | `available_at = +30 sn`; geri almada `cancelled` |
+| `order.finalize_rejection` | `notify` | `order:{id}:reject:{n}` | `available_at = rejection_scheduled_at` (+30 sn); geri almada `cancelled` |
+| `tenant.health_score` / `tenant.value_report` / `canary.tenant` | `cron` | `health:{date}` · `value:{tenant}:{month}` · `canary:{branch}:{slot}` | Günlük sağlık skoru (06:00'a kadar), aylık değer raporu (ayın 1'i), tenant canary (15 dk) |
 | `print.job` | `print` | `print:{order}:{printer}:{template}:{copy_no}` | |
 | `wa.media_download` | `wa-media` | `media:{meta_media_id}` | |
 | `image.variants` | `images` | `img:{image_key}` | |
@@ -1340,8 +1344,10 @@ PostgreSQL materialized view'larına RLS uygulanamaz. Bu yüzden raporlar `tenan
 | `v_monthly_savings` (görünüm, rollup üzerinde) | `(tenant_id, month)` | `N` = teslim edilen sipariş, `Cp` = ciro | Tasarruf kartı (1) |
 | `wa_message_costs` üzerinde sorgu | `(tenant_id, billing_month, category)` | ücretli mesaj, `est_usd_micros`, `est_try_kurus` | "Bu ay Meta'ya tahmini ödeme" (1) |
 | `tenant_usage_daily` | `(tenant_id, date)` | §3.7 | Admin maliyet ve kullanım (1) |
+| `v_channel_share` (görünüm) | `(tenant_id, month)` | kanal siparişi (`wa_link`, `wa_ai`, `web`, `table_qr`, `wa_flow`; `manual` hariç), `marketplace_declarations.marketplace_orders`, `acquisition_source = marketplace_*` sayısı | Kendi kanal payı = kanal ÷ (kanal + beyan); beyan yoksa boş (D10 §8.3) (1) |
+| `tenant_health_scores` | `(tenant_id, score_date)` | skor, bant, bileşenler, kırmızı tetikleyiciler | Admin işletme listesi ve churn önleme (D10 §5.6) (1) |
 
-**Tasarruf kartı:** "Bu ay kendi kanalından **N** sipariş, tahmini **Cp × k** TL komisyon tasarrufu". `k = tenants.savings_commission_bp` işletmece girilir; boşsa kart oran ister. Net satırı `Cp × k − abonelik (aylık eşdeğer, KDV hariç) − Meta tahmini` olarak gösterilir. Formül ve örnekler D01 §6.7'dedir; örneğin 180 sipariş, `Cp` = 63.000 TL ve `k` = %25 ile brüt 15.750 TL. Admin metrikleri (MRR, aktivasyon, sipariş kaçırma oranı) `subscriptions`, `invoices` ve `report_daily_branch`'ten türetilir (A05 §5.4).
+**Tasarruf kartı:** "Bu ay kendi kanalından **N** sipariş, tahmini **Cp × k** TL komisyon tasarrufu". `k = tenants.savings_commission_bp` işletmece girilir; boşsa kart oran ister. Net satırı `Cp × k − abonelik (aylık eşdeğer, KDV hariç) − Meta tahmini` olarak gösterilir. Formül ve örnekler D01 §6.7'dedir; örneğin 180 sipariş, `Cp` = 63.000 TL ve `k` = %25 ile brüt 15.750 TL. Admin metrikleri (MRR, aktivasyon, sipariş kaçırma oranı) `subscriptions`, `invoices` ve `report_daily_branch`'ten; huni ve churn `tenant_lifecycle_events` ve `tenant_onboarding_steps`'ten türetilir (A05 §5.4, D05 §A.5).
 
 ---
 
@@ -1355,19 +1361,23 @@ Kanonik süreler D08 §2.8'dedir; her satır bir `retention.*` işine bağlanır
 | `wa_media` + nesne | 30 gün (alınma) | Nesne silinir, `storage_key` NULL | `retention.media` |
 | `messages.payload` (konum), `orders.delivery_location` | 30 gün (alınma / final) | Koordinat NULL; adres metni ve bölge kalır | `retention.locations` |
 | `messages.text_body`, `payload` | 6 ay (`wa_timestamp`) | İçerik NULL; `wamid`, yön, zaman, maliyet kalır | `retention.wa_messages` |
-| Takip sayfası kişisel alanları | 30 gün (final) | API maskeler; özet ve sözleşme erişilebilir kalır | `retention.tracking_pages` |
+| Takip linki (`/t/{token}`) ve sayfadaki kişisel alanlar | Teslimden (ret/iptalde final durumdan) 7 gün (KARARLAR §7; D08 §2.8 satır 5) | Link 410 döner (`tracking_expires_at`); kişisel alanlar gösterilmez. Siparişe bağlı ön bilgilendirme ve sözleşme sürümü kişisel veri içermeyen kalıcı `legal_documents.url` adresinde kalır | `retention.tracking_pages` |
 | `customers`, `customer_addresses`, siparişlerdeki ad/telefon/adres/IP | 24 ay hareketsizlik (6–24, tenant ayarı) | Anonimleştirme (`anonymized_at`, `pii_scrubbed_at`); ilçe kalır | `retention.customer_inactive` (haftalık) |
 | `orders` (kalem, tutar, kanal) | Abonelik süresince | Tenant kapanışında silinir | — |
-| Kapanan tenant'ın tüm verisi | Dışa aktarma penceresi sonu (dunning G+75, deneme D+90) | Silme; bizim faturalarımız kalır | `retention.tenant_offboarding` |
+| Kapanan tenant'ın tüm verisi | Gönüllü iptal: dönem sonu + 30 gün; dunning: G+75 (30 günlük pencere G+45 ön bildirimiyle başlar); deneme: D+90 (D08 §2.8 satır 12) | Silme; bizim faturalarımız kalır; yedeklerden 35 günde düşer | `retention.tenant_offboarding` |
 | `audit_log` | 2 yıl | Partition düşürme | `retention.audit` |
 | `users` (panel hesabı) | Kapanış + 30 gün | Silme; `legal_acceptances` kalır | `retention.users` |
 | `leads` | 12 ay hareketsizlik | Silme | `retention.leads` |
 | `consents` (`marketing_etk`) | Sona erme + 3 yıl | Silme | `retention.consents` (Faz 2) |
 | `courier_locations` | 30 gün (teslim) | Silme | `retention.courier_locations` (Faz 3) |
 | `legal_acceptances`, `invoices`, `payments_subscription` | 10 yıl | — | — |
-| `retention_runs`, `data_subject_requests` | ≥ 3 yıl | — | — |
-| Teknik: `wa_webhook_events`, `branch_events`, `outbox` (terminal), `print_jobs`, `storefront_link_tokens`, `otp_verifications` | 30 gün | Partition düşürme / silme | `retention.technical` (bu dokümanın önerisi) |
-| Teknik: `idempotency_keys` 24 sa · `order_verification_codes` 7 gün · `notifications`, `sms_messages` 90 gün (telefon maskelenir) · canary siparişleri ack sonrası / ≤ 10 dk · `devices` iptal + 90 gün · DSR dışa aktarım dosyası 7 gün | | Silme | `retention.technical` |
+| `retention_runs`, `data_subject_requests`, `content_takedowns` | ≥ 3 yıl | — | — |
+| `tenant_lifecycle_events`, `tenant_onboarding_steps`, `admin_notes`, `admin_tasks`, `tenant_value_reports`, `marketplace_declarations` | Tenant satırıyla (kapanışta silinir; lifecycle olayları anonim metrik olarak kalabilir [T]) | Silme | `retention.tenant_offboarding` |
+| `tenant_health_scores`, `incidents`, `incident_tenants` | 2 yıl | Silme | `retention.technical` |
+| `data_breach_incidents` | ≥ 5 yıl [T] (D08 ile teyit) | — | — |
+| `abuse_blocklist` | `expires_at` (kısa süreli) | Silme | `retention.technical` |
+| Teknik: `wa_webhook_events`, `branch_events`, `outbox` (terminal), `print_jobs`, `storefront_link_tokens`, `otp_verifications` | 30 gün | Partition düşürme / silme | `retention.technical` (D08 §2.8 satır 19) |
+| Teknik: `idempotency_keys` 24 sa · `order_verification_codes` 7 gün · `notifications`, `sms_messages` 90 gün (telefon maskelenir) · canary siparişleri 24 saat (D10 §7.3) · `devices` iptal + 90 gün · DSR dışa aktarım dosyası 7 gün | | Silme | `retention.technical` |
 | Yedekler (PITR) | 35 gün rotasyon | Yedek aracı | — |
 
 **Kabul kriterleri:** Final durumdan 30 gün sonra `orders.notes` boştur. Anonimleştirilen müşteri aramada bulunmaz ve siparişlerde "Anonim müşteri" görünür. 48 saattir koşmamış veya başarısız iş admin alarmı üretir. Silinen alan hiçbir log ve hata kaydında görünmez (D08 §2.8).
@@ -1378,11 +1388,11 @@ Kanonik süreler D08 §2.8'dedir; her satır bir `retention.*` işine bağlanır
 
 - **Migration:** drizzle-kit SQL üretir; SQL gözden geçirilip commit edilir. RLS politikaları, `FORCE RLS`, `sys_*` fonksiyonları, trigger'lar (`set_updated_at`, append-only koruması, deferred "en az bir owner"), partition'lar (`branch_events`, `audit_log`, `wa_webhook_events`), PostGIS indeksleri ve CHECK'ler elle yazılmış SQL'dir. Migration'lar `app_owner` ile, deploy'dan önce, `lock_timeout = 5s` ile çalışır. İndeksler `CONCURRENTLY` oluşturulur; değişiklikler expand/contract düzeniyle yapılır (D06 §16.5).
 - **Yardımcı:** `tenantTable(name, cols)` sarmalayıcısı `tenant_id`, `UNIQUE (tenant_id, id)`, bileşik FK'lar, `tenant_isolation`, `platform_read` ve `FORCE RLS` SQL'ini birlikte üretir. Kayıt dışı tablo CI kataloğunda yakalanır.
-- **CI:** boş DB'ye migrate → `test` seed → tenant yalıtım paketi (katalog, fail-closed, IDOR) → şema lint'i. Lint şunları kontrol eder: `pii:` yorumlu her kolon kayıtta var mı, tenant tablosunda bileşik FK var mı, sağlık amaçlı kolon adı (`allergy`, `health` vb.) yok mu.
+- **CI:** boş DB'ye migrate → `test` seed → tenant yalıtım paketi (katalog, fail-closed, IDOR) → şema lint'i. Lint şunları kontrol eder: `pii:` yorumlu her kolon kayıtta var mı, tenant tablosunda bileşik FK var mı, müşteri, sipariş ve mesaj tablolarında sağlık amaçlı kolon adı (`allergy`, `medical`, `health` vb.) yok mu (`products.allergens` ve işletme sağlık skoru `tenants.health_*` / `tenant_health_scores` izin listesindedir).
 - **Seed profilleri** (`pnpm db:seed --profile=…`, deterministik UUIDv5 kimlikler):
-  - `platform` (tüm ortamlar, prod dahil): `plans` + `plan_features`, 01.10.2026 `wa_rate_cards` satırı, `fx_rates` (48,4), `legal_documents` v1 yer tutucuları, feature flag ve kill switch'ler, ilk `platform_owner`.
+  - `platform` (tüm ortamlar, prod dahil): `plans` + `plan_features`, 01.10.2026 `wa_rate_cards` satırı, `fx_rates` (48,4), `legal_documents` ilk sürüm yer tutucuları, feature flag'ler ve kanonik kill-switch'ler (`signup_open`, `wa_onboarding`, `campaigns_global`, `llm_parsing`, `sms_fallback`; KARARLAR §4), `subprocessors` envanteri, ilk `platform_owner`.
   - `test`: yalıtım testleri için iki tenant (A/B), her rolden kullanıcı, fixture siparişleri; WhatsApp `transport = 'mock'`.
-  - `demo` (dev/staging): **"Lezzet Dürüm Kadıköy"** (`slug = lezzet-demo`). 1 şube (Caferağa); 5 kategori, ~24 ürün, 5 seçenek grubu (Porsiyon, Ekmek, Ekstralar, Çıkarılacaklar, Acı), eş adlar ve 1 alkollü örnek ürün (`wa_restricted`). 3 bölge (Caferağa 20 TL / 250 TL, Moda 25 / 300, Fenerbahçe 30 / 350). Saatler 11:00–02:00 ve 1 özel gün. Her rolden kullanıcı (`owner@lezzet-demo.test` …), 2 kurye, 2 cihaz, tarayıcı yazıcısı. 8 müşteri (sahte BSUID `TR.DEMO0001…`, telefon `+90555000000x`). Son 14 güne yayılmış 40 sipariş (her durum ve kanal; 1 açık `new`, 1 `awaiting_customer`, 1 canary). Sohbetler, mesajlar, maliyet defteri satırları, 3 değerlendirme.
+  - `demo` (dev/staging): **"Lezzet Dürüm Kadıköy"** (`slug = lezzet-demo`, `is_demo = true`, `lifecycle_stage = active`, `onboarding_step = live`). 1 şube (Caferağa); 5 kategori, ~24 ürün, 5 seçenek grubu (Porsiyon, Ekmek, Ekstralar, Çıkarılacaklar, Acı), eş adlar ve 1 alkollü örnek ürün (`wa_restricted`). 3 bölge (Caferağa 20 TL / 250 TL, Moda 25 / 300, Fenerbahçe 30 / 350). Saatler 11:00–02:00 ve 1 özel gün. Her rolden kullanıcı (`owner@lezzet-demo.test` …), 2 kurye, 2 cihaz, tarayıcı yazıcısı. 8 müşteri (sahte BSUID `TR.DEMO0001…`, telefon `+90555000000x`). Son 14 güne yayılmış 40 sipariş (Faz 1 kanalları ve her durum; 1 açık `new`, 1 `awaiting_customer`, 1 açık iptal talebi, 1 `onboarding_test`, 1 canary). Sohbetler, niyet etiketli mesajlar, maliyet defteri satırları, 3 değerlendirme, 1 pazaryeri beyanı, 14 günlük sağlık skoru.
   - `sandbox` (staging): D02 §11'deki Meta test WABA'sına bağlı tenant; her deploy'da smoke testi.
 - Demo tenant staging'de her gece sıfırlanır; satış demoları ve App Review videoları (D02 §2.4) bunu kullanır. Prod'a yalnız `platform` profili girer; staging'e prod verisi kopyalanmaz.
 
@@ -1394,17 +1404,24 @@ Kanonik süreler D08 §2.8'dedir; her satır bir `retention.*` işine bağlanır
 |---|---|---|
 | 1 | **Ad farkları (02/06 → 07):** `wa_webhook_event` → `wa_webhook_events` (görevdeki `wa_raw_events` ile aynı tablo), `message` → `messages`, `order_ack` → `order_acks`, `idempotency_key` → `idempotency_keys`, `storefront_host` → `storefront_hosts`, `plan_feature` → `plan_features`, `feature_flag` → `feature_flags`, `item_alias` → `product_aliases`, `tenant_template` → `wa_templates`, `pending_status` → `wa_pending_statuses`, `deletion_log` (06) / `retention_run` (08) → `retention_runs`. D06 §4.3 "tablo adları tekil" kuralı ve §5.4'teki `"order"`/`order_item` örnekleri KARARLAR §5'e göre çoğula çevrilmeli; D06 §10.1'deki Türkçe adres alanları İngilizce karşılıklarıyla (`district`, `directions`…) değişmeli. | 02 ve 06 güncellenmeli. |
 | 2 | **API yolları:** D06 örnekleri `/api/panel/…`, `/api/store/…` (sürümsüz); bu doküman `/api/v1/…`. | D06 §7.3–7.5 örneklerine `/v1` eklenmeli. |
-| 3 | **Ret geri alma:** KARARLAR "mesaj 30 sn gecikmeli" diyor. Durum hemen `rejected` olursa geri alma için KARARLAR'da olmayan `rejected → new` geçişi gerekir. | "Bekleyen ret" modeli seçildi (durum 30 sn `new` kalır, alarm durur). Onay gerekli. |
-| 4 | **Debounce ve Akış B:** Müşteri kodu gönderdikten sonra "alındı" yanıtı 60 sn gecikir; müşteri yanıt alamadığını düşünebilir. | Akış B'de "kodunuz alındı" hemen gitsin, debounce yalnız "alındı" → "onaylandı" birleşiminde uygulansın (öneri). |
-| 5 | **AI buton seti:** KARARLAR artık [Onayla] [Düzenle] [İptal]; D02 §6.1/§6.5 ve D06 §11 [Siparişi onayla] [Değiştir] [Menüyü aç] kullanıyor. | Buton kimlikleri `order:{id}:confirm\|edit\|cancel`; 02 ve 06 güncellenmeli. |
-| 6 | **Deneme bitişi:** KARARLAR "3 gün uyarı → askı → 90 gün sonra silme"; D08 §6.2 önerisi "D+3 salt-okunur, D+7 askı, D+60 silme". | KARARLAR uygulandı; 08 güncellenmeli. |
-| 7 | **Dunning ayrıntısı:** KARARLAR G+1/G+3/G+7 deneme, G+10, G+21, G+75; D08 ek olarak G+5, G+14 denemeleri ve G+45 fesih bildirimi içeriyor. | Uyumlu kabul edildi: `cancelled` = G+45, silme = G+75. |
-| 8 | **Kurucu üye:** KARARLAR "12 ay sabit oran, liste fiyatı TÜFE ile değişebilir"; D01 §6.4 ve D08 §6.1 "12 ay sabit fiyat" diyor. | Model oranı saklar (`discount_bp`); 01 ve 08 düzeltilmeli. |
+| 3 | **Ret geri alma.** | **Karara bağlandı** (KARARLAR §7): 30 sn "bekleyen ret", `orders.rejection_scheduled_at` + iptal edilebilir gecikmeli iş; `rejected → new` yok (§4.1). |
+| 4 | **Debounce ve Akış B.** | **Karara bağlandı** (KARARLAR §7): debounce yalnız Akış A'da; Akış B'de kod mesajına "alındı" anında gider (§4.1). |
+| 5 | **AI buton seti:** KARARLAR [Onayla] [Düzenle] [İptal]; D02 ve D06'da eski setler olabilir. | Kimlikler `order:{id}:confirm\|edit\|cancel` (§4.2); 02 ve 06 kanonik sete hizalanmalı. |
+| 6 | **Deneme bitişi.** | **Karara bağlandı** (KARARLAR §9): 14 gün → 3 gün uyarı bandı → D+3 askı → 90 gün içinde plan seçilirse veri döner → D+90 silme (§4.3). |
+| 7 | **Dunning ayrıntısı.** | **Karara bağlandı** (KARARLAR §9, D08 §6.3): G+1/G+3/G+7 yeniden deneme, G+10 `read_only`, G+21 `suspended`, **G+75 `cancelled` + silme**; G+45 yalnız kapanış ön bildirimi (30 günlük dışa aktarma penceresi başlar), durum değiştirmez (§4.3). |
+| 8 | **Kurucu üye.** | **Karara bağlandı** (KARARLAR §8): 12 ay sabit %30 indirim **oranı** (`discount_bp = 3000`, `discount_until`); liste fiyatı TÜFE ile güncellenebilir. |
 | 9 | **`messages` ölçeği:** partitionlı tabloda `wamid` UNIQUE partition anahtarını gerektirir. | Faz 1'de partition yok; ~1.000 işletmede ayrı `message_wamids(wamid PK)` + aylık partition. |
-| 10 | **Takip token'ı ömrü:** D06 §15.3 "teslimden 7 gün", A05 "30 gün", D08 "özet ve sözleşme erişilebilir kalır". | Token süresiz geçerli (özet + belgeler), kişisel alanlar 30 gün sonra gizlenir; 06 güncellenmeli. |
-| 11 | **Yeni kodlar:** `verification_method = 'staff'` ("Telefonla doğruladım", A05 §2.4); Faz 2 online ödeme zaman aşımı için `cancel_reason` (şimdilik `other`); `test_kind`; `reviews.rating` 3 düzey. | KARARLAR'a eklenmesi önerilir. |
-| 12 | **WhatsApp'sız mod bildirimleri:** Yalnız onay/red/iptal SMS'le gidiyor; SMS maliyeti ve İYS işlemsel ileti istisnası teyit edilmeli. | Sağlayıcı ve maliyet D06/D08'de. |
-| 13 | **Canary:** WhatsApp adımı dry-run mı, işletme numarasından platform test alıcısına gerçek gönderim mi? Gerçek gönderim Meta maliyeti ve kalite etkisi yaratır. | Varsayılan dry-run; gerçek uçtan uca test yalnız `sandbox` tenant'ında. |
+| 10 | **Takip token'ı ömrü.** | **Karara bağlandı** (KARARLAR §7, D08 §2.8 satır 5): link teslimden (ret/iptalde final andan) 7 gün sonra geçersiz (410), kişisel alanlar gösterilmez; sözleşme/ön bilgilendirme sürümü kalıcı `legal_documents.url`'de. Açık kalan: D03 token'ı "128 bit rastgele" tanımlıyor, bu doküman yeniden üretilebilir HMAC türetmesi kullanıyor (§1.2); ikisi de 22 karakter base62, DB'de yalnız hash — D03 ile hizalanmalı. |
+| 11 | **Kodlar.** `verification_method`, `test_kind`, `payment_timeout`, `duplicate`/`suspected_fake` ret sebepleri, 3 düzeyli değerlendirme | **Karara bağlandı** (KARARLAR §5, §7). Açık kalan: Akış C [Onayla] (Faz 2) için `verification_method` kodu KARARLAR listesinde yok; öneri `wa_button` — Faz 2 başlamadan KARARLAR §5'e eklenmeli. |
+| 12 | **WhatsApp'sız mod bildirimleri:** Yalnız onay/red/iptal SMS'le gidiyor. | SMS maliyeti **karara bağlandı** (KARARLAR §4: platform öder, Esnaf 100 / Pro 300 SMS/ay adil kullanım, `tenant_usage_monthly`). Açık kalan: İYS işlemsel ileti istisnasının teyidi (D08). |
+| 13 | **Canary:** WhatsApp adımı dry-run mı, gerçek gönderim mi? | D10 §7.3 ile hizalandı: tenant canary Meta'sız (dry-run, 15 dk, 24 sa saklama); Meta dahil uçtan uca test yalnız `sandbox` tenant'ında platform canary olarak. Açık kalan: canary numaraları arası otomatik mesajlaşmanın Meta politikasına uygunluğu (D10). |
 | 14 | **"Son siparişin" kartı** paylaşılan cihazda başkasının siparişini gösterebilir (`so_dev`). | Kart adres ve telefon göstermez, yalnız kalemleri; KVKK görüşü alınmalı. |
 | 15 | **Teyit edilecekler:** PostgreSQL 18 `uuidv7()`; Better Auth `generateId`, iki ayrı örnek ve telefonla (e-postasız) kurye kullanıcısı; teslimat ücreti KDV oranı; Meta ücretsiz kotasında ay sınırının saat dilimi (`billing_month`); `RateLimit` başlık biçimi; Paraşüt webhook desteği. | Faz 1 ilk sprintinde. |
 | 16 | **Çok şube (Faz 2):** Şube başına tek aktif numara (`UNIQUE(branch_id)`), müşteri tenant seviyesinde; tek numara + şube seçimi ihtiyacı. | D02 Açık konular #13 ile birlikte karar verilmeli. |
+| 17 | **Kurye magic link'inin açılmadan önceki ömrü:** KARARLAR §4 kurye oturumunu 12 saat (vardiya) tanımlıyor; linkin kullanılmadan ne kadar geçerli kalacağını söylemiyor. | Varsayılan: tek kullanımlık link 15 dk içinde açılmazsa düşer; açılınca 12 saatlik oturum. D04 §7.11/§9.1 ve D06 §6.2/§6.4'teki "oturum 7 gün" ifadeleri 12 saate çevrilmeli. |
+| 18 | **SMS kotasına sayılan SMS'ler ve Zincir kotası:** KARARLAR §4 "SMS OTP ve kritik durum SMS'leri" diyor. | Varsayılan: müşteriye giden `otp` + `order_status` sayılır; işletmeye giden alarm/panel çevrimdışı/kurye girişi SMS'leri sayılmaz ve hiçbir koşulda kesilmez. Zincir paketinin kotası Faz 2 satışında belirlenmeli (KARARLAR §8). |
+| 19 | **Sağlık skoru modeli:** D05 A-03 kural tabanlı kırmızı/sarı/yeşil, D10 §5.6 0–100 ağırlıklı skor + kırmızı tetikleyiciler tanımlıyor. | `tenant_health_scores` D10 modelini esas aldı; D05 kuralları `red_triggers` olarak girer. D05 A-03 D10'a atıfla sadeleştirilmeli; ağırlık ve eşikler [T] pilotla kalibre edilir. |
+| 20 | **Destek kaydı ve etiket sözlüğü:** D05 A-10 "harici helpdesk yok, not + etiket + temas" ve İngilizce etiketler (`wa_connect`, `printer`…); D10 §5.1/§5.3 "Faz 1'de harici basit araç" ve Türkçe kodlar (`siparis_dusmuyor`, `p1_hat`…). | Bu doküman D05'i uyguladı (`admin_notes`, Faz 2 `support_tickets`). Tek sözlük `packages/core/support-tags.ts`, değerler İngilizce snake_case (KARARLAR §5 adlandırma); D10 §5.3 kodları buna çevrilmeli. |
+| 21 | **Impersonation uzatması:** D05 A-09 "bir kez uzatılır, toplam en fazla 60 dk" diyor. | KARARLAR §4 "en fazla 30 dk" uygulandı: uzatma yok, gerekirse yeni gerekçeyle yeni oturum. D05 düzeltilmeli. |
+| 22 | **Manuel siparişte bölge dışı istisnasının yetkisi:** KARARLAR §4 "personel" diyor (O/M/C); D04 §4.13 ve §15 #7 yalnız `owner`/`manager` öneriyor. | KARARLAR uygulandı (O/M/C, audit'li `out_of_zone_override`). Daraltılması istenirse KARARLAR §4 güncellenmeli. |
+| 23 | **Proje sahibi kararları (KARARLAR §13):** #1 stack (şema Drizzle/TypeScript varsayımıyla yazıldı; Laravel seçilirse tablo ve alan adları aynen kalır, yalnız ORM/migration aracı değişir), #4 barındırma (kişisel veri Türkiye'de; ürün görselleri R2), #8 AI sipariş paketleri (`plan_features.ai_ordering`, varsayılan Pro ve üstü), #9 yemek kartı online tahsilat (Faz 1'de yalnız `meal_card_on_delivery`), #10 SLO (RPO ≤ 5 dk yedek tasarımını etkiler). | Varsayılanlarla yazıldı; karar değişirse ilgili alanlar güncellenir. |

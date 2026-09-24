@@ -76,7 +76,7 @@ flowchart LR
     C["Sohbetler"] --> C1["P-08 Gelen kutusu"]
     M["Menü"] --> M1["P-09 Kategoriler ve ürünler"]
     M1 --> M2["P-10 Ürün"] & M3["P-11 Seçenek grupları"]
-    M --> M4["P-12 Tükenenler"] & M5["P-13 Toplu fiyat"] & M6["P-14 Excel (Faz 2)"] & M7["P-15 Önizleme"]
+    M --> M4["P-12 Tükenenler"] & M5["P-13 Toplu fiyat"] & M6["P-14 Excel"] & M7["P-15 Önizleme"]
     K["Müşteriler"] --> K1["P-30 Liste"] --> K2["P-31 Profil"]
     R["Raporlar"] --> R1["P-32 Gün sonu"] & R2["P-33 Satış/ürün/kanal"] & R3["P-34 Tasarruf ve Meta"] & R4["P-35 Değerlendirmeler"]
     PZ["Pazarlama"] --> PZ1["P-36 QR/afiş/kart"] & PZ2["P-37 Link rehberi"]
@@ -177,7 +177,7 @@ flowchart TD
   A["1 Hesap<br/>ad, cep tel OTP, e-posta, parola, TOTP"] --> B["2 İşletme bilgisi ve künye"]
   B --> C{"3 Menü nasıl gelsin?"}
   C -- "Elle" --> C1["Hızlı ürün girişi"]
-  C -- "Excel (Faz 2)" --> C2["Şablon indir → yükle → önizle"]
+  C -- "Excel" --> C2["Şablon indir → yükle → önizle"]
   C -- "Biz kuralım" --> C3["Fotoğraf/PDF yükle → ekip AI ile hazırlar<br/>(Faz 1 concierge, onay esnafta)"]
   C1 & C2 & C3 --> D["4 Çalışma saatleri"]
   D --> E["5 Teslimat bölgesi + gel-al + ödeme yöntemleri"]
@@ -199,7 +199,7 @@ flowchart TD
 |---|---|---|---|---|
 | 1 | **Hesap** | Ad soyad, cep telefonu (SMS OTP), e-posta, parola; kullanım koşulları + abonelik sözleşmesi + DPA click-wrap (sürümlü, [08](08-mevzuat-kvkk-odeme-fatura.md) §7.5); **TOTP kurulumu** (QR + 6 haneli kod + yedek kodlar; `owner` için zorunlu, D06 §6.6) | 2 dk | `account_created` |
 | 2 | **İşletme bilgisi** | Görünen ad, işletme türü (çip: dönerci, pideci, kebap, burger, pizza, ev yemeği, kafe, diğer), adres (haritada pin + yazılı), müşteriye gösterilecek telefon, logo (opsiyonel); **künye**: unvan veya ad-soyad, VKN/TCKN, vergi dairesi, MERSİS no (varsa), meslek odası, işletme kayıt no (5996, opsiyonel). Slug önerisi: `kardeslerdoner` → `kardeslerdoner.siparisinonunde.com` | 2 dk | `profile_done` |
-| 3 | **Menü** | Kartlar: **Elle gir** (kategori + ürün + fiyat, seçenek grubu şablonları: Porsiyon, Ekmek, Acı, Çıkarılacaklar, İçecek) · **Excel ile yükle** **[Faz 2]** (§6.6; Faz 1'de Excel dosyası "Biz kuralım" ile ekibe gönderilir) · **Biz kuralım** (menü fotoğrafı/PDF yükle; ekip AI aracıyla taslak çıkarır, esnaf fiyatları onaylar; A05 §8.5, D06 §11.7) | 3 dk (hazır menüyle) | `menu_done` |
+| 3 | **Menü** | Kartlar: **Elle gir** (kategori + ürün + fiyat, seçenek grubu şablonları: Porsiyon, Ekmek, Acı, Çıkarılacaklar, İçecek) · **Excel ile yükle** (§6.6; Faz 1 temel sürümü kesilebilir "C" maddesidir, kesilirse Excel dosyası "Biz kuralım" ile ekibe gönderilir) · **Biz kuralım** (menü fotoğrafı/PDF yükle; ekip AI aracıyla taslak çıkarır, esnaf fiyatları onaylar; A05 §8.5, D06 §11.7) | 3 dk (hazır menüyle) | `menu_done` |
 | 4 | **Çalışma saatleri** | Hazır şablonlar ("Her gün 11–23", "Hafta içi 10–22, hafta sonu 11–24"); gün bazında düzenleme; gece yarısını geçen kapanış | 30 sn | — |
 | 5 | **Bölge ve ödeme** | Haritada şube çevresinde **3 km yarıçaplı hazır bölge**; ücret, min. sepet, tahmini süre alanları; "Poligon çiz" seçeneği; gel-al aç/kapa; ödeme çipleri (Kapıda nakit · Kapıda kart · Yemek kartı + markalar · Kasada öde) | 1,5 dk | `ops_done` (+ isteğe bağlı `web_live`) |
 | 6 | **WhatsApp'ı bağla** | Yol seçimi, geçmiş aktarımı tercihi (varsayılan kapalı), Meta penceresi, **Meta'ya kart ekle** rehberi, "Başka telefondan TEST yaz" sağlık kontrolü. Metinler D02 §3.10'da | 3–5 dk | `wa_connected`, `meta_payment_ok` |
@@ -244,7 +244,7 @@ flowchart TD
 | 1 | TOTP uygulaması yok / anlaşılmıyor | 3 dk bu ekranda | Videolu rehber (Google Authenticator), "Destek ekibi sizi arasın" talebi |
 | 2 | Künye bilgisi bilinmiyor | Alan boş bırakıldı | "Sonra tamamla" izinli; storefront yayına alınmaz, panelde sarı kart |
 | 3 | Menü büyük, elle girilmiyor | 5 dk'da < 5 ürün | "Biz kuralım" önerisi + fotoğraf yükleme |
-| 3 | Excel hatalı [Faz 2] | Doğrulama hatası | Hatalı satırlar kırmızı, satır bazında düzelt; hatasızlar içe aktarılabilir |
+| 3 | Excel hatalı | Doğrulama hatası | Hatalı satırlar kırmızı, satır bazında düzelt; hatasızlar içe aktarılabilir |
 | 5 | Harita pini yanlış | Esnaf "adresim bu değil" der | Pini sürükle; yazılı adres ters geocoding ile güncellenir |
 | 6 | ES penceresi kapatıldı | `CANCEL` + `current_step` | "Bağlantı yarıda kaldı. Kaldığınız yerden devam edebilirsiniz." + 24 sa sonra e-posta (D02 §3.9) |
 | 6 | Numara başka yerde kayıtlı | ES hatası | "Bu numara başka bir yerde kullanılıyor." + ayrılma rehberi + yeni numara seçeneği |
@@ -653,9 +653,9 @@ Enflasyon ortamında esnafın paneli her gün açmasının ikinci nedeni (A05 §
 - Aktif sepetlerde fiyat değiştiyse storefront checkout'ta "Fiyatlar güncellendi" uyarısı çıkar (A05 §4.3).
 - Fiyat geçmişi, ileride üstü çizili fiyatın "son 30 günün en düşük fiyatı" kuralıyla otomatik hesaplanmasına veri sağlar **[Faz 2]** ([08](08-mevzuat-kvkk-odeme-fatura.md) §4.5).
 
-### 6.6 Excel içe/dışa aktarma (P-14) **[Faz 2]**
-- **Faz kararı:** Faz 1'de menü elle girilir ya da "Biz kuralım" ile ekip hazırlar (işletmenin Excel dosyası da bu yolla ekibe gönderilebilir; ekip iç araçla içe aktarır). Self-servis Excel içe/dışa aktarma Faz 2'de self-servis onboarding ile gelir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11; [09](09-yol-haritasi-ve-sprint-plani.md) F2-04).
-- **Temel içe/dışa aktarma:** şablon indir (.xlsx/.csv): kategori, ürün adı, açıklama, fiyat, KDV, porsiyon, alerjenler, WhatsApp'ta satılamaz, satış durumu, ürün kodu. Yükle → doğrulama önizlemesi (hatalı satırlar kırmızı, sebep yazılı) → mod seçimi: **Yeni ekle** / **Ürün koduyla güncelle** → içe aktar. Dışa aktar: aynı biçim.
+### 6.6 Excel içe/dışa aktarma (P-14)
+- **Faz kararı:** [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) ve D06 bu konuda faz vermez; Faz 1 kapsamıyla ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11 "menü") çelişmeyecek şekilde **Faz 1 temel** (düz ürün listesi, seçenek grupsuz; [09](09-yol-haritasi-ve-sprint-plani.md) S6-16, "C" önceliği: kapasite yetmezse Faz 2'ye kayar, bu arada Excel dosyası "Biz kuralım" ile ekibe gönderilir), **Faz 2 tam** (seçenek gruplarıyla; [09](09-yol-haritasi-ve-sprint-plani.md) F2-04).
+- **[Faz 1] temel:** şablon indir (.xlsx/.csv): kategori, ürün adı, açıklama, fiyat, KDV, porsiyon, alerjenler, WhatsApp'ta satılamaz, satış durumu, ürün kodu. Yükle → doğrulama önizlemesi (hatalı satırlar kırmızı, sebep yazılı) → mod seçimi: **Yeni ekle** / **Ürün koduyla güncelle** → içe aktar. Dışa aktar: aynı biçim.
 - Alkol/tütün kelimeleri içe aktarmada bayrak önerir (D02 §9.2).
 - **[Faz 2]** seçenek gruplarıyla tam içe/dışa aktarma; **[Faz 2]** "Pazaryeri menümü getir" (işletmenin **kendi** ekran görüntüsü/PDF'i, AI ile; kazıma yok, A05 P-MNU-10).
 
@@ -678,7 +678,7 @@ Enflasyon ortamında esnafın paneli her gün açmasının ikinci nedeni (A05 §
 - [ ] Toplu fiyat güncellemesi önizlemeyle gösterilir, yuvarlama uygulanır, 24 saat içinde tek tuşla geri alınır; her değişiklik fiyat geçmişindedir.
 - [ ] Zorunlu seçenek grubu seçilmeden ürün sepete eklenemez (storefront ve telefon siparişinde).
 - [ ] Bayraklı ürün hiçbir akışta sepete eklenemez (API testi); bayrak kaldırma audit log'a yazılır.
-- [ ] [Faz 2] 200 ürünlük Excel dosyası 30 sn içinde doğrulanıp içe aktarılır; hatalı satırlar ayrı listelenir.
+- [ ] 200 ürünlük Excel dosyası 30 sn içinde doğrulanıp içe aktarılır; hatalı satırlar ayrı listelenir.
 
 ---
 
@@ -918,7 +918,7 @@ Expo tabanlı native uygulama: arka plan konum, müşteriye canlı konum ve "kur
 ## 10. Mutfak görünümü (P-41, `kitchen` rolü)
 
 ### 10.1 [Faz 1] Temel hazırlık ekranı
-- **Faz kararı:** `kitchen` rolü kanoniktir ("yalnız sipariş/hazırlık ekranı, fiyat görmez", [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4) ve mutfak/kasa tabletinin PIN'li cihaz oturumu Faz 1'dedir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10 Güvenlik; D06 §6.2–6.3). Bu yüzden fiyatsız temel hazırlık ekranı **Faz 1**, tam KDS **Faz 2**'dir (§10.2).
+- **Faz kararı:** `kitchen` rolü kanoniktir ("yalnız sipariş/hazırlık ekranı, fiyat görmez", [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4) ve mutfak/kasa tabletinin PIN'li cihaz oturumu Faz 1'dedir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10 Güvenlik; D06 §6.2–6.3). Bu yüzden fiyatsız temel hazırlık ekranı **Faz 1** ([09](09-yol-haritasi-ve-sprint-plani.md) S6-14), tam KDS **Faz 2**'dir (§10.2; [09](09-yol-haritasi-ve-sprint-plani.md) F2-15).
 - Mutfak tableti cihaz oturumuyla açılır (rol: Mutfak); varsayılan **karanlık tema**, dikey veya yatay.
 - **Fiyat yoktur** (API ve SSE fiyat alanı içermez, D06 §6.5).
 - Sütunlar: **Onaylanan** (`accepted`) · **Hazırlanıyor** (`preparing`, adım açıksa) · **Hazır** (son 10 dk).
@@ -1049,7 +1049,7 @@ GTM'in kilit aracı (A02 §9.2).
 | AI self-servis menü çıkarma | 2 | Fotoğraf/PDF → taslak tablo (güven göstergesi, okunamayan fiyat kırmızı), seçenek grubu önerileri, **insan onayı olmadan yayın yok** (A05 §8.5) | Yükleme sonrası 2 dk içinde taslak |
 | Ürün değişikliği onayı (M14) | 2 | "Ürün kalmadı" → müşteriye butonlu mesaj (Onsuz devam / Yerine X / İptal); cevapla sipariş güncellenir | — |
 | İleri saatli sipariş ve slot kapasitesi | 2 | Planlı şerit, slot başına en çok N sipariş, hazırlık zamanında alarm | — |
-| Tam KDS, kurye gün sonu ekranı (K-04) ile mutabakat ve tur, Excel içe/dışa aktarma (P-14), gelişmiş raporlar | 2 | §10.2, §9.3, §6.6, §11.2 | — |
+| Tam KDS, kurye gün sonu ekranı (K-04) ile mutabakat ve tur, seçenek gruplarıyla tam Excel içe/dışa aktarma (P-14), gelişmiş raporlar | 2 | §10.2, §9.3, §6.6, §11.2 | — |
 | Masa QR (`table_qr`, `dine_in`), WhatsApp Flows (`wa_flow`) | 3 | Masa QR seti ve masa numaralı kart, kasada ödeme; yeni kanal rozetleri, panel akışı aynı | — |
 | Kurye uygulaması ve kurye çağırma (§9.5); özel alan adı, açık API/webhook, çok dilli menü, Star CloudPRNT | 3 | Ayarlar altında | — |
 | MPS / kredi hattı | 3 | "WhatsApp mesajları dahil" paketinde P-25'te mesaj kredisi göstergesi | — |
@@ -1075,7 +1075,7 @@ GTM'in kilit aracı (A02 §9.2).
 | P-11 | Seçenek grupları | owner, manager | 1 |
 | P-12 | Tükenenler (hızlı liste) | owner, manager, cashier, kitchen | 1 |
 | P-13 | Toplu fiyat güncelleme | owner, manager | 1 |
-| P-14 | Menü içe/dışa aktarma (Excel) | owner, manager | 2 |
+| P-14 | Menü içe/dışa aktarma (Excel) | owner, manager | 1 (temel) / 2 |
 | P-15 | Menü önizleme | owner, manager, cashier | 1 |
 | P-16 | Çalışma saatleri ve özel günler | owner, manager | 1 |
 | P-17 | Teslimat bölgeleri | owner, manager | 1 |
@@ -1114,7 +1114,7 @@ GTM'in kilit aracı (A02 §9.2).
 | K-03 | Teslimat detayı ve aksiyonlar | courier | 1 |
 | K-04 | Gün sonu özeti ve hesap kapatma | courier | 2 |
 
-Toplam: Faz 1'de 40 panel + 3 kurye ekranı; Faz 2'de 7 yeni panel ekranı (P-14, P-42…P-47) ve 1 kurye ekranı (K-04).
+Toplam: Faz 1'de 41 panel + 3 kurye ekranı; Faz 2'de 6 yeni panel ekranı (P-42…P-47) ve 1 kurye ekranı (K-04).
 
 ### 14.2 Panel içi bildirim türleri (P-40)
 
@@ -1196,7 +1196,7 @@ Bu düzeltme turunda [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) taraf�
 |---|---|---|
 | 1 | **Mutfak rolü fazı** (A05 KDS'yi Faz 2'ye koyuyordu) | Karara bağlandı: `kitchen` rolü kanonik ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4), PIN'li cihaz oturumu Faz 1 ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10; D06 §6.2). Faz 1 fiyatsız temel mutfak ekranı, Faz 2 tam KDS (§10). |
 | 2 | **Kurye gün sonu özeti** | Karara bağlandı: Faz 1 kurye görünümü [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11'deki "basit kurye görünümü"dür (atama + yola çıktım/teslim ettim). K-04 ve kurye hesap kapatma **Faz 2** ([09](09-yol-haritasi-ve-sprint-plani.md) F2-17); Faz 1'de tahsilat P-32 kurye kırılımında (§9.3, §11.1). |
-| 3 | **Excel içe aktarma** | Karara bağlandı: self-servis Excel içe/dışa aktarma **Faz 2** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11 Faz 1 kapsamında yok; [09](09-yol-haritasi-ve-sprint-plani.md) F2-04; A05 P-MNU-07). Faz 1'de Excel dosyası "Biz kuralım" ile ekibe gönderilir (§6.6). |
+| 3 | **Excel içe aktarma** (A05 P-MNU-07 Faz 2 öneriyordu) | Karara bağlandı: [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) ve D06 faz vermez; Faz 1 temel (düz ürün listesi; [09](09-yol-haritasi-ve-sprint-plani.md) S6-16, kesilebilir "C" maddesi), Faz 2 seçenek gruplarıyla tam ([09](09-yol-haritasi-ve-sprint-plani.md) F2-04) (§6.6). |
 | 4 | **Ret geri alma** | Karara bağlandı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7): 30 sn "bekleyen ret" ayrı durum değildir; `rejection_scheduled_at` + iptal edilebilir gecikmeli iş; `rejected → new` geçişi yoktur (§4.7). |
 | 5 | **Yanıtsız sipariş ve alarm zamanlaması** | Karara bağlandı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10): t=0 ses + Web Push · 60 sn ses tekrarı · 2 dk platform WhatsApp · 5 dk SMS · 10 dk müşteriye bilgi · 15 dk `cancelled`/`tenant_no_response`. "Otomatik reddet" yoktur (§4.5, §7.7). |
 | 6 | **Mükerrer/sahte ret sebebi** | Karara bağlandı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5): `duplicate` ve `suspected_fake` ret sebebi olarak eklendi (§4.7, §14.3). |
