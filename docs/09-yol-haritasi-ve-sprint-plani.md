@@ -1017,30 +1017,30 @@ R = yapar, A = hesap verir (tek kişi), C = danışılır, I = bilgilendirilir.
 
 ## 12. Açık konular
 
-**KARARLAR ve kaynaklarla gerilimler (uygulanan tercih)**
+**KARARLAR ve diğer dokümanlarla gerilimler (uygulanan tercih)**
 1. **Pilot başlangıcı:** KARARLAR pilotu Hafta 10–18 olarak tanımlıyor. P0 kapısı S5'in sonunda (4 Ara) olduğu için H10 kurulum haftası, ilk canlı sipariş H11 (7 Ara) olarak planlandı. Onay gerekli.
-2. **60. gün metriği pilot penceresine sığmıyor:** Dalga 1'in 60. günü 5 Şubat, Dalga 3'ünkü 19 Şubat 2027. K4'te eğilimle öngörü yapılır, lansmandan önce Dalga 1'le kesinleştirilir (§7.7). Alternatif: pilot çıkışını H20'ye kaydırmak.
-3. **Plan B tetik tarihi:** Görev tanımındaki örnek "Hafta 6", [02](02-whatsapp-entegrasyonu.md) §2.5 ve A06 K3 ise "Hafta 8" diyor. İki aşamalı tetik uygulandı: H6'da hazırlık (T3), H8'de devreye alma (T4).
-4. **Ağır geliştirmenin kapıya bağlanması:** A06 ağır geliştirmenin K2'ye bağlanmasını öneriyor, KARARLAR paralel başlatıyor. Uzlaşma: S1–S4 dört senaryonun üçünde de kullanılacak bileşenleri üretir (§4.7).
-5. **Pilot ücretsiz mi?** A06, "3 ay ücretsiz" yerine niyet mektubu veya iade garantili ön ödeme öneriyor. KARARLAR (3 ay ücretsiz) korundu. D6 niyet mektubu ücretsiz pilotla birlikte ödeme niyeti sinyali olarak kullanılıyor. Ön ödeme seçeneği kurucu üye ile yıllık peşin indirimlerinin birleşip birleşmediğine bağlı ([01](01-vizyon-pazar-is-modeli.md) açık konu 10).
-6. **D5 fiyat testi:** A06 farklı fiyatların rastgele gösterilmesini öneriyor. KARARLAR fiyatları sabitliyor ve fiyat gösterimi mevzuatı riski var. Bu yüzden açılış sayfasında yalnız mesaj A/B testi yapılıyor; fiyat duyarlılığı görüşmelerde Van Westendorp sorularıyla ölçülüyor.
-7. **SMS OTP yedeğinin fazı:** KARARLAR Faz 1 diyor (S5'e konuldu). [06](06-teknik-mimari.md) §13.6 ve [01](01-vizyon-pazar-is-modeli.md) §7.1 ise "Faz 2" yazıyor. Bu iki doküman düzeltilmeli.
+2. **60. gün metriği pilot penceresine sığmıyor** ([10](10-riskler-operasyon-ve-metrikler.md) açık konu 7): Dalga 1'in 60. günü 5 Şubat, Dalga 3'ünkü 19 Şubat 2027. Bu plan K4 toplantısını 29 Ocak'ta yapıp lansman kararını Dalga 1 verisiyle 5 Şubat'ta kesinleştiriyor (fiilen "K4'ü 1 hafta kaydırma" seçeneği).
+3. **Plan B tetik tarihi:** Görev tanımındaki örnek "Hafta 6", [02](02-whatsapp-entegrasyonu.md) §2.5 ve 10 §4.10 ise "Hafta 8" diyor. İki aşamalı tetik uygulandı: H6'da hazırlık (T3), H8'de devreye alma (T4).
+4. **Kapıdan önceki geliştirme kapsamı:** A06 ağır geliştirmenin K2'ye bağlanmasını, 10 §4.1 ise Hafta 1–8'de önceliğin iskelet, webhook, ES ve "sipariş kaçmaz" paketinde tutulmasını öneriyor. Bu plan bunlara ek olarak S2'de menü/storefront ve S4'te Akış A'yı K2'den önce yapıyor, çünkü App Review videosu ve K2 demosu bunları gerektiriyor (§4.7). NO-GO'da S5–S6 başlamaz. Proje sahibi onayı gerekli.
+5. **D11 zamanlaması:** 10 §4.3 D11'i "Hafta 1–6" olarak veriyor. ES minimal S2 sonunda (23 Ekim) hazır olduğu için D11 H5'te başlıyor ve 15 günlük hareketsizlik testiyle birlikte K3'e (20 Kasım) yetişiyor. Daha erken başlamak için S1'e bir ES v4 denemesi (spike) eklenmesi gerekir.
+6. **İki bağımsız webhook düğümü:** KARARLAR §11 ve 10 açık konu 1 uyarınca S5-09'a "ayrı makine, tercihen farklı TR lokasyonu" olarak yazıldı. [06](06-teknik-mimari.md) §13.3'teki pilot topolojisi (tek sunucuda ×2 kopya) güncellenmeli; ek sunucu maliyeti bütçeye eklendi (teklif).
+7. **SMS OTP yedeğinin fazı:** KARARLAR Faz 1 diyor (S5'e konuldu). [06](06-teknik-mimari.md) §13.6 ve [01](01-vizyon-pazar-is-modeli.md) §7.1 "Faz 2" yazıyor; bu iki doküman düzeltilmeli.
 8. **Kurucu üye koşulu:** KARARLAR "12 ay sabit %30 indirim oranı (sabit TL değil)" diyor. [01](01-vizyon-pazar-is-modeli.md) §6.4 "12 ay sabit, TÜFE uygulanmaz" diyor. 01 düzeltilmeli; §11.2 KARARLAR'a göre yazıldı.
-9. **Pentest zamanı:** KARARLAR "ticari lansmandan önce" diyor, A06 "pilot öncesi dış güvenlik incelemesi" öneriyor. Plan: pilot öncesi iç inceleme (ASVS L1, ZAP, yalıtım paketi); tam harici pentest H16–H18. Bütçe varsa pilot öncesi dar kapsamlı bir harici tenant yalıtımı incelemesi eklenebilir.
-10. **SLO %99,9 ve tek sunucu:** Pilot, tek sunucuda ikişer kopyayla çalışıyor ([06](06-teknik-mimari.md) §13.3). A06 bunun %99,9'u tutturamayabileceği uyarısında bulunuyor. Plan: RTO tatbikatı tutmazsa 3 sunucuya erken geçilir (F2-03 öne alınır).
+9. **Pentest zamanı:** KARARLAR "ticari lansmandan önce" diyor, A06 "pilot öncesi dış güvenlik incelemesi" öneriyor. Plan 10 §10 ile aynı: pilot öncesi iç inceleme (ASVS L1, ZAP, yalıtım paketi), tam harici pentest H16–H18. Bütçe varsa pilot öncesine dar kapsamlı bir harici tenant yalıtımı incelemesi eklenebilir.
+10. **SLO %99,9 ve pilot topolojisi:** A06 tek sunucuyla %99,9'un tutturulamayabileceği uyarısında bulunuyor. RTO tatbikatı tutmazsa 3 sunucuya erken geçilir (F2-03 öne alınır).
+11. **Ekran ve mesaj kimlikleri:** Sprint tabloları [03](03-musteri-deneyimi-ve-storefront.md), [04](04-isletme-paneli.md) ve [05](05-admin-paneli-ve-pazarlama-sitesi.md) kimliklerini kullanır. A05'teki kimlikler farklıdır (örn. vardiya başlatma A05'te P-02, 04'te P-03; AI menü kuyruğu A05'te A-14, 05'te A-22).
+12. **Faz farkları:** 04, cihaz eşleştirme ve PIN'i (P-02) ve temel mutfak ekranını (P-41) Faz 1 sayıyor; bu plan 04'ü izledi (S3; S6 "C"). 03, konum ve telefon isteme mesajlarını (M15, M16) Faz 2'ye koyuyor; S4'e alınmadı. 05, blog'u Faz 2'ye, şehir ve sektör sayfalarını Faz 3'e aldı; Faz 1 GTM çizelgesinde blog yok.
 
 **Karar bekleyenler**
-11. Stack (TypeScript varsayılan), şirket türü (Ltd varsayılan), pilot şehir ve ilçeler: Gün 1'de verilecek (KARARLAR §13).
-12. Ekip büyüklüğü: 2 geliştirici varsayımı doğru mu? DEV3 var mı? Tek geliştirici varsa takvim en az 4 hafta kayar [T].
-13. Kurucuların pilot boyunca 10:00–01:00 arası P1 nöbetini üstlenmesi (A06 açık soru 1).
-14. BV'nin App Review başvurusundan önce şart olup olmadığı; Meta portföyünün şirket tescilinden önce açılıp sonra güncellenmesinin BV'yi etkileyip etkilemediği (teyit edilmeli).
-15. Test WABA/test numarası için 30 Eylül ödeme yöntemi şartının geçerli olup olmadığı (teyit edilmeli).
-16. D3'e 1–2 su bayisi eklenmesi (yalnız öğrenme amaçlı; su bayisi segmenti Faz 2'de).
-17. Pilot cihaz desteği: tablet ödünç verilecek mi, bütçe ne olacak?
-18. D5 reklam bütçesinin ve saha yol giderlerinin üst sınırı.
-19. Pilotta 2+ şubeli işletmeye teklif ne olacak? Varsayılan: pilota alınmaz ([01](01-vizyon-pazar-is-modeli.md) açık konu 8).
+13. Stack (TypeScript varsayılan), şirket türü (Ltd varsayılan), pilot şehir ve ilçeler: Gün 1'de verilecek (KARARLAR §13).
+14. Ekip büyüklüğü: 2 geliştirici varsayımı doğru mu, DEV3 var mı? Tek geliştirici varsa takvim en az 4 hafta kayar [T].
+15. Kurucuların pilot boyunca P1 nöbetini (10:00–02:00 canlı yanıt, 10 §5.1) üstlenmesi.
+16. Pilot cihaz desteği: tablet ödünç verilecek mi, bütçesi ne olacak?
+17. D5 reklam bütçesinin ve saha yol giderlerinin üst sınırı.
+18. Pilotta 2+ şubeli işletmeye teklif. Varsayılan: pilota alınmaz ([01](01-vizyon-pazar-is-modeli.md) açık konu 8).
 
-**Bağımlı dokümanlar**
-20. [10](10-riskler-operasyon-ve-metrikler.md) henüz yazılmadı. §4.6'daki eşikler A06 §10'dan alındı; 10 yazılınca kanonik değerler oradan okunmalı ve bu doküman güncellenmeli. "Sipariş kaçırma"nın operasyonel tanımı ve P1 süreleri de 10'da tanımlanacak.
-21. [03](03-musteri-deneyimi-ve-storefront.md), [04](04-isletme-paneli.md) ve [05](05-admin-paneli-ve-pazarlama-sitesi.md) henüz yazılmadı. Sprintlerdeki ekran ve mesaj kimlikleri (S-xx, P-xx, A-xx, M-xx) A05'ten alındı ve bu dokümanlar yazılınca eşlenmeli.
-22. Ramazan ve Kurban Bayramı 2027 tarihleri (teyit edilmeli). Lansman sonrası kurulum ziyaretleri ve deploy pencerelerini etkiler.
+**Teyit edilecekler**
+19. BV'nin App Review başvurusundan önce şart olup olmadığı; Meta portföyünün şirket tescilinden önce açılıp sonra güncellenmesinin BV'yi etkileyip etkilemediği.
+20. Test WABA/test numarası için 30 Eylül ödeme yöntemi şartının geçerli olup olmadığı.
+21. WhatsApp Business uygulamasındaki sohbet etiketi özelliğinin adı (D3 sayımı); canary numaraları arasındaki otomatik mesajlaşmanın Meta politikasına uygunluğu (10 açık konu 2).
+22. Ramazan ve Kurban Bayramı 2027 tarihleri. Lansman sonrası kurulum ziyaretlerini ve deploy pencerelerini etkiler.

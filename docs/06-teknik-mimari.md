@@ -1037,24 +1037,29 @@ Varsayımlar (A04 §12, tümü [T]): işletme başına 900 sipariş/ay, %30 serb
 - Tenant başına LLM, SMS ve platform WABA sayaçları süper admin panelinde görünür. Paketleme kararları bu veriye dayanır ([01](01-vizyon-pazar-is-modeli.md) §7).
 
 ## 18. Açık konular
+Proje sahibi kararları [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13'tedir; bu doküman o maddelerde 00'daki varsayılanla yazılmıştır.
+
 | # | Konu | Durum / öneri |
 |---|---|---|
-| 1 | **Rol adları:** A04 `platform_superadmin`, `platform_support`, `operator` kullanıyor. | KARARLAR §4 uygulandı (`platform_owner`, `support_agent`, `cashier` …). |
-| 2 | **FSM boşluğu:** Müşteriye gecikme bilgisindeki [İptal] butonu (§7.6) `new` durumundaki siparişi iptal eder, ama KARARLAR §5'te `new → cancelled` geçişi yok. | Öneri: `new → cancelled` (`cancelled_by = customer/system`) eklensin. Alternatif: `rejected` + sistem sebebi. Karar 00/07'de verilmeli. |
-| 3 | **Otomatik zaman aşımı reddinin sebebi:** Ret sebepleri (kapalı, bölge dışı, ürün yok, diğer) "işletme yanıt vermedi"yi içermiyor. A04'teki `EXPIRED` durumu KARARLAR'da yok. | Varsayılan: `rejected`, sebep `other` + alt kod `auto_timeout`, aktör `system`. Ayrı sebep kodu eklenmesi önerilir. |
-| 4 | **AI özet butonları çelişkisi:** KARARLAR §7 Akış C'de [Onayla][Değiştir][Menüyü aç], §10'da [Onayla][Düzenle][İptal]. | §7 ve 02 ile uyumlu olan ilk set kullanıldı. İptal yolu metinle ("iptal") sağlanır. KARARLAR tekilleştirilmeli. |
-| 5 | **Faz farkları:** A04 Capacitor, otomatik yazdırma ve LLM'i "Faz 1.5" diye yazıyor. | KARARLAR uygulandı: Faz 2. Star CloudPRNT için Faz 3 önerildi (KARARLAR'da yok). |
-| 6 | **02 ile tutarsızlık/eksik:** [02](02-whatsapp-entegrasyonu.md) §7.1 diyagramında panel bağlantısı "WebSocket". Kurye magic link'i (§6.4) ve panel çevrimdışı uyarısı (§7.7) için platform WABA şablonu 02 §5.3 listesinde yok. | KARARLAR §10: SSE; 02'deki diyagram düzeltilmeli. 02 §5.3'e bir authentication şablonu (kurye girişi) ve `isletme_panel_cevrimdisi_v1` eklenmeli. |
-| 7 | **Kuyruk listesi:** KARARLAR 6 kuyruk sayıyor (wa-inbound, wa-outbound, notify, llm, print, cron). 02 `wa-media` ekliyor, bu doküman `images` ekliyor. | KARARLAR §10'a `wa-media` ve `images` eklenmeli. |
-| 8 | **Tablo adlandırma:** Sözlük tekil (`order`, `branch`), KARARLAR §10 `branch_events` (çoğul). `order` SQL'de ayrılmış kelime (tırnak gerekir). | 07'de tek kural seçilmeli (öneri: tekil + `"order"` yerine fiziksel ad `orders` veya `customer_order`). Bu doküman `branch_events`'i KARARLAR'daki gibi yazdı. |
-| 9 | **RTO:** A04 ≤ 2 sa öneriyor, KARARLAR varsayılanı ≤ 1 sa. | 1 sa uygulandı. Pilot tek sunucuda tatbikatla kanıtlanmalı, tutmazsa 3 sunucuya erken geçilir. |
-| 10 | **Sesli arama (IVR) adımı** A04'te var, KARARLAR alarm zincirinde yok. | Faz 2 değerlendirme; sağlayıcı ve fiyat teyidi. |
+| 1 | **Rol adları** (A04 `platform_superadmin`, `platform_support`, `operator` kullanıyordu). | **Karara bağlandı:** 00 §4 (`platform_owner`, `support_agent`, `cashier` …; bayi rolleri `reseller_admin`, `reseller_technician`, Faz 2). |
+| 2 | **`new` durumunda müşteri iptali** (gecikme mesajındaki [İptal]). | **Karara bağlandı:** 00 §5 `new → cancelled` (müşteri iptali veya sistem zaman aşımı); §7.6'ya işlendi. |
+| 3 | **Yanıtsız siparişin sonu** ("N dk'da otomatik reddet"). | **Karara bağlandı:** "Otomatik reddet" yoktur; 15 dk'da `cancelled` / `tenant_no_response` (00 §5, §10); §7.6, §8.5, §14.5'e işlendi. |
+| 4 | **AI özet butonları.** | **Karara bağlandı:** [Onayla] [Düzenle] [İptal], ödeme yükümlülüğü ibaresi gövdede (00 §7 Akış C); §11.1–11.2'ye işlendi. |
+| 5 | **Faz farkları** (A04 Capacitor, otomatik yazdırma ve LLM'i ara bir faza koyuyordu). | **Karara bağlandı:** Faz 2 (00 §10–11). Star CloudPRNT için Faz 3 önerisi 00'da yoktur (öneri olarak kalır). |
+| 6 | **02 ile tutarsızlık/eksik:** [02](02-whatsapp-entegrasyonu.md) §7.1 diyagramında panel bağlantısı "WebSocket". Kurye magic link'i (§6.4) ve panel çevrimdışı uyarısı (§7.7) için platform WABA şablonu 02 §5.3 listesinde yok. | 00 §5: SSE; 02'deki diyagram düzeltilmeli. 02 §5.3'e bir authentication şablonu (kurye girişi) ve `isletme_panel_cevrimdisi_v1` eklenmeli. |
+| 7 | **Kuyruk listesi.** | **Karara bağlandı:** 00 §5 kanonik 8 kuyruk (`wa-inbound`, `wa-outbound`, `wa-media`, `notify`, `llm`, `print`, `images`, `cron`); §8.1 ile aynı. |
+| 8 | **Tablo adlandırma.** | **Karara bağlandı:** çoğul snake_case (00 §5); adlar [07](07-veri-modeli-ve-api.md) §3'ten alındı (§4.3). |
+| 9 | **RTO:** A04 ≤ 2 sa öneriyor; 00 §13.10 varsayılanı ≤ 1 sa (proje sahibi kararı). | 1 sa uygulandı. Pilotta ana sunucu tatbikatla kanıtlanmalı, tutmazsa 3 sunucuya erken geçilir. |
+| 10 | **Sesli arama (IVR) adımı** A04'te var, 00'daki kanonik alarm zincirinde yok. | Faz 2 değerlendirme; eklenirse önce 00 güncellenir. Sağlayıcı ve fiyat teyidi. |
 | 11 | **Cloudflare TLS sonlandırma** yurt dışında olabilir, kişisel veri edge'den geçer. | Hukuk görüşü ([08](08-mevzuat-kvkk-odeme-fatura.md)). Olumsuzsa `panel/api/hooks` DNS-only + origin TLS. |
 | 12 | **Hata izleme yeri:** Sentry SaaS (yurt dışı) mı, TR'de self-host GlitchTip mi? | Varsayılan: PII scrub'lı Sentry. KVKK görüşüne göre değişebilir. |
-| 13 | **Barındırma sağlayıcısı** (KARARLAR §13.4) ve fiyatları. | §13.2 kriterleriyle en az 3 teklif; §17 maliyetleri teklifle güncellenir. |
-| 14 | **Teyit edilecek teknik ayrıntılar:** Better Auth `admin`/`magicLink` eklentileri ve impersonation davranışı; Drizzle 1.0 geçiş zamanı; pnpm `minimumReleaseAge`; Chrome `--kiosk-printing`; Google Places SKU/aşım fiyatları; Next.js 16 `proxy.ts` çalışma zamanı; Anthropic'in AB bölgesinde Bedrock/Vertex erişimi. | Faz 1 ilk sprintinde. |
+| 13 | **Barındırma sağlayıcısı** ve fiyatları (proje sahibi kararı, 00 §13.4). | §13.2 kriterleriyle en az 3 teklif; ikinci ingress VPS'i için ayrı, ucuz bir TR sağlayıcısı da değerlendirilir; §17 maliyetleri teklifle güncellenir. |
+| 14 | **Teyit edilecek teknik ayrıntılar:** Better Auth `admin`/`magicLink` eklentileri ve impersonation davranışı; Drizzle 1.0 geçiş zamanı; pnpm `minimumReleaseAge`; Chrome `--kiosk-printing`; Google Places SKU/aşım fiyatları; Next.js 16 `proxy.ts` çalışma zamanı; Anthropic'in AB bölgesinde Bedrock/Vertex erişimi; Cloudflare Load Balancing planı/fiyatı (iki düğümlü ingress); canary numaraları arası otomatik mesajlaşmanın Meta politikasına uygunluğu. | Faz 1 ilk sprintinde. |
 | 15 | **BullMQ Pro** (grup sıralama) mı, advisory lock mı? (A04 açık soru 12) | Varsayılan advisory lock. Sıralama sorunu ölçülürse Pro değerlendirilir. |
 | 16 | **Pilot donanım envanteri** (yazıcı marka/model/bağlantı, tablet/PC, iOS oranı) yazıcı ve alarm stratejisini belirler. | Pilot görüşmelerinde anket. |
-| 17 | **Saklama süreleri** (§8.5) A03 önerileri. | Kesin değerler ve tenant'a açık olanlar [08](08-mevzuat-kvkk-odeme-fatura.md)'de. |
-| 18 | **SLO eşikleri** (`[T]` işaretliler: storefront p95, durum mesajı p95, CWV bütçeleri, yük hedefleri). | Pilot verisiyle kalibre edilip [10](10-riskler-operasyon-ve-metrikler.md)'a aktarılır. |
-| 19 | **AI kota ve paket** (KARARLAR §13.8). | Varsayılan: Pro ve üstü + adil kullanım kotası. Kota sayısı pilot maliyet verisiyle belirlenir. |
+| 17 | **Saklama süreleri.** | **Karara bağlandı:** [08](08-mevzuat-kvkk-odeme-fatura.md) §2.8 kanonik (00 §9); §8.5 özeti ve `retention.*` işleri buna göre. |
+| 18 | **SLO eşikleri** (`[T]` işaretliler: storefront p95, durum mesajı p95, CWV bütçeleri, yük hedefleri, canary sıklığı); SLO hedefleri proje sahibi kararıdır (00 §13.10). | Pilot verisiyle kalibre edilip [10](10-riskler-operasyon-ve-metrikler.md)'a aktarılır. |
+| 19 | **AI kota ve paket** (proje sahibi kararı, 00 §13.8). | Varsayılan: Pro ve üstü + adil kullanım kotası. Kota sayısı pilot maliyet verisiyle belirlenir. |
+| 20 | **Stack:** TypeScript monorepo mu, Laravel 13 + Filament 5 mi? (proje sahibi kararı, 00 §13.1) | Varsayılan TypeScript (§2.1); karar ilk hafta verilir, sonra değişmez (§2.3). |
+| 21 | **Canary ayrıntılarında 07/10 farkı:** [10](10-riskler-operasyon-ve-metrikler.md) §7.3 tenant canary'sini `is_test` ile işaretleyip 24 saat sonra siliyor; [07](07-veri-modeli-ve-api.md) §4.1 `test_kind = 'canary'` + ack sonrası / ≤ 10 dk kalıcı silme diyor. `test_kind` değerleri de farklı (00: `onboarding_test`, `canary`; 07: `none`, `test`, `canary`). | Bu doküman 00 ve 07'yi izler (`test_kind`, ≤ 10 dk). 10 ve 07'nin değer listesi 00'a göre hizalanmalı. |
+| 22 | **İkinci ingress düğümünün spool tasarımı** (§13.3): DB'ye erişilemezken yerel kalıcı spool + 200. | Öneri; kaos testinde (§16.3) doğrulanır. Alternatif: spool yok, 503 + Meta yeniden denemesi (daha basit, ama Meta'nın yeniden deneme davranışına bağımlı). |

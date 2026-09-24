@@ -1163,6 +1163,7 @@ Faz 2 örneği: %10 kupon (üst sınır 50 TL) → indirim `round(47.500 × 0,10
 | GET | `/admin/metrics/overview`, `/admin/usage?tenant=` | PO,F | MRR, aktif işletme, aktivasyon; LLM/SMS/platform WA sayaçları |
 | CRUD | `/admin/platform-users` | PO | |
 | * | `/admin/resellers…`, `/admin/support-tickets…` | PA,F / SA | **[Faz 2]** |
+| * | Bayi paneli `/api/v1/panel/reseller/…` (tenants, setup-checklist, access-grants, commissions, users) | RA (tümü), RT (yalnız atandığı işletmelerin kurulum listesi) | **[Faz 2]** RLS `app.reseller_id`; son müşteri alanı yok |
 
 ### 6.6 Webhook'lar ve ajan
 
@@ -1186,7 +1187,7 @@ Faz 2 örneği: %10 kupon (üst sınır 50 TL) → indirim `round(47.500 × 0,10
 | Olay | Yük (özet) | Kime |
 |---|---|---|
 | `order.created` | `order_id, number, status, channel, fulfillment_type, total_kurus*, item_count, placed_at, scheduled_for, customer_label, badges[], version` | O,M,C,K |
-| `order.updated` | `order_id, version, status, changed[], rejection_pending_until?, cancel_requested?, by{user_name}, at` | O,M,C,K |
+| `order.updated` | `order_id, version, status, changed[], rejection_scheduled_at?, cancel_requested?, by{user_name}, at` | O,M,C,K |
 | `order.acked` | `order_id, device_id, user_name, at` | O,M,C,K |
 | `alarm.escalated` | `order_id?, kind, step, channel, at` | O,M,C |
 | `conversation.message` | `conversation_id, message_id, direction, source, type, preview, unread_count, window_expires_at` | O,M,C |
@@ -1233,13 +1234,13 @@ Faz 2 örneği: %10 kupon (üst sınır 50 TL) → indirim `round(47.500 × 0,10
 `201`:
 ```json
 { "order_id": "0192a6f2-…", "number": 1047, "status": "new", "channel": "wa_link",
-  "verification": { "method": "whatsapp", "required": false },
+  "verification": { "method": "wa_link", "required": false },
   "totals": { "items_subtotal_kurus": 47500, "delivery_fee_kurus": 2000, "discount_kurus": 0,
               "total_kurus": 49500, "vat_included_kurus": 4650, "currency": "TRY" },
   "eta": { "min_minutes": 35, "max_minutes": 45 },
   "tracking_url": "https://lezzet.siparisinonunde.com/t/7Hq2mZ…" }
 ```
-Akış B'de aynı istek `"status": "awaiting_customer"` ve `"verification": { "method": "whatsapp", "required": true, "code": "K7M2Q9", "wa_url": "https://wa.me/90…?text=Merhaba%2C%20sipari%C5%9F%20kodum%3A%20K7M2Q9", "expires_at": "…", "sms_fallback": true }` döner.
+Akış B'de aynı istek `"status": "awaiting_customer"` ve `"verification": { "method": "wa_code", "required": true, "code": "K7M2Q9", "wa_url": "https://wa.me/90…?text=Merhaba%2C%20sipari%C5%9F%20kodum%3A%20K7M2Q9", "expires_at": "…", "sms_fallback": true }` döner.
 
 **Hata** — `422 application/problem+json`:
 ```json
@@ -1277,10 +1278,11 @@ data: {"order_id":"0192a6f2-…","number":1047,"status":"new","channel":"wa_link
 // 2) wa-inbound "message" işi (jobId = sha256(field|wamid))
 { "tenant_id": "…", "branch_id": "…", "wamid": "wamid.HBgM…", "wa_bsuid": "TR.1234567890abcdef",
   "phone_e164": null, "type": "text", "wa_timestamp": "2026-09-21T14:13:20Z" }
-// 3) Tek transaction: messages (wamid UK) + customers upsert + orders awaiting_customer→new + branch_events + outbox
+// 3) Tek transaction: messages (wamid UK, intent = order_code) + customers upsert + orders awaiting_customer→new + branch_events + outbox
+//    Akış B'de "alındı" yanıtı anında gider (debounce yalnız Akış A'da)
 { "event": "order.updated", "seq": 1048, "order_id": "…", "from": "awaiting_customer", "to": "new",
-  "verification_method": "whatsapp", "outbox": [
-    { "topic": "wa.send", "dedupe_key": "order:…:received", "available_at": "+60s" },
+  "verification_method": "wa_code", "outbox": [
+    { "topic": "wa.send", "dedupe_key": "order:…:received", "available_at": "now" },
     { "topic": "notify.alarm", "dedupe_key": "alarm:…:3", "available_at": "+120s" } ] }
 ```
 
@@ -1328,7 +1330,7 @@ Olay adları SSE ile ortaktır (D06 §7.2). Her olay, kaynak değişiklikle ayn�
 
 ## 8. Raporlama ve türetilmiş veriler
 
-PostgreSQL materialized view'larına RLS uygulanamaz. Bu yüzden raporlar `tenant_id` + RLS taşıyan **rollup tablolarından** okunur. Tablolar `report-daily-rollup` işiyle (04:15, D06 §8.5) ve final sipariş olaylarında artımlı güncellenir; son 3 günü idempotent yeniden hesaplar. Tüm rollup'lar yalnız `test_kind = 'none'` siparişleri ve `business_date`'i kullanır.
+PostgreSQL materialized view'larına RLS uygulanamaz. Bu yüzden raporlar `tenant_id` + RLS taşıyan **rollup tablolarından** okunur. Tablolar `report-daily-rollup` işiyle (04:15, D06 §8.5) ve final sipariş olaylarında artımlı güncellenir; son 3 günü idempotent yeniden hesaplar. Tüm rollup'lar yalnız `test_kind IS NULL` siparişleri ve `business_date`'i kullanır; `is_demo` tenant'lar platform metriklerine girmez.
 
 | Tablo / görünüm | Anahtar | Ölçüler | Kullanım (faz) |
 |---|---|---|---|
