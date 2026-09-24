@@ -926,7 +926,8 @@ Metrikler ve alarm kanalları (on-call, admin paneli) [06](06-teknik-mimari.md) 
 | Tenant sessizliği | Açık saatte, son 4 haftanın aynı saatinde ortalama ≥ 3 mesaj gelen tenant'ta 15 dk hiç gelen mesaj yok | P2 | Admin panelde sarı; `subscribed_apps` + token + numara durumu otomatik kontrol |
 | Webhook→panel gecikmesi | p95 > 3 sn (5 dk) | P2 | Kuyruk derinliği, worker ölçekleme |
 | Ingress imza hatası | > 10/dk | P2 | App Secret rotasyonu/saldırı kontrolü |
-| Yeni sipariş onaylanmadı | `new` 2 dk | İşletme | Kademeli alarm zinciri (§10.3) |
+| Yeni sipariş onaylanmadı | `new` ≥ 2 dk | İşletme | Kademeli alarm zinciri (§10.3) |
+| Panel çevrimdışı | Şube açıkken sesi açık ve nabız gönderen hiç cihaz yok (≥ 3 dk) | İşletme | `isletme_panel_cevrimdisi_v1` + SMS, 30 dk'da en fazla 1 (§5.3, [06](06-teknik-mimari.md) §7.7) |
 | Kalite düşüşü | `YELLOW` / `RED` | İşletme + admin | §9.4 |
 | Token 190 / süre bitimi yakın | Anında / 7 gün kala | İşletme + admin | §7.8 |
 | Ödeme 131042 | Anında | İşletme + admin | §3.7 |
@@ -940,17 +941,21 @@ Admin panelde tenant başına **WhatsApp sağlık kartı**: mod, kalite, messagi
 
 ### 10.3 Kademeli yeni sipariş alarmı **[Faz 1]**
 
-Hedef: sipariş kaçırma %0. Zincir sipariş `accepted`/`rejected` olduğu anda durur (otomatik kabul açıksa hiç başlamaz); her basamak `notify` kuyruğunda `order_id + basamak` anahtarıyla idempotent. Panel tarafı (ses kilidi, Web Push, çevrimdışı dedektörü) [04](04-isletme-paneli.md)/[06](06-teknik-mimari.md)'da.
+Hedef: sipariş kaçırma %0. Zamanlama kanoniktir ([00](00-kararlar-ve-sozluk.md) §10); süreler işletme ayarıyla, platformun min/maks sınırları içinde değiştirilebilir (`branches.alarm_policy`, `branches.new_order_timeout_min`). Zincir, sipariş `new` olduğu anda (Akış A, E) veya `awaiting_customer → new` geçişinde (Akış B/C doğrulaması) başlar; `awaiting_customer` siparişte ses ve alarm yoktur. Her basamak `notify` kuyruğunda `alarm:{order_id}:{step}` anahtarıyla idempotenttir ve çalışmadan önce siparişin hâlâ `new` olduğunu ve **bekleyen ret** (`rejection_scheduled_at` dolu) olmadığını kontrol eder. Zincir sipariş `new`'den çıktığında (`accepted`, `rejected`, `cancelled`) durur; bekleyen ret sırasında duraklar, 30 sn içinde "Geri al" basılırsa kalan basamaklar kaldığı yerden sürer. Otomatik kabul Faz 2'de, kurallı ve varsayılan kapalıdır. Panel tarafı (ses kilidi, Web Push, çevrimdışı dedektörü) [04](04-isletme-paneli.md)/[06](06-teknik-mimari.md)'da.
 
 | Basamak | Zaman (varsayılan) | Kanal | Kime | Not |
 |---|---|---|---|---|
-| 1 | T+0 | Panel sesi | Açık panel ekranları | "Panel çevrimdışı" ise 2. basamak hemen |
-| 2 | T+1 dk | Web Push | `owner`, `manager`, `cashier` cihazları | |
-| 3 | T+2 dk (5. dk'da tekrar) | Platform numarasından `isletme_yeni_siparis_v1` (§5.3) | `owner` (+ isteğe bağlı `manager`) | Açık onay gerekli; maliyet bizde |
-| 4 | T+5 dk | SMS | `owner` | WhatsApp şablonunun teslim durumundan bağımsız gider |
-| 5 | T+10 dk (işletme ayarı) | Müşteriye gecikme bilgisi (pencere içi serbest mesaj + takip linki) | Müşteri | Sipariş başına ≤1, bütçe dışı istisna; pencere kapalıysa gönderilmez; metin [03](03-musteri-deneyimi-ve-storefront.md) |
+| 1 | t=0 | Panel sesi (döngüsel) + Web Push | Açık panel ekranları; `owner`, `manager`, `cashier` cihazları | Push yükünde PII yok ("Yeni sipariş #1234"). "Panel çevrimdışı" ise §5.3 panel çevrimdışı uyarısı ayrıca çalışır |
+| 2 | t+60 sn | Ses tekrarı (yükselen ton/seviye) | Açık panel ekranları | |
+| 3 | t+2 dk | Platform numarasından `isletme_yeni_siparis_v1` (§5.3) | `owner` (+ isteğe bağlı `manager`) | Açık onay gerekli; maliyet bizde. Onay yoksa veya şablon `failed` olursa aynı uyarı SMS + e-posta ile hemen gider |
+| 4 | t+5 dk | SMS | `owner` | WhatsApp şablonunun teslim durumundan bağımsız gider |
+| 5 | t+10 dk | Müşteriye "işletme henüz onaylamadı" bilgisi: pencere içi serbest mesaj, butonlar [Beklerim] [Siparişi iptal et] ([03](03-musteri-deneyimi-ve-storefront.md) M13) | Müşteri | Sipariş başına ≤ 1, bütçe dışı; pencere kapalıysa gönderilmez. WhatsApp'sız modda yalnız takip sayfasında gösterilir. [Siparişi iptal et] → `new → cancelled` (`cancelled_by = customer`, `customer_request`) |
+| 6 | t+15 dk | Otomatik `new → cancelled` (`cancelled_by = system`, `cancel_reason = tenant_no_response`) | Müşteri, işletme | Müşteriye özür + işletme telefonu: pencere içinde M12d, dışında `siparis_iptal_yanitsiz_v1` (§5.2), WhatsApp'sız modda SMS-03b; bütçe dışı. İşletmeye panel bildirimi ve e-posta. **"Otomatik reddet" yoktur**; sistem siparişi `rejected` yapmaz |
 
-**Kabul kriteri:** Panel kapalıyken verilen test siparişinde 3. basamak T+2 dk ±15 sn içinde işletme sahibinin telefonuna ulaşır; sipariş onaylandıktan sonra hiçbir basamak tetiklenmez.
+- **Planlı sipariş** (`new` + `scheduled_for`): geldiğinde kısa "planlı sipariş" sesi çalar; tam zincir `scheduled_for − hazırlık süresi` anında kurulur. Basamak 5 ve 6 planlı siparişe uygulanmaz ([07](07-veri-modeli-ve-api.md) §4.1).
+- **Canary sipariş** (`test_kind = 'canary'`): zincir ve müşteri mesajı çalışmaz (WhatsApp adımı dry-run).
+
+**Kabul kriterleri:** Panel kapalıyken verilen test siparişinde 3. basamak t+2 dk ±15 sn içinde işletme sahibinin telefonuna ulaşır; 15. dakikada sipariş `cancelled`/`tenant_no_response` olur ve müşteri özür + telefon mesajını alır; sipariş onaylandıktan veya bekleyen ret başladıktan sonra hiçbir basamak tetiklenmez; ret geri alınırsa zincir sürer (sahte saatle test).
 
 ## 11. Test stratejisi
 
@@ -959,6 +964,8 @@ Hedef: sipariş kaçırma %0. Zincir sipariş `accepted`/`rejected` olduğu anda
 | **Meta test numarası + sandbox tenant** | App Dashboard test numarası ve doğrulanmış alıcılar (alıcı sayısı sınırı teyit edilmeli); staging Meta App + kendi test WABA'mızda `sandbox` tenant'ı her deploy'da smoke testten geçer: gelen mesaj → karşılama → storefront siparişi → durum mesajları. §2.4 App Review senaryoları Playwright ile otomatik | Faz 0–1 |
 | **Graph API sahte sunucusu** | `WaTransport` için mock: 131047, 131042, 131056, 130429, 190, 5xx, zaman aşımı enjekte edilir; retry/backoff/DLQ/duraklatma davranışı doğrulanır | Faz 1 |
 | **Webhook fixture kütüphanesi** | İmzalı örnekler: `wa_id`'li ve `wa_id`'siz (kullanıcı adı) metin, buton yanıtı, konum, ses, görsel, sipariş kodu, `referral` (CTWA), her `pricing.type` için status, sırasız status (read→delivered), her hata koduyla `failed`, şablon olayları, `smb_message_echoes`, `history`. Sözleşme testi: parse + yönlendirme + dedupe | Faz 1 |
+| **Mesaj kuralları (sahte saat)** | Akış A'da 60 sn debounce (onay 60 sn içinde → tek mesaj), Akış B'de kod mesajına anında "alındı", 30 sn bekleyen ret ve "Geri al" (müşteriye mesaj gitmez), 15 dk `tenant_no_response` iptali, bütçe sayacı ≤ 4, supersede ve tazelik; alarm basamaklarının t=0/60 sn/2/5/10/15 dk zamanlaması | Faz 1 |
+| **WhatsApp'sız mod** | Bağlantısız tenant, 131042/190 ile duraklatılmış tenant ve "SMS ile doğrula" seçimi için uçtan uca: OTP → `new` → SMS-02/SMS-03; `sms_fallback` kill-switch'i; SMS sağlayıcısı sahte sunucuyla | Faz 1 |
 | **Webhook replay** | Ham olay tablosundan (§7.2) ID veya zaman aralığıyla yeniden işleme (admin aracı); idempotent olduğu testle kanıtlanır. Staging'de prod olayları maskelenerek oynatılabilir | Faz 1 |
 | **Yük testi** | k6: ingress'e imzalı 200 olay/sn, 10 dk (cuma 20:00 senaryosu, 500 tenant); hedef p95 webhook→panel < 3 sn, sıfır kayıp. Gönderim: tek tenant'ta 1.000 mesajlık patlama → Cloud 80/sn, Coexistence 20/sn, pair 6 sn sınırlarına uyum | Faz 1 sonu |
 | **Kaos** | DB 5 dk kapalı, kuyruk kapalı, worker çökmesi → Meta yeniden denemesi simülasyonu (ingress 500) ve süpürücü ile kayıpsız toparlanma | Pilot öncesi |

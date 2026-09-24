@@ -1106,7 +1106,11 @@ Faz 2 örneği: %10 kupon (üst sınır 50 TL) → indirim `round(47.500 × 0,10
 | GET / CRUD | `/media/{id}`, `/quick-replies` | O,M,C / O,M | Kısa ömürlü imzalı URL; hazır cevaplar |
 | GET / POST / PATCH / DELETE | `/members`, `/invitations`, `/members/{id}` | O,M | Rol, şube, PIN sıfırlama; plan limiti |
 | POST / DELETE | `/couriers`, `/couriers/{id}/login-link`, `/couriers/{id}/sessions` | O,M,C / O,M / O | Telefonla kurye ekle; magic link (platform WABA veya SMS); oturumu kapat |
-| GET | `/reports/summary`, `/reports/top-products`, `/reports/savings`, `/reports/wa-costs` | O,M (C günlük) | §8 |
+| GET | `/reports/summary`, `/reports/top-products`, `/reports/savings`, `/reports/wa-costs`, `/reports/value?month=` | O,M (C günlük) | §8; aylık değer raporu (`tenant_value_reports`) |
+| GET / PUT | `/marketplace-declarations/{month}` | O,M | Aylık pazaryeri sipariş beyanı (kanal payı) |
+| GET | `/usage/sms` | O,M | Bu ay SMS kotası kullanımı (`tenant_usage_monthly`) |
+| GET / POST | `/onboarding`, `/onboarding/steps/{step}/complete` | O,M | Sihirbaz durumu (`onboarding_step`, `tenant_onboarding_steps`); adım tamamlanma koşulu sunucuda doğrulanır |
+| GET | `/support-access` | O,M | Destek erişim kayıtları (`impersonation_sessions`, D04 §7.14) |
 | GET | `/reports/heatmap`, `/reports/channels`, `/reports/export` | O,M | **[Faz 2]** |
 | GET | `/wa/status`, `/wa/templates` | O,M | Sağlık kartı, şablon durumları |
 | POST | `/wa/onboarding/start`, `/wa/onboarding/complete`, `/wa/onboarding/events`, `/wa/health-check` | O | ES v4 (D02 §3.3–3.8) |
@@ -1121,7 +1125,7 @@ Faz 2 örneği: %10 kupon (üst sınır 50 TL) → indirim `round(47.500 × 0,10
 
 | Method | Path | Açıklama |
 |---|---|---|
-| POST | `/courier/auth/verify` | Magic link token'ı → 7 günlük oturum; ikinci kullanım reddedilir |
+| POST | `/courier/auth/verify` | Magic link token'ı → 12 saatlik vardiya oturumu (KARARLAR §4); ikinci kullanım reddedilir |
 | GET | `/courier/assignments` | Aktif ve bugünkü atamalar; 30 sn yoklama + atamada Web Push (SSE yok, D06 §6.4) |
 | GET | `/courier/assignments/{id}` | Adres + tarif, harita derin linki, teslimat telefonu (yalnız aktifken), ödeme yöntemi, tutar, para üstü |
 | POST | `/courier/assignments/{id}/depart` | `on_the_way` (Idempotency-Key; çevrimdışı kuyruğu) |
@@ -1133,19 +1137,28 @@ Faz 2 örneği: %10 kupon (üst sınır 50 TL) → indirim `round(47.500 × 0,10
 
 | Method | Path | Rol | Açıklama |
 |---|---|---|---|
-| GET / PATCH | `/admin/tenants?stage=&q=`, `/admin/tenants/{id}` | PO,PA,SA,SR (yazma PO,PA) | Liste, detay, `lifecycle_stage`, onboarding adımı; `POST …/notes` |
-| POST / DELETE | `/admin/tenants/{id}/impersonations`, `/admin/impersonations/{id}` | SA (yazma modu PA onayı) | `{reason, ticket_ref, mode, minutes ≤ 30}` |
+| GET / PATCH | `/admin/tenants?stage=&step=&health=&stuck=&q=`, `/admin/tenants/{id}` | PO,PA,SA,F,SR (SR kısıtlı; profil yazma PO,PA, gerekçeli) | Liste ve 360° detay: `lifecycle_stage`, `onboarding_step`, sağlık skoru, sorumlu; `lifecycle_stage` PATCH ile yazılamaz |
+| GET | `/admin/tenants/{id}/timeline`, `/admin/tenants/{id}/lifecycle-events`, `/admin/tenants/{id}/health-scores` | PO,PA,SA,F,SR | Lifecycle, onboarding, WhatsApp, abonelik ve admin aksiyonları tek akışta |
+| POST | `/admin/tenants/{id}/suspend`, `/admin/tenants/{id}/unsuspend` | PO,PA (F yalnız ödeme kaynaklı askıyı kaldırır) | `{suspension_reason: policy\|abuse\|legal, note}`; taze doğrulama, audit, işletmeye bildirim |
+| POST | `/admin/tenants/{id}/ordering-enabled` | PO,PA | Tenant kill-switch'i `{enabled, reason}` |
+| POST | `/admin/tenants/{id}/approve-signup`, `/admin/tenants/{id}/assign-pilot` | PO,PA,SR (pilot: PO,PA,F) | Faz 1 onaylı kayıt; pilot atama |
+| CRUD | `/admin/tenants/{id}/notes`, `/admin/tasks` | Not: tüm platform rolleri; görev: PO,PA,SA,SR | `admin_notes` (not, etiket, temas), `admin_tasks` |
+| POST / DELETE | `/admin/tenants/{id}/impersonations`, `/admin/impersonations/{id}` | PO,PA,SA (yazma modu: SA talep, PA onay) | `{reason ≥ 20 karakter, ticket_ref, mode}`; süre sabit **en fazla 30 dk**, uzatma yok; owner bildirimi gitmeden başlamaz |
 | CRUD | `/admin/leads` | SR,PA | Lead ve demo hunisi |
-| GET / PATCH | `/admin/subscriptions/{id}` | F,PA | Deneme uzatma, pilot, indirim |
+| GET / PATCH | `/admin/subscriptions/{id}` | F,PA | Deneme uzatma, pilot, indirim, ek süre (`grace_until`) |
 | POST | `/admin/invoices/{id}/mark-paid` | F | Havale eşleştirme (Faz 1 manuel, Faz 2 motor) |
 | GET | `/admin/wa/health?status=`, `/admin/wa/costs?tenant=&month=`, `/admin/wa/onboarding-quota` | PA,SA,F | WABA sağlık tablosu, maliyet defteri, kalan onboarding kotası |
 | POST | `/admin/wa/accounts/{id}/pause`, `/resume`, `/health-check`, `/template-sync` | PA | |
 | GET / POST | `/admin/dlq?queue=`, `/admin/dlq/{queue}/{job_id}/retry` | PA | BullMQ failed kümesi (maskeli yük) |
 | POST / GET | `/admin/wa/webhook-events/replay`, `/admin/wa/orphans` | PA | `{ids[] \| from,to}` idempotent yeniden işleme |
-| CRUD | `/admin/announcements`, `/admin/feature-flags`, `/admin/feature-flags/{key}/overrides/{tenant_id}` | PA / PO,PA | Kill switch'ler dahil |
+| CRUD | `/admin/announcements`, `/admin/feature-flags`, `/admin/feature-flags/{key}/overrides/{tenant_id}` | PA / PO,PA | Kanonik kill-switch'ler dahil (`signup_open`, `wa_onboarding`, `campaigns_global`, `llm_parsing`, `sms_fallback`); gerekçe + taze doğrulama |
+| CRUD | `/admin/incidents`, `/admin/incidents/{id}/tenants` | PO,PA (SA okur) | Olay kaydı ve etkilenen işletmeler (D10 §6) |
+| CRUD | `/admin/breaches` | PO,PA | `data_breach_incidents`; T+24 / T+72 sayaçları |
+| CRUD | `/admin/takedowns`, `/admin/abuse-signals`, `/admin/abuse-blocklist` | PO,PA (SA işaretler) | 5651 içerik kaldırma, kötüye kullanım sinyalleri, IP/ASN listesi |
+| CRUD | `/admin/subprocessors` | PO | Alt işleyen envanteri |
 | GET / POST | `/admin/rate-cards`, `/admin/fx-rates`, `/admin/plans`, `/admin/plans/{id}/features` | PO,F | Rate card satırları değişmez; yeni `effective_from` eklenir |
 | POST | `/admin/legal-documents`, `/admin/legal-documents/{id}/publish` | PO | Yeni sürüm |
-| GET | `/admin/audit-log`, `/admin/dsr?due_before=`, `/admin/retention-runs?failed=` | PO (dsr SA) | |
+| GET / POST | `/admin/audit-log`, `/admin/dsr?due_before=`, `/admin/dsr/{id}/forward`, `/admin/retention-runs?failed=` | PO (dsr PO,PA,SA) | Platform DSR'leri ve son müşteri talebinin işletmeye iletilmesi (2 iş günü) |
 | GET / POST | `/admin/menu-imports` | PA | Concierge AI menü çıkarma kuyruğu |
 | GET | `/admin/metrics/overview`, `/admin/usage?tenant=` | PO,F | MRR, aktif işletme, aktivasyon; LLM/SMS/platform WA sayaçları |
 | CRUD | `/admin/platform-users` | PO | |

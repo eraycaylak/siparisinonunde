@@ -498,7 +498,7 @@ Pilot ve ilk 100 işletmede kurulum ekip tarafından yapılır ([00-kararlar-ve-
 | Yıllık plan yenilemesi | Değer özeti + yenileme görüşmesi | Yenilemeden 30 gün önce | `sales_rep` |
 | İptal talebi | Çıkış görüşmesi (neden kodu), geri kazanım seçeneği, veri dışa aktarma hatırlatması | Talep günü | Operasyon lideri |
 
-**Aylık değer raporu [Faz 1: panel + e-posta; WhatsApp özeti Faz 2]** — "en güçlü churn önleyici" (A02 §8). Her ayın 1'inde üretilir. Tasarruf hesabı işletmenin girdiği pazaryeri kesinti oranını kullanır (`tenants.savings_commission_bp`); oran girilmemişse tasarruf satırı gösterilmez.
+**Aylık değer raporu [Faz 1: panel + e-posta; WhatsApp özeti Faz 2]** — "en güçlü churn önleyici" (A02 §8). Her ayın 1'inde `report-monthly-value` işiyle üretilir ([06](06-teknik-mimari.md) §8.5) ve `tenant_value_reports`'a yazılır ([07](07-veri-modeli-ve-api.md) §3.5). Tasarruf hesabı işletmenin girdiği pazaryeri kesinti oranını kullanır (`tenants.savings_commission_bp`); oran girilmemişse tasarruf satırı gösterilmez.
 
 > **{Ay} ayında {işletme adı} özeti**
 > Kendi kanalınızdan **{n} sipariş** aldınız (geçen ay {m}). Bu siparişlerin toplamı **{ciro} TL**.

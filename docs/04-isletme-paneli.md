@@ -942,7 +942,7 @@ Expo tabanlı native uygulama: arka plan konum, müşteriye canlı konum ve "kur
 - İş günü seçimi (gece yarısını geçen işletmede `business_day_cutoff`).
 - Kartlar: teslim edilen sipariş sayısı, **ciro (KDV dahil)**, ortalama sepet, teslimat ücreti toplamı, ret ve iptal sayısı/tutarı (sebep kırılımıyla).
 - **Ödeme yöntemine göre:** kapıda nakit, kapıda kart, yemek kartı (marka bazında), kasada; [Faz 2] online kart.
-- **Kurye bazında:** teslimat sayısı, nakit tahsilat, kart, yemek kartı.
+- **Kurye bazında:** teslimat sayısı, nakit tahsilat, kart, yemek kartı. Faz 1'de kuryenin gün sonu nakit teslimi kasada bu kırılımla kontrol edilir (K-04 Faz 2, §9.3).
 - Kanal kırılımı: WhatsApp / Web / Telefon (adet ve ciro).
 - **Operasyon satırı:** ortalama onay süresi, 2 dk'yı aşan sipariş sayısı, `tenant_no_response` iptalleri ("Kaçırılan sipariş: 0").
 - **[Gün sonu fişi yazdır]** (80 mm) ve CSV. `cashier` yalnız bugünü görür.
@@ -1206,8 +1206,8 @@ Bu düzeltme turunda [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) taraf�
 | 11 | **Oturum süreleri ve PIN fazı** | Karara bağlandı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4, §10): işletme paneli oturumu 30 gün (kayıtlı cihaz), kurye magic link oturumu 12 saat (vardiya); PIN'li cihaz oturumu Faz 1 (§2.4, §7.11, §9.1). |
 | 13 | **SMS maliyeti ve SMS OTP fazı** | Karara bağlandı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4, §7): SMS OTP yedeği ("WhatsApp'sız mod") Faz 1; SMS platform maliyeti, aboneliğe adil kullanım kotasıyla dahil (Esnaf 100, Pro 300 SMS/ay); aşımda işletme uyarılır; ek SMS paketi Faz 2 (§3.6, §7.13). |
 | 15 | **`owner` zorunlu TOTP** | Karara bağlandı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10): zorunlu; pilotta concierge kurar. Alternatif 2FA yalnız güvenlik değerlendirmesiyle ve önce 00 güncellenerek. |
-| 16a | **Test siparişi işareti** | Karara bağlandı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5): `test_kind = 'onboarding_test'` (rapor/faturalamadan hariç; §3.3). |
 | 16 | **`onboarding_step` kodları** | Karara bağlandı: [05](05-admin-paneli-ve-pazarlama-sitesi.md) §A.2.2 kodları (`account_created` → `profile_done` → `menu_done` → `ops_done` → `web_live` → `wa_connected` → `meta_payment_ok` → `wa_test_done` → `live`); [07](07-veri-modeli-ve-api.md) `tenants.onboarding_step` aynı kodları kullanır. `web_live` isteğe bağlıdır (§3.1). |
+| 16a | **Test siparişi işareti** | Karara bağlandı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5): `test_kind = 'onboarding_test'` (rapor/faturalamadan hariç; §3.3). |
 | 22 | **SMS kotası ayrıntıları** | Karara bağlandı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4; [07](07-veri-modeli-ve-api.md) `tenant_usage_monthly`): kotaya yalnız müşteriye giden SMS'ler sayılır; alarm, panel çevrimdışı ve kurye giriş SMS'leri sayılmaz; aşımda SMS kesilmez, uyarı gider; ek paket Faz 2 (§3.6). |
 
 ### 15.2 Açık kalanlar

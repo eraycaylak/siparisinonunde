@@ -47,7 +47,7 @@ Türkiye'deki yerel işletmelerin (öncelik restoran/paket servis) **kendi Whats
 ## 4. Roller (RBAC) — kanonik liste
 **Platform (admin paneli):** `platform_owner` (tam yetki), `platform_admin` (operasyon), `support_agent` (destek, loglu impersonation), `finance` (abonelik/fatura/tahsilat), `sales_rep` (lead ve deneme yönetimi). **Bayi (Faz 2):** `reseller_admin` (bayi yöneticisi — kendi işletmeleri, komisyon raporu) ve `reseller_technician` (kurulum teknisyeni — yalnız atandığı işletmelerin kurulum kontrol listesi); ikisi de yalnız kendi getirdiği işletmeleri görür.
 **Müşteri verisi dışa aktarma/silme (KVKK talepleri):** `owner` ve `manager`. **Manuel (telefon) siparişte bölge dışı istisnası:** personel uyarıyı görerek bölge dışına sipariş girebilir (kayıt altına alınır).
-**SMS maliyeti:** SMS OTP ve kritik durum SMS'leri platform maliyetidir, aboneliğe adil kullanım kotasıyla dahildir (Esnaf 100, Pro 300 SMS/ay; kota aşımında işletme uyarılır, Faz 2'de ek SMS paketi).
+**SMS maliyeti:** SMS OTP ve kritik durum SMS'leri platform maliyetidir, aboneliğe adil kullanım kotasıyla dahildir (Esnaf 100, Pro 300, Zincir şube başına 300 SMS/ay; kota aşımında işletme uyarılır, Faz 2'de ek SMS paketi).
 **Oturum süreleri (kanonik):** platform (admin) oturumu 8 saat + 30 dk hareketsizlikte kilit; impersonation en fazla 30 dk, varsayılan salt-okunur, gerekçe zorunlu, işletmeye bildirim gider; işletme paneli oturumu 30 gün (kayıtlı cihaz), kurye magic link 12 saat (vardiya).
 **Kill-switch'ler (admin):** `signup_open`, `wa_onboarding`, `campaigns_global`, `llm_parsing`, `sms_fallback`, tenant bazında `ordering_enabled`.
 **İşletme (işletme paneli):** `owner` (İşletme Sahibi — her şey + abonelik + WhatsApp bağlantısı), `manager` (Yönetici/Şube Müdürü — menü, ayarlar, raporlar, personel; abonelik hariç), `cashier` (Kasiyer/Operatör — sipariş ekranı, sohbet, müşteri), `kitchen` (Mutfak — yalnız sipariş/hazırlık ekranı, fiyat görmez), `courier` (Kurye — yalnız kendine atanan siparişler).
@@ -166,7 +166,7 @@ Geçişler: `awaiting_customer→new|cancelled`; `new→accepted|rejected|cancel
 ## 12. Başarı metrikleri (kanonik)
 - Pilot: işletme başına ilk 14 günde ≥10 kanal siparişi; pilotun 8. haftasında (pilot sonu) siparişlerin ≥%10'u kendi kanalından; panel günlük aktif.
 - Operasyon: sipariş kaçırma oranı %0 hedef (yeni sipariş 2 dk içinde onaylanmazsa alarm); webhook→panel p95 < 3 sn; aylık uptime ≥ %99,9.
-- İş: CAC ≤ 4.000 TL, geri ödeme < 4 ay, aylık logo churn ilk yıl %5–7 → sonra < %3, brüt marj ≥ %70.
+- İş: CAC ≤ 4.000 TL (Esnaf paketi için ≤ ~2.800 TL), geri ödeme < 4 ay, aylık logo churn ilk yıl %5–7 → sonra < %3, **karma brüt marj ≥ %70 (1.000 işletme ölçeğinde)**; Esnaf giriş paketi bu varsayımlarla %29–67 marjda kalır (bkz. 01 §7 ve açık karar 11).
 
 ## 13. Açık kararlar (proje sahibine sorulacak — dokümanlar varsayılanla yazılır, varsayılan belirtilir)
 1. **Ekip ve stack:** Geliştiriciler TypeScript/React mi, PHP/Laravel mi? (Varsayılan: TypeScript monorepo.)
@@ -178,4 +178,5 @@ Geçişler: `awaiting_customer→new|cancelled`; `new→accepted|rejected|cancel
 7. **Kurye:** yalnız işletmenin kendi kuryesi mi (varsayılan), ileride kurye firması entegrasyonu stratejik mi?
 8. **AI serbest metin siparişi** hangi paketlerde / kotalı mı? (Varsayılan: Pro ve üstü, adil kullanım kotası.)
 9. **Yemek kartı** online tahsilat ne zaman? (Varsayılan: Faz 1 yalnız kapıda.)
+11. **Esnaf paketi ekonomisi:** Mevcut varsayımlarla Esnaf (990 TL) brüt marjı %29–67; seçenekler: fiyatı artırmak, SMS/AI kotasını düşürmek, Esnaf'ı yalnız yıllık satmak ya da giriş paketi olarak düşük marjı kabul etmek. (Varsayılan: pilot verisiyle Faz 2 fiyat revizyonunda karar.)
 10. **SLO hedefleri:** aylık erişilebilirlik %99,9 (varsayılan), RPO ≤ 5 dk, RTO ≤ 1 saat.
