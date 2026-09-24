@@ -606,12 +606,13 @@ flowchart LR
 
 **Kanal seçimi:** Varsayılan kanal platform WhatsApp numarasıdır (onay veren `owner`'lara). **Meta/WhatsApp kesintisinde WhatsApp kullanılmaz**; SMS + e-posta + panel bandı kullanılır. SEV1'de SMS her durumda WhatsApp'a ek olarak gider. Metinler sade Türkçedir; teknik terim, suçlama ve kesin olmayan süre vaadi içermez.
 
-**Şablon onayı:** Platform WABA'sında olay duyurusu için iki utility şablonu **önceden** onaylatılır ([02](02-whatsapp-entegrasyonu.md) §5.3'e eklenmeli; kategori kararı Meta'dadır, teyit edilmeli):
+**Şablon onayı:** Platform WABA'sında olay ve bakım duyurusu için üç utility şablonu **önceden** onaylatılır. Adlar ve değişkenler [02](02-whatsapp-entegrasyonu.md) §5.3 kataloğuyla birebir aynıdır; kategori kararı Meta'dadır (teyit edilmeli):
 
 | Ad | Değişkenler | Buton |
 |---|---|---|
 | `platform_hizmet_bildirimi_v1` | 1 başlangıç saati, 2 sorun, 3 siparişlere etkisi, 4 sonraki bilgi saati | URL "Durumu gör" |
 | `platform_hizmet_duzeldi_v1` | 1 sorun, 2 çözülme saati, 3 yapılması gereken | URL "Paneli aç" |
+| `platform_planli_bakim_v1` | 1 tarih, 2 başlangıç saati, 3 tahmini süre (dk), 4 siparişlere etkisi | URL "Ayrıntılar" (durum sayfası) |
 
 **1. WhatsApp — ilk duyuru (dolu örnek, `platform_hizmet_bildirimi_v1`):**
 > Siparişin Önünde bilgilendirme: Bugün 19:40'tan beri müşterilerinize giden WhatsApp durum mesajlarında gecikme var. Siparişleriniz panele düşmeye devam ediyor; siparişleri her zamanki gibi panelden onaylayın. Ekibimiz sorunu çözmek için çalışıyor. Bir sonraki bilgiyi en geç 20:15'te vereceğiz.
@@ -649,7 +650,7 @@ SMS'te Türkçe karakterler segment sayısını artırabilir; sağlayıcının T
 
 **8. Veri ihlali — işletmeye ilk bildirim (DPA gereği en geç 24 saat; [08](08-mevzuat-kvkk-odeme-fatura.md) §2.9):** Metin önceden avukat onaylı şablondan üretilir; **avukat ve kurucu onayı olmadan gönderilmez**. İçerik başlıkları: tespit zamanı; bilinenler (etkilenen veri kategorileri, yaklaşık kişi sayısı, işletmeye özel etki); henüz bilinmeyenler; alınan sınırlama önlemleri; işletmenin Kurul bildirimi için hazır veri paketi; son müşterilere bildirim için hazır metin; irtibat kişisi ve sonraki bilgilendirme zamanı.
 
-**Kabul kriterleri (olay iletişimi):** İki platform şablonu pilot öncesi `APPROVED`; SMS ve e-posta şablonları admin panelinde değişkenli hazır; panel duyuru bandı etkilenen tenant'lara hedeflenebiliyor; tatbikatta ilk duyuru SEV1 için 15 dk içinde çıkıyor.
+**Kabul kriterleri (olay iletişimi):** Üç platform şablonu (`platform_hizmet_bildirimi_v1`, `platform_hizmet_duzeldi_v1`, `platform_planli_bakim_v1`) pilot öncesi `APPROVED`; SMS ve e-posta şablonları admin panelinde değişkenli hazır; panel duyuru bandı etkilenen tenant'lara hedeflenebiliyor; tatbikatta ilk duyuru SEV1 için 15 dk içinde çıkıyor.
 
 ### 6.4 Durum sayfası
 
@@ -657,7 +658,7 @@ SMS'te Türkçe karakterler segment sayısını artırabilir; sağlayıcının T
 - **Ana altyapıdan bağımsız barındırılır** (farklı sağlayıcı/lokasyon); bizim kesintimizde de erişilebilir olmalıdır.
 - **Bileşenler:** Online sipariş (storefront) · İşletme paneli · WhatsApp mesajları (Meta dahil) · SMS bildirimleri · Fiş yazdırma **[Faz 2 otomatik]** · Online ödeme **[Faz 2]**.
 - **Durumlar:** Çalışıyor · Yavaşlama · Kısmi kesinti · Kesinti · Bakım. Otomatik sentetik kontroller "yavaşlama/kesinti" önerir; yayını IC veya iletişim sorumlusu onaylar.
-- Geçmiş olaylar 90 gün görünür; SEV1/SEV2 kayıtlarına sade dilde özet eklenir. Planlı bakım en az 48 saat önce ve yoğun saat dışında duyurulur.
+- Geçmiş olaylar 90 gün görünür; SEV1/SEV2 kayıtlarına sade dilde özet eklenir. Planlı bakım en az 48 saat önce ve yoğun saat dışında duyurulur: durum sayfası + panel bandı + onay veren `owner`'lara `platform_planli_bakim_v1` ([02](02-whatsapp-entegrasyonu.md) §5.3). Dolu örnek: "Siparişin Önünde planlı bakım bilgilendirmesi: 14 Ocak tarihinde saat 03:00 itibarıyla yaklaşık 20 dakikalık bakım çalışması yapılacak. Siparişlerinize etkisi: bu sürede panel ve online sipariş kısa süre erişilemeyebilir. Ayrıntıları aşağıdaki bağlantıdan görebilirsiniz."
 
 ### 6.5 Olay sonrası inceleme (blameless postmortem)
 
@@ -1048,7 +1049,7 @@ Teknik kontroller [06](06-teknik-mimari.md) §15'tedir; bu bölüm **takvimi ve 
 | 7 | **Pilot süresi ile kanal payı ölçüm anı** (eski "60. gün" ifadesi pilot penceresine sığmıyordu). | **Kapandı:** [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12 ölçüm anını "pilotun 8. haftasında (pilot sonu)" olarak tanımladı; R01, D6, §8.3 ve §8.7 P2 buna göre düzeltildi, K4 Hafta 18–19'da kalır. [09](09-yol-haritasi-ve-sprint-plani.md) §7.6–7.7'deki "60. gün" ifadeleri de düzeltilmeli. |
 | 8 | **Talep deneyi ile geliştirmenin paralelliği:** Araştırma (A06 §10.1) ağır geliştirmenin K2'ye bağlanmasını öneriyor. | **Karara bağlandı:** [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11: Faz 1 Hafta 1'de talep deneyiyle paralel başlar; go/no-go kapısı Hafta 8'dedir. Açık kalan: §4.1'deki Hafta 1–8 geliştirme önceliği ve NO-GO'da ağır geliştirmeyi durdurma kuralı bu dokümanın önerisidir; kurucu onayıyla kesinleşir (00 §13'e eklenmesi önerilir). |
 | 9 | **Pilot 3 ay ücretsiz** ödeme isteği sinyali üretmiyor. | D6 niyet mektubu (varsayılan) + isteğe bağlı iade garantili ön ödeme (§4.6); kurucu indirimi ile yıllık peşin indiriminin birleşip birleşmeyeceği [01](01-vizyon-pazar-is-modeli.md)'de açık. |
-| 10 | **Olay iletişim şablonları** `platform_hizmet_bildirimi_v1` ve `platform_hizmet_duzeldi_v1`. | [02](02-whatsapp-entegrasyonu.md) §5.3 kataloğuna eklendi. Açık kalan: pilot öncesi onaylatılmalı; kategori (utility) kararı Meta'da (teyit edilmeli). |
+| 10 | **Olay ve bakım duyuru şablonları** `platform_hizmet_bildirimi_v1`, `platform_hizmet_duzeldi_v1`, `platform_planli_bakim_v1`. | [02](02-whatsapp-entegrasyonu.md) §5.3 kataloğunda aynı adlarla tanımlı (§6.3). Açık kalan: pilot öncesi onaylatılmalı; kategori (utility) kararı Meta'da, marketing'e çevrilme riski var (teyit edilmeli). |
 | 11 | **Durum sayfası** [06](06-teknik-mimari.md) §14.3'te Faz 2. | Öneri: basit, ayrı barındırılan sürüm pilot öncesi (§6.4). |
 | 12 | **Veri modeli ([07](07-veri-modeli-ve-api.md)):** bu dokümanın metrikleri için gereken alanlar. | Büyük ölçüde kapandı: mesaj niyet etiketi (`messages.intent`), pazaryeri sipariş beyanı (`marketplace_declarations`), sağlık skoru (`tenant_health_scores`), olay kaydı (`incidents` + `incident_tenants`), canary işareti (`test_kind`), `tenants.lifecycle_stage` ve `tenant_lifecycle_events` 07'de var. Açık kalan: net yeni MRR'ın genişleme/daralma kırılımı için plan/tutar değişikliği geçmişi (ör. `subscription_changes`) 07'de yok; eklenmeli ya da `audit_log`'dan türetme kuralı yazılmalı. |
 | 13 | **Aylık değer raporu işi.** | **Kapandı:** [06](06-teknik-mimari.md) §8.5 `report-monthly-value` işi ve [07](07-veri-modeli-ve-api.md) `tenant_value_reports` tablosu tanımlı (§5.6). |

@@ -955,7 +955,7 @@ Hedef: sipariş kaçırma %0. Zamanlama kanoniktir ([00](00-kararlar-ve-sozluk.m
 - **Planlı sipariş** (`new` + `scheduled_for`): geldiğinde kısa "planlı sipariş" sesi çalar; tam zincir `scheduled_for − hazırlık süresi` anında kurulur. Basamak 5 ve 6 planlı siparişe uygulanmaz ([07](07-veri-modeli-ve-api.md) §4.1).
 - **Canary sipariş** (`test_kind = 'canary'`): zincir ve müşteri mesajı çalışmaz (WhatsApp adımı dry-run).
 
-**Kabul kriterleri:** Panel kapalıyken verilen test siparişinde 3. basamak t+2 dk ±15 sn içinde işletme sahibinin telefonuna ulaşır; 15. dakikada sipariş `cancelled`/`tenant_no_response` olur ve müşteri özür + telefon mesajını alır; sipariş onaylandıktan veya bekleyen ret başladıktan sonra hiçbir basamak tetiklenmez; ret geri alınırsa zincir sürer (sahte saatle test).
+**Kabul kriterleri:** Panel kapalıyken verilen test siparişinde 3. basamak t+2 dk ±15 sn içinde işletme sahibinin telefonuna ulaşır; 15. dakikada sipariş `cancelled`/`tenant_no_response` olur ve müşteri özür + telefon mesajını alır; sipariş onaylandıktan veya bekleyen ret başladıktan sonra hiçbir basamak tetiklenmez; ret geri alınırsa zincir sürer; 5. dakikada yalnız SMS gider, platform WABA uyarısı sipariş başına 1 kez gönderilir; 10–30 dk dışındaki iptal süresi ve iptalden 5 dk'dan kısa önce kalan müşteri bilgisi ayarı API'de reddedilir (sahte saatle test).
 
 ## 11. Test stratejisi
 
