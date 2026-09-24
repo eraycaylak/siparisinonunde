@@ -72,7 +72,8 @@ export async function buildCards(db: Database, rows: OrderRow[]): Promise<OrderC
     ? await db
         .select({ id: customers.id, orderCount: customers.orderCount, isBlocked: customers.isBlocked })
         .from(customers)
-        .where(inArray(customers.id, customerIds))
+        // KVKK ile silinmiş müşterinin sayacı/durumu gösterilmez (sipariş anonim kalır)
+        .where(and(inArray(customers.id, customerIds), sql`not exists (select 1 from customer_erasures e where e.customer_id = ${customers.id})`))
     : [];
   const courierIds = [...new Set(rows.map((r) => r.courierUserId).filter((x): x is string => Boolean(x)))];
   const courierRows = courierIds.length ? await db.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, courierIds)) : [];
@@ -200,7 +201,16 @@ export async function buildOrderDetail(db: Database, order: OrderRow, opts: { tr
 
   let customer: OrderDetailExt['customer'] = null;
   if (order.customerId) {
-    const [c] = await db.select().from(customers).where(and(eq(customers.id, order.customerId), eq(customers.tenantId, order.tenantId)));
+    const [c] = await db
+      .select()
+      .from(customers)
+      .where(
+        and(
+          eq(customers.id, order.customerId),
+          eq(customers.tenantId, order.tenantId),
+          sql`not exists (select 1 from customer_erasures e where e.customer_id = ${customers.id})`,
+        ),
+      );
     if (c) {
       const recentRows = await db
         .select()

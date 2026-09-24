@@ -1,6 +1,6 @@
 // `platform.alert` işi: platform WhatsApp numarasından işletme sahibine uyarı şablonu (02 §5.3, §10.3 basamak 3).
 // PLATFORM_WA_PROVIDER=mock → gönderim notifications tablosuna ('platform_wa') + log. cloud/d360 → platform hesabı
-// (PLATFORM_WA_API_KEY + PLATFORM_WA_PHONE_NUMBER_ID ortam değişkeni). onboarding_test'te sipariş no "TEST #<no>".
+// (config: PLATFORM_WA_API_KEY + PLATFORM_WA_PHONE_NUMBER_ID). onboarding_test'te sipariş no "TEST #<no>".
 // ops bayrağı platform_wa_alerts kapalıysa gönderilmez (Meta kesintisi, 10 §6.6).
 
 import { formatTL, maskPhone, type PlatformTemplateName } from '@siparis/core';
@@ -41,8 +41,7 @@ function platformAccount(config: Config): WaAccountRef {
     branchId: 'platform',
     provider: config.PLATFORM_WA_PROVIDER,
     displayPhone: null,
-    // Config şemasında yok (temel dilim): doğrudan ortamdan okunur
-    phoneNumberId: process.env.PLATFORM_WA_PHONE_NUMBER_ID?.trim() || null,
+    phoneNumberId: config.PLATFORM_WA_PHONE_NUMBER_ID ?? null,
     wabaId: null,
     apiKey: config.PLATFORM_WA_API_KEY ?? null,
   };

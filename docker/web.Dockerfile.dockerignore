@@ -1,0 +1,18 @@
+# docker/web.Dockerfile için bağlam dışı (BuildKit: <Dockerfile>.dockerignore)
+**/node_modules
+**/.next
+**/.next-*
+**/.turbo
+**/coverage
+**/*.log
+.git
+.env
+.env.*
+!.env.example
+test-results
+playwright-report
+uploads
+apps/api/uploads
+backups
+docs
+e2e

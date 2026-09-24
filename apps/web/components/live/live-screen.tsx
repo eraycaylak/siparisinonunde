@@ -59,7 +59,8 @@ function LiveInner({ businessName, kitchen }: { businessName: string; kitchen: b
   const [escalated, setEscalated] = useState<Set<string>>(() => new Set());
   const [showDone, setShowDone] = useState(false);
   const [tab, setTab] = useState<ColumnKey>('new');
-  const [autoPrint, setAutoPrint] = useState(false);
+  // Cihaz tercihi (localStorage); yoksa şubenin fiş ayarı (auto_print)
+  const [autoPrintPref, setAutoPrintPref] = useState<boolean | null>(null);
   const acked = useRef(new Set<string>());
   const refetchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -70,7 +71,8 @@ function LiveInner({ businessName, kitchen }: { businessName: string; kitchen: b
   });
 
   useEffect(() => {
-    setAutoPrint(readPref(AUTO_PRINT_KEY, '1') === '1');
+    const pref = readPref(AUTO_PRINT_KEY, '');
+    setAutoPrintPref(pref === '' ? null : pref === '1');
     const off = alarmSound.subscribe(() => setAudioOn(alarmSound.unlocked));
     setAudioOn(alarmSound.unlocked);
     return () => {
@@ -107,6 +109,8 @@ function LiveInner({ businessName, kitchen }: { businessName: string; kitchen: b
   });
 
   const data = q.data;
+  const autoPrint = autoPrintPref ?? data?.branch.receipt?.autoPrint ?? true;
+  const printPlan = data?.branch.receipt;
   const usePreparingStep = Boolean(data?.branch.usePreparingStep) || Boolean(data?.items.some((c) => c.status === 'preparing'));
   const items = useMemo(() => (data?.items ?? []).filter((c) => c.testKind !== 'canary'), [data]);
   const awaiting = items.filter((c) => c.status === 'awaiting_customer');
@@ -174,7 +178,7 @@ function LiveInner({ businessName, kitchen }: { businessName: string; kitchen: b
 
   const offline = stream?.status === 'offline';
   const toggleAutoPrint = (v: boolean) => {
-    setAutoPrint(v);
+    setAutoPrintPref(v);
     try {
       window.localStorage.setItem(AUTO_PRINT_KEY, v ? '1' : '0');
     } catch {
@@ -304,6 +308,7 @@ function LiveInner({ businessName, kitchen }: { businessName: string; kitchen: b
                   alarming={alarming.some((a) => a.id === c.id)}
                   onSeen={markSeen}
                   autoPrint={autoPrint}
+                  printPlan={printPlan}
                   offline={offline}
                 />
               </div>

@@ -5,7 +5,8 @@
 // Herkese açık; kişisel veri yalnız maskeli telefon ve ad olarak döner.
 
 import { okResponseSchema, storeSessionRequestSchema } from '@siparis/core';
-import { storefrontViewSchema, storeSessionViewSchema, type StoreSessionView } from '@siparis/core/menu/contracts';
+import { storefrontResponseSchema } from '@siparis/core';
+import { storeSessionViewSchema, type StoreSessionView } from '@siparis/core/menu/contracts';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { AppError } from '../../lib/errors';
@@ -39,7 +40,7 @@ const storefrontRoutes: FastifyPluginAsyncZod = async (app) => {
 
   app.get(
     '/:slug',
-    { schema: { params: slugParams, response: { 200: storefrontViewSchema } } },
+    { schema: { params: slugParams, response: { 200: storefrontResponseSchema } } },
     async (request, reply) => {
       const view = await loadStorefront(app.db, request.params.slug, new Date());
       if (!view) throw storeNotFound();

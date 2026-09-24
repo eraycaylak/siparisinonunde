@@ -1,10 +1,11 @@
-// Hata işleyici: 14 §6 biçimi. ZodError ve şema doğrulama hataları → 400 validation_error.
+// Hata işleyici: 14 §6 biçimi. ZodError ve şema doğrulama hataları → 400 validation_error (Türkçe mesajlar).
 
 import type { FastifyError, FastifyInstance } from 'fastify';
 import { hasZodFastifySchemaValidationErrors, isResponseSerializationError } from 'fastify-type-provider-zod';
 import { ZodError } from 'zod';
 import { OrderTransitionError } from '@siparis/core';
 import { AppError } from '../lib/errors';
+import { VALIDATION_ERROR_MESSAGE, turkishIssues, validationDetails } from '../lib/validation-messages';
 
 function body(code: string, message: string, details?: unknown) {
   return details === undefined ? { error: { code, message } } : { error: { code, message, details } };
@@ -36,20 +37,16 @@ export function registerErrorHandler(app: FastifyInstance): void {
       const status = err.code === 'invalid_transition' ? 409 : 400;
       return reply.status(status).send(body(err.code, err.message));
     }
+    // Doğrulama: Türkçe genel mesaj + alan yolları ve Türkçe alan mesajları (details.issues[].path "/alan", details.fields)
     if (hasZodFastifySchemaValidationErrors(err)) {
-      return reply.status(400).send(
-        body('validation_error', 'Gönderilen bilgiler geçersiz.', {
-          issues: err.validation.map((v) => ({ path: v.instancePath, message: v.message, params: v.params })),
-          context: err.validationContext,
-        }),
+      const issues = turkishIssues(
+        err.validation.map((v) => ({ instancePath: v.instancePath, keyword: v.keyword, message: v.message, params: v.params as Record<string, unknown> })),
       );
+      return reply.status(400).send(body('validation_error', VALIDATION_ERROR_MESSAGE, validationDetails(issues, err.validationContext)));
     }
     if (err instanceof ZodError) {
-      return reply.status(400).send(
-        body('validation_error', 'Gönderilen bilgiler geçersiz.', {
-          issues: err.issues.map((i) => ({ path: i.path.join('.'), message: i.message, code: i.code })),
-        }),
-      );
+      const issues = turkishIssues(err.issues as unknown as Parameters<typeof turkishIssues>[0]);
+      return reply.status(400).send(body('validation_error', VALIDATION_ERROR_MESSAGE, validationDetails(issues)));
     }
     if (isResponseSerializationError(err)) {
       request.log.error({ err, issues: err.cause.issues }, 'yanıt şeması uyuşmuyor');

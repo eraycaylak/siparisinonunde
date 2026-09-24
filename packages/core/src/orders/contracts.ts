@@ -111,6 +111,8 @@ export const activeOrdersResponseSchema = z.object({
     defaultPrepMinutes: z.number().int(),
     busyExtraMinutes: z.number().int(),
     acceptsDelivery: z.boolean(),
+    /** Fiş ayarından onayda otomatik baskı (branches.receipt_settings: auto_print, print_kitchen, print_delivery). */
+    receipt: z.object({ autoPrint: z.boolean(), printKitchen: z.boolean(), printDelivery: z.boolean() }),
   }),
   items: z.array(orderCardSchema),
   /** Bugün tamamlananlar (delivered/rejected/cancelled), en yeni üstte. */
@@ -314,6 +316,20 @@ export const receiptSchema = z.object({
     .nullable(),
   trackingUrl: z.string().nullable(),
   footer: z.string(),
+  /** Şube fiş ayarları (branches.receipt_settings, 04 §4.14 / §7.10): baskı düzeni. */
+  layout: z.object({
+    widthMm: z.union([z.literal(58), z.literal(80)]),
+    fontSize: z.enum(['normal', 'large']),
+    copies: z.number().int().min(1).max(3),
+    /** true: işletme adı büyük basılır */
+    showLogo: z.boolean(),
+  }),
+  /** "Bir sonraki siparişinizi WhatsApp'tan verin: 0555 …" (show_wa_line; yalnız kasa/kurye fişi ve bağlı numara varsa). */
+  waLine: z.string().nullable(),
+  /** İşletmenin alt bilgi metni (footer_text; yalnız kasa/kurye fişi). */
+  footerText: z.string().nullable(),
+  /** Onayda otomatik baskı planı (auto_print, print_kitchen, print_delivery). */
+  printPlan: z.object({ auto: z.boolean(), kitchen: z.boolean(), delivery: z.boolean() }),
 });
 export type Receipt = z.infer<typeof receiptSchema>;
 

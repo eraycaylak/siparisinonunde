@@ -1,6 +1,6 @@
 // Akış B (sipariş kodu) ve buton yanıtları (review, wait, cancel) — konuşma motoru.
 
-import { branchEvents, cancellationRequests, jobs, notifications, orderEvents, orderVerificationCodes, orders, reviews } from '@siparis/db';
+import { branchEvents, cancellationRequests, customers, jobs, notifications, orderEvents, orderVerificationCodes, orders, reviews } from '@siparis/db';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { OutboundPayload } from '../src/services/messaging/outbound';
@@ -60,6 +60,10 @@ describe('Akış B: sipariş kodu', () => {
     // Kanca M05'i ikinci kez üretmez
     await flushNotify(ctx);
     expect((await outCodes(ctx.db, conv!.id)).filter((c) => c === 'M05')).toHaveLength(1);
+    // Müşteri sayacı tek kez artar (sipariş kancası; motor ayrıca saymaz) ve ad siparişten gelir
+    const [cust] = await ctx.db.select().from(customers).where(eq(customers.id, conv!.customerId!));
+    expect(cust!.orderCount).toBe(1);
+    expect(cust!.lastOrderAt).toBeInstanceOf(Date);
   });
 
   it('yalın kod da eşleşir; aynı kodla tekrar → M17d (zaten onaylandı)', async () => {

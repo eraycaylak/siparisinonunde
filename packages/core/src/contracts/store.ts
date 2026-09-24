@@ -63,6 +63,8 @@ export const storefrontResponseSchema = z.object({
     logoUrl: z.string().nullable(),
     coverUrl: z.string().nullable(),
     phone: z.string().nullable(),
+    /** Bağlı (connected) WhatsApp numarası, E.164 — "WhatsApp'tan yaz" için; yoksa null. */
+    whatsappPhone: z.string().nullable().optional(),
   }),
   branch: z.object({
     id: idSchema,
@@ -72,12 +74,20 @@ export const storefrontResponseSchema = z.object({
     lng: z.number().nullable().optional(),
     orderingState: orderingStateSchema,
     nextOpenAt: isoDateTimeSchema.nullable(),
+    /** Açık aralığın bitişi (S-01 "Kapanış 23.30"); kapalıyken null. */
+    closesAt: isoDateTimeSchema.nullable().optional(),
+    /** Duraklatma bitişi (paused iken). */
+    pausedUntil: isoDateTimeSchema.nullable().optional(),
+    /** Şube telefonu (yoksa işletme telefonu). */
+    phone: z.string().nullable().optional(),
     acceptsDelivery: z.boolean(),
     acceptsPickup: z.boolean(),
     paymentMethods: z.array(paymentMethodSchema),
     mealCardBrands: z.array(z.string()),
     prepMinutes: z.number().int(),
     busyExtraMinutes: z.number().int().optional(),
+    /** Gel-al minimum sepet (0 = yok). */
+    pickupMinOrderKurus: kurusSchema.optional(),
   }),
   /** Tenant kill-switch'i kapalıysa false (storefront "şu an online sipariş alınmıyor" gösterir). */
   orderingEnabled: z.boolean().optional(),
@@ -201,6 +211,11 @@ export const createOrderRequestSchema = quoteRequestSchema.extend({
   note: z.string().trim().max(140).optional(),
   acceptPreInfo: z.literal(true),
   idempotencyKey: z.string().min(8).max(100),
+  /**
+   * "Bu cihazda hatırla" (03 §4.4, opt-in, varsayılan işaretsiz): yalnız true ise 90 günlük sf_cust_<slug>
+   * çerezi yazılır ("Son siparişin" kartı ve ön dolum). Doğrulama adımını atlatmaz.
+   */
+  rememberDevice: z.boolean().optional(),
 });
 export type CreateOrderRequest = z.infer<typeof createOrderRequestSchema>;
 

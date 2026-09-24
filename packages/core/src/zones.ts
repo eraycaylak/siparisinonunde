@@ -29,11 +29,15 @@ export function turkishLower(input: string): string {
   return input.replace(/İ/g, 'i').replace(/I/g, 'ı').toLowerCase();
 }
 
-const NEIGHBORHOOD_SUFFIX = /\s*(mahallesi|mahalesi|mahalle|mah\.?|mh\.?)\s*$/u;
+/**
+ * Sondaki mahalle eki — yalnız AYRI kelime olarak ("Cumhuriyet Mah.", "Aşağı Mahallesi"). Bitişik adlarda
+ * ("Yenimahalle", "Karşıyakamahallesi" gibi özel adlar) ek atılmaz: "Yenimahalle" → "yenimahalle", "yeni" değil.
+ */
+const NEIGHBORHOOD_SUFFIX = /\s+(mahallesi|mahalesi|mahalle|mah\.?|mh\.?)$/u;
 
 /**
- * Mahalle karşılaştırma anahtarı: Türkçe küçük harf, "Mahallesi/Mah." eki atılır,
- * noktalama ve tüm boşluklar yok sayılır. "Yeni  Mahalle Mah." ≡ "yenimahalle".
+ * Mahalle karşılaştırma anahtarı: Türkçe küçük harf, sondaki ayrı "Mahallesi/Mahalle/Mah./Mh." kelimesi (bir kez)
+ * atılır, noktalama ve tüm boşluklar yok sayılır. "Yeni  Mahalle Mah." ≡ "Yenimahalle" ≡ "yenimahalle".
  */
 export function neighborhoodKey(input: string): string {
   let s = turkishLower(input).normalize('NFC').trim().replace(/\s+/g, ' ');

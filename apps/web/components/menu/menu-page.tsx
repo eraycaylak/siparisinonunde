@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Ban, Download, ImageOff, Layers, Pencil, Percent, Plus, RotateCcw, Search, Upload } from 'lucide-react';
 import { toast } from 'sonner';
+import { formatNextOpenTR } from '@siparis/core/hours';
 import type { PanelMenuResponse, PanelProduct } from '@siparis/core/menu/contracts';
 import { ScreenError, ScreenLoading } from '@/components/common/screen-state';
 import { Alert } from '@/components/ui/alert';
@@ -210,7 +211,9 @@ function ProductsPanel({ menu, onEdit, onAdd }: { menu: PanelMenuResponse; onEdi
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-2">
                 <span className="min-w-0 break-words font-semibold">
                   {p.name}
-                  <span className="ms-2 text-sm font-normal text-fg-muted">gün sonuna kadar</span>
+                  <span className="ms-2 text-sm font-normal text-fg-muted">
+                    {p.soldOutUntil ? `yeniden satışta: ${formatNextOpenTR(new Date(p.soldOutUntil))}` : 'bir sonraki açılışa kadar'}
+                  </span>
                 </span>
                 <SoldOutSwitch product={p} />
               </li>

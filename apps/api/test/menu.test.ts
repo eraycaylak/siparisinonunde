@@ -2,7 +2,7 @@
 // abonelik kilidi ve tenant yalıtımı (başka tenant'ın kaydı 404).
 
 import type { PanelMenuResponse, PanelOptionGroup, PanelProduct, StorefrontView } from '@siparis/core/menu/contracts';
-import { auditLog, categories, optionGroups, options, productOptionGroups, products, tenants } from '@siparis/db';
+import { auditLog, categories, openingHours, optionGroups, options, productOptionGroups, products, tenants } from '@siparis/db';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestContext, expectError, expectIsolated, type TestContext, type TestTenant } from './helpers';
@@ -224,6 +224,29 @@ describe('POST /products/:id/sold-out', () => {
 
     const store = (await ctx.request({ method: 'GET', url: '/api/v1/store/menu-a' })).json() as StorefrontView;
     expect(store.categories.flatMap((c) => c.products).find((p) => p.id === menuA.ayran)!.soldOut).toBe(true);
+  });
+
+  it('şube saatine göre: gece yarısını aşan saatte bir sonraki iş gününün ilk açılışına kadar (gece yarısında sıfırlanmaz)', async () => {
+    const setHours = async (opensAt: string, closesAt: string) => {
+      await ctx.db.delete(openingHours).where(eq(openingHours.branchId, a.branchId));
+      await ctx.db
+        .insert(openingHours)
+        .values([0, 1, 2, 3, 4, 5, 6].map((weekday) => ({ tenantId: a.tenantId, branchId: a.branchId, weekday, opensAt, closesAt })));
+    };
+    await setHours('10:00', '02:00');
+    try {
+      const before = Date.now();
+      const res = await req('POST', `/products/${menuA.lahmacun}/sold-out`, cashier, { until: 'end_of_day' });
+      expect(res.statusCode, res.body).toBe(200);
+      const until = res.json().soldOutUntil as string;
+      // İstanbul 10.00 = 07:00Z (gece yarısı 21:00Z değil)
+      expect(until).toMatch(/T07:00:00\.000Z$/);
+      expect(Date.parse(until)).toBeGreaterThan(before);
+      expect(Date.parse(until) - before).toBeLessThan(2 * 86400_000);
+    } finally {
+      await setHours('00:00', '00:00');
+      await req('POST', `/products/${menuA.lahmacun}/sold-out`, a.ownerCookie, { until: null });
+    }
   });
 
   it('mutfak geri açar (until null)', async () => {

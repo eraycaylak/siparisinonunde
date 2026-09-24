@@ -3,7 +3,7 @@
 import { maskPhone } from '@siparis/core';
 import type { StoreSessionView } from '@siparis/core/menu/contracts';
 import { customers, options, orderItemOptions, orderItems, orders, products, storefrontLinkTokens, type Database } from '@siparis/db';
-import { and, asc, desc, eq, gt, inArray, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { sha256Hex } from '../../lib/tokens';
 
 export type LinkTokenRow = typeof storefrontLinkTokens.$inferSelect;
@@ -34,12 +34,19 @@ export async function markLinkTokenExchanged(db: Database, row: LinkTokenRow, no
     .where(eq(storefrontLinkTokens.id, row.id));
 }
 
+/** KVKK ile silinmiş (customer_erasures) müşteri tanınmaz: "Bu cihazda hatırla" çerezi ve son sipariş kartı düşer. */
 export async function findTenantCustomer(db: Database, tenantId: string, customerId: string | null | undefined): Promise<CustomerRow | null> {
   if (!customerId) return null;
   const [c] = await db
     .select()
     .from(customers)
-    .where(and(eq(customers.id, customerId), eq(customers.tenantId, tenantId)))
+    .where(
+      and(
+        eq(customers.id, customerId),
+        eq(customers.tenantId, tenantId),
+        sql`not exists (select 1 from customer_erasures e where e.customer_id = ${customers.id})`,
+      ),
+    )
     .limit(1);
   return c ?? null;
 }

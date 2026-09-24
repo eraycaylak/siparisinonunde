@@ -36,7 +36,11 @@ export function useNativeDialog(open: boolean, onOpenChange: (open: boolean) => 
       e.preventDefault();
       if (dismissible) onOpenChange(false);
     },
-    onClose: () => {
+    onClose: (e: SyntheticEvent<HTMLDialogElement>) => {
+      // "close" olayı kuyruktan geç gelir. React StrictMode (dev) efekti kurup söküp yeniden kurar:
+      // söküm el.close() çağırır, yeniden kurulum showModal() ile tekrar açar; geç gelen olay bu
+      // yeniden açılmış pencereyi kapatmamalı. Pencere hâlâ açıksa olay eskidir, yok say.
+      if (e.currentTarget.open) return;
       if (open) onOpenChange(false);
     },
     onMouseDown: (e: MouseEvent<HTMLDialogElement>) => {

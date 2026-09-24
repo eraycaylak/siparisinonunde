@@ -12,6 +12,7 @@ import { registerAllJobs } from './jobs/index';
 import { BranchEventHub } from './lib/sse';
 import { authPlugin } from './plugins/auth';
 import { registerErrorHandler } from './plugins/error-handler';
+import { impersonationAuditPlugin } from './plugins/impersonation-audit';
 import adminRoutes from './routes/admin/index';
 import authRoutes from './routes/auth';
 import courierRoutes from './routes/courier/index';
@@ -83,6 +84,8 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   registerErrorHandler(app);
   await app.register(cookie);
   await app.register(authPlugin);
+  // Destek erişimi: her panel isteği audit_log'a (05 A-09)
+  await app.register(impersonationAuditPlugin);
 
   // İş işleyicileri ve sipariş olayı abonelikleri (API sürecinde de gerekli: transitionOrder kancaları)
   registerAllJobs();

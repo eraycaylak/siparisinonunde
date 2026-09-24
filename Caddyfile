@@ -1,0 +1,78 @@
+# Siparişin Önünde — Caddy ters vekil (00 §2, 14 §1). Otomatik TLS (Let's Encrypt).
+# Alan adı .env'deki DOMAIN'den gelir (varsayılan siparisinonunde.com). Yönlendirme:
+#   DOMAIN, panel.DOMAIN, admin.DOMAIN  → /api/* API'ye (SSE için tamponsuz), geri kalan web'e
+#                                         (panel./admin. kökü web'de proxy.ts ile /panel ve /admin'e yazılır)
+#   www.DOMAIN                          → DOMAIN'e kalıcı yönlendirme
+#   {slug}.DOMAIN (wildcard)            → web; proxy.ts alt alan adını /s/{slug} vitrinine yazar
+#   hooks.DOMAIN/wa/<token>             → API /api/v1/webhooks/wa/<token> (WhatsApp webhook'u; 00 §2)
+# Wildcard sertifika DNS-01 ister: docker/caddy.Dockerfile Cloudflare DNS modülüyle derlenir,
+# CLOUDFLARE_API_TOKEN (.env) "Zone.Zone:Read + Zone.DNS:Edit" yetkili olmalı. Ayrıntı: docs/15-kurulum-ve-isletim.md §3.
+
+{
+	email {$ACME_EMAIL:admin@siparisinonunde.com}
+	# Loglar JSON, stdout'a (docker compose logs caddy)
+	log {
+		output stdout
+		format json
+		level INFO
+	}
+	# Cloudflare proxy (turuncu bulut) kullanılıyorsa gerçek istemci IP'si (X-Forwarded-For) için şu bloğu açın:
+	# servers {
+	# 	trusted_proxies static 173.245.48.0/20 103.21.244.0/22 103.22.200.0/22 103.31.4.0/22 141.101.64.0/18 108.162.192.0/18 190.93.240.0/20 188.114.96.0/20 197.234.240.0/22 198.41.128.0/17 162.158.0.0/15 104.16.0.0/13 104.24.0.0/14 172.64.0.0/13 131.0.72.0/22
+	# }
+}
+
+# Ortak kurallar: güvenlik başlıkları, API (SSE dahil) ve web.
+(site) {
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+
+	# Yükleme sınırı: menü görselleri 5 MB (14 §6.3) + pay
+	request_body {
+		max_size 8MB
+	}
+
+	# API: /api/v1/* (REST, SSE /api/v1/panel/stream, webhook'lar, /api/v1/uploads).
+	# flush_interval -1 → olay akışı anında iletilir (tamponlama yok); sıkıştırma YOK.
+	handle /api/* {
+		reverse_proxy api:4000 {
+			flush_interval -1
+		}
+	}
+
+	# Web (Next.js): sayfalar, storefront, panel, admin, kurye
+	handle {
+		encode zstd gzip
+		reverse_proxy web:3000
+	}
+}
+
+{$DOMAIN:siparisinonunde.com}, panel.{$DOMAIN:siparisinonunde.com}, admin.{$DOMAIN:siparisinonunde.com} {
+	import site
+}
+
+www.{$DOMAIN:siparisinonunde.com} {
+	redir https://{$DOMAIN:siparisinonunde.com}{uri} permanent
+}
+
+# WhatsApp webhook alt alan adı (isteğe bağlı; panelde gösterilen adres DOMAIN/api/v1/webhooks/wa/<token>'dır)
+hooks.{$DOMAIN:siparisinonunde.com} {
+	handle_path /wa/* {
+		rewrite * /api/v1/webhooks/wa{path}
+		reverse_proxy api:4000
+	}
+	handle {
+		respond 404
+	}
+}
+
+# İşletme vitrinleri: {slug}.DOMAIN — tek wildcard sertifika (DNS-01, Cloudflare)
+*.{$DOMAIN:siparisinonunde.com} {
+	tls {
+		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+	}
+	import site
+}

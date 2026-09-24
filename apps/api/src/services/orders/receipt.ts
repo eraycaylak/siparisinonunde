@@ -6,16 +6,35 @@ import {
   MEAL_CARD_BRAND_LABELS,
   PAYMENT_METHOD_LABELS,
   formatClockTR,
+  formatPhone,
   formatTL,
   maskPhone,
 } from '@siparis/core';
 import { RECEIPT_TYPES, receiptSchema, type Receipt, type ReceiptType } from '@siparis/core/orders/contracts';
+import { DEFAULT_RECEIPT_SETTINGS, receiptSettingsSchema, type ReceiptSettingsDto } from '@siparis/core/settings/contracts';
 import type { ItemWithOptions } from './panel-dto';
 import type { OrderRow } from './summary';
 
 /** "Soğansız", "Acısız" gibi çıkarılacaklar büyük harf + kalın basılır (04 §4.4). */
 export function isRemovalOption(text: string): boolean {
   return /s[ıiuü]z$/iu.test(text.trim());
+}
+
+export const RECEIPT_WA_LINE = 'Bir sonraki siparişinizi WhatsApp’tan verin';
+
+/**
+ * branches.receipt_settings (jsonb, snake_case) → varsayılanlarla birleşik, doğrulanmış ayar. Bozuk/bilinmeyen
+ * değerler yok sayılır (varsayılan kullanılır).
+ */
+export function resolveReceiptSettings(raw: unknown): Required<ReceiptSettingsDto> {
+  const out: Required<ReceiptSettingsDto> = { ...DEFAULT_RECEIPT_SETTINGS };
+  if (!raw || typeof raw !== 'object') return out;
+  const shape = receiptSettingsSchema.shape;
+  for (const key of Object.keys(shape) as (keyof ReceiptSettingsDto)[]) {
+    const parsed = shape[key].safeParse((raw as Record<string, unknown>)[key]);
+    if (parsed.success && parsed.data !== undefined) (out as Record<string, unknown>)[key] = parsed.data;
+  }
+  return out;
 }
 
 export function buildReceipt(input: {
@@ -25,11 +44,17 @@ export function buildReceipt(input: {
   business: { name: string; branchName: string | null; phone: string | null; timezone?: string | null };
   copy: boolean;
   trackingUrl: string | null;
+  /** branches.receipt_settings (ham jsonb) */
+  settings?: unknown;
+  /** Bağlı WhatsApp numarası (E.164); yoksa WhatsApp satırı basılmaz */
+  waPhone?: string | null;
   now?: Date;
 }): Receipt {
   const { order, type } = input;
   const tz = input.business.timezone ?? undefined;
   const kitchen = type === 'kitchen';
+  const st = resolveReceiptSettings(input.settings);
+  const footerText = st.footer_text.trim();
   const changeKurus =
     order.paymentMethod === 'cash_on_delivery' && order.changeForKurus && order.changeForKurus > order.totalKurus
       ? order.changeForKurus - order.totalKurus
@@ -73,6 +98,10 @@ export function buildReceipt(input: {
     payment: kitchen ? null : { method: order.paymentMethod, label: payLabel, changeForKurus: order.changeForKurus, changeKurus },
     trackingUrl: kitchen ? null : input.trackingUrl,
     footer: kitchen ? 'MUTFAK FİŞİ' : 'Mali değeri yoktur.',
+    layout: { widthMm: st.width_mm, fontSize: st.font_size, copies: st.copies, showLogo: st.show_logo },
+    waLine: !kitchen && st.show_wa_line && input.waPhone ? `${RECEIPT_WA_LINE}: ${formatPhone(input.waPhone)}` : null,
+    footerText: !kitchen && footerText ? footerText : null,
+    printPlan: { auto: st.auto_print, kitchen: st.print_kitchen, delivery: st.print_delivery },
   };
 }
 
@@ -80,10 +109,13 @@ const esc = (s: string | null | undefined) =>
   (s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
 const up = (s: string) => s.toLocaleUpperCase('tr-TR');
 
-/** 80 mm (ya da 58 mm) yazdırılabilir HTML; tarayıcıdan window.print ile basılır. */
-export function renderReceiptHtml(r: Receipt, widthMm: 58 | 80 = 80): string {
+/**
+ * 80 mm (ya da 58 mm) yazdırılabilir HTML; tarayıcıdan window.print ile basılır. Genişlik verilmezse fiş ayarı;
+ * yazı boyutu, kopya sayısı (sayfa sonuyla tekrar), işletme adı boyutu, WhatsApp satırı ve alt bilgi fiş ayarından.
+ */
+export function renderReceiptHtml(r: Receipt, widthMm: 58 | 80 = r.layout.widthMm): string {
   const lines: string[] = [];
-  lines.push(`<div class="c b">${esc(r.business.name)}</div>`);
+  lines.push(`<div class="c b${r.layout.showLogo ? ' big' : ''}">${esc(r.business.name)}</div>`);
   if (r.copy) lines.push('<div class="c b big">KOPYA</div>');
   lines.push(`<div class="c huge">#${r.number}</div>`);
   lines.push(`<div class="c b">${esc(up(r.fulfillmentLabel))}</div>`);
@@ -119,16 +151,25 @@ export function renderReceiptHtml(r: Receipt, widthMm: 58 | 80 = 80): string {
       lines.push(`<div>${esc(formatTL(r.payment.changeForKurus))}'ye para üstü: ${esc(formatTL(r.payment.changeKurus))}</div>`);
     }
   }
+  if (r.waLine || r.footerText) {
+    lines.push('<hr>');
+    if (r.waLine) lines.push(`<div class="c">${esc(r.waLine)}</div>`);
+    if (r.footerText) lines.push(`<div class="c pre">${esc(r.footerText)}</div>`);
+  }
   lines.push(`<hr><div class="c small">${esc(r.footer)} · ${esc(r.printedAt)}</div>`);
+  const body = lines.join('\n');
+  const copies = Array.from({ length: r.layout.copies }, (_, i) => `<section class="copy${i > 0 ? ' pb' : ''}">${body}</section>`);
+  const fontPx = r.layout.fontSize === 'large' ? 15 : 13;
   return `<!doctype html><html lang="tr"><head><meta charset="utf-8"><title>Fiş #${r.number}</title>
 <style>
 @page { size: ${widthMm}mm auto; margin: 2mm; }
-body { width: ${widthMm - 4}mm; margin: 0 auto; font: 13px/1.35 system-ui, sans-serif; color: #000; }
+body { width: ${widthMm - 4}mm; margin: 0 auto; font: ${fontPx}px/1.35 system-ui, sans-serif; color: #000; }
+.pb { break-before: page; page-break-before: always; } .pre { white-space: pre-wrap; }
 .c { text-align: center; } .b { font-weight: 700; } .big { font-size: 16px; } .huge { font-size: 28px; font-weight: 800; }
 .small { font-size: 11px; } .item { display: flex; justify-content: space-between; gap: 6px; }
 .opt { padding-left: 10px; } .rm { font-size: 15px; } .note { background: #eee; padding: 2px 4px; }
 hr { border: 0; border-top: 1px dashed #000; margin: 6px 0; } .r { white-space: nowrap; }
-</style></head><body>${lines.join('\n')}</body></html>`;
+</style></head><body>${copies.join('\n')}</body></html>`;
 }
 
 export { RECEIPT_TYPES, receiptSchema };

@@ -16,9 +16,11 @@ const MINUS = String.fromCharCode(0x2212);
 const NBSP = String.fromCharCode(0xa0);
 
 describe('format', () => {
-  it('para: kuruş → "123,45 ₺" (core)', () => {
-    expect(formatMoney(12345)).toBe('123,45 ₺');
-    expect(formatMoney(125050)).toBe('1.250,50 ₺');
+  it('para: kuruş → varsayılan "123,45 TL" (12 §11.2), symbol → "₺" (core)', () => {
+    expect(formatMoney(12345)).toBe('123,45 TL');
+    expect(formatMoney(125050)).toBe('1.250,50 TL');
+    expect(formatMoney(12345, 'symbol')).toBe('123,45 ₺');
+    expect(formatMoney(125050, 'symbol')).toBe('1.250,50 ₺');
     expect(formatMoney(48500, 'text')).toBe('485,00 TL');
     expect(formatMoney(15000, 'short')).toBe('150 TL');
   });

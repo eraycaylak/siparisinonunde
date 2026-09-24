@@ -4,7 +4,7 @@
 
 import { z } from 'zod';
 import { idSchema, isoDateTimeSchema, kurusSchema } from '../contracts/common';
-import { storefrontResponseSchema, storeSessionResponseSchema } from '../contracts/store';
+import { storefrontResponseSchema, storeSessionResponseSchema, type StorefrontResponse } from '../contracts/store';
 
 // ---------------------------------------------------------------------------
 // Sınırlar (04 §6.2)
@@ -26,24 +26,13 @@ export const MENU_LIMITS = {
 export const UPLOAD_CONTENT_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const;
 
 // ---------------------------------------------------------------------------
-// Storefront genişletmeleri (core storefrontResponseSchema'nın üst kümesi)
+// Storefront vitrini: GET /store/:slug yanıtının tek tanımı core contracts/store.ts storefrontResponseSchema'dadır
+// (whatsappPhone, closesAt, pausedUntil, phone, pickupMinOrderKurus dahil). Aşağıdakiler geriye dönük takma adlardır;
+// API ve web aynı şemayı/tipi kullanır.
 
-const storeBranchBase = storefrontResponseSchema.shape.branch;
-
-/** GET /store/:slug yanıtı: çekirdek şema + açık aralığın bitişi ve duraklatma bitişi (S-01 "Kapanış 23.30"). */
-export const storefrontViewSchema = storefrontResponseSchema.extend({
-  tenant: storefrontResponseSchema.shape.tenant.extend({
-    /** Bağlı (connected) WhatsApp numarası, E.164 — "WhatsApp'tan yaz" için; yoksa null. */
-    whatsappPhone: z.string().nullable().optional(),
-  }),
-  branch: storeBranchBase.extend({
-    closesAt: isoDateTimeSchema.nullable().optional(),
-    pausedUntil: isoDateTimeSchema.nullable().optional(),
-    phone: z.string().nullable().optional(),
-    pickupMinOrderKurus: kurusSchema.optional(),
-  }),
-});
-export type StorefrontView = z.infer<typeof storefrontViewSchema>;
+/** @deprecated storefrontResponseSchema ile aynı nesne. */
+export const storefrontViewSchema = storefrontResponseSchema;
+export type StorefrontView = StorefrontResponse;
 export type StorefrontViewProduct = StorefrontView['categories'][number]['products'][number];
 export type StorefrontViewCategory = StorefrontView['categories'][number];
 

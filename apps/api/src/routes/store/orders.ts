@@ -196,7 +196,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       // Aynı anahtar → aynı yanıt (çift dokunuş / ağ tekrarı, 03 K13)
       const existing = await findByIdempotencyKey(app.db, tenant.id, body.idempotencyKey);
       if (existing) {
-        if (existing.customerId) setCustomerCookie(reply, app.config, tenant.slug, existing.customerId);
+        if (existing.customerId && body.rememberDevice === true) setCustomerCookie(reply, app.config, tenant.slug, existing.customerId);
         return buildCreateResponse(app.db, app.config, tenant, existing);
       }
 
@@ -306,7 +306,8 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         throw err;
       }
 
-      if (order.customerId) setCustomerCookie(reply, app.config, tenant.slug, order.customerId);
+      // "Bu cihazda hatırla" yalnız açık seçimle (03 §4.4 opt-in): işaretsizse çerez yazılmaz
+      if (order.customerId && body.rememberDevice === true) setCustomerCookie(reply, app.config, tenant.slug, order.customerId);
       request.log.info({ orderId: order.id, number: order.number, flow: flowA ? 'A' : 'B', status: order.status }, 'storefront siparişi');
       return buildCreateResponse(app.db, app.config, tenant, order);
     },

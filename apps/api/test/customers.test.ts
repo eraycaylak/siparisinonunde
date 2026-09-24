@@ -1,8 +1,11 @@
 // Dilim 4 — müşteriler: liste (maskeli, arama, sayfalama), profil (tam telefon), not/kara liste, sipariş geçmişi,
 // KVKK dışa aktarma ve silme/anonimleştirme (08 §2.10); yetki ve yalıtım.
 
-import { auditLog, conversations, customerAddresses, customers, messages, orders, waAccounts } from '@siparis/db';
-import { and, eq } from 'drizzle-orm';
+import { localDateString } from '@siparis/core';
+import { auditLog, conversations, customerAddresses, customers, messages, orders, tenants, waAccounts } from '@siparis/db';
+import { and, eq, isNull } from 'drizzle-orm';
+import { signCustomerCookie } from '../src/services/storefront/cookies';
+import { findTenantCustomer } from '../src/services/storefront/session';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestContext, expectError, type TestContext, type TestTenant } from './helpers';
 import { createCustomer, insertOrder } from './settings-helpers';
@@ -183,5 +186,44 @@ describe('KVKK: dışa aktarma ve silme', () => {
     // Başka tenant'taki aynı telefonlu kayıt etkilenmez
     const [f] = await ctx.db.select().from(customers).where(eq(customers.id, foreign.id));
     expect(f!.phoneE164).toBe('+905321112233');
+  });
+
+  it('silinen müşteri: rapor ciro/sayıları korunur (mali kayıt); sipariş kartı/detayında ve storefront "hatırla" çerezinde müşteri yok', async () => {
+    // Rapor: dünkü (anonimleşmiş) sipariş ciroda kalır
+    const yesterday = localDateString(new Date(Date.now() - 86400000));
+    const daily = await req('GET', `/reports/daily?date=${yesterday}`, a.ownerCookie);
+    expect(daily.statusCode, daily.body).toBe(200);
+    expect(daily.json()).toMatchObject({ deliveredCount: 1, revenueKurus: 10000 });
+    // Müşteri sayımı: silinen müşteri listede yok (26 → 25)
+    const seen = new Set<string>();
+    let cursor: string | undefined;
+    do {
+      const page = await req('GET', `/customers?limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, a.ownerCookie);
+      for (const i of page.json().items) seen.add(i.id);
+      cursor = page.json().nextCursor;
+    } while (cursor);
+    expect(seen.size).toBe(25);
+    expect(seen.has(ayse.id)).toBe(false);
+
+    // Sipariş detayı: müşteri bölümü (sayaç, geçmiş) gösterilmez
+    const [ord] = await ctx.db.select().from(orders).where(and(eq(orders.customerId, ayse.id), isNull(orders.testKind))).limit(1);
+    const detail = await req('GET', `/orders/${ord!.id}`, a.ownerCookie);
+    expect(detail.statusCode, detail.body).toBe(200);
+    expect(detail.json().customer).toBeNull();
+    expect(detail.json().customerName).toBe('Anonim müşteri');
+
+    // Storefront: silinen müşterinin imzalı "Bu cihazda hatırla" çerezi tanınmaz
+    const [t] = await ctx.db.select({ slug: tenants.slug }).from(tenants).where(eq(tenants.id, a.tenantId));
+    const session = await ctx.request({
+      method: 'POST',
+      url: `/api/v1/store/${t!.slug}/session`,
+      body: {},
+      headers: { cookie: `sf_cust_${t!.slug}=${signCustomerCookie(ctx.config.SESSION_SECRET, ayse.id)}` },
+    });
+    expect(session.statusCode, session.body).toBe(200);
+    expect(session.json()).toMatchObject({ customer: null, lastOrder: null });
+    expect(await findTenantCustomer(ctx.db, a.tenantId, ayse.id)).toBeNull();
+    const [other] = await ctx.db.select().from(customers).where(and(eq(customers.tenantId, a.tenantId), eq(customers.name, 'Müşteri 1')));
+    expect((await findTenantCustomer(ctx.db, a.tenantId, other!.id))?.id).toBe(other!.id);
   });
 });

@@ -1,7 +1,8 @@
 // Storefront çerezleri (dilimler arası sözleşme, DILIM-KURALLARI):
 //  - sf_link_<slug>: Akış A link token'ı (ham token; HttpOnly; 2 sa) — dilim 1 yazar, sipariş oluştururken okunur.
 //  - sf_cust_<slug>: "<customerId>.<hmacSha256Hex(SESSION_SECRET, 'sf_cust:' + customerId)>" (90 gün, HttpOnly) —
-//    sipariş oluşturulunca yazılır; dilim 1 "Son siparişin" için okur (services/storefront/cookies.ts ile aynı kanonik biçim).
+//    yalnız müşteri checkout'ta "Bu cihazda hatırla"yı işaretlediyse (rememberDevice: true, 03 §4.4 opt-in) sipariş
+//    oluşturulunca yazılır; dilim 1 "Son siparişin" için okur (services/storefront/cookies.ts ile aynı kanonik biçim).
 
 import { storefrontLinkTokens, type Database } from '@siparis/db';
 import type { FastifyReply, FastifyRequest } from 'fastify';

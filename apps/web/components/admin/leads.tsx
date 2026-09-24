@@ -137,7 +137,7 @@ export function LeadsScreen() {
       ) : null}
       <LoadMore hasMore={Boolean(list.hasNextPage)} loading={list.isFetchingNextPage} onClick={() => void list.fetchNextPage()} />
 
-      {/* Diyalog hep bağlı kalır (yerel <dialog> açık bağlanırsa StrictMode çift efektinde hemen kapanır). */}
+      {/* Diyalog hep bağlı kalır; açık/kapalı durumu `lead` ile yönetilir. */}
       <LeadDialog lead={editing} canWrite={can('leads:write')} onClose={() => setEditing(null)} />
     </>
   );

@@ -4,12 +4,22 @@ import { pathToFileURL } from 'node:url';
 import postgres from 'postgres';
 import { runMigrations } from './migrate';
 
-/** Güvenlik: yalnız adı _dev/_test ile biten ya da ALLOW_DB_RESET=1 olan veritabanları. */
+/**
+ * Sıfırlanabilir veritabanı adları: `*_dev`, `*_test` ve paralel geliştirme/e2e kopyaları
+ * (`*_dev_s3`, `*_test_s2`, `*_e2e_test`). Başka adlar yalnız ALLOW_DB_RESET=1 ile.
+ */
+export const RESETTABLE_DB_NAME = /_(dev|test)(_s\d+)?$/;
+
+export function isResettableDbName(dbName: string): boolean {
+  return RESETTABLE_DB_NAME.test(dbName);
+}
+
+/** Güvenlik: yalnız adı kalıba uyan ya da ALLOW_DB_RESET=1 olan veritabanları; üretimde asla. */
 export function assertResettable(url: string): void {
   if (process.env.NODE_ENV === 'production') throw new Error('Üretimde veritabanı sıfırlanamaz.');
   const dbName = new URL(url).pathname.replace(/^\//, '');
-  if (!/(_dev|_test)$/.test(dbName) && process.env.ALLOW_DB_RESET !== '1') {
-    throw new Error(`"${dbName}" sıfırlanamaz (yalnız *_dev / *_test ya da ALLOW_DB_RESET=1).`);
+  if (!isResettableDbName(dbName) && process.env.ALLOW_DB_RESET !== '1') {
+    throw new Error(`"${dbName}" sıfırlanamaz (yalnız *_dev, *_test, *_dev_sN, *_test_sN, *_e2e_test ya da ALLOW_DB_RESET=1).`);
   }
 }
 

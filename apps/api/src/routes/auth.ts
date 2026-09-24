@@ -83,7 +83,7 @@ const authRoutes: FastifyPluginAsyncZod = async (app) => {
       const body = request.body;
       const phone = normalizeTrMobile(body.phone);
       if (!phone) {
-        throw new AppError(400, 'validation_error', 'Geçerli bir cep telefonu girin.', { issues: [{ path: 'phone', message: 'invalid_phone' }] });
+        throw new AppError(400, 'validation_error', 'Geçerli bir cep telefonu girin.', { issues: [{ path: '/phone', field: 'phone', message: 'Geçerli bir cep telefonu girin.', code: 'invalid_phone' }], fields: { phone: 'Geçerli bir cep telefonu girin.' } });
       }
       const email = body.email.toLowerCase();
 

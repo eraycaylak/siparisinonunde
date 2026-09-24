@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent } from 'react';
 import { Eye, ShieldAlert } from 'lucide-react';
-import type { AdminImpersonateRequest, AdminImpersonateResponse } from '@siparis/core/admin/contracts';
+import { IMPERSONATION_REASON_MIN, type AdminImpersonateRequest, type AdminImpersonateResponse } from '@siparis/core/admin/contracts';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Dialog } from '@/components/ui/dialog';
@@ -27,8 +27,8 @@ export function ImpersonateButton({ tenantId, tenantName }: { tenantId: string; 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (reason.trim().length < 10) {
-      setFieldError('Gerekçe en az 10 karakter olmalı.');
+    if (reason.trim().length < IMPERSONATION_REASON_MIN) {
+      setFieldError(`Gerekçe en az ${IMPERSONATION_REASON_MIN} karakter olmalı.`);
       return;
     }
     setFieldError(undefined);
@@ -74,7 +74,7 @@ export function ImpersonateButton({ tenantId, tenantName }: { tenantId: string; 
             En fazla 30 dakika sürer ve uzatılamaz. İşletme sahibine bildirim gider, panelde kırmızı bant görünür ve erişim denetim
             kaydına yazılır. Değişiklik yapılamaz.
           </Alert>
-          <Field label="Gerekçe" required error={fieldError} hint="En az 10 karakter. Ör. “Sipariş düşmüyor şikayeti, bildirim ayarları kontrolü”.">
+          <Field label="Gerekçe" required error={fieldError} hint={`En az ${IMPERSONATION_REASON_MIN} karakter. Ör. “Sipariş düşmüyor şikayeti, bildirim ayarları kontrolü”.`}>
             <Textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} maxLength={500} autoFocus />
           </Field>
           <Field label="Destek kaydı no" hint="İsteğe bağlı">

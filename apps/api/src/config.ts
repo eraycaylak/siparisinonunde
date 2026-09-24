@@ -34,6 +34,8 @@ export const configSchema = z.object({
   WA_VERIFY_TOKEN: z.string().default('dev-verify'),
   PLATFORM_WA_PROVIDER: z.enum(['mock', 'cloud', 'd360']).default('mock'),
   PLATFORM_WA_API_KEY: optionalString,
+  /** cloud: platform numarasının Graph phone_number_id'si (d360'ta gerekmez) */
+  PLATFORM_WA_PHONE_NUMBER_ID: optionalString,
   SMS_PROVIDER: z.enum(['mock', 'netgsm']).default('mock'),
   NETGSM_USERCODE: optionalString,
   NETGSM_PASSWORD: optionalString,

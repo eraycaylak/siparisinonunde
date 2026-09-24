@@ -23,6 +23,8 @@ import { brandButtonClass } from '@/components/storefront/brand';
 import { useStoreSession } from '@/components/storefront/use-store-session';
 import { VerificationScreen } from './verification-screen';
 
+/** 03 §4.4 kilitli metin. */
+const REMEMBER_DEVICE_TEXT = 'Adımı, telefonumu ve adresimi bu cihazda sonraki siparişlerim için hatırla.';
 const OBLIGATION_TEXT =
   '"Siparişi onayla"ya bastığınızda siparişiniz kesinleşir ve ödeme yükümlülüğü doğar. Gıda siparişleri çabuk bozulabilen ürünler olduğundan cayma hakkı kapsamı dışındadır.';
 
@@ -74,6 +76,8 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
   const [cutlery, setCutlery] = useState(false);
   const [note, setNote] = useState('');
   const [accept, setAccept] = useState(false);
+  // "Bu cihazda hatırla" (03 §4.4): yalnız Akış B'de, varsayılan işaretsiz (opt-in)
+  const [remember, setRemember] = useState(false);
   const [preInfoOpen, setPreInfoOpen] = useState(false);
 
   const [quote, setQuote] = useState<QuoteResponse | null>(null);
@@ -192,6 +196,7 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
       ...(note.trim() ? { note: note.trim() } : {}),
       acceptPreInfo: true,
       idempotencyKey: idemKey.current,
+      ...(!flowA && remember ? { rememberDevice: true } : {}),
     };
     try {
       let res: CreateOrderResponse | null = null;
@@ -512,6 +517,14 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
             </a>
           </p>
         </div>
+        {!flowA ? (
+          <Checkbox
+            label={REMEMBER_DEVICE_TEXT}
+            description="90 gün hatırlanır; doğrulama adımı yine istenir. Menüdeki “Bu cihazı unut” ile silebilirsiniz."
+            checked={remember}
+            onChange={(e) => setRemember(e.target.checked)}
+          />
+        ) : null}
       </section>
 
       {formError ? (

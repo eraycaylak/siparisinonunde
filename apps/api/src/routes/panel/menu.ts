@@ -10,7 +10,7 @@
 // Roller (04 §2.3–2.4): owner/manager yazar; cashier/kitchen okur + tükendi. Mutfak fiyat görmez.
 // Her yazma audit'e gider; her sorgu tenant kapsamlıdır (başka tenant'ın kaydı 404).
 
-import { endOfLocalDay, okResponseSchema } from '@siparis/core';
+import { okResponseSchema } from '@siparis/core';
 import {
   categoryCreateSchema,
   categoryUpdateSchema,
@@ -37,6 +37,7 @@ import { z } from 'zod';
 import { audit, auditActor } from '../../lib/audit';
 import { badRequest, conflict, notFound } from '../../lib/errors';
 import { requireTenantRole, tenantAuth } from '../../plugins/auth';
+import { soldOutUntilFor } from '../../services/menu/sold-out';
 import { loadOptionGroupDto, loadPanelMenu, productGroupIds, toPanelProduct } from '../../services/menu/tree';
 import { MENU_EDIT_ROLES, MENU_READ_ROLES, menuEditGuard } from './menu-guards';
 import menuToolsRoutes from './menu-tools';
@@ -394,7 +395,8 @@ const menuRoutes: FastifyPluginAsyncZod = async (app) => {
       const existing = await findProduct(app.db, auth.tenantId, request.params.id);
       if (!existing) throw productNotFound();
       const now = new Date();
-      const until = request.body.until === 'end_of_day' ? endOfLocalDay(now) : null;
+      // "Bugün tükendi": bir sonraki iş gününün ilk açılışına kadar (gece yarısını aşan/bölünmüş saatlerde de)
+      const until = request.body.until === 'end_of_day' ? await soldOutUntilFor(app.db, auth.tenantId, auth.branchId, now) : null;
       await app.db.transaction(async (tx) => {
         await tx
           .update(products)

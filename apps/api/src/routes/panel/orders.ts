@@ -42,6 +42,7 @@ import {
   products,
   tenants,
   users,
+  waAccounts,
   type Database,
 } from '@siparis/db';
 import { and, asc, desc, eq, gte, ilike, inArray, isNull, lt, ne, or, sql, type SQL } from 'drizzle-orm';
@@ -54,6 +55,8 @@ import { trackingUrl } from '../../lib/tracking';
 import { assertBranchAccess, defaultBranchId, requireTenantRole, tenantAuth, type TenantAuth } from '../../plugins/auth';
 import { finalizeRejectionKey } from '../../services/orders/alarm-policy';
 import { insertOrderWithItems, rememberAddress, upsertCustomerByPhone } from '../../services/orders/create-order';
+import { soldOutUntilFor } from '../../services/menu/sold-out';
+import { phoneOrderNotifyFields } from '../../services/orders/notify-consent';
 import {
   activeOrdersResponseSchema,
   courierListResponseSchema,
@@ -72,7 +75,7 @@ import {
 import { buildCards, buildOrderDetail, loadItems, orderDetailExtSchema, projectForRole, type OrderCard } from '../../services/orders/panel-dto';
 import { fieldError, validatePayment } from '../../services/orders/payment';
 import { loadPricingProducts, loadZones, quoteForBranch } from '../../services/orders/pricing-context';
-import { buildReceipt, renderReceiptHtml } from '../../services/orders/receipt';
+import { buildReceipt, renderReceiptHtml, resolveReceiptSettings } from '../../services/orders/receipt';
 import { emitOrderUpdated, findOrder, type OrderRow } from '../../services/orders/summary';
 import { transitionOrder } from '../../services/orders/transition';
 
@@ -238,6 +241,10 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         defaultPrepMinutes: branch!.defaultPrepMinutes,
         busyExtraMinutes: branch!.busyExtraMinutes,
         acceptsDelivery: branch!.acceptsDelivery,
+        receipt: (() => {
+          const st = resolveReceiptSettings(branch!.receiptSettings);
+          return { autoPrint: st.auto_print, printKitchen: st.print_kitchen, printDelivery: st.print_delivery };
+        })(),
       },
       items: items.map((c) => projectForRole(c, auth.role)),
       completed: done.map((c) => projectForRole(c, auth.role)),
@@ -553,9 +560,9 @@ const routes: FastifyPluginAsyncZod = async (app) => {
           verificationMethod: 'staff',
           verifiedAt: now,
           idempotencyKey: body.idempotencyKey ?? null,
-          statusNotifyChannel: body.notifyWhatsapp ? 'whatsapp' : 'none',
+          // Bildirim onayı → status_notify_channel + source_meta.notifyConsent (dilim 3 aynı biçimi okur)
+          ...phoneOrderNotifyFields(body.notifyWhatsapp),
           createdByUserId: auth.userId,
-          sourceMeta: { notifyConsent: body.notifyWhatsapp },
         },
         { type: 'user', userId: auth.userId },
       );
@@ -705,7 +712,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         if (body.reason === 'item_unavailable' && body.soldOutProductIds?.length) {
           await tx
             .update(products)
-            .set({ soldOutUntil: endOfLocalDay(now) })
+            .set({ soldOutUntil: await soldOutUntilFor(tx, auth.tenantId, o.branchId, now) })
             .where(and(eq(products.tenantId, auth.tenantId), inArray(products.id, body.soldOutProductIds)));
           await audit(tx, {
             ...auditActor(request),
@@ -1057,6 +1064,12 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       });
     }
     const items = (await loadItems(app.db, [order.id])).get(order.id) ?? [];
+    // "WhatsApp'tan sipariş verin" satırı için şubenin bağlı numarası
+    const [wa] = await app.db
+      .select({ displayPhone: waAccounts.displayPhone })
+      .from(waAccounts)
+      .where(and(eq(waAccounts.tenantId, auth.tenantId), eq(waAccounts.branchId, order.branchId), eq(waAccounts.status, 'connected')))
+      .limit(1);
     const receipt = buildReceipt({
       type: q.type,
       order,
@@ -1064,10 +1077,13 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       business: { name: tenant!.name, branchName: branch?.name ?? null, phone: branch?.phone ?? tenant!.phone, timezone: branch?.timezone },
       copy: printedBefore.length > 0,
       trackingUrl: trackingUrl(app.config.APP_BASE_URL, order.id, app.config.TRACKING_SECRET),
+      settings: branch?.receiptSettings,
+      waPhone: wa?.displayPhone ?? null,
     });
     reply.header('cache-control', 'no-store');
     if (q.format === 'html') {
-      const width = q.width === '58' ? 58 : ((branch?.receiptSettings?.width_mm as 58 | 80 | undefined) ?? 80);
+      // Genişlik: sorgu parametresi (58/80) ya da şubenin fiş ayarı
+      const width = q.width === '58' ? 58 : q.width === '80' ? 80 : receipt.layout.widthMm;
       reply.type('text/html; charset=utf-8');
       return renderReceiptHtml(receipt, width);
     }

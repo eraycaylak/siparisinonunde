@@ -337,8 +337,16 @@ export type AdminTenantPatch = z.input<typeof adminTenantPatchSchema>;
 // ---------------------------------------------------------------------------
 // Impersonation (A-09; 00 §4)
 
+/** Destek erişimi gerekçesi (05 A-09): en az 20 karakter. */
+export const IMPERSONATION_REASON_MIN = 20;
+export const impersonationReasonSchema = z
+  .string()
+  .trim()
+  .min(IMPERSONATION_REASON_MIN, `Gerekçe en az ${IMPERSONATION_REASON_MIN} karakter olmalı.`)
+  .max(500, 'Gerekçe en fazla 500 karakter olabilir.');
+
 export const adminImpersonateRequestSchema = z.object({
-  reason: adminReasonSchema,
+  reason: impersonationReasonSchema,
   /** Destek kaydı / not numarası */
   ticketRef: z.string().trim().max(60).optional(),
 });

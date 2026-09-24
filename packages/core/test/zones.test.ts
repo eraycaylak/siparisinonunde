@@ -46,6 +46,27 @@ describe('zones', () => {
     expect(neighborhoodKey('Yeni  Mahalle Mh.')).toBe('yenimahalle');
   });
 
+  it('bitişik "-mahalle" adlarında ek atılmaz; yalnız ayrı kelime atılır', () => {
+    expect(neighborhoodKey('Yenimahalle')).toBe('yenimahalle');
+    expect(neighborhoodKey('YENİMAHALLE')).toBe('yenimahalle');
+    expect(neighborhoodKey('Yenimahalle Mah.')).toBe('yenimahalle');
+    expect(neighborhoodKey('Yenimahalle Mahallesi')).toBe('yenimahalle');
+    expect(neighborhoodKey('Yenimahalle mh.')).toBe('yenimahalle');
+    expect(neighborhoodKey('Yenimahalle mah')).toBe('yenimahalle');
+    expect(neighborhoodKey('Cumhuriyet Mahallesi')).toBe('cumhuriyet');
+    expect(neighborhoodKey('Cumhuriyet Mahalle')).toBe('cumhuriyet');
+    expect(neighborhoodKey('Cumhuriyet Mah.')).toBe('cumhuriyet');
+    expect(neighborhoodKey('Cumhuriyet mah')).toBe('cumhuriyet');
+    expect(neighborhoodKey('Cumhuriyet Mh.')).toBe('cumhuriyet');
+    expect(neighborhoodKey('Mahalle')).toBe('mahalle');
+    // Bitişik ad listede ayrı yazılmış varyantıyla da eşleşir, "Yeni" ile karışmaz
+    const list = ['Yenimahalle', 'Yeni', 'Cumhuriyet'];
+    expect(matchNeighborhood('yenimahalle mahallesi', list)).toBe('Yenimahalle');
+    expect(matchNeighborhood('Yeni Mahalle Mah.', list)).toBe('Yenimahalle');
+    expect(matchNeighborhood('Yeni Mahallesi', list)).toBe('Yeni');
+    expect(matchNeighborhood('Yenimahalle', ['Yeni'])).toBeNull();
+  });
+
   it('point-in-polygon (delik dahil)', () => {
     expect(pointInPolygon({ lat: 39.812, lng: 34.805 }, square)).toBe(true);
     expect(pointInPolygon({ lat: 39.817, lng: 34.812 }, square)).toBe(false); // delikte

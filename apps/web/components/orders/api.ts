@@ -79,8 +79,28 @@ export function isOrderEventPayload(data: unknown): data is OrderEventPayload {
   return Boolean(data && typeof data === 'object' && 'order' in data && (data as { order?: { id?: unknown } }).order?.id);
 }
 
-/** Fiş yazdırma penceresi (80 mm; 04 §4.14). Kullanıcı jesti içinde çağrılmalı (açılır pencere engeli). */
-export function openReceipt(orderId: string, type: 'kitchen' | 'delivery'): void {
+export type ReceiptKind = 'kitchen' | 'delivery';
+
+/**
+ * Fiş yazdırma penceresi (80/58 mm; 04 §4.14). Birden çok tür verilirse tek pencerede art arda basılır
+ * (ör. onayda mutfak + paket fişi). Kullanıcı jesti içinde çağrılmalı (açılır pencere engeli).
+ */
+export function openReceipt(orderId: string, type: ReceiptKind | readonly ReceiptKind[]): void {
   if (typeof window === 'undefined') return;
-  window.open(`/receipt/${orderId}?type=${type}&auto=1`, `fis-${orderId}-${type}`, 'width=420,height=720');
+  const types = (Array.isArray(type) ? type : [type]) as readonly ReceiptKind[];
+  if (!types.length) return;
+  const t = types.join(',');
+  window.open(`/receipt/${orderId}?type=${t}&auto=1`, `fis-${orderId}-${types.join('-')}`, 'width=420,height=720');
+}
+
+/**
+ * Onayda otomatik basılacak fişler (şube fiş ayarı: print_kitchen, print_delivery). Paket (kurye) fişi yalnız
+ * paket servis siparişinde basılır.
+ */
+export function autoPrintKinds(plan: { printKitchen: boolean; printDelivery: boolean } | null | undefined, fulfillmentType: string): ReceiptKind[] {
+  const p = plan ?? { printKitchen: true, printDelivery: false };
+  const out: ReceiptKind[] = [];
+  if (p.printKitchen) out.push('kitchen');
+  if (p.printDelivery && fulfillmentType === 'delivery') out.push('delivery');
+  return out;
 }

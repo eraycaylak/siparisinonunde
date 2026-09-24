@@ -60,7 +60,8 @@ export const SETTINGS_NAV: readonly PanelNavItem[] = [
   { href: '/panel/ayarlar/odeme', label: 'Ödeme yöntemleri', description: 'Kapıda nakit, kart, yemek kartı', icon: CreditCard, roles: OM },
   { href: '/panel/ayarlar/bildirimler', label: 'Müşteri bildirimleri', description: 'Hangi durumda mesaj gitsin', icon: MessageSquareText, roles: OM },
   { href: '/panel/ayarlar/alarm', label: 'Sipariş alarmı', description: 'Uyarı zinciri ve otomatik iptal süresi', icon: Siren, roles: OM },
-  { href: '/panel/ayarlar/whatsapp', label: 'WhatsApp bağlantısı', description: 'Numara, bağlantı sağlığı, test mesajı', icon: MessageCircle, roles: OM },
+  // WhatsApp bağlantısı yalnız işletme sahibinde (00 §4; API de owner-only).
+  { href: '/panel/ayarlar/whatsapp', label: 'WhatsApp bağlantısı', description: 'Numara, bağlantı sağlığı, test mesajı', icon: MessageCircle, roles: ['owner'] },
   { href: '/panel/ayarlar/personel', label: 'Personel', description: 'Kullanıcılar, roller, kurye giriş linki', icon: UserCog, roles: OM },
   { href: '/panel/ayarlar/fis', label: 'Fiş', description: 'Mutfak ve paket fişi ayarları', icon: Receipt, roles: OM },
   { href: '/panel/ayarlar/qr', label: 'QR ve afiş', description: 'QR kod ve A5 afiş yazdırma', icon: QrCode, roles: OM },

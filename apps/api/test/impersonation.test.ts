@@ -56,8 +56,12 @@ describe('POST /admin/tenants/:id/impersonate', () => {
     expectError(await ctx.request({ method: 'POST', url: `${API}/tenants/${a.tenantId}/impersonate`, body: { reason: REASON } }), 401, 'unauthorized');
   });
 
-  it('gerekçe ≥ 10 karakter; olmayan işletme 404', async () => {
+  it('gerekçe ≥ 20 karakter (05 A-09); olmayan işletme 404', async () => {
     expectError(await start(p.support_agent.cookie, { reason: 'kısa' }), 400, 'validation_error');
+    // 19 karakter: reddedilir; 20 karakter: kabul
+    expectError(await start(p.support_agent.cookie, { reason: 'Bildirim kontrolü x' }), 400, 'validation_error');
+    const other = await ctx.createTenantWithOwner({ name: 'Gerekçe Sınırı' });
+    expect((await start(p.support_agent.cookie, { reason: 'Bildirim kontrolü xy' }, other.tenantId)).statusCode).toBe(200);
     expectError(await start(p.support_agent.cookie, {}), 400, 'validation_error');
     expectError(await start(p.support_agent.cookie, { reason: REASON }, '00000000-0000-4000-8000-000000000000'), 404, 'not_found');
   });
@@ -96,7 +100,10 @@ describe('POST /admin/tenants/:id/impersonate', () => {
     expect(notes[0]).toMatchObject({ kind: 'support_access_started', recipientUserId: a.owner.id });
     expect(notes[0]!.payload).toMatchObject({ supportAgentName: 'Platform support_agent', readOnly: true });
 
-    const [log] = await ctx.db.select().from(auditLog).where(eq(auditLog.action, 'admin.impersonation_start'));
+    const [log] = await ctx.db
+      .select()
+      .from(auditLog)
+      .where(and(eq(auditLog.action, 'admin.impersonation_start'), eq(auditLog.entityId, body.sessionId)));
     expect(log).toMatchObject({ tenantId: a.tenantId, actorUserId: p.support_agent.user.id, impersonatorUserId: p.support_agent.user.id, entityId: body.sessionId });
     expect(log!.data).toMatchObject({ reason: REASON, ticketRef: 'DST-42', readOnly: true });
   });
@@ -153,6 +160,72 @@ describe('destek oturumuyla panel', () => {
       .from(auditLog)
       .where(and(eq(auditLog.action, 'admin.impersonation_end'), eq(auditLog.impersonatorUserId, p.platform_admin.user.id)));
     expect(log?.tenantId).toBe(a.tenantId);
+  });
+});
+
+describe('destek oturumunda her panel isteği audit_log’a yazılır', () => {
+  async function requestRows(sessionId: string, expectedMin = 1) {
+    // onResponse kancası yanıt gönderildikten sonra çalışır: kısa bekleme
+    for (let i = 0; i < 40; i++) {
+      const rows = await ctx.db
+        .select()
+        .from(auditLog)
+        .where(and(eq(auditLog.action, 'admin.impersonation_request'), eq(auditLog.entityId, sessionId)));
+      if (rows.length >= expectedMin) return rows;
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    return ctx.db
+      .select()
+      .from(auditLog)
+      .where(and(eq(auditLog.action, 'admin.impersonation_request'), eq(auditLog.entityId, sessionId)));
+  }
+
+  it('method, path, status; 10 sn içinde aynı istek birleşir; yazma denemesi 403 olarak kaydedilir; sorgu metni yazılmaz', async () => {
+    const res = await start(p.support_agent.cookie);
+    const sessionId = res.json().sessionId as string;
+    const imp = `sid=${cookiesOf(res).sid!.value}`;
+
+    for (let i = 0; i < 3; i++) {
+      expect((await ctx.request({ method: 'GET', url: '/api/v1/panel/__imp/whoami?q=05321234567', cookie: imp })).statusCode).toBe(200);
+    }
+    let rows = await requestRows(sessionId);
+    await new Promise((r) => setTimeout(r, 100));
+    rows = await requestRows(sessionId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      tenantId: a.tenantId,
+      actorUserId: p.support_agent.user.id,
+      impersonatorUserId: p.support_agent.user.id,
+      entityType: 'session',
+    });
+    expect(rows[0]!.data).toMatchObject({ method: 'GET', path: '/api/v1/panel/__imp/whoami', status: 200, count: 3, queryKeys: ['q'], readOnly: true });
+    expect(JSON.stringify(rows[0]!.data)).not.toContain('05321234567');
+
+    expectError(await ctx.request({ method: 'POST', url: '/api/v1/panel/__imp/write', cookie: imp, body: {} }), 403, 'read_only_session');
+    rows = await requestRows(sessionId, 2);
+    const write = rows.find((r) => (r.data as { method?: string }).method === 'POST');
+    expect(write?.data).toMatchObject({ path: '/api/v1/panel/__imp/write', status: 403, count: 1 });
+
+    // Pencere dışı: 10 sn'den eski satır birleşmez, yeni satır açılır
+    await ctx.db
+      .update(auditLog)
+      .set({ createdAt: new Date(Date.now() - 11_000) })
+      .where(and(eq(auditLog.action, 'admin.impersonation_request'), eq(auditLog.entityId, sessionId)));
+    await ctx.request({ method: 'GET', url: '/api/v1/panel/__imp/whoami', cookie: imp });
+    rows = await requestRows(sessionId, 3);
+    const gets = rows.filter((r) => (r.data as { method?: string }).method === 'GET');
+    expect(gets).toHaveLength(2);
+  });
+
+  it('işletmenin kendi oturumu ve panel dışı istekler kaydedilmez', async () => {
+    const before = await ctx.db.select().from(auditLog).where(eq(auditLog.action, 'admin.impersonation_request'));
+    await ctx.request({ method: 'GET', url: '/api/v1/panel/__imp/whoami', cookie: a.ownerCookie });
+    const res = await start(p.support_agent.cookie);
+    const imp = `sid=${cookiesOf(res).sid!.value}`;
+    await ctx.request({ method: 'GET', url: '/api/v1/auth/me', cookie: imp });
+    await new Promise((r) => setTimeout(r, 150));
+    const after = await ctx.db.select().from(auditLog).where(eq(auditLog.action, 'admin.impersonation_request'));
+    expect(after.length).toBe(before.length);
   });
 });
 

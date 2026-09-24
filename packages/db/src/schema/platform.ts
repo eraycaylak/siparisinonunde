@@ -58,10 +58,17 @@ export interface AlarmPolicy {
   sms_enabled: boolean;
 }
 
+/** branches.receipt_settings (04 §4.14 / §7.10); doğrulama şeması: core settings/contracts receiptSettingsSchema. */
 export interface ReceiptSettings {
   width_mm?: 58 | 80;
   footer_text?: string;
   show_logo?: boolean;
+  auto_print?: boolean;
+  copies?: number;
+  font_size?: 'normal' | 'large';
+  show_wa_line?: boolean;
+  print_kitchen?: boolean;
+  print_delivery?: boolean;
 }
 
 export const DEFAULT_STATUS_MESSAGES: StatusMessagesSetting = {

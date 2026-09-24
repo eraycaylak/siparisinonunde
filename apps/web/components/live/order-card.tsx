@@ -8,7 +8,7 @@ import type { OrderCard } from '@siparis/core/orders/contracts';
 import { Badge, Button, ChannelBadge, FulfillmentBadge, IconButton, StatusBadge } from '@/components/ui';
 import { cn } from '@/lib/cn';
 import { formatElapsed, formatMoney, formatTime } from '@/lib/format';
-import { openReceipt } from '@/components/orders/api';
+import { autoPrintKinds, openReceipt } from '@/components/orders/api';
 import { changeText, paymentShort, rejectLabel } from '@/components/orders/labels';
 import { OrderItems } from '@/components/orders/order-items';
 import { useOrderSheets } from '@/components/orders/order-sheets';
@@ -22,6 +22,8 @@ export interface OrderCardProps {
   alarming: boolean;
   onSeen?: (id: string) => void;
   autoPrint?: boolean;
+  /** Şube fiş ayarı: onayda hangi fişler basılır */
+  printPlan?: { printKitchen: boolean; printDelivery: boolean };
   offline?: boolean;
 }
 
@@ -30,7 +32,7 @@ function elapsedFrom(card: OrderCard): string {
   return card.acceptedAt ?? card.placedAt;
 }
 
-export function OrderCardView({ card, now, usePreparingStep, alarming, onSeen, autoPrint, offline }: OrderCardProps) {
+export function OrderCardView({ card, now, usePreparingStep, alarming, onSeen, autoPrint, printPlan, offline }: OrderCardProps) {
   const { role, actions, openSheet, openDetail, scheduleAdvance, pendingAdvance } = useOrderSheets();
   const [busy, setBusy] = useState<string | null>(null);
   const kitchen = role === 'kitchen';
@@ -49,7 +51,7 @@ export function OrderCardView({ card, now, usePreparingStep, alarming, onSeen, a
     onSeen?.(card.id);
     try {
       await actions.accept(card.id, minutes, card.version);
-      if (autoPrint) openReceipt(card.id, 'kitchen');
+      if (autoPrint) openReceipt(card.id, autoPrintKinds(printPlan, card.fulfillmentType));
     } catch {
       /* tost gösterildi */
     } finally {

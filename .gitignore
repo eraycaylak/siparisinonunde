@@ -9,3 +9,11 @@ uploads/
 test-results/
 playwright-report/
 .turbo/
+
+# Geçici derleme/test çıktıları (paralel dilim derlemeleri, Playwright)
+.next-*/
+blob-report/
+playwright/.cache/
+*.tsbuildinfo
+# Yüklenen görseller (uploads/ her dizinde) ve rastgele ekran görüntüleri
+**/screenshots/

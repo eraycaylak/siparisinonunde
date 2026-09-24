@@ -1,7 +1,7 @@
 // Panel sipariş API'si (14 §6.3): canlı liste, aksiyonlar (FSM), ret + geri al + kesinleşme, gecikme, kurye,
 // telefon siparişi, fiş, rol ve tenant yalıtımı.
 
-import { auditLog, jobs, orderAcks, orders, products } from '@siparis/db';
+import { auditLog, branches, jobs, orderAcks, orders, products } from '@siparis/db';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestContext, expectError, expectIsolated, type TestContext } from './helpers';
@@ -339,6 +339,63 @@ describe('detay, liste ve fiş', () => {
     expect(html.body).toContain('ACISIZ');
 
     expect((await get(`/orders/${o.id}/receipt?type=delivery`, kitchen)).statusCode).toBe(403);
+    await ctx.db.update(orders).set({ status: 'new' }).where(eq(orders.id, o.id));
+  });
+
+  it('fiş ayarları (branches.receipt_settings) fişe yansır: kopya, yazı boyutu, genişlik, WhatsApp satırı, alt bilgi, baskı planı', async () => {
+    const o = await createHookedOrder(ctx, s);
+    // Varsayılanlar
+    const d0 = await get(`/orders/${o.id}/receipt?type=delivery`, cashier);
+    expect(d0.json()).toMatchObject({
+      layout: { widthMm: 80, fontSize: 'normal', copies: 1, showLogo: true },
+      waLine: 'Bir sonraki siparişinizi WhatsApp’tan verin: 0555 000 00 99',
+      footerText: null,
+      printPlan: { auto: true, kitchen: true, delivery: true },
+    });
+    const act0 = await get('/orders/active', cashier);
+    expect(act0.json().branch.receipt).toEqual({ autoPrint: true, printKitchen: true, printDelivery: true });
+
+    await ctx.db
+      .update(branches)
+      .set({
+        receiptSettings: {
+          width_mm: 58,
+          font_size: 'large',
+          copies: 2,
+          show_logo: false,
+          show_wa_line: false,
+          footer_text: 'Afiyet olsun',
+          auto_print: false,
+          print_kitchen: false,
+          print_delivery: true,
+        },
+      })
+      .where(eq(branches.id, s.branchId));
+    const d = await get(`/orders/${o.id}/receipt?type=delivery`, cashier);
+    expect(d.json()).toMatchObject({
+      layout: { widthMm: 58, fontSize: 'large', copies: 2, showLogo: false },
+      waLine: null,
+      footerText: 'Afiyet olsun',
+      printPlan: { auto: false, kitchen: false, delivery: true },
+    });
+    // Mutfak fişi: alt bilgi/WhatsApp satırı yok, düzen aynı
+    const k = await get(`/orders/${o.id}/receipt?type=kitchen`, kitchen);
+    expect(k.json()).toMatchObject({ layout: { widthMm: 58, copies: 2 }, waLine: null, footerText: null });
+    const html = await get(`/orders/${o.id}/receipt?type=delivery&format=html`, cashier);
+    expect(html.body).toContain('size: 58mm auto');
+    expect(html.body).toContain('font: 15px/1.35');
+    expect(html.body.match(/<section class="copy/g)).toHaveLength(2);
+    expect(html.body).toContain('Afiyet olsun');
+    expect(html.body).not.toContain('WhatsApp’tan verin');
+    // Sorgu parametresi genişliği ezer
+    expect((await get(`/orders/${o.id}/receipt?type=delivery&format=html&width=80`, cashier)).body).toContain('size: 80mm auto');
+    const act = await get('/orders/active', cashier);
+    expect(act.json().branch.receipt).toEqual({ autoPrint: false, printKitchen: false, printDelivery: true });
+
+    // Bozuk değerler varsayılana düşer
+    await ctx.db.update(branches).set({ receiptSettings: { copies: 9, font_size: 'dev' } as never }).where(eq(branches.id, s.branchId));
+    expect((await get(`/orders/${o.id}/receipt?type=kitchen`, cashier)).json().layout).toMatchObject({ copies: 1, fontSize: 'normal' });
+    await ctx.db.update(branches).set({ receiptSettings: {} }).where(eq(branches.id, s.branchId));
     await ctx.db.update(orders).set({ status: 'new' }).where(eq(orders.id, o.id));
   });
 

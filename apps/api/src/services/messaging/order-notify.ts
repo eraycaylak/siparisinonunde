@@ -45,6 +45,7 @@ import type { Config } from '../../config';
 import { isFlagEnabled } from '../../lib/flags';
 import { cancelJobs, enqueueJob } from '../../lib/jobs';
 import { createTrackingToken } from '../../lib/tracking';
+import { hasNotifyConsent } from '../orders/notify-consent';
 import { onOrderCreated, onOrderTransition } from '../orders/transition';
 import { releaseStatusBudget, reserveStatusBudget } from './budget';
 import {
@@ -179,9 +180,9 @@ async function resolveTarget(tx: Database, order: OrderRow): Promise<Target | nu
     : await branchAccount(tx, order);
   if (!conv && account && !smsMode) {
     let customerId = order.customerId;
-    // Akış E: müşteri kaydı yoksa yalnız kasiyerin WhatsApp bildirim onayıyla telefon üzerinden (02 §9.1)
-    const meta = (order.sourceMeta ?? {}) as { waNotifyConsent?: boolean; notifyConsent?: boolean };
-    const consent = meta.waNotifyConsent === true || meta.notifyConsent === true;
+    // Akış E: müşteri kaydı yoksa yalnız kasiyerin WhatsApp bildirim onayıyla telefon üzerinden (02 §9.1).
+    // Biçim: services/orders/notify-consent.ts (status_notify_channel + source_meta.notifyConsent).
+    const consent = hasNotifyConsent(order);
     if (!customerId && consent && order.customerPhone) {
       const [existing] = await tx
         .select()

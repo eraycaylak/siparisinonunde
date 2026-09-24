@@ -675,11 +675,10 @@ async function linkOrderByCode(ctx: Ctx, code: string): Promise<void> {
       },
       now: ctx.now,
     });
+    // order_count / last_order_at'i sipariş kancası (jobs/order: awaiting_customer → new) artırır; burada yalnız ad.
     await ctx.tx
       .update(customers)
       .set({
-        orderCount: sql`${customers.orderCount} + 1`,
-        lastOrderAt: ctx.now,
         name: sql`coalesce(${customers.name}, ${order.customerName})`,
         updatedAt: ctx.now,
       })

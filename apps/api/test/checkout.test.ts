@@ -16,6 +16,7 @@ import {
 } from '@siparis/db';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { verifyCustomerCookie } from '../src/services/orders/storefront-cookies';
 import { createTestContext, expectError, type TestContext } from './helpers';
 import {
   createLinkToken,
@@ -103,7 +104,7 @@ describe('POST /store/:slug/quote', () => {
 });
 
 describe('POST /store/:slug/orders — Akış B (WhatsApp kodu)', () => {
-  it('awaiting_customer + kod + waLink + snapshot + yasal kabul + zaman aşımı işi + müşteri çerezi', async () => {
+  it('awaiting_customer + kod + waLink + snapshot + yasal kabul + zaman aşımı işi; hatırla işaretsiz → müşteri çerezi yok', async () => {
     const body = orderBody(s);
     const res = await placeOrder(ctx, s.slug, body);
     expect(res.statusCode, res.body).toBe(200);
@@ -113,7 +114,8 @@ describe('POST /store/:slug/orders — Akış B (WhatsApp kodu)', () => {
     expect(r.verification.code).toMatch(ORDER_CODE_PATTERN);
     expect(r.verification.waLink).toBe(`https://wa.me/905550000099?text=${encodeURIComponent(`Sipariş kodu: ${r.verification.code}`)}`);
     expect(r.trackingUrl).toMatch(/^http:\/\/localhost:3000\/t\/[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
-    expect(res.cookies.find((c) => c.name === `sf_cust_${s.slug}`)?.httpOnly).toBe(true);
+    // "Bu cihazda hatırla" opt-in (03 §4.4): gövdede rememberDevice yok → çerez yazılmaz
+    expect(res.cookies.find((c) => c.name === `sf_cust_${s.slug}`)).toBeUndefined();
 
     const [o] = await ctx.db.select().from(orders).where(eq(orders.id, r.orderId));
     expect(o).toMatchObject({
@@ -155,6 +157,29 @@ describe('POST /store/:slug/orders — Akış B (WhatsApp kodu)', () => {
     expect(await jobsFor(ctx, o!.id, 'order.alarm_step')).toHaveLength(0);
     const [c] = await ctx.db.select().from(customers).where(eq(customers.id, o!.customerId!));
     expect(c!.name).toBe('Ayşe Yılmaz');
+  });
+
+  it('"Bu cihazda hatırla": yalnız rememberDevice=true ise 90 günlük imzalı sf_cust çerezi (tekrar isteklerde de)', async () => {
+    const off = await placeOrder(ctx, s.slug, orderBody(s, { rememberDevice: false }));
+    expect(off.statusCode, off.body).toBe(200);
+    expect(off.cookies.find((c) => c.name === `sf_cust_${s.slug}`)).toBeUndefined();
+
+    const body = orderBody(s, { rememberDevice: true });
+    const on = await placeOrder(ctx, s.slug, body);
+    expect(on.statusCode, on.body).toBe(200);
+    const cookie = on.cookies.find((c) => c.name === `sf_cust_${s.slug}`);
+    expect(cookie?.httpOnly).toBe(true);
+    expect(cookie?.path).toBe('/');
+    const [o] = await ctx.db.select().from(orders).where(eq(orders.id, on.json().orderId));
+    expect(verifyCustomerCookie(ctx.config.SESSION_SECRET, cookie!.value)).toBe(o!.customerId);
+    const maxAgeDays = Math.round((cookie!.maxAge ?? 0) / 86400);
+    expect(maxAgeDays).toBe(90);
+
+    // Aynı anahtarla tekrar: hatırla seçimi yine gövdeye göre
+    const replayOff = await placeOrder(ctx, s.slug, { ...body, rememberDevice: false });
+    expect(replayOff.cookies.find((c) => c.name === `sf_cust_${s.slug}`)).toBeUndefined();
+    const replayOn = await placeOrder(ctx, s.slug, body);
+    expect(replayOn.cookies.find((c) => c.name === `sf_cust_${s.slug}`)?.value).toBe(cookie!.value);
   });
 
   it('idempotency: aynı anahtar → aynı yanıt, tek sipariş', async () => {

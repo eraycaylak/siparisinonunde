@@ -95,6 +95,11 @@ describe('config', () => {
     expect(loadConfig({ ...base, DEV_TOOLS: '0' }).DEV_TOOLS).toBe(false);
     expect(loadConfig({ ...base, APP_BASE_URL: 'https://siparisinonunde.com' }).cookieSecure).toBe(true);
   });
+  it('platform WhatsApp numarası kimliği şemada (boş → undefined)', () => {
+    expect(loadConfig({ ...base, PLATFORM_WA_PHONE_NUMBER_ID: ' 1234567890 ' }).PLATFORM_WA_PHONE_NUMBER_ID).toBe('1234567890');
+    expect(loadConfig({ ...base, PLATFORM_WA_PHONE_NUMBER_ID: '' }).PLATFORM_WA_PHONE_NUMBER_ID).toBeUndefined();
+    expect(loadConfig(base).PLATFORM_WA_PHONE_NUMBER_ID).toBeUndefined();
+  });
   it('geçersiz anahtar hata verir', () => {
     expect(() => loadConfig({ ...base, ENCRYPTION_KEY: 'kisa' })).toThrow(/ENCRYPTION_KEY/);
     expect(() => loadConfig({ ...base, DATABASE_URL: '' })).toThrow(/DATABASE_URL/);
