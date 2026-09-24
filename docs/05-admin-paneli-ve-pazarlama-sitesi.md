@@ -272,15 +272,15 @@ Kurallar [06](06-teknik-mimari.md) §6.7 ile aynıdır; UI ve süreç burada.
   - Kök neden (`root_cause`): `product_bug`, `usage_knowledge`, `device_network`, `meta`, `third_party`, `infrastructure`, `tenant_config`.
   - Önlenebilir mi (`preventable`): `yes_product`, `yes_training`, `no`.
   - Öncelik etiket değil, ayrı alandır (`priority`: `p1`–`p4`).
-- Destek WhatsApp hattı Faz 1'de ekip telefonunda ayrı bir WhatsApp Business numarasıdır; admin'e entegre değildir. Temas elle not düşülür.
+- **Destek WhatsApp hattı = platform WhatsApp numarası** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4 "Destek hattı ve P1"): uyarı şablonlarını gönderen aynı platform WABA'dır ([02](02-whatsapp-entegrasyonu.md) §5.3). İşletmelerden gelen mesajlar ve işletme sahibinin uyarı şablonlarına verdiği yanıtlar admin panelindeki **destek gelen kutusuna** düşer; bu kutu işletme panelindeki gelen kutusunun aynı konuşma motorunu kullanır (platform kendi "platform" tenant'ıdır). Her konuşma işletmeye bağlanır ve temas `admin_notes` (`kind = contact`, `contact_channel = whatsapp`) olarak kaydedilir.
 - **Harici helpdesk aracı kullanılmaz** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7): yurt dışı alt işleyen (m.9) ve maliyet getirir; destek aracına son müşteri verisi aktarılmaz ([08](08-mevzuat-kvkk-odeme-fatura.md) §2.11).
-- **P1** = "sipariş alamıyorum / panel çalışmıyor". Pilot boyunca kurucular 7/24 nöbetleşir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11, A06 §5.6). Diğer her şey mesai saatinde.
+- **P1** = "sipariş alamıyorum / panel çalışmıyor". P1 hattı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4, §11): pilot boyunca her gün 10:00–02:00 canlı yanıt; gece (02:00–10:00) sesli mesaj + nöbetçiye bildirim ve en geç 30 dk içinde geri dönüş; nöbetçiler kuruculardır ([10](10-riskler-operasyon-ve-metrikler.md) §5.1, §5.9; A06 §5.6). Diğer her şey mesai saatinde.
 - Haftalık rapor: en sık 5 etiket; her sprintte bir ürün iyileştirmesine dönüşür (A06 §5.6).
 
 **[Faz 2]:**
 - `support_tickets` tabanlı talep sistemi: durum, öncelik, atanan, SLA sayacı, hazır cevaplar. Etiketler Faz 1 sözlüğüyle aynıdır; Faz 1'deki `admin_notes` temas kayıtları talep geçmişine bağlanır.
 - **Paket bazında SLA** ([01](01-vizyon-pazar-is-modeli.md) §6.3): Esnaf panel içi yardım + WhatsApp hattı; Pro akşam yoğun saatlerinde canlı destek; Zincir öncelikli yanıt ve atanmış hesap sorumlusu. Süre hedefleri [10](10-riskler-operasyon-ve-metrikler.md)'da.
-- Destek WhatsApp hattı kendi WABA'mıza taşınır; gelen kutusu admin içinde, ürünün gelen kutusu bileşeniyle (dogfooding [T]).
+- Destek gelen kutusu (Faz 1'den beri platform WhatsApp numarası, ürünün gelen kutusu bileşeniyle) talep sistemine bağlanır: konuşmadan tek tıkla talep açılır.
 - Bayi 1. seviye destek eskalasyonları (Bölüm B) aynı kuyruğa düşer.
 
 **Kabul kriteri (Faz 1):** Her destek teması işletme zaman çizelgesinde en az bir etiketle görünür. "İşletme başına aylık temas" metriği bu kayıtlardan hesaplanır (KRI > 3, A06 §9.3).

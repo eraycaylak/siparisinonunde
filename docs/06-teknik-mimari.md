@@ -146,7 +146,7 @@ flowchart LR
 | `api-hooks` | `hooks.siparisinonunde.com/wa`: imza → ham olay → 200 ([02](02-whatsapp-entegrasyonu.md) §7.2) | Aynı imaj, `ROLE=hooks` | **En az iki ayrı sunucu/VM** üzerinde (pilotta ana sunucu + ucuz ikinci VPS, §13.3); storefront trafiğinden yalıtılmış | 1 |
 | `worker` | Kuyruk tüketicileri (§8.1) | BullMQ | Pilotta tek süreç; Faz 2'de kuyruk grubuna göre ayrılır | 1 |
 | `panel` | İşletme paneli + kurye görünümü (`/kurye`) + bayi (`/bayi`, **[Faz 2]**) | Vite SPA/PWA | Statik | 1 |
-| `admin` | Süper admin: tenant, abonelik, WABA sağlığı, DLQ, impersonation, feature flag | Vite SPA | Statik; Cloudflare Access + IP kısıtı | 1 |
+| `admin` | Süper admin: tenant, abonelik, WABA sağlığı, DLQ, impersonation, feature flag; destek gelen kutusu (platform WABA'sı iç `platform` tenant'ında modellenir, işletme panelindeki gelen kutusuyla aynı konuşma motoru; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4 "Destek hattı ve P1", [07](07-veri-modeli-ve-api.md) §3.4) | Vite SPA | Statik; Cloudflare Access + IP kısıtı | 1 |
 | `mobile-business` | Panelin Android sarmalayıcısı: native alarm, otomatik ESC/POS, Sunmi, kiosk | Capacitor 8 | Mağaza sürümü | 2 |
 | `print-agent` | Windows yerel yazdırma ajanı | Go, tek exe | İşletme başına 1 | 2 |
 | `courier` | Arka plan konumlu kurye uygulaması | Expo SDK 57 | Mağaza sürümü | 3 |
