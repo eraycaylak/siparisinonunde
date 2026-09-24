@@ -727,7 +727,7 @@ Yazılımın kendisi kopyalanabilir. Savunma aşağıdaki katmanlarda kurulur:
 
 **Birim ekonomiden doğan yeni konular**
 22. **Esnaf brüt marjı hedefin altında:** 00 §10 altyapı tahmini ve 00 §4 SMS kotasıyla Esnaf marjı %29–67'dir (§7.2); ≥ %70 karma hedefi (00 §12) Pro ağırlıklı müşteri karmasına dayanır. Kabul mü, yoksa Esnaf'ta destek kapsamını daraltma / SMS kotasını düşürme / fiyat güncellemesi mi? Kurucu kararı gerekir.
-23. **Maliyet tavanlarının hizalanması:** [10](10-riskler-operasyon-ve-metrikler.md) §8.6'daki "altyapı / işletme ≤ 120 TL" ve "SMS / işletme ≤ 80 TL" tavanları eski §7.1 değerlerine dayanır; güncel aralıklar altyapı 95–170 TL (1.000 işletme), SMS 8–43 (Esnaf) / 8–129 TL (Pro, kota üst sınırı).
+23. **Maliyet tavanlarının hizalanması — Karara bağlandı:** [10](10-riskler-operasyon-ve-metrikler.md) §8.6 bu dokümanın §7.1 aralıklarıyla hizalandı (altyapı 1.000 işletmede ≤ 170 TL/ay, hedef 95–170 TL; SMS tavanı kota üst sınırına bağlı; destek ≤ 200 TL/ay; döviz bazlı gider/gelir ≤ %15, Meta hariç).
 
 **Proje sahibi kararları ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13; bu doküman varsayılanla yazıldı)**
 24. **Pilot şehir ve ilçeler (00 §13.2):** varsayılan ekibin bulunduğu şehirde 2–3 ilçe (§8.1, konu 13).

@@ -1,0 +1,43 @@
+tur,ad,senaryo,gerekli_sermaye_tl,kalici_basa_bas_ay_no
+senaryo,NO-GO / pivot,nogo,35031990,
+senaryo,KOŞULLU,kosullu,34353470,
+senaryo,GO,go,33538525,29
+duyarlilik,Baz,go,33538525,29
+duyarlilik,Baz,kosullu,34353470,
+duyarlilik,Churn +2 puan,go,33868758,29
+duyarlilik,Churn +2 puan,kosullu,34531767,
+duyarlilik,Churn −2 puan,go,33764124,25
+duyarlilik,Churn −2 puan,kosullu,33770155,
+duyarlilik,CAC +%30,go,38895222,29
+duyarlilik,CAC +%30,kosullu,37067707,
+duyarlilik,CAC −%30,go,29133429,24
+duyarlilik,CAC −%30,kosullu,31639234,
+duyarlilik,Kur +%20 (döviz bazlı maliyetler),go,34796036,29
+duyarlilik,Kur +%20 (döviz bazlı maliyetler),kosullu,35284766,
+duyarlilik,Kur −%20,go,32466764,26
+duyarlilik,Kur −%20,kosullu,33422174,
+duyarlilik,Fiyat +%15,go,30423490,24
+duyarlilik,Fiyat +%15,kosullu,32137969,
+duyarlilik,Fiyat −%15,go,38706713,32
+duyarlilik,Fiyat −%15,kosullu,36568971,
+duyarlilik,Yeni işletme hızı +%30,go,33172357,24
+duyarlilik,Yeni işletme hızı +%30,kosullu,32958486,
+duyarlilik,Yeni işletme hızı −%30,go,36551462,32
+duyarlilik,Yeni işletme hızı −%30,kosullu,33932572,
+esnaf_secenegi,Baz: düşük marjı kabul (giriş paketi),go,33538525,29
+esnaf_secenegi,"A: Esnaf fiyatı 1.190 TL (+%20), Esnaf talebi −%10 [T]",go,32690045,29
+esnaf_secenegi,B: Esnaf SMS kotası 100 → 50,go,33517423,29
+esnaf_secenegi,"B+: B + Esnaf self-servis destek (destek yükü ×0,5) [T]",go,32371561,26
+esnaf_secenegi,"C: Esnaf yalnız yıllık peşin (9.504 TL), Esnaf talebi −%25 [T]",go,29643290,29
+varyant,Baz: TÜFE güncellemesi yılda 1 (Ocak 2028),go,33538525,29
+varyant,Baz: TÜFE güncellemesi yılda 1 (Ocak 2028),kosullu,34353470,
+varyant,"Yılda 2 güncelleme (Tem 2027, Oca 2028, Tem 2028)",go,32973435,29
+varyant,"Yılda 2 güncelleme (Tem 2027, Oca 2028, Tem 2028)",kosullu,33047116,
+varyant,Lansman öncesi güncelleme (Oca 2027) + Oca 2028,go,28421272,22
+varyant,Lansman öncesi güncelleme (Oca 2027) + Oca 2028,kosullu,30660969,
+varyant,Hiç güncelleme yok,go,40463087,
+varyant,Hiç güncelleme yok,kosullu,37099520,
+varyant,"Teknokent (Oca 2027'den; Ar-Ge personeli −%20 [T], kira +20 bin TL/ay [T])",go,30422931,26
+varyant,"Teknokent (Oca 2027'den; Ar-Ge personeli −%20 [T], kira +20 bin TL/ay [T])",kosullu,31556764,
+varyant,Önlem paketi: lansman öncesi güncelleme + Teknokent + Esnaf self-servis (B+),go,24362129,21
+varyant,Önlem paketi: lansman öncesi güncelleme + Teknokent + Esnaf self-servis (B+),kosullu,26996861,36

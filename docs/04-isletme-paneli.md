@@ -1101,7 +1101,7 @@ GTM'in kilit aracı (A02 §9.2).
 | P-36 | QR, afiş ve paket kartı | owner, manager | 1 |
 | P-37 | Link rehberi | owner, manager | 1 |
 | P-38 | Onboarding sihirbazı | owner (manager ◐) | 1 |
-| P-39 | Yardım ve destek (videolar, "WhatsApp'tan bize yazın", sık sorunlar sihirbazı) | hepsi | 1 |
+| P-39 | Yardım ve destek (videolar, "WhatsApp'tan bize yazın" → platform WhatsApp destek hattı, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4; P1 acil hattı; sık sorunlar sihirbazı) | hepsi | 1 |
 | P-40 | Bildirim merkezi | owner, manager, cashier | 1 |
 | P-41 | Mutfak ekranı (Faz 1 temel, Faz 2 KDS) | kitchen (+ owner, manager, cashier) | 1 / 2 |
 | P-42 | Kuponlar ve doğrudan kanal avantajı | owner, manager | 2 |
