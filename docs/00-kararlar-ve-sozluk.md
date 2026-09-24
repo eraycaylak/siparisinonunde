@@ -178,6 +178,20 @@ Geçişler: `awaiting_customer→new|cancelled`; `new→accepted|rejected|cancel
 - Koruyucu metrikler: döviz bazlı giderlerin (Meta hariç — işletme öder; LLM, bulut, SaaS araçları) gelire oranı ≤ %15 (ticari lansmandan önce abonelik geliri olmadığından mutlak tutar olarak izlenir); nakit pisti ≥ 9 ay (altına düşerse harcama gözden geçirilir).
 - İş: CAC ≤ 4.000 TL (Esnaf paketi için ≤ ~2.800 TL), geri ödeme < 4 ay, aylık logo churn ilk yıl %5–7 → sonra < %3, **karma brüt marj ≥ %70 (1.000 işletme ölçeğinde)**; Esnaf giriş paketi bu varsayımlarla %29–67 marjda kalır (bkz. 01 §7 ve açık karar 11).
 
+## 12a. Proje sahibinin kararları (24.09.2026) — bu bölüm önceki maddelerle çelişirse bu geçerlidir
+1. **Ekip:** Ayrı bir geliştirici ekibi yok. Sistemi Claude yazar ve bakımını yapar; proje sahibi (Eray) ürün, satış ve saha tarafını yürütür. Dokümanlardaki KUR/TL/FE/OPS rolleri bu iki kişiye indirgenir. 11'deki maaş varsayımları bu nedenle geçersizdir; gerçek maliyetler yalnız altyapı, aracı firma (BSP), SMS, alan adı ve hukuk/muhasebedir.
+2. **Pilot şehir:** **Yozgat / Merkez.**
+3. **Şirket türü:** Şahıs şirketi (vergi levhası). Ltd/AŞ ve dış finansman gündemde değil; kendi kaynakla ilerlenir.
+4. **WhatsApp erişimi: aracı firma (BSP / Solution Partner) üzerinden.** Meta ile doğrudan Tech Provider süreci (App Review, Business Verification) yürütülmez. Varsayılan aracı **360dialog** (Cloud API ile birebir uyumlu API; mesaj başına ek ücret yok, numara başına aylık ücret — teyit edilmeli). Kod aracıdan bağımsızdır: `WhatsAppProvider` arayüzü `mock` (geliştirme simülatörü), `cloud` (Meta Cloud API) ve `d360` (360dialog) sağlayıcılarını destekler; Türk bir BSP de aynı arayüzle eklenebilir. İşletme numarasını aracının kayıt ekranından bağlar, aldığı API anahtarı panele girilir (ya da kurulumu biz yaparız).
+5. **Öncelik:** Hukuki/şirket/Meta işleri sistemi bekletmez; önce **çalışan sistem** kurulur. Canlıya çıkıştan önce 08'deki MVP öncesi zorunlu belge seti ve 13'teki engelleyici teyitler tamamlanır.
+6. **Solo işletime göre sadeleştirilmiş teknik kararlar** (10. bölümü günceller, ayrıntı 14 no'lu uygulama şartnamesinde):
+   - Yalnız **PostgreSQL** (Redis/BullMQ yok): outbox + `jobs` tablosu (`FOR UPDATE SKIP LOCKED`) ile arka plan işleri; SSE dağıtımı için `LISTEN/NOTIFY`.
+   - **PostGIS yok:** teslimat bölgeleri mahalle listesi ve/veya uygulama içinde hesaplanan poligon/yarıçap ile.
+   - Tek **Next.js** web uygulaması (pazarlama sitesi + storefront + işletme paneli + admin + kurye) ve tek **Fastify** API (+ aynı kod tabanından worker süreci).
+   - Kimlik doğrulama: kendi oturum sistemimiz (scrypt parola, HttpOnly çerez oturumu); platform yöneticileri için TOTP.
+   - Tenant yalıtımı: uygulama katmanında zorunlu kapsam + yalıtım testleri; PostgreSQL RLS sertleştirme adımı olarak eklenir.
+   - Barındırma: Türkiye'de tek VPS, Docker Compose (postgres, api, worker, web, caddy).
+
 ## 13. Açık kararlar (proje sahibine sorulacak — dokümanlar varsayılanla yazılır, varsayılan belirtilir)
 1. **Ekip ve stack:** Geliştiriciler TypeScript/React mi, PHP/Laravel mi? (Varsayılan: TypeScript monorepo.)
 2. **Pilot şehir/ilçeler** (saha satışı yakınlık ister). (Varsayılan: ekibin bulunduğu şehirde 2–3 ilçe.)
