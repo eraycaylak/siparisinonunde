@@ -28,7 +28,7 @@
 | 1 | **Sipariş kaçmaz** | Her ekranın üst barında bağlantı, ses ve sipariş alma durumu görünür. Yeni sipariş başka bir ekrandayken de tam ekran bant ve sesle duyurulur. Ses kilitliyse panel bunu gizlemez, kırmızı bantla söyler. | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10, D06 §7 |
 | 2 | **Büyük dokunma hedefleri** | Ana aksiyonlar ("Onayla", "Hazır", "Yola çıkar", "Teslim edildi") tablette **56–64 px** yükseklikte, kart genişliğinde. Diğer tüm dokunulabilir öğeler ≥ 48×48 px. Yan yana aksiyonlar arasında ≥ 8 px boşluk. | Android 48 dp, WCAG 2.5.5 AAA 44 px (A05 §8.1); 56–64 px [T] |
 | 3 | **Tek birincil aksiyon** | Her kartta tek büyük buton. "Onayla" ile "Reddet" aynı büyüklükte ve bitişik olmaz. | A05 §8.1 |
-| 4 | **Renk + ikon + kelime** | Durum asla yalnız renkle anlatılmaz: "🟢 Hazır", "🔴 Bağlantı yok", "⏱ 2:14". | WCAG 1.4.1 (A05 §8.1) |
+| 4 | **Renk + ikon + kelime** | Durum asla yalnız renkle anlatılmaz: "[hazır ikonu] Hazır", "[bağlantı yok ikonu] Bağlantı yok", "[kronometre ikonu] 2:14". Arayüzde emoji kullanılmaz, ikon kullanılır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7); bu dokümandaki `[… ikonu]` gösterimlerinin Lucide karşılıkları §14.5'tedir. | WCAG 1.4.1 (A05 §8.1) |
 | 5 | **Onay penceresi yerine "Geri al"** | Geri alınabilir işlemler hemen yapılır, alt şeritte "Geri al" çıkar (ret: 30 sn, diğer durum geçişleri: 5 sn). Onay penceresi yalnız geri alınamaz işlemlerde: onay sonrası iptal, müşteri verisini silme, toplu mesaj gönderimi [Faz 2], WhatsApp bağlantısını kaldırma. | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7; A05 §8.1 |
 | 6 | **Klavyesiz akış** | Süre, sebep, para üstü, adet ve ödeme için çip ve stepper. Serbest metin yalnız "Diğer" sebebi, not ve sohbet için. | A05 §8.1, A02 §10.2 |
 | 7 | **Esnafın dili** | "Onayla, Reddet, Hazır, Yola çıkar, Teslim edildi, Tükendi, Sipariş almayı durdur". Ekranda *checkout, fulfillment, SKU, tenant, webhook* yazmaz. | A05 §8.4 |
@@ -94,10 +94,10 @@ flowchart LR
 | Öğe | Görünüm | Dokununca |
 |---|---|---|
 | Şube adı | "Kardeşler Döner · Kadıköy" (Faz 2'de şube seçici) | — |
-| **Sipariş alma durumu** (`ordering_state`) | 🟢 Sipariş alıyor · 🟠 Yoğun (+15 dk) · ⏸ Durduruldu (20.15'e kadar) · ⚫ Kapalı (11.00'de açılır) | Durum sayfası (§4.10) |
-| Ses | 🔊 Açık / 🔇 **Ses kapalı** (kırmızı) | Vardiya başlat ekranı |
-| Bağlantı | ● Canlı / ◐ Bağlanıyor / 🔴 Bağlantı yok | Bağlantı ayrıntısı (§4.17) |
-| WhatsApp | Yalnız sorun varsa: ⚠ WhatsApp | P-25 sağlık kartı |
+| **Sipariş alma durumu** (`ordering_state`) | [yeşil nokta] Sipariş alıyor · [turuncu nokta] Yoğun (+15 dk) · [duraklat ikonu] Durduruldu (20.15'e kadar) · [gri nokta] Kapalı (11.00'de açılır) | Durum sayfası (§4.10) |
+| Ses | [ses ikonu] Açık / [ses kapalı ikonu] **Ses kapalı** (kırmızı) | Vardiya başlat ekranı |
+| Bağlantı | ● Canlı / ◐ Bağlanıyor / [bağlantı yok ikonu] Bağlantı yok | Bağlantı ayrıntısı (§4.17) |
+| WhatsApp | Yalnız sorun varsa: [uyarı ikonu] WhatsApp | P-25 sağlık kartı |
 | Gün özeti | "Bugün 42 sip · 14.380 TL" (yalnız `owner`/`manager`/`cashier`) | P-32 |
 | Bildirim zili | Okunmamış sayısı | P-40 bildirim merkezi |
 | Kullanıcı | Ad; paylaşılan cihazda "PIN ile değiştir" | Hesap / PIN ekranı |
@@ -198,12 +198,12 @@ flowchart TD
 | # | Adım | Ekran içeriği | Süre hedefi [T] | `onboarding_step` |
 |---|---|---|---|---|
 | 1 | **Hesap** | Ad soyad, cep telefonu (SMS OTP), e-posta, parola; kullanım koşulları + abonelik sözleşmesi + DPA click-wrap (sürümlü, [08](08-mevzuat-kvkk-odeme-fatura.md) §7.5); **TOTP kurulumu** (QR + 6 haneli kod + yedek kodlar; `owner` için zorunlu, D06 §6.6) | 2 dk | `account_created` |
-| 2 | **İşletme bilgisi** | Görünen ad, işletme türü (çip: dönerci, pideci, kebap, burger, pizza, ev yemeği, kafe, diğer), adres (haritada pin + yazılı), müşteriye gösterilecek telefon, logo (opsiyonel); **künye**: unvan veya ad-soyad, VKN/TCKN, vergi dairesi, MERSİS no (varsa), meslek odası, işletme kayıt no (5996, opsiyonel). Slug önerisi: `kardeslerdoner` → `kardeslerdoner.siparisinonunde.com` | 2 dk | `profile_done` |
+| 2 | **İşletme bilgisi** | Görünen ad, işletme türü (çip: dönerci, pideci, kebap, burger, pizza, ev yemeği, kafe, diğer), adres (haritada pin + yazılı), müşteriye gösterilecek telefon, **marka görünümü (opsiyonel):** logo, kapak görseli ve ana renk (12 hazır renk veya serbest seçici; otomatik kontrast düzeltmesiyle, [12](12-marka-tasarim-ve-kullanilabilirlik.md) §5; sonradan P-26'dan değiştirilir, §7.2); **künye**: unvan veya ad-soyad, VKN/TCKN, vergi dairesi, MERSİS no (varsa), meslek odası, işletme kayıt no (5996, opsiyonel). Slug önerisi: `kardeslerdoner` → `kardeslerdoner.siparisinonunde.com` | 2 dk | `profile_done` |
 | 3 | **Menü** | Kartlar: **Elle gir** (kategori + ürün + fiyat, seçenek grubu şablonları: Porsiyon, Ekmek, Acı, Çıkarılacaklar, İçecek) · **Excel ile yükle** (§6.6; Faz 1 temel sürümü kesilebilir "C" maddesidir, kesilirse Excel dosyası "Biz kuralım" ile ekibe gönderilir) · **Biz kuralım** (menü fotoğrafı/PDF yükle; ekip AI aracıyla taslak çıkarır, esnaf fiyatları onaylar; A05 §8.5, D06 §11.7) | 3 dk (hazır menüyle) | `menu_done` |
 | 4 | **Çalışma saatleri** | Hazır şablonlar ("Her gün 11–23", "Hafta içi 10–22, hafta sonu 11–24"); gün bazında düzenleme; gece yarısını geçen kapanış | 30 sn | — |
 | 5 | **Bölge ve ödeme** | Haritada şube çevresinde **3 km yarıçaplı hazır bölge**; ücret, min. sepet, tahmini süre alanları; "Poligon çiz" seçeneği; gel-al aç/kapa; ödeme çipleri (Kapıda nakit · Kapıda kart · Yemek kartı + markalar · Kasada öde) | 1,5 dk | `ops_done` (+ isteğe bağlı `web_live`) |
 | 6 | **WhatsApp'ı bağla** | Yol seçimi, geçmiş aktarımı tercihi (varsayılan kapalı), Meta penceresi, **Meta'ya kart ekle** rehberi, "Başka telefondan TEST yaz" sağlık kontrolü. Metinler D02 §3.10'da | 3–5 dk | `wa_connected`, `meta_payment_ok` |
-| 7 | **Test siparişi** | "Kendi telefonunuzla bu QR'ı okutun, 1 ürün seçip sipariş verin." Panel "ding" çalar, kart belirir, esnaf **Onayla · 30 dk**'ya basar, telefonuna "Onaylandı" mesajı düşer. Test siparişi raporlara ve faturalamaya girmez (`test_kind = 'onboarding_test'`, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5) | 1 dk | `wa_test_done` |
+| 7 | **Test siparişi** | "Kendi telefonunuzla bu QR'ı okutun, 1 ürün seçip sipariş verin." Panel "ding" çalar, kart belirir, esnaf **Onayla · 30 dk**'ya basar, telefonuna "Onaylandı" mesajı düşer. Test siparişi raporlara ve faturalamaya girmez (`test_kind = 'onboarding_test'`, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5); alarm zinciri kısaltılmış çalışır (§3.4.3) | 1 dk | `wa_test_done` |
 | 8 | **Canlıya geç** | Kontrol listesi (§3.4.4) + "Canlıya geç" butonu; WhatsApp hazır değilse web siparişiyle (Kapı 1) devam | 30 sn | `live` (veya `web_live`) |
 | 9 | **Müşterine duyur** | QR/afiş/paket kartı oluşturucuya kısayol, Instagram/Google/WhatsApp profil linklerini kopyala (§12) | 1 dk | — |
 
@@ -223,6 +223,7 @@ flowchart TD
 
 #### 3.4.3 Test siparişi
 - Test sırasında ses kilidi açılmamışsa önce vardiya başlat ekranı (§4.1) gösterilir; bu, esnafa ses kilidini ilk günden öğretir.
+- **Test siparişinde alarm (kısaltılmış zincir, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7; D06 §7.6):** `onboarding_test` siparişi gerçek sipariş gibi çalar: t=0 panel sesi + Web Push, 60 sn'de yükselen ses tekrarı ve (sahibin platform WhatsApp izni varsa) 2 dk'da **"TEST"** etiketli platform WhatsApp uyarısı. SMS (5 dk), müşteriye gecikme bilgisi (10 dk) ve otomatik iptal (15 dk) **çalışmaz**. Kart "TEST" rozeti taşır. Esnaf siparişi onaylayarak ya da reddederek kapatır; onayda kendi telefonuna "Onaylandı" mesajı düşer. Pilot kurulumunda UAT senaryoları bu davranışa dayanır ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §9.4). Sentetik `canary` siparişleri ise panelde hiç görünmez, ses çalmaz ve hiçbir dış bildirim üretmez.
 - Ekranda üç adım animasyonu: "1 Telefonla sipariş ver · 2 Sesi duy · 3 Onayla'ya bas". Kart geldiğinde "İşte bu kadar! Müşteriniz şimdi 'Onaylandı' mesajını aldı." WhatsApp'sız modda test, SMS doğrulamalı web siparişiyle yapılır.
 
 #### 3.4.4 "Canlıya geç" kontrol listesi
@@ -271,6 +272,7 @@ flowchart TD
 - [ ] WhatsApp adımı atlandığında işletme WhatsApp'sız modda web siparişi alabilir; SMS ile doğrulanan sipariş panelde sesli uyarıyla düşer.
 - [ ] Meta kartı eklenmeden WhatsApp "canlı" durumuna geçmez; "Ekledim, kontrol et" sağlık kontrolünü yeniden çalıştırır ve sonucu 60 sn içinde gösterir.
 - [ ] Test siparişi raporlara, tasarruf hesabına ve müşteri listesine girmez.
+- [ ] Onaylanmadan bekletilen test siparişi ses, Web Push ve (izin varsa) "TEST" etiketli platform WhatsApp uyarısı üretir; SMS gitmez, müşteriye gecikme bilgisi gitmez, sipariş otomatik iptal olmaz.
 
 ---
 
@@ -301,6 +303,7 @@ Tarayıcılar sesli oynatmayı kullanıcı jesti olmadan engeller ve Wake Lock s
 - Ekran atlanırsa panel açılır ama üstte kırmızı bant kalır: **"Ses kapalı — yeni siparişleri duyamazsınız. [Sesi aç]"**. 5 dk sürerse aynı uyarı `owner`'a gider (D06 §7.7).
 - Wake Lock düşerse (sekme gizlendi) sayfa görünür olunca yeniden istenir; alınamazsa üst barda "Ekran kapanabilir" ikonu.
 - **"Günü kapat"** (kullanıcı menüsü): açık saatteyken ve başka aktif cihaz yoksa uyarır: "Başka açık panel yok. Sipariş gelirse duyulmaz. Sipariş almayı durdurmak ister misiniz?" [Durdur ve kapat] [Yine de kapat] [T].
+- **Panel güncellemesi ([D06 §16.7](06-teknik-mimari.md)):** Yeni sürüm arka planda iner, panel kendiliğinden yenilenmez. Güncelleme yalnız (a) şubede açık `new` sipariş yokken, şube yoğun modda değilken, yoğun saat dışında (11:30–14:00 ve 18:00–22:30 dışı) ve açık form yokken ya da (b) bu vardiya ekranı açıldığında, "Siparişleri almaya başla"ya basılmadan hemen önce uygulanır. Böylece ses kilidi yeni sürümde açılır. Hazır bekleyen güncelleme için küçük, sessiz not: "Yeni sürüm hazır. Vardiya başında yüklenecek." Yenilemeden sonra ses açılmazsa: hemen kırmızı "Ses kapalı" bandı, ilk nabızda şubenin cihazlarına Web Push ("Panel güncellendi. Sesi açmak için panele dokunun."), 5 dk sonra `owner`'a platform WhatsApp uyarısı. Bu, yukarıdaki "ses kilitli" kuralının aynısıdır. Değişiklikler Yardım (P-39) altındaki **"Yenilikler"** listesinde görünür; WhatsApp'tan tanıtım mesajı gönderilmez.
 
 ### 4.2 Düzen ve sütunlar
 
@@ -348,18 +351,18 @@ Tarayıcılar sesli oynatmayı kullanıcı jesti olmadan engeller ve Wake Lock s
 
 | Bölge | İçerik | Kural |
 |---|---|---|
-| Başlık | **#1051** (≥ 24 px), kanal rozeti, teslim türü ikonu, **geçen süre sayacı** | Sayaç `new`'de oluşturmadan, diğerlerinde onaydan beri; `new` 2 dk'yı geçince kırmızı + "⏱ 2:14" |
-| Müşteri | Ad (profil adı; yoksa "Müşteri …12"), **"Yeni müşteri"** veya **"5. sipariş"** rozeti | Kara listedeyse **"⚠ Şüpheli"** kırmızı rozet |
-| Teslim | 🛵 Paket · mahalle / 🛍 Gel-al · hazır olma saati / [Faz 3] 🍽 Masa | Planlı ise "🕒 19.30 için" |
-| Kalemler | İlk 3 kalem + "ve 2 ürün daha"; seçenekler kısa; **çıkarılacaklar BÜYÜK HARF, kalın** | Kalem notu varsa 📝 |
-| Not | 📝 ikonu; dokununca sipariş notu | Not içeriği kartta kısaltılmış |
-| Tutar ve ödeme | "285,00 TL · 💵 Kapıda nakit · 500 TL'ye para üstü" / "💳 Kapıda kart" / "🍽 Multinet" / "Kasada" | `kitchen` görmez |
+| Başlık | **#1051** (≥ 24 px), kanal rozeti, teslim türü ikonu, **geçen süre sayacı** | Sayaç `new`'de oluşturmadan, diğerlerinde onaydan beri; `new` 2 dk'yı geçince kırmızı + "[kronometre ikonu] 2:14" |
+| Müşteri | Ad (profil adı; yoksa "Müşteri …12"), **"Yeni müşteri"** veya **"5. sipariş"** rozeti | Kara listedeyse **"[uyarı ikonu] Şüpheli"** kırmızı rozet |
+| Teslim | [paket servis ikonu] Paket · mahalle / [gel-al ikonu] Gel-al · hazır olma saati / [Faz 3] [masa ikonu] Masa | Planlı ise "[saat ikonu] 19.30 için" |
+| Kalemler | İlk 3 kalem + "ve 2 ürün daha"; seçenekler kısa; **çıkarılacaklar BÜYÜK HARF, kalın** | Kalem notu varsa [not ikonu] |
+| Not | [not ikonu]; dokununca sipariş notu | Not içeriği kartta kısaltılmış |
+| Tutar ve ödeme | "285,00 TL · [nakit ikonu] Kapıda nakit · 500 TL'ye para üstü" / "[kart ikonu] Kapıda kart" / "[yemek kartı ikonu] Multinet" / "Kasada" | `kitchen` görmez |
 | Durum satırı | "Onaylandı · Hedef 20.35", "Yolda · Burak", "Süre aşıldı · +5 dk" (kırmızı) | — |
-| Uyarı rozetleri | "📱 Sohbette yanıtlandı — onaylamayı unutmayın" (Coexistence echo, A06 §5.1), "⚠ WhatsApp'a ulaşılamadı, arayın" (131026, D02 §10.1), "Müşteri iptal istiyor", "Sahibine bildirildi · 14.04" | Rozet metni + ikon + renk |
+| Uyarı rozetleri | "[telefon uygulaması ikonu] Sohbette yanıtlandı — onaylamayı unutmayın" (Coexistence echo, A06 §5.1), "[uyarı ikonu] WhatsApp'a ulaşılamadı, arayın" (131026, D02 §10.1), "Müşteri iptal istiyor", "Sahibine bildirildi · 14.04" | Rozet metni + ikon + renk |
 | Birincil buton | Duruma göre tek büyük buton (§4.8) | 56–64 px |
 | İkincil | "Reddet" (yalnız `new`), "⋯" menüsü: Detay, Yazdır, Sohbete git, Ara, Kurye ata, Gecikme bildir, İptal et | ≥ 48 px, birincilden ≥ 8 px ayrık |
 
-**Kanal rozetleri:** 🟢 WhatsApp (`wa_link`) · 🌐 Web (`web`, alt etiket kaynak: QR/Instagram/Google/Paket) · ☎ Telefon (`manual`) · 🤖 AI [Faz 2] (`wa_ai`) · 🔁 Sohbetten tekrar [Faz 2] (`wa_reorder`) · 🧾 Flows [Faz 3] (`wa_flow`) · 🍽 Masa [Faz 3] (`table_qr`) ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5).
+**Kanal rozetleri:** [sohbet ikonu] WhatsApp (`wa_link`) · [web ikonu] Web (`web`, alt etiket kaynak: QR/Instagram/Google/Paket) · [telefon ikonu] Telefon (`manual`) · [AI ikonu] AI ile [Faz 2] (`wa_ai`) · [tekrar ikonu] Sohbetten tekrar [Faz 2] (`wa_reorder`) · [form ikonu] Flows [Faz 3] (`wa_flow`) · [masa ikonu] Masa [Faz 3] (`table_qr`) ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5).
 
 ### 4.5 Yeni sipariş uyarısı ve hatırlatma merdiveni
 
@@ -440,16 +443,16 @@ Zamanlamalar [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10'daki **ka
 - **Müşteri iptal talebi** (`accepted` ve sonrası): kartta turuncu rozet "Müşteri iptal istiyor" + ses. Müşteri bu durumlarda doğrudan iptal edemez, yalnız talep gönderir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7). Aksiyonlar: **[İptal et (müşteri istedi)]** → `cancelled`, `cancelled_by=customer`, `customer_request`; onaylayan personel audit log'a yazılır; **[Hazırlık başladı, iptal edilemez]** → müşteriye sohbetten hazır cevap önerisi açılır (A05 §3.11).
 
 ### 4.10 Gecikme, yoğunluk ve sipariş alma durumu
-- **Süre aşımı:** şimdiki zaman tahmini saati (`estimated_delivery_at` / `estimated_ready_at`) geçince kart "Süre aşıldı · +5 dk" (kırmızı ⏱). Kendiliğinden müşteri mesajı gitmez.
+- **Süre aşımı:** şimdiki zaman tahmini saati (`estimated_delivery_at` / `estimated_ready_at`) geçince kart "Süre aşıldı · +5 dk" (kırmızı [kronometre ikonu]). Kendiliğinden müşteri mesajı gitmez.
 - **Gecikme bildir** (⋯): çipler [+10] [+15] [+20] [+30] dk → tahmini saat güncellenir (`order_events.type = eta_updated`), müşteriye gecikme bilgisi gider ([03](03-musteri-deneyimi-ve-storefront.md) M34; yalnız pencere açıksa serbest mesaj, şablonu yoktur; pencere kapalıysa veya WhatsApp'sız modda yeni saat yalnız takip sayfasına yansır ve panel "Müşteriyi arayın" önerir). Bu, olağan dışı durum mesajıdır ve 4 mesajlık bütçenin dışındadır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.5; D02 §4.3); sipariş başına en çok 2 kez [T] (`orders.delay_notice_count`).
 - **Sipariş alma durumu** (üst bar anahtarı, `ordering_state`, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7):
 
 | Seçim | `ordering_state` | Seçenekler | Etki |
 |---|---|---|---|
-| 🟢 Sipariş alıyor | `open` | — | Normal |
-| 🟠 Yoğun | `busy` | +15 / +30 dk; süre: 30 dk / 1 sa / bugün | Storefront ve karşılama mesajında uzatılmış süre + "Yoğunuz, süre uzayabilir"; varsayılan onay süresi uzar; sipariş alınır |
-| ⏸ Sipariş almayı durdur | `paused` | 15 / 30 / 60 dk / bugün | Storefront checkout kapanır, sayaç görünür; bot durdurma mesajı (12 sa'te en çok 1); süre bitince otomatik `open` + panel bildirimi "Sipariş alma yeniden açıldı" |
-| ⚫ Kapalı | `closed` | Elle seçilmez; saatlerden ve özel günlerden hesaplanır | "Bugün kapalıyız" = `paused` bugün sonuna kadar [T] |
+| [yeşil nokta] Sipariş alıyor | `open` | — | Normal |
+| [turuncu nokta] Yoğun | `busy` | +15 / +30 dk; süre: 30 dk / 1 sa / bugün | Storefront ve karşılama mesajında uzatılmış süre + "Yoğunuz, süre uzayabilir"; varsayılan onay süresi uzar; sipariş alınır |
+| [duraklat ikonu] Sipariş almayı durdur | `paused` | 15 / 30 / 60 dk / bugün | Storefront checkout kapanır, sayaç görünür; bot durdurma mesajı (12 sa'te en çok 1); süre bitince otomatik `open` + panel bildirimi "Sipariş alma yeniden açıldı" |
+| [gri nokta] Kapalı | `closed` | Elle seçilmez; saatlerden ve özel günlerden hesaplanır | "Bugün kapalıyız" = `paused` bugün sonuna kadar [T] |
 
 - **Yoğunluk önerisi [T]:** "Yeni" sütununda ≥ 4 sipariş bekliyorsa ya da son 30 dk'da ortalama onay süresi > 2 dk ise panel kısa öneri çıkarır: "Yoğun moda geçilsin mi? (+15 dk)" [Evet] [Hayır].
 - **Kabul kriterleri (durdurma):** seçilen süre boyunca storefront checkout'u ve bot "sipariş alınmıyor" moduna geçer, sayaç gösterilir; süre bitince otomatik açılır ve panelde bildirim çıkar (A05 §4.3).
@@ -490,7 +493,7 @@ Kasiyer **[+ Telefon siparişi]** der; hedef: sık müşteride 60 sn'nin altınd
 | Adım | Ekran | Kural |
 |---|---|---|
 | 1 Müşteri | Telefon numarası alanı (tuş takımı, "0 (5xx) xxx xx xx"); yazarken eşleşen müşteriler; bulunursa ad, kayıtlı adresler, son 3 sipariş (**[Aynısını ekle]**); yoksa ad + telefon | Telefonla bulunan BSUID'siz kayıt, aynı kişi WhatsApp'tan yazınca birleşir (D02 §8.3) |
-| 2 Teslim türü | [🛵 Paket] [🛍 Gel-al] | — |
+| 2 Teslim türü | [[paket servis ikonu] Paket] [[gel-al ikonu] Gel-al] | — |
 | 3 Ürünler | Arama (aksan duyarsız) + **sık satılanlar ızgarası** + kategori sekmeleri; seçenekli üründe alt sayfa (zorunlu gruplar işaretli); adet stepper; tükenenler gri ve seçilemez; "WhatsApp'ta satılamaz" bayraklı ürün listelenmez | Toplamı sunucu hesaplar; ekrandaki toplam önizlemedir |
 | 4 Adres | Kayıtlı adres kartları veya yeni: haritada pin / yazılı adres + bina no, kat, daire, **adres tarifi**; bölge otomatik bulunur, ücret ve min. sepet gelir | Bölge dışı: uyarı + personel (`cashier` dahil) uyarıyı görerek **"Yine de kaydet (özel ücret)"** diyebilir; istisna audit log'a yazılır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4). İstisna yalnız `manual` kanalındadır |
 | 5 Ödeme | Kapıda nakit (para üstü çipleri: Tam para / 200 / 500 / 1.000 / Diğer), kapıda kart, yemek kartı (yalnız kabul edilen markalar), kasada öde | — |
@@ -502,15 +505,16 @@ Kasiyer **[+ Telefon siparişi]** der; hedef: sık müşteride 60 sn'nin altınd
 
 ### 4.14 Yazdırma
 - **[Faz 1] Tarayıcıdan yazdırma** (D06 §9.1–9.2): 80 mm ve 58 mm şablon, iki fiş türü:
-  - **Mutfak fişi:** büyük sipariş no, teslim türü, planlı saat, kalemler ve seçenekler, **ÇIKARILACAKLAR** büyük/kalın, notlar; **fiyat yok**.
-  - **Kasa/kurye fişi:** + işletme adı, tarih, müşteri adı, teslimat telefonu, adres + adres tarifi, tutarlar, KDV dahil toplam, ödeme yöntemi ve para üstü, takip/harita QR'ı, **"Mali değeri yoktur"** (mali müşavir teyidi).
+  - **Mutfak fişi:** büyük sipariş no, teslim türü, planlı saat, kalemler ve seçenekler, **ÇIKARILACAKLAR** büyük/kalın, notlar; **fiyat yok**, **kişisel veri yok** (müşteri adı, telefonu, adresi basılmaz).
+  - **Kasa/kurye fişi:** + işletme adı, tarih, müşteri adı, **teslimat telefonu maskeli** (yalnız son 4 hane: "0 5•• ••• •• 12"), paket fişinde adres + adres tarifi tam, tutarlar, KDV dahil toplam, ödeme yöntemi ve para üstü, takip/harita QR'ı, **"Mali değeri yoktur"** (mali müşavir teyidi). Fiş pakete iliştirilip üçüncü kişilere ulaşabileceği için tam telefon basılmaz; kurye müşteriyi kurye görünümündeki [Müşteriyi ara] ile arar (§9.2).
+  - Kural ve şablon: [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 "Fişte kişisel veri", [D06 §9.2](06-teknik-mimari.md). Logo, "Bir sonraki siparişinizi WhatsApp'tan verin" satırı ve KVKK kısa notu önerisi: [12](12-marka-tasarim-ve-kullanilabilirlik.md) §7.4.
 - **Ne zaman:** ayara göre "Onaylanınca yazdırma penceresini otomatik aç" (varsayılan açık) veya elle ⋯ → Yazdır. Yeniden baskıda **"KOPYA"** ibaresi.
 - **Diyalogsuz yazdırma:** Chrome `--kiosk-printing` kısayolu kurulum rehberinde adım adım (teyit edilmeli).
 - **Ayarlar (P-22):** kağıt genişliği, hangi fişler, kopya sayısı, yazı boyutu (Normal/Büyük), **[Test fişi yazdır]** (Türkçe karakter kontrol satırı: "ĞÜŞİÖÇ ğüşıöç").
 - **[Faz 2]** Android/Sunmi uygulamasında ve Windows ajanında **otomatik sessiz baskı**, yazıcı yönlendirme (mutfak/bar/kasa), yazıcı hatası uyarısı: "Yazıcı hatası: kağıt bitti olabilir. [Tekrar bas]" (D06 §9.4–9.5). **[Faz 3]** Star CloudPRNT.
 
 ### 4.15 Kurye atama
-- **[Yola çıkar]** veya ⋯ → **Kurye ata** alt sayfası: kurye listesi (ad, durum: 🟢 Müsait / 🛵 Yolda · 2 sipariş / ⚫ Pasif), seçenekler:
+- **[Yola çıkar]** veya ⋯ → **Kurye ata** alt sayfası: kurye listesi (ad, durum: [yeşil nokta] Müsait / [paket servis ikonu] Yolda · 2 sipariş / [gri nokta] Pasif), seçenekler:
   - **Ata ve yola çıkar:** sipariş hemen `on_the_way`; müşteriye "Yolda" mesajı (kurye adı ayara göre).
   - **Yalnız ata:** sipariş durumunu değiştirmez; kurye K-02'de görür ve kendisi "Yola çıktım" der (push bildirimi gider).
   - **Kuryesiz / kendim götürüyorum:** `on_the_way`, kurye adı yerine işletme adı.
@@ -518,7 +522,7 @@ Kasiyer **[+ Telefon siparişi]** der; hedef: sık müşteride 60 sn'nin altınd
 - Kurye telefonu müşteriye paylaşılmaz; varsayılan olarak işletme telefonu verilir (A05 M09 notu).
 
 ### 4.16 Müşteri geçmişi kısa görünümü
-Detay çekmecesinde müşteri bölümü: "**5. sipariş** · ilk: 3 Ağu · son: 12 Eyl · ort. sepet 310 TL · genelde Paket, Kapıda kart" + son 3 siparişin tek satırlık özeti + işletme notu. "⚠ Kara listede: 'Sahte sipariş, 2 kez'" varsa kırmızı. Profil için **[Tüm geçmiş]** → P-31.
+Detay çekmecesinde müşteri bölümü: "**5. sipariş** · ilk: 3 Ağu · son: 12 Eyl · ort. sepet 310 TL · genelde Paket, Kapıda kart" + son 3 siparişin tek satırlık özeti + işletme notu. "[uyarı ikonu] Kara listede: 'Sahte sipariş, 2 kez'" varsa kırmızı. Profil için **[Tüm geçmiş]** → P-31.
 
 ### 4.17 Bağlantı, cihaz ve çevrimdışı göstergeleri
 
@@ -526,9 +530,9 @@ Detay çekmecesinde müşteri bölümü: "**5. sipariş** · ilk: 3 Ağu · son:
 |---|---|---|---|
 | ● Canlı | SSE açık, son olay/ping < 45 sn | Yeşil nokta | — |
 | ◐ Yeniden bağlanıyor | SSE koptu, < 45 sn | Sarı nokta "Bağlanıyor…" | Otomatik yeniden bağlanma, `Last-Event-ID` ile telafi |
-| 🔴 Bağlantı yok | ≥ 45 sn sessizlik veya `offline` | Tam genişlik kırmızı bant: "Bağlantı yok — yeni siparişler gelmeyebilir. İnterneti kontrol edin (Wi-Fi yoksa telefondan internet paylaşın). Son güncelleme 14.02" | Aksiyon butonları pasif ("Bağlantı gelince tekrar deneyin"); emniyet sorgusu denemeleri sürer |
+| [bağlantı yok ikonu] Bağlantı yok | ≥ 45 sn sessizlik veya `offline` | Tam genişlik kırmızı bant: "Bağlantı yok — yeni siparişler gelmeyebilir. İnterneti kontrol edin (Wi-Fi yoksa telefondan internet paylaşın). Son güncelleme 14.02" | Aksiyon butonları pasif ("Bağlantı gelince tekrar deneyin"); emniyet sorgusu denemeleri sürer |
 | Geri geldi | Bağlantı kuruldu | "Bağlantı geri geldi · 2 yeni sipariş" | Kaçırılan olaylar sırayla uygulanır; kaçırılan `new` siparişler için alarm çalar |
-| 🔇 Ses kilitli | `audio_unlocked=false` | Kırmızı bant "Ses kapalı" | 5 dk sonra `owner`'a uyarı |
+| [ses kapalı ikonu] Ses kilitli | `audio_unlocked=false` | Kırmızı bant "Ses kapalı" | 5 dk sonra `owner`'a uyarı |
 | Ekran kapanabilir | Wake Lock alınamadı | Üst barda ikon | Görünürlükte yeniden istenir |
 | Panel çevrimdışı (sunucu tarafı) | Açık saatte, ses açık ve son 3 dk'da nabız gönderen hiç cihaz yok | — (cihazlar kapalı) | `owner`'a platform WhatsApp + SMS (30 dk'da en çok 1); ayar açıksa 10 dk sonra storefront "Şu an sipariş alınmıyor" (varsayılan kapalı) (D06 §7.7) |
 
@@ -559,12 +563,12 @@ Detay çekmecesinde müşteri bölümü: "**5. sipariş** · ilk: 3 Ağu · son:
 
 ### 5.1 Konuşma listesi
 - **Filtre sekmeleri:** Tümü · **Yanıt bekleyen** · **Yetkili istiyor** (kırmızı sayaç) · Siparişi olan · Okunmamış.
-- **Satır içeriği:** ad (profil adı, yoksa maskeli telefon ya da "WhatsApp kullanıcısı"), son mesaj özeti, saat, okunmamış sayısı, mod rozeti (🤖 Bot / 👤 Siz), **pencere göstergesi** ("⏳ 18 sa kaldı" / "🔒 Pencere kapalı"), aktif sipariş rozeti ("#1051 · Yolda"), "📱 Telefondan yanıtlandı".
+- **Satır içeriği:** ad (profil adı, yoksa maskeli telefon ya da "WhatsApp kullanıcısı"), son mesaj özeti, saat, okunmamış sayısı, mod rozeti ([bot ikonu] Bot / [kişi ikonu] Siz), **pencere göstergesi** ("[kum saati ikonu] 18 sa kaldı" / "[kilit ikonu] Pencere kapalı"), aktif sipariş rozeti ("#1051 · Yolda"), "[telefon uygulaması ikonu] Telefondan yanıtlandı".
 - **Sıralama:** yetkili isteyenler en üstte, sonra son mesaj zamanı.
 - "Yetkiliyle görüş" talebi **ayrı sesle** uyarır; ayarda açıksa 5 dk içinde yanıt verilmezse `owner`'a bildirim gider (A05 §4.3).
 
 ### 5.2 Sohbet görünümü ve medya
-- Mesaj balonları kaynağıyla etiketlenir: müşteri · 🤖 Bot · 👤 Panel (Elif) · 📱 Telefon (Coexistence echo). Panel ve bot mesajlarında teslim/okundu işaretleri; telefondan gidenlerde durum ikonu gösterilmez (D02 §6.10).
+- Mesaj balonları kaynağıyla etiketlenir: müşteri · [bot ikonu] Bot · [kişi ikonu] Panel (Elif) · [telefon uygulaması ikonu] Telefon (Coexistence echo). Panel ve bot mesajlarında teslim/okundu işaretleri; telefondan gidenlerde durum ikonu gösterilmez (D02 §6.10).
 - **Medya:** görsel önizleme (dokununca büyür), video/belge indirme, **sesli mesaj oynatıcı**, konum → küçük harita + "Siparişe adres olarak kullan". Altında küçük not: "Medya 30 gün sonra silinir" ([08](08-mevzuat-kvkk-odeme-fatura.md) §2.8).
 - Sağ panelde (tablet) müşteri özeti: sipariş sayısı, açık sipariş kartı (birincil aksiyonu burada da basılabilir), işletme notu, "Bildirimleri durdurdu" uyarısı (`opt_out_all`).
 - Sistem satırları: "Sipariş #1051 oluşturuldu", "Bot 30 dk susturuldu", "Elif sohbeti devraldı".
@@ -572,11 +576,11 @@ Detay çekmecesinde müşteri bölümü: "**5. sipariş** · ilk: 3 Ağu · son:
 ### 5.3 Bot/insan modu, devralma ve echo
 | Olay | Sonuç | Panelde |
 |---|---|---|
-| Kasiyer **[Sohbeti devral]** | `conversations.mode = human`; bot bu sohbette yanıt vermez | Başlık "👤 Siz yanıtlıyorsunuz · [Bota devret]" |
+| Kasiyer **[Sohbeti devral]** | `conversations.mode = human`; bot bu sohbette yanıt vermez | Başlık "[kişi ikonu] Siz yanıtlıyorsunuz · [Bota devret]" |
 | Müşteri "yetkili / insan" yazar veya butona basar | `human` + ayrı ses; müşteriye aktarım mesajı | "Yetkili istiyor" kuyruğunda kırmızı |
 | **[Bota devret]** veya 60 dk mesajlaşma yok | `mode = bot` | Sistem satırı |
-| İşletme panelden yazdı | `bot_muted_until = şimdi + 30 dk` | "🤖 Bot susturuldu · 27 dk · [Botu şimdi aç]" |
-| İşletme **telefondan** yazdı (Coexistence `smb_message_echoes`) | Aynı susturma (ayar 10–120 dk, varsayılan 30) | "📱 Telefondan yanıt verildi" + sayaç; aktif siparişte kart rozeti "Sohbette yanıtlandı — onaylamayı unutmayın" |
+| İşletme panelden yazdı | `bot_muted_until = şimdi + 30 dk` | "[bot ikonu] Bot susturuldu · 27 dk · [Botu şimdi aç]" |
+| İşletme **telefondan** yazdı (Coexistence `smb_message_echoes`) | Aynı susturma (ayar 10–120 dk, varsayılan 30) | "[telefon uygulaması ikonu] Telefondan yanıt verildi" + sayaç; aktif siparişte kart rozeti "Sohbette yanıtlandı — onaylamayı unutmayın" |
 
 - Susturma yalnız **konuşma yanıtlarını** (karşılama, kapalı, AI) durdurur; sipariş durum mesajları gitmeye devam eder (D02 §6.10).
 - İşletme botu tamamen kapatabilir (P-21); mesajlar yalnız panele düşer. "Yetkiliyle görüş" yolu her zaman açıktır ve kapatılamaz ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.9).
@@ -609,7 +613,7 @@ Detay çekmecesinde müşteri bölümü: "**5. sipariş** · ilk: 3 Ağu · son:
 
 ### 6.1 Yapı ve liste ekranı (P-09)
 - Hiyerarşi: menü → kategori → ürün → seçenek grupları → seçenekler ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §3). Faz 1'de şube başına tek menü; zincirde merkezi menü + şube farkı **[Faz 2]**.
-- Liste: kategoriler sürükle-bırak sıralı; her ürün satırında görsel küçük resmi, ad, fiyat, **satış anahtarı** (🟢 Satışta / 🟠 Bugün tükendi / ⚫ Kapalı), 🚫 "WhatsApp'ta satılamaz" ikonu, seçenek grubu sayısı.
+- Liste: kategoriler sürükle-bırak sıralı; her ürün satırında görsel küçük resmi, ad, fiyat, **satış anahtarı** ([yeşil nokta] Satışta / [turuncu nokta] Bugün tükendi / [gri nokta] Kapalı), [yasak ikonu] "WhatsApp'ta satılamaz", seçenek grubu sayısı.
 - Satır içi düzenleme: fiyata dokun → sayısal tuş takımı → kaydet (fiyat geçmişine yazılır).
 - Değişiklikler anında canlıdır (taslak yok); storefront'a ≤ 5 sn içinde yansır.
 
@@ -699,7 +703,7 @@ Enflasyon ortamında esnafın paneli her gün açmasının ikinci nedeni (A05 §
 | P-23 Personel ve cihazlar | Kullanıcılar, roller, PIN, eşleşmiş cihazlar | owner, manager | 1 |
 | P-24 Kuryeler | Kurye listesi, magic link, oturum kapatma | owner, manager | 1 |
 | P-25 WhatsApp bağlantısı ve sağlık | Sağlık kartı, yeniden bağlan | owner | 1 |
-| P-26 İşletme bilgileri ve künye | Ad, logo, adres, telefon, slug, künye | owner, manager | 1 |
+| P-26 İşletme bilgileri ve künye | Ad, marka görünümü (logo, kapak görseli, ana renk), adres, telefon, slug, künye | owner, manager | 1 |
 | P-27 Abonelik ve faturalar | Plan, deneme, faturalar | owner | 1 / 2 |
 | P-28 Yasal metinler ve KVKK | Metinler, saklama ayarı, başvuru kutusu, veri dışa aktarma | owner, manager | 1 |
 | P-29 Denetim kaydı | Kim, neyi, ne zaman değiştirdi | owner, manager (şube) | 1 |
@@ -708,6 +712,13 @@ Salt-okunur abonelik modunda (G+10) menü, fiyat, ayar, bölge, personel ekranla
 
 ### 7.2 İşletme bilgileri ve künye (P-26)
 - Görünen ad, logo, kapak görseli, kısa tanıtım, müşteriye gösterilen telefon, şube adresi (harita pini + yazılı), gel-al tarifi.
+- **Marka görünümü [Faz 1]** (storefront teması; [12](12-marka-tasarim-ve-kullanilabilirlik.md) §5; alanlar [07](07-veri-modeli-ve-api.md) `tenants`: `brand_color`, `logo_url`, `cover_url`):
+  - **Ana renk:** 12 hazır renk (önceden doğrulanmış) veya serbest renk seçici. Logo yüklendiyse logodaki baskın renk önerilir [T]. Seçilmezse hazır paletin ilk rengi kullanılır. Renk okunabilirlik için koyulaştırıldıysa önizlemede not çıkar: "Renginiz okunabilirlik için hafif koyulaştırıldı." Değişiklik storefront'a 10 sn içinde yansır.
+  - **Logo:** önerilen 1024×1024 px (1:1), en az 256×256 px; PNG, SVG veya JPEG, ≤ 5 MB. Storefront başlığı, favicon ve P-36 baskıları bunu kullanır.
+  - **Kapak görseli:** önerilen 1200×630 px (1,91:1), en az 800×420 px; JPEG, PNG veya WebP, ≤ 5 MB. Görselde yazı olmamalı. Menü üst görseli ve link önizlemesi olarak kullanılır.
+  - Boyut yetersizse yükleme reddedilmez; "Bu görsel bulanık görünebilir" uyarısı çıkar. Önizleme telefon çerçevesinde gösterilir ([Müşteri gibi gör], §6.9).
+  - Tek şubeli işletmede marka alanları işletme düzeyindedir. Şube bazında farklı logo ve renk çoklu şubeyle **[Faz 2]** gelir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 "Storefront imzası").
+  - Storefront altbilgisindeki "Altyapı: Siparişin Önünde" imzası işletme ayarıyla kaldırılamaz ([03](03-musteri-deneyimi-ve-storefront.md) §4.0).
 - **Künye** (6563 m.3): unvan veya ad-soyad, VKN/TCKN, vergi dairesi, MERSİS no, meslek odası, e-posta, işletme kayıt no (opsiyonel). Eksikse storefront yayında değildir ve kırmızı kart gösterilir ([08](08-mevzuat-kvkk-odeme-fatura.md) §4.7).
 - **Slug** değişikliği uyarılı: "Adresiniz değişecek; basılı QR'lar eski adrese yönlenir (30 gün yönlendirme) ve WhatsApp şablonları yeniden onaya girer" (D02 §5.1) [T].
 
@@ -778,7 +789,7 @@ Salt-okunur abonelik modunda (G+10) menü, fiyat, ayar, bölge, personel ekranla
 ### 7.11 Personel, roller, cihazlar ve kuryeler (P-23, P-24)
 - **Kullanıcılar:** davet (telefon veya e-posta), rol (`owner`, `manager`, `cashier`, `kitchen`), aktif/pasif, son giriş. `owner` devri yalnız `owner` tarafından ve taze oturumla. Esnaf paketinde 2 kullanıcı (öneri, [01](01-vizyon-pazar-is-modeli.md) §6.3).
 - **PIN:** 4–6 hane; paylaşılan cihazda hızlı kullanıcı değiştirme; 5 hatalı denemede 5 dk kilit (D06 §6.3).
-- **Cihazlar:** [Cihaz ekle] → rol (Kasa / Mutfak) → 8 haneli kod veya QR (10 dk). Liste: ad, rol, son görülme, 🔊 ses durumu, ekran açık mı, uygulama sürümü, **[İptal et]** (60 sn içinde bağlantı düşer).
+- **Cihazlar:** [Cihaz ekle] → rol (Kasa / Mutfak) → 8 haneli kod veya QR (10 dk). Liste: ad, rol, son görülme, [ses ikonu] ses durumu, ekran açık mı, uygulama sürümü, **[İptal et]** (60 sn içinde bağlantı düşer).
 - **Kuryeler (P-24):** ad, telefon, aktif; **[Giriş linki gönder]** (platform WhatsApp şablonu, yoksa SMS; link tek kullanımlık ve 15 dk içinde açılmalı, D06 §6.4; kurye oturumu **12 saat**, vardiya, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4), **[Oturumu kapat]**, bugünkü teslimat sayısı.
 
 ### 7.12 WhatsApp bağlantı sağlığı kartı (P-25)
@@ -802,7 +813,7 @@ Salt-okunur abonelik modunda (G+10) menü, fiyat, ayar, bölge, personel ekranla
 | Bağlantı durumu | `wa_phone_numbers.connection_status`, token sağlığı | Token 190 / Coexistence kopması → kırmızı "WhatsApp bağlantınız koptu. Siparişler gecikebilir. [Yeniden bağlan]" + `isletme_baglanti_sorunu_v1` (D02 §3.9) |
 | Mod | `cloud` / `coexistence` | — |
 | Meta ödeme yöntemi | Test mesajı sonucu / 131042 | Eksikse kırmızı + rehber + "Müşterilerinize mesaj gitmiyor" (D02 §3.7) |
-| Kalite | `quality_rating` | 🟡 → "İzinsiz toplu mesajdan kaçının"; 🔴 → kampanya modülü kilitli [Faz 2] (D02 §9.4) |
+| Kalite | `quality_rating` | [sarı nokta] Orta → "İzinsiz toplu mesajdan kaçının"; [kırmızı nokta] Düşük → kampanya modülü kilitli [Faz 2] (D02 §9.4) |
 | Mesaj limiti | Portföy limiti | Bilgi |
 | Görünen ad | `name_status` | `DECLINED` → "Adı düzelt" rehberi |
 | Son gelen mesaj / son webhook | `last_webhook_at` | Açık saatte beklenmedik sessizlik → sarı (D02 §10.2) |
@@ -852,7 +863,7 @@ Salt-okunur abonelik modunda (G+10) menü, fiyat, ayar, bölge, personel ekranla
 | Sipariş geçmişi | Liste → detay; **[Aynısını telefon siparişi olarak gir]** |
 | "Aynısından" verisi | Son sipariş ve en sık sipariş edilen 3 ürün; storefront'taki "Son siparişin" kartının kaynağı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 Akış D) |
 | İşletme notu | ≤ 140 karakter; yardım metni: "Örn: acısız sever, zili çalmayın. **Sağlık bilgisi (alerji, hastalık) yazmayın.**" ([08](08-mevzuat-kvkk-odeme-fatura.md) §2.7) |
-| Kara liste | Aç/kapa, **sebep zorunlu**; etkisi: storefront'ta nötr "Şu an çevrimiçi sipariş alamıyoruz, lütfen işletmeyi arayın", WhatsApp siparişinde kartta "⚠ Şüpheli" rozeti (A05 §2.3) |
+| Kara liste | Aç/kapa, **sebep zorunlu**; etkisi: storefront'ta nötr "Şu an çevrimiçi sipariş alamıyoruz, lütfen işletmeyi arayın", WhatsApp siparişinde kartta "[uyarı ikonu] Şüpheli" rozeti (A05 §2.3) |
 | Bildirim durumu | "Tüm bildirimleri durdurdu" (`opt_out_all`); panelden de açılıp kapatılabilir (müşteri talebiyle) |
 | Sohbet | [Sohbete git] |
 | KVKK | **[Verileri dışa aktar]** (JSON + okunur PDF/CSV), **[Düzelt]**, **[Sil / anonimleştir]** (açık siparişi yoksa; onay penceresi; mali sipariş kaydı anonim kalır) — `owner`, `manager` ([08](08-mevzuat-kvkk-odeme-fatura.md) §2.10) |
@@ -995,7 +1006,7 @@ Y (net tasarruf) = Cp×k − Teşvik − Kart maliyeti − Ek kurye − U − M
 
 ### 11.5 Değerlendirmeler (P-35) **[Faz 1]**
 - Faz 1 kapsamı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 "Değerlendirme"): "teslim edildi" mesajındaki butonlarla verilen 3 seçenekli puan + opsiyonel kısa yorum; **yalnız işletme panelinde görünür** (`reviews`).
-- Puan listesi (😋 Harika / 🙂 İdare eder / 😕 Beğenmedim), müşterinin kısa yorumu, olumsuz cevaplarda sebep kırılımı (Geç geldi · Soğuk geldi · Eksik/yanlış ürün · Lezzet · Kurye · Diğer), siparişe ve sohbete bağlantı.
+- Puan listesi ([gülen yüz ikonu] Harika / [nötr yüz ikonu] İdare eder / [üzgün yüz ikonu] Beğenmedim), müşterinin kısa yorumu, olumsuz cevaplarda sebep kırılımı (Geç geldi · Soğuk geldi · Eksik/yanlış ürün · Lezzet · Kurye · Diğer), siparişe ve sohbete bağlantı.
 - Olumsuz değerlendirme panelde **anlık uyarı** (ayrı ses); [Faz 2] sahibin telefonuna da.
 - **[Faz 2]** Herkese açık yayınlama (isimle yayında açık rıza) ve işletme yanıtı; sohbetten cevap şablonu, Google değerlendirme linki **herkese eşit** gösterilir (yalnız memnun müşteriyi yönlendirmek yok, A05 §3.12).
 
@@ -1014,7 +1025,7 @@ GTM'in kilit aracı (A02 §9.2).
 | Kasa standı | A6 | Storefront | `stand` |
 | Instagram hikâye görseli | 1080×1920 px | Storefront | `ig` |
 
-- Özelleştirme: logo, ana renk, başlık (hazır seçenekler: "WhatsApp'tan doğrudan sipariş verin", "Menümüz cebinizde"), alt satır (serbest; örn. "Bu kartla siparişe ayran bizden").
+- Özelleştirme: logo, ana renk (varsayılan P-26'daki marka rengi ve aynı kontrast kuralı, [12](12-marka-tasarim-ve-kullanilabilirlik.md) §5.1), başlık (hazır seçenekler: "WhatsApp'tan doğrudan sipariş verin", "Menümüz cebinizde"), alt satır (serbest; örn. "Bu kartla siparişe ayran bizden").
 - Serbest avantaj satırı için uyarı: "Bu avantajı siparişte siz uygularsınız; otomatik kural Faz 2'de gelecek." Bilgi kutusu: "Pazaryeri paketlerine kart koymadan önce sözleşmenizi kontrol edin" (sözleşme kısıtı teyit edilmeli, A02 §11.2).
 - Çıktı: baskıya hazır PDF (taşma payı ve kesim işaretli), PNG. Her QR `src` etiketi taşır; kaynak raporunda ayrışır.
 - **Kabul kriterleri:** 3 hazır şablon, işletme logosu ve adıyla 1 dakikada PDF olarak iner; her QR `src` taşır (A05 §4.3).
@@ -1030,7 +1041,7 @@ GTM'in kilit aracı (A02 §9.2).
 | **Kupon** (P-42) | Yüzde / TL, min. sepet, tarih aralığı, toplam ve kişi başı kullanım limiti, "ilk sipariş", kanal kısıtı. Storefront'ta kupon alanı yalnız aktif kupon varken görünür |
 | **Doğrudan kanal avantajı** (P-42) | Otomatik kural: "WhatsApp/web siparişine 1 ayran" veya %5; sepette satır olarak görünür; tasarruf raporuna gerçek tutar olarak girer |
 | **Damga kartı** (P-43) | "Her 10 siparişe 1 lahmacun": N, ödül ürünü, geçerlilik; takip sayfasında ve storefront'ta ilerleme; pazarlama mesajı gerektirmez |
-| **Kampanya (İYS uyumlu)** (P-44) | **Aktivasyon kapısı:** İYS numarası + marka kodu. Alıcı yalnız pazarlama onayı olan müşteriler; gönderim öncesi **İYS sorgusu zorunlu**; marketing şablonu seçimi; her mesajda "Kampanyaları durdur" butonu. **Maliyet önizlemesi zorunlu:** "1.240 alıcı × ≈ 0,53 TL ≈ 657 TL — Meta'ya sizin hesabınızdan ödenir" (marketing ≈ $0,0109, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.5). Frekans: müşteri başına haftada ≤ 1, işletme başına günde ≤ 1; bastırılan kişi sayısı (131049/131050, opt-out) gösterilir; kalite 🟡 → manuel onay, 🔴 → kilit. **Onay penceresi** (geri alınamaz). Audit log ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9; D02 §9.4) |
+| **Kampanya (İYS uyumlu)** (P-44) | **Aktivasyon kapısı:** İYS numarası + marka kodu. Alıcı yalnız pazarlama onayı olan müşteriler; gönderim öncesi **İYS sorgusu zorunlu**; marketing şablonu seçimi; her mesajda "Kampanyaları durdur" butonu. **Maliyet önizlemesi zorunlu:** "1.240 alıcı × ≈ 0,53 TL ≈ 657 TL — Meta'ya sizin hesabınızdan ödenir" (marketing ≈ $0,0109, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.5). Frekans: müşteri başına haftada ≤ 1, işletme başına günde ≤ 1; bastırılan kişi sayısı (131049/131050, opt-out) gösterilir; kalite [sarı nokta] orta → manuel onay, [kırmızı nokta] düşük → kilit. **Onay penceresi** (geri alınamaz). Audit log ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9; D02 §9.4) |
 | **Değerlendirme yönetimi** | Olumsuz yorumlara cevap, trend, Google linki (herkese eşit) |
 | Sepeti terk / geri kazanım | Varsayılan kapalı; yalnız izinli müşteriye, tek sefer, maliyet önizlemeli (A05 §7.5) |
 
@@ -1046,7 +1057,7 @@ GTM'in kilit aracı (A02 §9.2).
 | **POS entegrasyonu** (P-46) | 2 | SambaPOS / Adisyo: onaylanan sipariş POS'a aktarılır (mali belge POS'tan), ürün eşleştirme ekranı, aktarım hatası uyarısı | Aktarım başarısızsa kartta "POS'a gitmedi · Tekrar dene" |
 | **Android uygulaması** | 2 | Capacitor sarmalayıcı: native bildirim kanalı ve **arka planda da çalan alarm**, ekran açık, kiosk, **otomatik sessiz yazdırma** (Sunmi dahili, LAN 9100, Bluetooth) | Ekran kapalıyken yeni siparişte alarm çalar |
 | **Windows yazdırma ajanı** | 2 | Eşleştirme kodu, yazıcı yönlendirme (mutfak/bar/kasa), yazıcı hatası bildirimi, "KOPYA" yeniden baskı (D06 §9.5) | Ajan 5 dk kopup dönünce bekleyen fişler bir kez ve sırayla basılır |
-| **AI sipariş onay kuyruğu** (P-47) | 2 | Akış C (`wa_ai`) siparişlerinde kart rozeti "🤖 AI ile alındı" + orijinal mesaj; belirsiz siparişler "İnsan onayı" kuyruğuna düşer: AI taslağı + orijinal metin + [Düzelt ve müşteriye özet gönder] [Sohbeti devral]; müşteriye giden özet her zaman kanonik **[Onayla] [Düzenle] [İptal]** butonlarını taşır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 Akış C); fiyatı daima sunucu hesaplar; tenant LLM kota göstergesi | Müşteri onayı olmadan AI siparişi `new` olmaz |
+| **AI sipariş onay kuyruğu** (P-47) | 2 | Akış C (`wa_ai`) siparişlerinde kart rozeti "[AI ikonu] AI ile alındı" + orijinal mesaj; belirsiz siparişler "İnsan onayı" kuyruğuna düşer: AI taslağı + orijinal metin + [Düzelt ve müşteriye özet gönder] [Sohbeti devral]; müşteriye giden özet her zaman kanonik **[Onayla] [Düzenle] [İptal]** butonlarını taşır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 Akış C); fiyatı daima sunucu hesaplar; tenant LLM kota göstergesi | Müşteri onayı olmadan AI siparişi `new` olmaz |
 | AI self-servis menü çıkarma | 2 | Fotoğraf/PDF → taslak tablo (güven göstergesi, okunamayan fiyat kırmızı), seçenek grubu önerileri, **insan onayı olmadan yayın yok** (A05 §8.5) | Yükleme sonrası 2 dk içinde taslak |
 | Ürün değişikliği onayı (M14) | 2 | "Ürün kalmadı" → müşteriye butonlu mesaj (Onsuz devam / Yerine X / İptal); cevapla sipariş güncellenir | — |
 | İleri saatli sipariş ve slot kapasitesi | 2 | Planlı şerit, slot başına en çok N sipariş, hazırlık zamanında alarm | — |
@@ -1101,7 +1112,7 @@ GTM'in kilit aracı (A02 §9.2).
 | P-36 | QR, afiş ve paket kartı | owner, manager | 1 |
 | P-37 | Link rehberi | owner, manager | 1 |
 | P-38 | Onboarding sihirbazı | owner (manager ◐) | 1 |
-| P-39 | Yardım ve destek (videolar, "WhatsApp'tan bize yazın" → platform WhatsApp destek hattı, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4; P1 acil hattı; sık sorunlar sihirbazı) | hepsi | 1 |
+| P-39 | Yardım ve destek (videolar, "WhatsApp'tan bize yazın" → platform WhatsApp destek hattı, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4; P1 acil hattı; sık sorunlar sihirbazı; "Yenilikler" sürüm notları, [D06 §16.7](06-teknik-mimari.md)) | hepsi | 1 |
 | P-40 | Bildirim merkezi | owner, manager, cashier | 1 |
 | P-41 | Mutfak ekranı (Faz 1 temel, Faz 2 KDS) | kitchen (+ owner, manager, cashier) | 1 / 2 |
 | P-42 | Kuponlar ve doğrudan kanal avantajı | owner, manager | 2 |
@@ -1144,7 +1155,7 @@ Toplam: Faz 1'de 41 panel + 3 kurye ekranı; Faz 2'de 6 yeni panel ekranı (P-42
 | Birincil butonlar | "Onayla · 30 dk" · "Hazırlanıyor" · "Hazır" · "Yola çıkar" · "Teslim edildi" · "Telefonla doğruladım" |
 | İkincil | "Reddet" · "İptal et" · "Gecikme bildir" · "Kurye ata" · "Yazdır" · "Sohbete git" · "Ara" |
 | Vardiya | "Siparişleri almaya başla" · "Ding sesini duydunuz mu?" · "Günü kapat" |
-| Yeni sipariş bandı | "🔔 YENİ SİPARİŞ #1051 · 285 TL · Gördüm" |
+| Yeni sipariş bandı | "[zil ikonu] YENİ SİPARİŞ #1051 · 285 TL · Gördüm" |
 | Onay tostu | "Onaylandı · Müşteriye 20.35 bildirildi" |
 | Ret şeridi | "Reddediliyor · 27 sn · Geri al" → "Reddedildi · Müşteriye bildirildi" / "Geri alındı · Sipariş yeniden Yeni'de" |
 | Geri al şeridi | "Hazır olarak işaretlendi · Geri al" |
@@ -1184,6 +1195,49 @@ Toplam: Faz 1'de 41 panel + 3 kurye ekranı; Faz 2'de 6 yeni panel ekranı (P-42
 | Tasarruf kartı | "Bu ay kendi kanalınızdan {X} sipariş aldınız. Net tasarruf: {Y} TL. (Tahmindir)" |
 | Meta maliyeti | "Bu ay Meta'ya tahmini ödeme: ≈ {TL} TL ({USD} $). Kesin tutar Meta faturanızdadır." |
 | Destek erişimi bandı | "Destek ekibi hesabınızı görüntülüyor (Can, 14.05–14.35)" |
+| Güncelleme hazır (sessiz not) | "Yeni sürüm hazır. Vardiya başında yüklenecek." |
+| Zorunlu güncelleme | "Panelin yeni sürümü yükleniyor. Ardından 'Siparişleri almaya başla'ya dokunun." (yalnız açık yeni sipariş yokken, [D06 §16.7](06-teknik-mimari.md)) |
+| Güncelleme sonrası push | "Panel güncellendi. Sesi açmak için panele dokunun." |
+| Yenilikler | Başlık "Yenilikler"; madde biçimi "{tarih} · {kısa başlık}: {bir cümlelik açıklama}" (ör. "12 Kasım · Toplu fiyat: Artık yuvarlamayı 0,50 TL'ye ayarlayabilirsiniz.") |
+| Test siparişi rozeti | "TEST · Raporlara girmez" |
+
+### 14.4 Panel ürün analitiği olayları [Faz 1]
+Panel kullanımını ölçmek için birinci taraf, çerezsiz olaylar `POST /api/v1/panel/events` ile gönderilir ve `analytics_events` tablosuna yazılır ([07](07-veri-modeli-ve-api.md) §3.5, §6.3). Olay adları ve şemaları storefront olaylarıyla aynı **tek olay sözlüğündedir: `packages/core/events.ts`** ([03](03-musteri-deneyimi-ve-storefront.md) §11). Olaylar kişisel veri taşımaz: kullanıcı kimliği, müşteri adı, telefon ve sipariş içeriği yazılmaz; yalnız `tenant_id`, `branch_id`, `role`, cihaz türü ve `app_version` eklenir. Saklama 90 gündür ([08](08-mevzuat-kvkk-odeme-fatura.md) §2.8 satır 20). Olaylar yalnız ürün kararları ve destek içindir; işletme sağlık skoru ([10](10-riskler-operasyon-ve-metrikler.md) §5.6) bunları ancak toplu sayım olarak kullanabilir.
+
+| Olay | Taraf | Tetik | Ana özellikler |
+|---|---|---|---|
+| `panel_shift_start` | İstemci | P-03'te "Siparişleri almaya başla" | `audio_ok` (ding duyuldu mu), `wake_lock`, `push_permission`, `after_update` (güncelleme sonrası mı) |
+| `panel_audio_unlock` | İstemci | Ses kilidi açıldı (vardiya ekranı ya da "Ses kapalı" bandındaki [Sesi aç]) | `source` (`shift_start`/`band`), `locked_seconds` |
+| `panel_help_article_view` | İstemci | Yardım (P-39) makalesi veya bağlamsal "?" videosu açıldı | `article_id`, `from_screen` |
+| `panel_menu_update` | Sunucu | Menü değişikliği (domain olayı `menu.changed`'den türetilir, [07](07-veri-modeli-ve-api.md) §7.1) | `kind` (`product`, `price_batch`, `availability`, `option_group`, `import`), `item_count` |
+| `panel_report_view` | Sunucu | Rapor uç noktası çağrıldı (P-32…P-35) | `report` (`day_end`, `sales`, `savings`, `wa_costs`, `reviews`, `value`), `period` |
+| `panel_update_applied` | İstemci | Yeni panel sürümü uygulandı ([D06 §16.7](06-teknik-mimari.md)) | `from_version`, `to_version`, `path` (`safe_moment`/`shift_start`/`forced`) |
+
+- **Kabul kriteri:** Olay yükünde `pii:` işaretli hiçbir alan yoktur (şema lint'i, [07](07-veri-modeli-ve-api.md) §10). Analitik uç noktası hata verse de panel işlevi etkilenmez (olaylar `sendBeacon` ile ateşle-unut).
+
+### 14.5 İkon eşlemesi (arayüzde emoji yok)
+Bu dokümandaki `[… ikonu]` ve `[… nokta]` gösterimleri üretimde Lucide SVG ikonlarıdır ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §3.3, §3.5). Emoji kullanılmaz, çünkü Android sürümleri arasında farklı çizilir ve eski cihazlarda kutu olarak görünebilir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7). İkon her zaman bir kelimeyle birlikte kullanılır. İkon adları kullanılan Lucide sürümünde teyit edilmeli.
+
+| Gösterim | Lucide | Kullanıldığı yer |
+|---|---|---|
+| [zil ikonu] | `bell-ring` | Yeni sipariş bandı, `new` durumu |
+| [hazır ikonu] | `package-check` | `ready` durumu |
+| [kronometre ikonu] | `timer` | Geçen süre sayacı, süre aşımı |
+| [bağlantı yok ikonu] | `wifi-off` | Bağlantı bandı ve üst bar |
+| [ses ikonu] / [ses kapalı ikonu] | `volume-2` / `volume-x` | Üst bar, cihaz listesi, ses bandı |
+| [uyarı ikonu] | `triangle-alert` | WhatsApp sorunu, şüpheli müşteri, ulaşılamadı rozeti |
+| [yeşil nokta] / [turuncu nokta] / [sarı nokta] / [kırmızı nokta] / [gri nokta] | `circle` (dolgulu, renkli) | `ordering_state`, satış anahtarı, kurye durumu, WhatsApp kalite puanı. Nokta her zaman kelimeyle birliktedir |
+| [duraklat ikonu] | `pause` | Sipariş almayı durdur (`paused`) |
+| [paket servis ikonu] / [gel-al ikonu] / [masa ikonu] | `bike` / `shopping-bag` / `utensils` | Teslim türü |
+| [saat ikonu] | `clock` | Planlı sipariş |
+| [not ikonu] | `sticky-note` | Sipariş ve kalem notu |
+| [nakit ikonu] / [kart ikonu] / [yemek kartı ikonu] | `banknote` / `credit-card` / `ticket` | Ödeme yöntemi |
+| [sohbet ikonu] / [web ikonu] / [telefon ikonu] | `message-circle` / `globe` / `phone` | Kanal rozeti: WhatsApp, Web, Telefon |
+| [AI ikonu] / [tekrar ikonu] / [form ikonu] | `sparkles` / `repeat` / `list` | Kanal rozeti: AI ile, Sohbetten tekrar, Flows |
+| [bot ikonu] / [kişi ikonu] / [telefon uygulaması ikonu] | `bot` / `user` / `smartphone` | Gelen kutusunda mesaj kaynağı ve mod |
+| [kum saati ikonu] / [kilit ikonu] | `hourglass` / `lock` | 24 saatlik pencere göstergesi |
+| [yasak ikonu] | `ban` | "WhatsApp'ta satılamaz" bayrağı |
+| [gülen yüz ikonu] / [nötr yüz ikonu] / [üzgün yüz ikonu] | `smile` / `meh` / `frown` | Değerlendirme listesi (P-35) |
 
 ---
 
@@ -1223,6 +1277,10 @@ Bu düzeltme turunda [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) taraf�
 | 19 | **Ret/iptal müşteri metinleri:** `too_busy` metni [03](03-musteri-deneyimi-ve-storefront.md) M11'de var; yeni ret sebepleri `duplicate` ve `suspected_fake` için ret (M11) metni yok (yalnız iptal M12e/M12f'de). | Kapandı: [03](03-musteri-deneyimi-ve-storefront.md) M11 tablosu ve D02 §5.2 kısa sebep metinleri yedi `rejection_reason` kodunun tamamını (`duplicate`, `suspected_fake` dahil) kapsıyor. |
 | 20 | **Onay sonrası süre değişikliği:** "Gecikme bildir" bütçe dışı olağan dışı mesaj sayıldı; sipariş başına en çok 2 kez [T]. | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.5 istisnasıyla uyumlu; D02 §4.3 ve [03](03-musteri-deneyimi-ve-storefront.md) M34 aynı kuralı uygular. Açık kalan: "2 kez" üst sınırı [T], pilotta onaylanmalı. |
 | 21 | **Teyit ve pilot ölçümü:** Chrome `--kiosk-printing`; Meta Billing Hub derin bağlantısı; REQUEST_CONTACT_INFO yükü; Google İşletme Profili sipariş linki seçenekleri; pazaryeri sözleşmelerinde paket içi kart kısıtı; "Mali değeri yoktur" ibaresi (mali müşavir); sesli arama (TTS) sağlayıcısı ve fiyatı (kanonik alarm zincirinde yok; eklenecekse önce [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10 güncellenmeli); pilot donanım envanteri (tablet/PC/telefon, iOS oranı, yazıcı marka-model; A05 §12 #17) düzen önceliklerini ve Android uygulamasının sırasını belirler. | Faz 1 ilk sprintlerinde ve pilot görüşmelerinde (anket). |
+| 23 | **Emoji → ikon** ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §13 #7). | Kapandı: bu dokümandaki tüm arayüz emojileri `[… ikonu]` gösterimine çevrildi, Lucide eşlemesi §14.5'te ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7). Açık kalan: ikon adlarının kullanılan Lucide sürümünde teyidi. |
+| 24 | **Marka görünümü alanları** ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §13 #3). | Kapandı: P-26 ve onboarding 2. adımına ana renk, logo ve kapak görseli eklendi (§3.3, §7.2); alanlar [07](07-veri-modeli-ve-api.md) `tenants`/`branches`. Açık kalan: alan adlarının (`*_url` mi R2 anahtarı mı) kesinleşmesi ([07](07-veri-modeli-ve-api.md) §11 #24). |
+| 25 | **Panel güncellemesi ve "Yenilikler"** (eleştiri #5). | Politika [D06 §16.7](06-teknik-mimari.md); bu dokümanda §4.1 ve §14.3. Açık kalan: "Yenilikler" listesinin P-39 içinde mi ayrı bir menü öğesi olarak mı duracağı (prototip testinde, [12](12-marka-tasarim-ve-kullanilabilirlik.md) §8). |
+| 26 | **Panel analitik olayları** (§14.4). | Olay listesi öneridir [T]; pilotta hangi olayların karar için gerçekten kullanıldığına göre sadeleştirilir. Panelde ürün analitiği için ayrı çerez veya kalıcı kimlik kullanılmaz; hukuki değerlendirme storefront olaylarıyla birlikte yapılır ([08](08-mevzuat-kvkk-odeme-fatura.md) §12 #19). |
 
 ### 15.3 Proje sahibi kararlarıyla bağlantı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13)
 - **§13 #7 Kurye modeli** (varsayılan: yalnız işletmenin kendi kuryesi): §9 bu varsayımla yazıldı; kurye çağırma entegrasyonu Faz 3 (§9.5).

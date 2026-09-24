@@ -325,7 +325,8 @@ Kurallar [06](06-teknik-mimari.md) §6.7 ile aynıdır; UI ve süreç burada.
 ### A-14 Duyurular **[Faz 1 banner · Faz 2 tam]**
 - **[Faz 1]** Panel içi banner: başlık, metin, önem (`info`, `warning`, `critical`), hedef kitle (tümü, plan, tenant listesi, rol), başlangıç ve bitiş. Bakım bildirimi şablonu. Okunma oranı.
 - **[Faz 1]** Olay/kesinti ve planlı bakım duyuruları platform WABA'sından onaylı utility şablonlarıyla (`platform_hizmet_bildirimi_v1`, `platform_hizmet_duzeldi_v1`, `platform_planli_bakim_v1`) yalnız etkilenen tenant'lara gider; şablonlar pilot öncesi `APPROVED` olur ([02](02-whatsapp-entegrasyonu.md) §5.3, [10](10-riskler-operasyon-ve-metrikler.md) §6.3). Tanıtım amaçlı duyuru WhatsApp'tan gitmez.
-- **[Faz 2]** Sürüm notları sayfası, e-posta gönderimi, durum sayfasıyla bağlantı.
+- **[Faz 1]** **Sürümler:** `app_releases` kaydı ([07](07-veri-modeli-ve-api.md) §3.7): sürüm, kanal (öncü halka: `pilot` / `general`), asgari sürüm ve geçiş süresi, hotfix işareti, "Yenilikler" metni. Bu kayıt panelin güncelleme politikasını ve Yardım altındaki "Yenilikler" listesini besler ([06](06-teknik-mimari.md) §16.7). Ekranda sürüm başına cihaz dağılımı (nabızdaki `app_version`) görünür; asgari sürümü yükseltmeden önce eski sürümde kalan cihaz sayısı gösterilir. Yalnız PO/PA yayımlar. "Bu ay panelde neler değişti" e-postası Faz 1'de ekipçe elle gönderilir; WhatsApp'tan tanıtım yapılmaz.
+- **[Faz 2]** Sürüm notları sayfası, e-posta gönderimi (aylık "Yenilikler" e-postası dahil, otomatik), durum sayfasıyla bağlantı.
 - **Kabul kriterleri:** `critical` banner bitiş zamanına kadar kapatılamaz. Yayından önce hedef kitle önizlemesi gösterilir ("X işletme, Y kullanıcı").
 
 ### A-15 Global şablon kütüphanesi **[Faz 1]**
@@ -822,6 +823,7 @@ Geçişten sonra
 - Core Web Vitals "iyi" eşikleri hedeflenir: LCP < 2,5 sn, INP < 200 ms, CLS < 0,1 [E]. Sistem yazı tipleri, AVIF/WebP görseller, rıza öncesi üçüncü taraf script yok.
 - Google Search Console, Bing Webmaster Tools ve Yandex Webmaster (Türkiye'de Yandex payı nedeniyle [E]) kaydı.
 - Storefront SEO'su (`Restaurant` + `Menu` işaretlemesi, `/t/` ve `/s/` yollarının `noindex` olması, altbilgi marka linki; takip linki `/t/{token}` teslimden 7 gün sonra geçersizleşir, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7) [03](03-musteri-deneyimi-ve-storefront.md)'tedir. Altbilgi linki tüm storefront'larda şablon olarak tekrarlandığı için `rel="nofollow"` önerilir; toplu link şeması izlenimi verilmez [E] (teyit edilmeli).
+- **Storefront imzası (tek metin):** Storefront ve takip sayfası altbilgisindeki platform imzası her yerde aynen **"Altyapı: Siparişin Önünde"**dir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 "Storefront imzası"; [03](03-musteri-deneyimi-ve-storefront.md) §4.0). Bağlantı `siparisinonunde.com/?src=sf_footer` adresine gider ve `rel="nofollow"` taşır. Site analitiğinde `src = sf_footer` ayrı kaynak olarak izlenir (§C.9). Pazarlama sitesi, reklam ve vaka metinlerinde bu imzanın başka varyantı ("… ile çalışır", "Powered by") kullanılmaz. Basılı materyalde imza yoktur ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §5.3).
 
 ### C.6.2 Anahtar kelime kümeleri (arama hacimleri doğrulanamadı, A05 §6.4)
 | Küme | Örnek sorgular | Hedef sayfa | Faz |

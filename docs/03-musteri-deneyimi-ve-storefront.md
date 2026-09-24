@@ -193,6 +193,7 @@ sequenceDiagram
 **Akış:** "Siparişi onayla" → `awaiting_customer` → SMS-01 (6 haneli kod) → S-06C'de kod girilir → `new` + sesli uyarı → S-07 takip sayfası → onayda SMS-02, ret/iptalde SMS-03.
 
 - **Kod:** 6 haneli rakam, 5 dk geçerli. "Tekrar gönder" 60 sn sonra açılır. Telefon başına 10 dk'da en fazla 3, günde en fazla 5 SMS; IP başına saatte en fazla 10 gönderim. 5 hatalı girişten sonra kod geçersiz olur [T]. Bu sınırlar SMS pompalama saldırısına karşıdır (A04).
+- **Yabancı numara:** Faz 1'de SMS kodu yalnız `+90` numaralara gönderilir [T]. Yabancı numara girilirse S-06C "Yabancı numaralara SMS gönderemiyoruz. WhatsApp ile doğrulayabilir ya da işletmeyi arayabilirsiniz." der; WhatsApp doğrulaması mümkünse [WhatsApp ile onayla] ve [İşletmeyi ara], WhatsApp'sız modda yalnız [İşletmeyi ara] gösterilir (işletme "Telefonla doğruladım" diyebilir). Yurt dışı SMS maliyeti ve limitleri Faz 3 dil desteğiyle birlikte değerlendirilir ([D06 §4.3](06-teknik-mimari.md)).
 - **Bildirim:** Durum bilgisi takip sayfasından verilir. SMS yalnız kritik durumlarda gider: onaylandı (SMS-02), ret/iptal (SMS-03). "Yolda" ve "teslim edildi" için SMS gönderilmez ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7).
 - **Gönderici ve maliyet:** SMS'ler platformun onaylı alfanümerik başlığıyla gider, işletme adı mesaj gövdesindedir; maliyet platformundur ve aboneliğe adil kullanım kotasıyla dahildir (ayrıntı §9.5; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4, §7).
 - **Böylece işletme Meta adımları bitmeden ilk gün web siparişi alabilir.** WhatsApp arızalandığında da ürün çalışmaya devam eder.
@@ -369,7 +370,9 @@ sequenceDiagram
 | S-15 | Siparişlerim (geçmiş liste) | `/siparislerim` | 2 |
 | S-13 | Masa modu | `/?masa=` | 3 |
 
-**Ortak bileşenler [Faz 1]:** üst çubuk (logo, ad, "Bilgi" → S-14); her sayfada aynı yerde duran **yardım menüsü** ("İşletmeyi ara" `tel:`, "WhatsApp'tan yaz"; WCAG 3.2.6); yapışkan sepet çubuğu; 5 sn'lik "Geri al" şeridi; alt sayfa (odak tuzaklı, ESC ve geri tuşuyla kapanır); altbilgi (künye, yasal linkler, "İçerik bildir" [D08 §4.7](08-mevzuat-kvkk-odeme-fatura.md), "Altyapı: Siparişin Önünde"). Tema işletmenin marka rengidir; buton metninin rengi kontrasta göre otomatik seçilir (§10.3).
+**Ortak bileşenler [Faz 1]:** üst çubuk (logo, ad, "Bilgi" → S-14); her sayfada aynı yerde duran **yardım menüsü** ("İşletmeyi ara" `tel:`, "WhatsApp'tan yaz"; WCAG 3.2.6); yapışkan sepet çubuğu; 5 sn'lik "Geri al" şeridi; alt sayfa (odak tuzaklı, ESC ve geri tuşuyla kapanır); altbilgi (künye, yasal linkler, "İçerik bildir" [D08 §4.7](08-mevzuat-kvkk-odeme-fatura.md), "Altyapı: Siparişin Önünde"). Tema işletmenin marka rengidir (`brand_color`, logo ve kapak görseli şube/işletme ayarındadır, [D07](07-veri-modeli-ve-api.md) `tenants`); buton metninin rengi kontrasta göre otomatik seçilir (§10.3, [12](12-marka-tasarim-ve-kullanilabilirlik.md) §5.1).
+
+**Platform imzası (tek metin, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 "Storefront imzası"):** Metin her yerde aynen **"Altyapı: Siparişin Önünde"**dir; başka varyant ("… ile çalışır", "Powered by") kullanılmaz. Yalnız storefront ve takip sayfası (S-07) altbilgisinde, küçük (12–13 px), logosuz ve tek satır durur; pazarlama sitesine `rel="nofollow"` bağlantıyla ve `?src=sf_footer` parametresiyle gider ([05](05-admin-paneli-ve-pazarlama-sitesi.md) C.6.1). Checkout başlığında, onay butonu çevresinde, WhatsApp mesajlarında, SMS'te ve basılı materyalde yer almaz; işletme markası her zaman öndedir (İ5; kural ve gerekçe [12](12-marka-tasarim-ve-kullanilabilirlik.md) §5.3).
 
 ### 4.1 S-01 Menü (ana) [Faz 1]
 
@@ -1052,9 +1055,11 @@ Hedefler [D06 §12](06-teknik-mimari.md)'dedir (mobil, p75): LCP ≤ 2,5 sn (hed
 ## 11. Ölçüm planı
 
 **İlkeler:**
-- Olaylar birinci taraf uç noktaya (`/api/store/events`, `sendBeacon`) gönderilir, çerez kullanılmaz. Oturum kimliği rastgeledir ve `sessionStorage`'da tutulur.
-- Olaylar PII taşımaz (ad, telefon, adres, not asla). Ortak alanlar: `tenant_id`, `branch_id`, `src`, `channel_ctx` (`wa`|`web`), `returning`.
-- Sunucu olayları domain olaylarından türetilir ([D07](07-veri-modeli-ve-api.md)). Olay adları `snake_case`'tir.
+- Olaylar birinci taraf uç noktaya (`POST /api/v1/store/events`, `sendBeacon`, [D07 §6.2](07-veri-modeli-ve-api.md)) gönderilir, çerez kullanılmaz. Oturum kimliği rastgeledir ve `sessionStorage`'da tutulur; müşteri, sipariş ve cihaz kimliğiyle birleştirilmez.
+- Olaylar PII taşımaz (ad, telefon, adres, not, IP asla). Ortak alanlar: `tenant_id`, `branch_id`, `src`, `channel_ctx` (`wa`|`web`), `returning`.
+- **Tek olay sözlüğü `packages/core/events.ts`:** aşağıdaki tablodaki her olayın adı, kaynağı ve Zod şeması oradadır. Sunucu, sözlükte olmayan olayı ve izin listesi dışı alanı atar. Olaylar `analytics_events` tablosuna yazılır ([D07 §3.5](07-veri-modeli-ve-api.md)) ve **90 gün** saklanır ([D08 §2.8](08-mevzuat-kvkk-odeme-fatura.md) satır 20). Panel kullanım olayları aynı sözlükte, [04](04-isletme-paneli.md) §14.4'tedir.
+- Sunucu olayları domain olaylarından türetilir ([D07 §7.1](07-veri-modeli-ve-api.md)). Olay adları `snake_case`'tir. Test siparişlerinden (`test_kind` dolu) sunucu olayı türetilmez.
+- `sessionStorage` kimliğinin rıza gerektirip gerektirmediği avukata sorulur ([D08 §2.13](08-mevzuat-kvkk-odeme-fatura.md), §12 #19); olumsuz görüşte oturum kimliği kaldırılır ve yalnız sayfa içi toplu sayım yapılır.
 
 | Olay | Taraf | Tetik | Ana özellikler |
 |---|---|---|---|
@@ -1095,7 +1100,7 @@ Hedefler [D06 §12](06-teknik-mimari.md)'dedir (mobil, p75): LCP ≤ 2,5 sn (hed
 | Menü linki → sipariş | ≥ %35 | A05 [T] |
 | Web siparişi → doğrulama (Akış B) | ≥ %85. Tutmazsa "güvenilir cihaz" [Faz 2] öne alınır | A05 [T] |
 | Onay süresi medyanı (`new→accepted`) | < 60 sn | A05 [T] |
-| "Siparişim nerede?" mesajı / sipariş (`intent=where_is_my_order`) | < %5 | A05 [T] |
+| "Siparişim nerede?" mesajı / sipariş (`messages.intent = order_status_query`, [D07 §3.0](07-veri-modeli-ve-api.md)) | < %5 | A05 [T] |
 | Sipariş başına otomatik durum mesajı | ≤ 4 (sert sınır), karşılamayla ≤ 5 | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.5 |
 | Pilot: işletme başına ilk 14 günde kanal siparişi · her işletmenin kendi pilotunun 8. haftasında kendi kanal payı · sipariş kaçırma | ≥ 10 · ≥ %10 · %0 | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12 |
 | Storefront LCP (p75, mobil) | ≤ 2,5 sn | D06 §12 |
@@ -1131,3 +1136,5 @@ Karara bağlanan maddeler "Karara bağlandı" diye kapatılmıştır; numaralar 
 | 20 | **Takip linki süresi.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7; D08 §2.8 satır 5): teslimden (ret/iptalde final durumdan) 7 gün sonra geçersiz; belgeler kişisel veri içermeyen kalıcı adreste kalır (§7.1). Bunun "kalıcı veri saklayıcı" için yeterliliği D08 §4.4'te gri alan olarak avukata soruluyor. |
 | 21 | **Online yemek kartı tahsilatı.** | Proje sahibi kararı: [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13 #9 (varsayılan: Faz 1'de yalnız kapıda). Bu doküman online yemek kartını Faz 3 varsaydı (§6). |
 | 22 | **Sepeti terk şablonu (M23) [Faz 2].** | **Karara bağlandı:** D02 §5.2 kataloğuna marketing şablonu `sepet_hatirlatma_v1` [Faz 2] eklendi (İYS kaydı + opt-in + gönderim öncesi İYS sorgusu + maliyet önizlemesi şartıyla, tek sefer, varsayılan kapalı). |
+| 23 | **Ürün analitiği uç noktası ve saklama.** | **Karara bağlandı:** yol `POST /api/v1/store/events` ([D07 §6.2](07-veri-modeli-ve-api.md)); tek olay sözlüğü `packages/core/events.ts`; `analytics_events` (aylık bölümlü, PII yok, 90 gün, [D08 §2.8](08-mevzuat-kvkk-odeme-fatura.md) satır 20). Açık kalan: `sessionStorage` oturum kimliğinin rıza gerektirip gerektirmediği (avukat, [D08](08-mevzuat-kvkk-odeme-fatura.md) §12 #19). |
+| 24 | **Yabancı numaraya SMS OTP.** | Faz 1'de yalnız `+90` [T] (§3.2.1); yurt dışı SMS fiyatı ve teslim koşulları Faz 3'te sağlayıcıdan teyit edilir ([D06 §4.3](06-teknik-mimari.md)). |

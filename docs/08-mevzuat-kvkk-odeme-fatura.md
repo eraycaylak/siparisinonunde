@@ -170,6 +170,7 @@ Dayanak: Silme, Yok Etme veya Anonim Hale Getirme Yönetmeliği (RG 28.10.2017) 
 | 17 | Yedekler (PITR) | 35 gün rotasyon | — | Eski yedek otomatik silinir. Silinen veri en geç 35 günde yedeklerden de düşer | Yedek aracı politikası | 1 | [T]; A03 35–90 gün |
 | 18 | İmha kayıtları (bu işlerin çıktısı) | En az 3 yıl | Koşu | — | — | 1 | [O] |
 | 19 | SMS OTP doğrulama kayıtları (`otp_verifications`) ve SMS gönderim kayıtları (`sms_messages`: müşteri OTP'si, WhatsApp'sız mod durum SMS'i, işletme alarmı) | OTP kaydı 30 gün; SMS gönderim kaydı 90 gün | Kayıt | OTP kaydı silinir; SMS kaydında telefon maskelenir, durum ve maliyet kalır | `retention.technical` | 1 | [T]; Akış B SMS OTP yedeği ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7), [07](07-veri-modeli-ve-api.md) §9 |
+| 20 | Ürün analitiği olayları (`analytics_events`: storefront hunisi ve panel kullanım olayları; ad, telefon, adres, not, IP, kullanıcı ve müşteri kimliği **içermez**; yalnız sekme oturumu boyunca geçerli rastgele oturum kimliği) | 90 gün | Olayın alınması | Aylık partition düşürülür | `retention.analytics` | 1 | [T]; veri minimizasyonu ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9); şema [07](07-veri-modeli-ve-api.md) §3.5; rıza değerlendirmesi §2.13 |
 
 **Kabul kriterleri (otomatik silme) [Faz 1]:**
 - Her iş idempotenttir, tenant bazında çalışır ve sonucu `retention_runs` tablosuna yazar: iş adı, tenant, silinen/anonimleşen kayıt sayısı, süre, hata. Bu kayıt imha tutanağı yerine geçer.
@@ -257,7 +258,7 @@ Kaynak: Kurum'un Çerez Uygulamaları Hakkında Rehber'i (2022) [O]. Zorunlu çe
 | Yüzey | Kural | Faz |
 |---|---|---|
 | Pazarlama sitesi | Rıza paneli (CMP); analitik ve pazarlama etiketleri rızadan sonra yüklenir. Mümkünse birinci taraf, çerezsiz analitik kullanılır | 1 |
-| Storefront ve takip sayfası | Varsayılan olarak yalnız zorunlu çerezler (sepet, oturum). Çerezsiz birinci taraf analitik [T] | 1 |
+| Storefront ve takip sayfası | Varsayılan olarak yalnız zorunlu çerezler (sepet, oturum). Çerezsiz birinci taraf analitik [T]: olaylar `POST /api/v1/store/events` ile `analytics_events`'e PII'siz yazılır ([03](03-musteri-deneyimi-ve-storefront.md) §11, [07](07-veri-modeli-ve-api.md) §3.5), oturum kimliği yalnız `sessionStorage`'dadır. `sessionStorage` kullanımının rehberdeki "benzeri teknolojiler" kapsamında rıza gerektirip gerektirmediği avukata sorulur (§12 #19; [13](13-varsayim-ve-teyit-kaydi.md) V-006) | 1 |
 | İşletmenin eklediği Meta Pixel / Google Ads etiketi | Özellik sunulursa CMP zorunlu olur; işletme VS, biz Vİ kalırız | Açık (§12) |
 | Panel ve admin | Yalnız zorunlu oturum ve güvenlik çerezleri | 1 |
 
@@ -866,6 +867,8 @@ Belirli parayı içeren imzalı sözleşmelerde oran **binde 9,48**'dir; e-imzal
 8. Rakip platform adlarıyla komisyon karşılaştırması yayınlamanın sınırları nelerdir?
 9. §2.8'deki saklama süreleri (24 ay hareketsizlik, 6 ay mesaj, kabul kayıtları 10 yıl, takip linki teslimden 7 gün) uygun mu? Deneme bitişinde 90 gün, dunning'de G+75 sonunda silme DPA ve sözleşme açısından yeterli mi?
 10. Müşteri SMS OTP'si, WhatsApp'sız modda onay/iptal SMS'i ve işletmeye alarm SMS'i İYS açısından bilgilendirme sayılır mı? SMS'i platformun hesabından ve gönderici başlığıyla (işletme adı gövdede) göndermek rol dağılımını (VS/Vİ) veya ETK sorumluluğunu değiştirir mi?
+11. Storefront ve panelde çerezsiz, PII'siz ürün analitiği (`analytics_events`, 90 gün; §2.8 satır 20) için `sessionStorage`'da tutulan rastgele sekme oturumu kimliği, Çerez Rehberi'ndeki "benzeri teknolojiler" kapsamında açık rıza gerektirir mi? (§12 #19)
+12. POS entegrasyon ortaklarıyla NDA ve partner sözleşmesi şablonu: KVKK rolleri (sipariş verisinin POS'a aktarımı işletmenin talimatıyla mı, bizim alt işleyenimiz mi?), gelir paylaşımı ve marka kullanımı nasıl yazılmalı? (§12 #20)
 
 ### 11.2 Mali müşavire
 
@@ -923,3 +926,8 @@ Belirli parayı içeren imzalı sözleşmelerde oran **binde 9,48**'dir; e-imzal
 **Teyit edilecekler (ilk ücretli işletmeden önce)**
 
 18. Tüm [O] ve [D?] maddeler, özellikle: VERBİS bilanço eşiği, 2026 KVKK ve 6563 ceza tutarları, Meta'nın KVKK modülü, İYS ücret tarifesi ve WhatsApp kanal karşılığı, SMS'te "bilgilendirme" ileti türü işaretleme kuralı, e-belge eşikleri, restoran fiyat düzenlemesinin online menülere etkisi, "30 gün en düşük fiyat" kuralı, 5651 trafik log süresi, Nisan 2026 düzenlemesinin yürürlük tarihi, PSP ve entegratör fiyatları. Birincil kaynak listesi: A03 §14.
+
+**Son ekleme turunda eklenenler (analitik ve entegrasyon)**
+
+19. **Ürün analitiği ve rıza:** Storefront ve panel ürün analitiği (§2.8 satır 20) çerez kullanmaz, PII içermez ve 90 gün saklanır. Açık soru: `sessionStorage`'daki rastgele oturum kimliği Çerez Rehberi'ndeki "benzeri teknolojiler" kapsamında açık rıza gerektirir mi? Olumsuz görüşte storefront olayları rıza paneline bağlanır ya da oturum kimliği kaldırılır. Avukat sorusu §11.1-11 ([13](13-varsayim-ve-teyit-kaydi.md) V-006 ile birlikte).
+20. **Entegrasyon ve iş ortaklığı sözleşmeleri:** POS ortaklarıyla (SambaPOS, Adisyo, robotPOS, Simpra) Faz 0 görüşmeleri için NDA ve Faz 2 entegrasyonu için partner sözleşme şablonu avukatla hazırlanır: kapsam, API kullanım koşulları, KVKK rolleri ve veri aktarımı, gelir paylaşımı, marka kullanımı, API değişikliği bildirimi, gizlilik, fesih ve veri iadesi ([01](01-vizyon-pazar-is-modeli.md) §8.8; avukat sorusu §11.1-12). Açık API'de (Faz 3) işletmenin bağladığı üçüncü tarafa aktarımın rolü ayrıca değerlendirilir ([06](06-teknik-mimari.md) §4.5).

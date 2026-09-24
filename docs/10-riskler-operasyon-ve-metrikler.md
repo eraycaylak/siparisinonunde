@@ -3,7 +3,7 @@
 > **Amaç:** Siparişin Önünde'yi neyin öldürebileceğini erken görmek, en pahalı varsayımları ürünü tam yazmadan test etmek ve pilottan itibaren işi yürütecek destek, olay yönetimi, SLO ve metrik düzenini tek yerde tanımlamak.
 > **Tarih:** 2026-09-24 (Hafta 0) · **Durum:** Taslak (1. sürüm; düzeltme turu uygulandı) · **Bağlayıcı kaynak:** [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) (özellikle §5 durum ve sebep kodları, §10 kademeli alarm zamanlaması, §11 fazlar ve talep deneyi, §12 başarı metrikleri, §13.10 SLO varsayılanları).
 
-**Kapsam:** Risk kaydı (risk register) ve pre-mortem; "önce doğrula" hipotezleri ve deney tasarımları (Seviye 0 concierge talep deneyi, Hafta 8 go/no-go kapısı, fiyat, onboarding, Coexistence ve `request_welcome` testleri); destek ve onboarding operasyonu; işletme sağlık skoru ve churn önleme; sahte sipariş süreci; Meta eskalasyonu; olay yönetimi (SEV1–SEV4, iletişim şablonları, postmortem, runbook'lar); SLO/SLI ve hata bütçesi; KPI ağacı ve metrik sözlüğü; dashboard'lar ve yönetim ritmi; güvenlik operasyonları takvimi.
+**Kapsam:** Risk kaydı (risk register), pre-mortem ve rekabet tepkisi oyun kitabı; "önce doğrula" hipotezleri ve deney tasarımları (Seviye 0 concierge talep deneyi, Hafta 8 go/no-go kapısı, fiyat, onboarding, Coexistence, `request_welcome`, kullanılabilirlik ve alarm duyulabilirlik testleri) ve deney politikası; destek ve onboarding operasyonu; işletme sağlık skoru ve churn önleme; sahte sipariş süreci; Meta eskalasyonu; olay yönetimi (SEV1–SEV4, iletişim şablonları, postmortem, runbook'lar); SLO/SLI ve hata bütçesi; KPI ağacı ve metrik sözlüğü; dashboard'lar ve yönetim ritmi; güvenlik operasyonları takvimi; iş sürekliliği ve sigorta.
 
 **Kapsam dışı (bağlantı verilir):**
 - Alarm zincirinin zamanlaması [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10'da kanoniktir (bu dokümanda §7.2'de aynen tekrarlanır). Alarm zincirinin, metriklerin ve altyapının teknik tasarımı → [06 Teknik mimari](06-teknik-mimari.md) §7, §13, §14, §15. Bu doküman o metrikleri **kullanır**, süreçleri tanımlar.
@@ -85,13 +85,13 @@ Proje başarısız olmuş varsayılır ve en olası beş hikâye yazılır (A06 
 | Etki ↓ / Olasılık → | 1 | 2 | 3 | 4 | 5 |
 |---|---|---|---|---|---|
 | **5 Ölümcül** | R35 | R19, R20 | R06, R08 | **R01** | |
-| **4 Büyük** | | R24, R25, R29, R30, R40 | R10, R11, R12, R13, R14, R15, R37, R39 | **R02, R03, R04, R05** | |
+| **4 Büyük** | | R24, R25, R29, R30, R40, R42 | R10, R11, R12, R13, R14, R15, R37, R39 | **R02, R03, R04, R05** | |
 | **3 Orta** | | R32, R33, R34 | R21, R22, R23, R38, R41 | R09, R16, R17, R18 | **R07** |
 | **2 Küçük** | | R36 | R31 | R26, R27, R28 | |
 
 ### 3.3 Risk kaydı tablosu
 
-R01–R36 kimlikleri A06 §9.2 ile aynıdır (diğer dokümanlar bu kimliklere atıf yapar); R37–R41 bu dokümanda eklendi. Kategoriler: talep/pazar, Meta, operasyon, teknik, güvenlik, hukuk, finans, ekip.
+R01–R36 kimlikleri A06 §9.2 ile aynıdır (diğer dokümanlar bu kimliklere atıf yapar); R37–R42 bu dokümanda eklendi (R42: iş sürekliliği, §10.1). Kategoriler: talep/pazar, Meta, operasyon, teknik, güvenlik, hukuk, finans, ekip.
 
 | ID | Kat. | Risk | O | E | Skor | Erken uyarı sinyali (ölçülebilir) | Azaltma (önleyici) | Olursa ne yaparız | Sahip | Faz |
 |---|---|---|---|---|---|---|---|---|---|---|
@@ -99,7 +99,7 @@ R01–R36 kimlikleri A06 §9.2 ile aynıdır (diğer dokümanlar bu kimliklere a
 | R02 | Ekip | **Ekip kapasitesi / kapsam şişmesi** | 4 | 4 | **16** | Sprint hedefinin < %60'ı tamamlanıyor; pilot tarihi ≥ 2 hafta kayıyor; kurucu geliştirme saati < %50 | "Faz 1'de olmayanlar" listesine sadakat; haftalık kapsam gözden geçirme; Hafta 1–8'de öncelik iskelet + webhook + ES + "sipariş kaçmaz" paketi | Kapsam dondurma; pilotu 10 yerine 6 işletmeyle başlat; Faz 2 işlerini ertele | Teknik lider | Faz 0–1 |
 | R03 | Meta | **Onboarding sürtünmesi** (ES, Coexistence, Meta'ya kart, görünen ad) | 4 | 4 | **16** | ES terk > %30; kurulum medyanı > 1 gün; canlı tenant'larda 131042 > 0; görünen ad reddi | Concierge kontrol listesi (§5.5); iki kapılı canlıya geçiş; kart adımı olmadan WhatsApp canlıya geçmez; yeni numara alternatifi | Takılan adıma göre runbook; Plan B (Solution Partner); MPS'i (Faz 3) öne çekme değerlendirmesi | Operasyon lideri | Faz 1 |
 | R04 | Talep/pazar | **Düşük ödeme isteği** / "zaten WhatsApp'tan alıyorum" | 4 | 4 | **16** | Demo→deneme < %30; deneme→ücretli < %40; D6'da < 3 ön ödeme ve < 6 niyet mektubu; pilot sonrası ödemeye geçiş < %60 | Segmentasyon; hesaplayıcı; kaçırma çetelesi; aylık değer raporu; D5/D6 testleri | Mesajı "sipariş kaçmasın / düzen" tarafına kaydır; paket içeriğini yeniden kurgula; Esnaf paketini self-servise çevir | Kurucu-İş | Faz 0 → Faz 2 |
-| R05 | Operasyon | **Sipariş kaçırma** (panel kapalı, ses kilitli, internet, telefondan yanıt) | 4 | 4 | **16** | `new` > 2 dk oranı > %5; `tenant_no_response` iptali ≥ 1; açık saatte panel çevrimdışı dakikası; "siparişim nerede" > %5 | Pilot öncesi zorunlu paket; Android tablet önerisi; vardiya başı "Siparişleri almaya başla"; kasiyer eğitimi | Aynı gün işletme araması, kök neden (cihaz/ses/ağ/davranış), telafi; tekrarında yerinde ziyaret | Operasyon lideri | Faz 1 |
+| R05 | Operasyon | **Sipariş kaçırma** (panel kapalı, ses kilitli, internet, telefondan yanıt) | 4 | 4 | **16** | `new` > 2 dk oranı > %5; `tenant_no_response` iptali ≥ 1; açık saatte panel çevrimdışı dakikası; "siparişim nerede" > %5 | Pilot öncesi zorunlu paket; Android tablet önerisi; vardiya başı "Siparişleri almaya başla"; kasiyer eğitimi; D13 kullanılabilirlik ve alarm duyulabilirlik testi (H15, §4.3) | Aynı gün işletme araması, kök neden (cihaz/ses/ağ/davranış), telafi; tekrarında yerinde ziyaret | Operasyon lideri | Faz 1 |
 | R06 | Meta | **Meta uygulamamızın gecikmesi, reddi veya kısıtlanması** (tek hata noktası) | 3 | 5 | **15** | Business Verification > 2 hafta; App Review "daha fazla bilgi"; Hafta 8'de Advanced Access yok; Meta politika uyarı e-postası | Faz 0 hemen; imzalı Solution Partner ön anlaşması; `WaTransport` ([02](02-whatsapp-entegrasyonu.md) §7.10); **WhatsApp'sız mod** (storefront + manuel sipariş + SMS OTP doğrulaması **[Faz 1]**; durum bilgisi takip sayfası ve kritik durum SMS'i, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7) | Hafta 8'de Plan A'/B; kısıtlamada SEV1, tenant bazında partner taşıyıcısına geçiş | Kurucu-İş + Teknik lider | Faz 0 |
 | R07 | Operasyon | **Destek yükü** (gece, hafta sonu, telefonla) | 5 | 3 | **15** | Temas/işletme/ay > 3 (ilk ay hariç); 22:00 sonrası temas payı > %20 [T]; haftalık P1 sayısı artıyor | Bilgi bankası (§5.4); uzaktan tanı kartı; etiket→ürün döngüsü; bayi L1 **[Faz 2]** | Destek işe alımını öne çek; ilk 5 nedene "SSS sprinti"; Esnaf paketinde self-servis zorunlu | Operasyon lideri | Pilot → Faz 2 |
 | R08 | Güvenlik | **Kiracılar arası sızıntı / güvenlik ihlali** | 3 | 5 | **15** | IDOR testi kırmızı; pentest yüksek bulgu; takip/storefront uçlarında 404 artışı (tarama); anormal erişim logu | RLS + yalıtım testleri; HMAC türetilmiş takip token'ı (`tracking_token`, ~128 bit, DB'de yalnız hash; `tracking_expires_at` = teslim + 7 gün, sonra 410; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7); ASVS L2 (kimlik, yalıtım); pentest (§10) | Veri ihlali runbook'u (§6.6), [08](08-mevzuat-kvkk-odeme-fatura.md) §2.9 süreleri | Teknik lider | Faz 1 |
@@ -136,6 +136,7 @@ R01–R36 kimlikleri A06 §9.2 ile aynıdır (diğer dokümanlar bu kimliklere a
 | R39 | Finans | **Nakit pisti:** pilot 3 ay ücretsiz, tahsilat Faz 2'de başlıyor | 3 | 4 | **12** | Kalan nakit < 6 aylık yakım [T]; pilot sonrası ödemeye geçiş < %60 | D6 niyet mektubu; yıllık peşin; maliyet disiplini | Harcama kesintisi; yatırım/hibe; Teknokent | Kurucu-İş + Finans | Faz 0–2 |
 | R40 | Güvenlik | **İçeriden kötüye kullanım** (impersonation, destek erişimi, paylaşılan tablet) | 2 | 4 | **8** | Gerekçesiz impersonation; mesai dışı admin erişimi; maskesiz telefon görüntüleme sayısı | Salt okunur varsayılanlı, en fazla 30 dk süreli, gerekçeli ve loglu impersonation ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4); aylık log incelemesi; PIN'li cihaz oturumu | Erişimi kapat; ihlal değerlendirmesi | Teknik lider | Faz 1 |
 | R41 | Operasyon | **Ölçüm hatası:** kanal siparişi yanlış atfedilir, kuzey yıldızı güvenilmez olur | 3 | 3 | **9** | `orders.source_meta` boş oranı > %20; `manual` payında açıklanamayan artış; işletme beyanıyla fark > %20 | QR/UTM kodu zorunlu; `manual` ayrı sayılır; pazaryeri sipariş sayısı aylık beyan | Metriği yeniden tanımla, geçmişi düzelt, raporlara not düş | Teknik lider | Faz 1 |
+| R42 | Operasyon | **Kritik hesap veya erişim kaybı / kurucu iş göremezliği:** alan adı süresinin dolması ya da ele geçirilmesi; Meta portföyü, GitHub, Cloudflare, banka, SMS veya barındırma hesabına erişimin kaybı; tek yetkili kurucunun ulaşılamaması | 2 | 4 | **8** | Tek yöneticili kritik hesap sayısı > 0; donanım anahtarı olmayan yönetici; alan adı bitişine < 30 gün kala otomatik yenileme kapalı [T]; kurtarma kodu kasada değil; yıllık tatbikat yapılmadı | Kritik hesap envanteri, her hesapta ≥ 2 yönetici + donanım anahtarı, kurtarma kodları mühürlü kasada, alan adı kilidi + otomatik yenileme, vekâlet ve banka imza yetkisi, yıllık masa başı tatbikat (§10.1) | İkinci yöneticiyle erişim; kayıt kuruluşu/sağlayıcı hesap kurtarma süreci; Meta erişimi yoksa WhatsApp'sız mod (RB-2); olay aç (SEV1/SEV2) | Kurucu-İş | Faz 0 → Sürekli |
 
 ### 3.4 Risk yönetimi ritmi
 
@@ -144,6 +145,34 @@ R01–R36 kimlikleri A06 §9.2 ile aynıdır (diğer dokümanlar bu kimliklere a
 - **Olay sonrası:** her SEV1/SEV2 postmortem'i ilgili riskin olasılık/etki puanını ve azaltma listesini günceller.
 - **Kapılarda** (K1–K4, §4.10): kapı kararı risk kaydıyla birlikte verilir; pilot sonunda (K4) tüm puanlar pilot verisiyle kalibre edilir.
 - Admin panelinde KRI listesi A06 §9.3'teki eşiklerle izlenir ([05](05-admin-paneli-ve-pazarlama-sitesi.md)); metrik tanımları §8'dedir.
+
+### 3.5 Rekabet tepkisi oyun kitabı ve stratejik çıkış **[Faz 1–3]**
+
+Rakip hamlesi ürünü tek başına öldürmez; geç ve panikle verilen cevap öldürür. Bu oyun kitabı dört olası hamle için erken sinyali ve ilk 30 gündeki cevabı önceden yazar. Sinyaller Kurucu-İş'in aylık Meta ve pazar taramasında (§5.8 "Meta değişiklik takibi"), saha itiraz kayıtlarında ve çıkış görüşmelerinin neden kodlarında (§5.6) izlenir. Bir senaryo tetiklenirse karar haftalık metrik toplantısında verilir (§9.3) ve bağlı risk yeniden puanlanır (§3.4).
+
+| # | Senaryo | Bağlı risk | Erken sinyal (ölçülebilir) | İlk 30 gün cevabı | Yapmayacaklarımız |
+|---|---|---|---|---|---|
+| RK1 | **Pazaryerinin ücretsiz WhatsApp sipariş modülü** (kendi işletmelerine komisyonsuz ya da düşük komisyonlu "WhatsApp'tan sipariş" aracı) | R10, R01 | Pazaryeri duyurusu; esnafın "pazaryeri bize de WhatsApp modülü önerdi" demesi; demo kayıp nedenlerinde "pazaryeri aracı" > %20 [T]; sözleşme maddesi değişikliği | "Müşteri verisi ve numara kimin?" farkını öne çıkar: veri işletmede, numara işletmenin kendi Meta portföyünde ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.2); aylık değer raporundaki tasarruf ve tekrar eden müşteri (§5.6); yıllık peşin teklifi; D10 sözleşme incelemesini yenile | Pazaryerini kötüleyen karşılaştırmalı reklam ("Yemeksepeti'ni bırak" denmez, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §1); fiyatı sıfıra çekmek |
+| RK2 | **POS/adisyon yazılımının kendi WhatsApp modülü** (Menulux emsali, [01](01-vizyon-pazar-is-modeli.md) §10) | R09, R24 | POS firmasının duyurusu; Faz 0 POS görüşmelerinde ([09](09-yol-haritasi-ve-sprint-plani.md) F0-G10) "kendi modülümüz geliyor" bilgisi; POS'lu işletmelerde kayıp | Rekabet yerine entegrasyon ([01](01-vizyon-pazar-is-modeli.md) §8.8): F2-05 adaptörü ve "POS'un yanında sipariş kanalı ve alarm zinciri" mesajı; §4.5 pivot seçeneği (a) doğrultusunda modülün POS firmasına lisanslanması görüşmesi | Tek bir POS'a kapalı ortaklık (POS'tan bağımsız konumlandırma bozulur) |
+| RK3 | **Rakip fiyat kırma** (yerli rakiplerin 680 TL'nin altına inmesi, ücretsiz katman) | R09, R04 | "X daha ucuz" itirazı > %30 (R09 KRI); deneme→ücretli < %40 (§8.3); kayıp nedeni #1 fiyat | Sipariş başı maliyeti ve "sipariş kaçmaz" farkını anlatan satış kartı; resmi API güvencesi ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.1); yıllık peşin; Esnaf paketinin yerini [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13.11 kararıyla gözden geçir; ücretsiz "Menü" katmanını (Faz 3) öne çekme değerlendirmesi | Liste fiyatını tek taraflı düşürmek (marj ve kurucu üye oran kuralı, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8, §12); resmi olmayan altyapı kullanan rakibin maliyet yapısına inmek |
+| RK4 | **Meta Business Agent ya da Meta'nın kendi sipariş ve AI özellikleri** | R24, R16 | Meta duyuruları (Türkiye'de sipariş, katalog seçenekleri, ödeme); Business Agent'ın WhatsApp Business uygulamasında esnafa açılması | Meta özelliklerini taşıyıcı olarak benimse (Flows Faz 3, `WaTransport`); değeri operasyona kaydır: panel, alarm zinciri, kurye, web + telefon kanalları, müşteri kaydı, POS entegrasyonu | "WhatsApp'ta ChatGPT" gibi pazarlama ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.9); Meta'nın özelliğiyle doğrudan yarışan genel bot geliştirmek |
+
+**Stratejik çıkış seçenekleri (bilgi amaçlı; bugün bir satış hedefi yoktur):** Olası stratejik alıcılar ve ortaklar şu gruplardadır (adlar örnektir; hiçbiriyle çıkış görüşmesi yapılmadı): pazaryerleri (ör. Yemeksepeti, Trendyol Go, Getir; yurt dışı emsal iFood → Anota, [01](01-vizyon-pazar-is-modeli.md) §10), POS ve adisyon yazılımları (ör. SambaPOS, Adisyo, robotPOS, Simpra), ödeme kuruluşları (ör. iyzico, PayTR, Param), yemek kartı şirketleri ve Türk Solution Partner'lar. Çıkış ya da stratejik yatırım görüşmesi kurucuların birlikte kararıdır; pay sahipleri sözleşmesindeki birlikte satış ve birlikte satma hükümleri uygulanır ([11](11-finansal-model-ve-finansman.md) §9.3). Rakip olabilecek bir firmayla NDA olmadan ürün yol haritası, müşteri listesi veya fiyat verisi paylaşılmaz.
+
+**IP ve veri odası hijyeni** (sürekli tutulur, görüşme anında hazırlanmaz):
+
+| Alan | İçerik | Sahip | Kaynak |
+|---|---|---|---|
+| Fikri haklar | Kurucu ve dış geliştiricilerden yazılı fikri hak devirleri; çalışan sözleşmelerinde fikri hak maddesi; tasarımcı ve logo teslim sözleşmesi | Kurucu-İş + Avukat | [08](08-mevzuat-kvkk-odeme-fatura.md) §7.1; [09](09-yol-haritasi-ve-sprint-plani.md) F0-H09, F0-D04 |
+| Marka ve alan adları | Marka başvuruları ve tescil belgeleri; alan adlarının şirket adına kayıtlı olması | Kurucu-İş | [09](09-yol-haritasi-ve-sprint-plani.md) F0-H05, F0-D03; §10.1 |
+| Açık kaynak lisansları | Bağımlılık lisans envanteri (SBOM), copyleft lisans kontrolü | Teknik lider | [06](06-teknik-mimari.md) §15.7 |
+| Sözleşme arşivi | Abonelik sözleşmesi ve DPA sürümleri, `legal_acceptances` kayıtları, alt işleyen listesi, Meta ve partner şartları, POS ortaklarıyla NDA'lar | Kurucu-İş | [08](08-mevzuat-kvkk-odeme-fatura.md) §7.4 |
+| KVKK uyum kanıtları | VERBİS kaydı ya da muafiyet notu, aydınlatma metinleri, imha tutanakları (`retention_runs`), ihlal tatbikatı kayıtları | Teknik lider + Avukat | [08](08-mevzuat-kvkk-odeme-fatura.md); §10 |
+| Finans ve şirket | Aylık finans raporları, pay tablosu (cap table), pay sahipleri sözleşmesi | Finans | [11](11-finansal-model-ve-finansman.md) §9, §11 |
+| Ürün ve teknik | ADR'ler, plan dokümanları (00–13), postmortem'ler, SLO raporları | Teknik lider | [09](09-yol-haritasi-ve-sprint-plani.md) §9.6; §6.5 |
+
+- **Müşteri verisinin devri:** Son müşteri verisinin veri sorumlusu işletmedir, biz veri işleyeniz ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9). Bir satış veya birleşmede bu veri ancak DPA'ların devriyle ve işletmelere bildirimle aktarılabilir (yöntem avukatla teyit edilmeli). Veri odasına son müşteri verisi konmaz; yalnız toplu ve anonim metrikler konur.
+- Veri odası ortak sürücüde tek klasörde tutulur ve güncelliği çeyreklik strateji gözden geçirmesinde (§9.2) kontrol edilir [T].
 
 ---
 
@@ -156,9 +185,9 @@ En ucuz ve en hızlı öğrenilecek şey **talep ve ödeme isteğidir**. Meta kr
 | Hafta (tarih) | Talep ve ödeme | Meta ve platform | Karar |
 |---|---|---|---|
 | 0–2 (25.09–09.10) | D1 problem görüşmeleri (≥ 20, hedef 25 esnaf); Seviye 0 adaylarının seçimi ve 1 haftalık başlangıç sayımı | Şirket, Business Verification başvurusu, Meta App, Tech Provider; D12 `request_welcome` testi (Sprint 1) | **K1** (Hafta 3, 16.10): problem |
-| 1–4 | D2 kesinti dökümü; D3 kart/magnet basımı ve dağıtım başlangıcı; D5 landing + fiyat testi; D10 sözleşme incelemesi | ES v4 demo, App Review videoları; D7 kuru koşu (şirket tarafı) | — |
-| 4–8 (19.10–20.11) | D3/D4 ölçüm; D6 ön satış ve niyet mektubu | App Review sonucu; D7 işletme tarafı ve D11 Coexistence saha testi (Hafta 5–8, 15 günlük hareketsizlik testi dahil) | **K2 + K3** (Hafta 8, 20.11): go/no-go ve platform |
-| 10–20 (30.11.2026–12.02.2027) | Pilot (10 işletme, 3 dalgada kurulum: 3 + 4 + 3; ilk canlı sipariş Hafta 11, 07.12.2026); D8 panel gözlemi (her dalganın ilk 2 haftası); D9 destek ölçümü | Pilot öncesi zorunlu paket canlıda | **K4 ön-onay** (Hafta 18, 29.01.2027, Dalga 1'in 8. haftası) → **K4 kesinleşme** (Hafta 20, 12.02.2027, son dalganın 8. haftası) → **ticari lansman** 15.02.2027 (Hafta 21) |
+| 1–4 | D2 kesinti dökümü; D3 kart/magnet basımı ve dağıtım başlangıcı; D5 landing + fiyat testi; D10 sözleşme incelemesi; **D13** bağlamsal gözlem (3–5 restoran) ve prototip testleri (5 kasiyer, 8 son müşteri; [12](12-marka-tasarim-ve-kullanilabilirlik.md) §8) | ES v4 demo, App Review videoları; D7 kuru koşu (şirket tarafı) | Tasarım kontrolü (26.10, S3 planlaması; §4.10) |
+| 4–8 (19.10–20.11) | D3/D4 ölçüm; D6 ön satış ve niyet mektubu | App Review sonucu; D7 işletme tarafı ve D11 Coexistence saha testi (Hafta 5–8, 15 günlük hareketsizlik testi dahil); D13 alarm laboratuvar testi (Hafta 5–6) | **K2 + K3** (Hafta 8, 20.11): go/no-go ve platform |
+| 10–20 (30.11.2026–12.02.2027) | Pilot (10 işletme, 3 dalgada kurulum: 3 + 4 + 3; ilk canlı sipariş Hafta 11, 07.12.2026); D8 panel gözlemi (her dalganın ilk 2 haftası); D9 destek ölçümü; D13 saha alarm testi ve yerinde SUS (Hafta 11–14) | Pilot öncesi zorunlu paket canlıda | **K4 ön-onay** (Hafta 18, 29.01.2027, Dalga 1'in 8. haftası) → **K4 kesinleşme** (Hafta 20, 12.02.2027, son dalganın 8. haftası) → **ticari lansman** 15.02.2027 (Hafta 21) |
 
 ### 4.2 Hipotez listesi
 
@@ -178,6 +207,7 @@ En ucuz ve en hızlı öğrenilecek şey **talep ve ödeme isteğidir**. Meta kr
 | H12 | Su bayisi daha kolay satılır, daha az churn eder | Segment sırası | Su bayisinde kanal siparişi restorandan düşük | D3'e 2 su bayisi |
 | H13 | Coexistence +90 numarada güvenilir çalışıyor (echo, iPhone gönderenler, 24 saat sonrası şablon) | R12, R03 | §4.8 kriterlerinden biri başarısız | D11 |
 | H14 | `request_welcome` olayı Türkiye numaralarında geliyor ve serbest yanıt açıyor | R01 (huni) | §4.9 kriteri tutmuyor → karşılama yalnız ilk mesajla | D12 |
+| H15 | Kasiyer yoğun saatte yeni siparişi duyar, anlar ve tek dokunuşla onaylar. Son müşteri (55+ ve ucuz Android dahil) ilk siparişini yardımsız tamamlar | R05, R01, R03 | Kasiyerlerden ≥ 2'si onayı 10 sn'de yapamazsa ya da panel SUS < 60 ise S3 başlamadan P-04 yeniden tasarlanır. 55+ katılımcıların yarısı 3 dk'da tamamlayamazsa checkout sadeleştirilir ve büyük yazı modu öne alınır. Saha alarm testi < 9/10 ise F2-07 öne çekilir | D13 |
 
 ### 4.3 Deney özeti
 
@@ -195,6 +225,9 @@ En ucuz ve en hızlı öğrenilecek şey **talep ve ödeme isteğidir**. Meta kr
 | **D10** Sözleşme incelemesi | H10 | Pilot adaylarından 3 güncel pazaryeri sözleşmesi avukata; paket içi materyal, müşteri yönlendirme, parite, veri, yaptırım | Avukat görüşü | "Açık yasak + yaptırım" yok | Hafta 1–4 (ilk sözleşme Hafta 1'de, kart dağıtımından önce) | Avukat ücreti | Kurucu-İş + Avukat |
 | **D11** Coexistence +90 teyidi | H13 | 2 gerçek +90 WhatsApp Business numarasıyla saha testi (§4.8) | Test senaryolarının geçme oranı | Tümü geçer | Hafta 5–8 (ES minimal S2 sonunda, 23 Ekim'de hazır; 15 günlük hareketsizlik testi dahil; K3'e yetişir, [09](09-yol-haritasi-ve-sprint-plani.md) §4.1) | 2 hat + 2 cihaz, ~3 kişi-gün | Teknik lider |
 | **D12** `request_welcome` testi | H14 | Sprint 1'de +90 numara, 5 senaryo (§4.9) | Olayın gelmesi, serbest yanıtın teslimi | 5 senaryodan ≥ 4'ü | Hafta 1–2 | ~1 kişi-gün | Teknik lider |
+| **D13** Kullanılabilirlik ve alarm duyulabilirlik testi | H15 | 3–5 restoranda bağlamsal gözlem; tıklanabilir prototiple 5 kasiyer (P-04, P-06) ve 8 son müşteri (S-01…S-06, ≥ 2'si 55+); laboratuvar ve saha alarm testi; pilotta yerinde SUS ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §8) | Alarm→onay süresi, görev başarısı, kritik hata, SUS, alarm fark etme oranı | Onay medyanı < 10 sn; storefront siparişi < 3 dk; SUS ≥ 70; kritik hata 0; saha alarmı ≥ 9/10 | Hafta 1–4; laboratuvar H5–H6; pilot H11–H14 | TAS ~25–30 kişi-gün + katılımcı teşviki (teklif) | Kurucu-İş (ürün sahibi) + TAS |
+
+TAS = serbest ürün ve marka tasarımcısı ([09](09-yol-haritasi-ve-sprint-plani.md) rol kısaltmaları, [12](12-marka-tasarim-ve-kullanilabilirlik.md) §8.1). D13'ün test protokolü, görev senaryoları (PT-01…08, MT-01…07) ve bulguların işlenmesi [12](12-marka-tasarim-ve-kullanilabilirlik.md) §6.4 ve §8.3–8.8'dedir; sprint görevleri [09](09-yol-haritasi-ve-sprint-plani.md) S2-12, S2-14, S3-14 ve S6-20'dir.
 
 ### 4.4 Seviye 0 concierge talep deneyi (ayrıntılı tasarım)
 
@@ -329,9 +362,24 @@ En ucuz ve en hızlı öğrenilecek şey **talep ve ödeme isteğidir**. Meta kr
 | Kapı | Zaman | Geçiş koşulu | Geçemezse |
 |---|---|---|---|
 | **K1 Problem** | Hafta 3 (16.10) | H1 ve H2 (D1, D2) | Segment veya mesaj değişir (su bayisi, "düzen" mesajı); 10 görüşme daha |
+| **Tasarım kontrolü** (ara kontrol) | Hafta 5 başı (26.10, S3 planlaması) | H15'in prototip ölçütleri (D13): kasiyer onay medyanı < 10 sn, storefront siparişi < 3 dk, SUS ≥ 70, kritik hata 0 | §4.2 H15 eşiği: ≥ 2 kasiyer onayı 10 sn'de yapamazsa ya da panel SUS < 60 ise S3 başlamadan P-04 yeniden tasarlanır; 55+ katılımcıların yarısı 3 dk'da tamamlayamazsa checkout sadeleştirilir ve büyük yazı modu öne alınır. Alarm laboratuvar testi (H5–H6) P0 kapısının maddesidir ([09](09-yol-haritasi-ve-sprint-plani.md) §11.1) |
 | **K2 Talep ve ödeme** | Hafta 8 | §4.5 karar kuralı | Pilot başlamaz; pivot değerlendirmesi |
 | **K3 Platform** | Hafta 8 | H7: Advanced Access var; D11 ve D12 sonuçlandı | Plan A' (tester rolü) veya Plan B (Solution Partner) ile pilot |
 | **K4 Pilot sonu** | Ön-onay Hafta 18 (29.01.2027; Dalga 1'in 8. haftası), kesinleşme Hafta 20 (12.02.2027; son dalganın 8. haftası); ticari lansman hedefi 15.02.2027 (Hafta 21) ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11, [09](09-yol-haritasi-ve-sprint-plani.md) §7.7) | §8.7 pilot başarı kartı (P2 her işletmenin kendi pilotunun 8. haftasında) + H8, H9 + pilotların ≥ %60'ı ödemeye geçiyor | Ticari lansman (Faz 2) ertelenir; en büyük 3 sorun çözülür; pilot 6 hafta uzatılır |
+
+### 4.11 Deney politikası (pilot ve Faz 2) **[Faz 1–2]**
+
+Pilotta 10, ilk yıl en fazla birkaç yüz işletme vardır. Bu ölçekte müşteri düzeyinde istatistiksel A/B testi çoğu soru için mümkün değildir. D4'teki "küçük örneklem yön gösterir, istatistiksel kanıt değildir" ilkesi bütün ürün ve büyüme deneylerine şu kurallarla genişletilir:
+
+1. **Önceden yazılır:** Hipotez, ana metrik, başarı eşiği, asgari süre, koruyucu metrikler ve karar kuralı deney başlamadan deney panosuna yazılır. Eşikler deney sırasında değiştirilmez (K2 kuralıyla aynı, §4.5).
+2. **İşletme bazlı kontrol grubu (holdout):** Özellik veya teşvik işletme düzeyinde açılır. Benzer hacim ve segmentteki işletmeler çiftlere ayrılır, her çiftten biri rastgele kontrol grubunda kalır (feature flag ile, [06](06-teknik-mimari.md) §16.6). Kontrol grubuna özellik deney bitince açılır. Güvenlik ve "sipariş kaçmaz" özellikleri hiçbir zaman kontrol grubunda bekletilmez.
+3. **Önce/sonra karşılaştırması:** Kontrol grubu kurulamıyorsa aynı işletmenin deneyden önceki eşit uzunluktaki dönemi baz alınır. Mevsim, Ramazan, maç akşamları ve resmi tatiller not edilir; bu dönemlere denk gelen karşılaştırma yalnız "yön" olarak okunur.
+4. **Asgari süre [T]:** En az 2 tam hafta ve en az 2 Cuma–Cumartesi akşamı. Kanal payı ve tekrar oranı gibi yavaş metriklerde en az 4 hafta (G4'teki 21 günlük tekrar penceresine uyumlu).
+5. **Koruyucu metrikler:** Her deneyde sistem kaynaklı kaçan sipariş (S10) 0 kalır. Onay süresi ve "siparişim nerede?" oranı (§8.4), sipariş başına durum mesajı (≤ 4, §8.6), ret ve iptal oranları ve destek teması (§8.5) izlenir. Biri eşiğini aşarsa deney durdurulur.
+6. **Son müşteri deneyleri:** Storefront'ta müşteri düzeyinde A/B testi yalnız yeterli trafik olduğunda ve çerezsiz, kişisel veri içermeyen analitik olaylarla yapılır (`POST /api/v1/store/events` → `analytics_events`, [07](07-veri-modeli-ve-api.md) §3.5; 90 gün saklama, [08](08-mevzuat-kvkk-odeme-fatura.md) §2.8 satır 20; oturum kimliğinin rıza durumu [13](13-varsayim-ve-teyit-kaydi.md) V-006 ile teyit edilmeli). Fiyat testi yalnız ilgiyi ölçer, düşük varyanttan taahhüt verilmez (D5 kuralı, §4.6). İşletme deneye katıldığını bilir.
+7. **Sonuç kaydı:** Her deney "ne test ettik, sonuç, karar" biçiminde aylık rapora girer (§9.4 madde 7). Sonuçsuz deney de kaydedilir.
+
+**BI aracı tetiği [Faz 2]:** Faz 1'de ayrı BI aracı yoktur (§9.1). Aşağıdaki tetiklerden biri gerçekleşince Türkiye'de self-host edilen açık kaynak bir BI aracı kurulur (ürün seçimi teyit edilmeli): (a) ~100 aktif işletme (Faz 2 sonu hedefi, [09](09-yol-haritasi-ve-sprint-plani.md) §1.1) [T]; (b) admin "Metrikler" ekranının karşılamadığı elle sorgu ihtiyacı haftalık toplantının düzenli gündemi olur [T]; (c) aynı anda yürüyen deney sayısı 3'ü geçer [T]. Araç yalnız rollup tablolarına ve kişisel veri içermeyen görünümlere bağlanır; ölçek büyüdükçe okuma replikası kullanılır ([09](09-yol-haritasi-ve-sprint-plani.md) F3-12). Barındırma kişisel veri kuralına uyar ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10) ve araç alt işleyen envanterine girer ([08](08-mevzuat-kvkk-odeme-fatura.md) §2.11).
 
 ---
 
@@ -413,7 +461,7 @@ flowchart TD
 
 ### 5.4 Bilgi bankası ve SSS **[Faz 1]**
 
-**Biçim:** Her makale ≤ 30 sn video + en fazla 5 adım + ekran görüntüsü; esnafın dilinde başlık ("Ses gelmiyor"), teknik terim yok. Panelde ilgili ekrandan bağlantı verilir. Sahip: Operasyon lideri; her ürün sürümünde ilgili makaleler gözden geçirilir.
+**Biçim:** Her makale ≤ 30 sn video + en fazla 5 adım + ekran görüntüsü; esnafın dilinde başlık ("Ses gelmiyor"), teknik terim yok. Panelde ilgili ekrandan bağlantı verilir. Sahip: Operasyon lideri; her ürün sürümünde ilgili makaleler gözden geçirilir. Makalelerin sprintlere göre üretim takvimi, kasa kartı, kasiyer videosu ve son müşteri içerikleri [12](12-marka-tasarim-ve-kullanilabilirlik.md) §10'dadır (EG-01 bu listeyle birebirdir; sprint görevleri [09](09-yol-haritasi-ve-sprint-plani.md) S4-14, S5-15, S6-19).
 
 | # | Başlık (esnafın dili) | Bağlı risk / konu |
 |---|---|---|
@@ -560,9 +608,9 @@ Meta'nın kararları şeffaf değildir ve destek süreleri garanti değildir (A0
 
 ---
 
-## 6. Olay yönetimi (incident management)
+## 6. Olay yönetimi (incident management) **[Faz 1–2]**
 
-### 6.1 Önem dereceleri (SEV1–SEV4)
+### 6.1 Önem dereceleri (SEV1–SEV4) **[Faz 1]**
 
 "Olay", bir veya daha fazla işletmenin sipariş almasını, müşterisine bilgi vermesini veya verisinin güvenliğini etkileyen, plansız her durumdur. Tek işletmenin kullanım sorunu destek kaydıdır (§5); aynı belirti ≥ 2 işletmede görülürse veya bir P1 alarmı platform genelindeyse olay açılır.
 
@@ -577,7 +625,7 @@ Meta'nın kararları şeffaf değildir ve destek süreleri garanti değildir (A0
 
 **Yoğun saat kuralı:** Cuma–Cumartesi 18:00–23:00, maç akşamları ve iftar öncesinde başlayan bir SEV3, sipariş akışını yavaşlatıyorsa SEV2 kabul edilir.
 
-### 6.2 Müdahale rolleri ve akış
+### 6.2 Müdahale rolleri ve akış **[Faz 1]**
 
 | Rol | Görev | Kim (pilot) |
 |---|---|---|
@@ -603,7 +651,7 @@ flowchart LR
   I --> J[Postmortem §6.5 + risk kaydı güncellemesi]
 ```
 
-### 6.3 İletişim kuralları ve şablonlar
+### 6.3 İletişim kuralları ve şablonlar **[Faz 1]**
 
 **Kanal seçimi:** Varsayılan kanal platform WhatsApp numarasıdır (onay veren `owner`'lara). **Meta/WhatsApp kesintisinde WhatsApp kullanılmaz**; SMS + e-posta + panel bandı kullanılır. SEV1'de SMS her durumda WhatsApp'a ek olarak gider. Metinler sade Türkçedir; teknik terim, suçlama ve kesin olmayan süre vaadi içermez.
 
@@ -653,7 +701,7 @@ SMS'te Türkçe karakterler segment sayısını artırabilir; sağlayıcının T
 
 **Kabul kriterleri (olay iletişimi):** Üç platform şablonu (`platform_hizmet_bildirimi_v1`, `platform_hizmet_duzeldi_v1`, `platform_planli_bakim_v1`) pilot öncesi `APPROVED`; SMS ve e-posta şablonları admin panelinde değişkenli hazır; panel duyuru bandı etkilenen tenant'lara hedeflenebiliyor; tatbikatta ilk duyuru SEV1 için 15 dk içinde çıkıyor.
 
-### 6.4 Durum sayfası
+### 6.4 Durum sayfası **[Faz 1–2]**
 
 - **[Faz 2]** `status.siparisinonunde.com` ([06](06-teknik-mimari.md) §14.3). **Öneri [T]:** Basit bir sürümü pilot öncesinde açılsın (Uptime Kuma'nın durum sayfası özelliği), çünkü olay duyurularındaki "Durumu gör" butonu buraya bağlanır (açık konu).
 - **Ana altyapıdan bağımsız barındırılır** (farklı sağlayıcı/lokasyon); bizim kesintimizde de erişilebilir olmalıdır.
@@ -661,7 +709,7 @@ SMS'te Türkçe karakterler segment sayısını artırabilir; sağlayıcının T
 - **Durumlar:** Çalışıyor · Yavaşlama · Kısmi kesinti · Kesinti · Bakım. Otomatik sentetik kontroller "yavaşlama/kesinti" önerir; yayını IC veya iletişim sorumlusu onaylar.
 - Geçmiş olaylar 90 gün görünür; SEV1/SEV2 kayıtlarına sade dilde özet eklenir. Planlı bakım en az 48 saat önce ve yoğun saat dışında duyurulur: durum sayfası + panel bandı + onay veren `owner`'lara `platform_planli_bakim_v1` ([02](02-whatsapp-entegrasyonu.md) §5.3). Dolu örnek: "Siparişin Önünde planlı bakım bilgilendirmesi: 14 Ocak tarihinde saat 03:00 itibarıyla yaklaşık 20 dakikalık bakım çalışması yapılacak. Siparişlerinize etkisi: bu sürede panel ve online sipariş kısa süre erişilemeyebilir. Ayrıntıları aşağıdaki bağlantıdan görebilirsiniz."
 
-### 6.5 Olay sonrası inceleme (blameless postmortem)
+### 6.5 Olay sonrası inceleme (blameless postmortem) **[Faz 1]**
 
 **İlkeler:** Kişi değil sistem incelenir ("kim hata yaptı" değil "sistem bu hatayı neden mümkün kıldı"); zaman çizelgesi gerçeklere dayanır; her aksiyonun sahibi ve tarihi vardır. SEV1/SEV2 için zorunlu, SEV3 için isteğe bağlıdır. İnceleme toplantısı ≤ 45 dk; doküman `docs/postmortem/AAAA-AA-GG-kisa-ad.md` altında saklanır.
 
@@ -700,7 +748,7 @@ Ne oldu, kimi ne kadar etkiledi, nasıl düzeldi.
 
 **Kural:** Postmortem aksiyonlarının "önle" türündekiler bir sonraki sprintte planlanır; 30 günü geçen açık aksiyon aylık rapora (§9.4) kırmızı olarak girer.
 
-### 6.6 Runbook'lar: ilk 15 dakika
+### 6.6 Runbook'lar: ilk 15 dakika **[Faz 1]**
 
 Runbook'ların tam hâli `infra/runbooks/` altında tutulur ve her alarm kendi runbook bağlantısını taşır ([06](06-teknik-mimari.md) §14.4). Aşağıdaki "ilk 15 dakika" bölümleri nöbetçinin ezbere bilmesi gereken kısımdır. Her runbook'ta ortak ilk adım: **olay aç, SEV belirle, IC ol veya IC çağır.**
 
@@ -752,9 +800,9 @@ Runbook'ların tam hâli `infra/runbooks/` altında tutulur ve her alarm kendi r
 
 ---
 
-## 7. SLO / SLI tanımları
+## 7. SLO / SLI tanımları **[Faz 1–2]**
 
-### 7.1 SLI ve SLO tablosu
+### 7.1 SLI ve SLO tablosu **[Faz 1]**
 
 [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12 ve §13.10 hedefleri bağlayıcıdır: **aylık uptime ≥ %99,9**, **webhook → panel p95 < 3 sn**, **sipariş kaçırma %0** (§12); **RPO ≤ 5 dk, RTO ≤ 1 saat** (§13.10 varsayılanı). [06](06-teknik-mimari.md) §14.5 ile aynı değerler kullanılır. [T] işaretli eşikler pilotun ilk 4 haftasında gerçek veriyle kalibre edilir.
 
@@ -773,7 +821,7 @@ Runbook'ların tam hâli `infra/runbooks/` altında tutulur ve her alarm kendi r
 | S11 | **Ingress yanıtı** | `http_request_duration_seconds{route="hooks"}` | p99 < 300 ms | p99 > 1 sn → P2 |
 | S12 | **RPO / RTO** | Aylık elle restore tatbikatı, haftalık otomatik restore | **RPO ≤ 5 dk, RTO ≤ 1 sa** | Tatbikat başarısız → P2 + aksiyon |
 
-### 7.2 "Kaçan sipariş" tanımı
+### 7.2 "Kaçan sipariş" tanımı **[Faz 1]**
 
 [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12 "sipariş kaçırma oranı %0" hedefini koyar ("yeni sipariş 2 dk içinde onaylanmazsa alarm"). Aşağıdaki tanım [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5 ve §10'daki kanonik zincire dayanır ve kanoniktir; [06](06-teknik-mimari.md) §14.5 ve [09](09-yol-haritasi-ve-sprint-plani.md) §7 buna atıf yapar. "Kapanışta `new` kalmış sipariş" ölçütü kullanılmaz: 15 dk otomatik iptal nedeniyle bu durum oluşmaz (planlı siparişler [Faz 2] hariç; onlara otomatik iptal uygulanmaz, [07](07-veri-modeli-ve-api.md) §4.1).
 
@@ -803,7 +851,7 @@ Operasyonel tanım iki parçalıdır; ikisi ayrı sahiplere ve ayrı aksiyonlara
 
 **Kabul kriterleri:** Webhook ingress durdurulduğunda platform canary ≤ 10 dk içinde P1 üretir; SSE katmanı bozulup ingress sağlamken de P1 üretir; tenant canary, bir şubenin paneli "açık" görünürken olayları almıyorsa 30 dk içinde işletme uyarısı üretir; canary kayıtları hiçbir işletme ekranında ve raporunda görünmez.
 
-### 7.4 Hata bütçesi politikası
+### 7.4 Hata bütçesi politikası **[Faz 1]**
 
 - **Bütçe:** S1 için aylık %0,1 = **43,2 dk** (30 günlük ay). S2 için açık saatlerdeki 5 dk pencerelerin %1'i.
 - **Yoğun saat ağırlığı [T]:** Cuma–Cumartesi 18:00–23:00'te yaşanan kesinti dakikaları bütçeden **iki kat** düşülür (Cuma akşamı felaketi senaryosu, §2).
@@ -817,15 +865,15 @@ Operasyonel tanım iki parçalıdır; ikisi ayrı sahiplere ve ayrı aksiyonlara
 
 - İç SLO'da planlı bakım da sayılır. Deploy penceresi kuralı ([06](06-teknik-mimari.md) §16.2) bütçeyi korumanın ilk aracıdır.
 
-### 7.5 Dış SLA önerisi (sözleşme) [T]
+### 7.5 Dış SLA önerisi (sözleşme) [T] **[Faz 2]**
 
 İç SLO (%99,9) ile sözleşmede taahhüt edilen SLA ayrı tutulur; aradaki fark güvenlik payıdır. **Öneri:** abonelik sözleşmesinde aylık **%99,5** erişilebilirlik; altında hizmet kredisi (%99,0–99,5 → aylık ücretin %10'u; < %99,0 → %25'i); Meta, işletmenin interneti/cihazı ve mücbir sebepler hariç; 48 saat önceden duyurulan 02:00–09:00 bakımları hariç; toplam sorumluluk sınırı (ör. son 3 ayın abonelik bedeli; A06 §7.8). Rakamlar avukatla ve [08](08-mevzuat-kvkk-odeme-fatura.md) §7.4 sözleşme setiyle netleşir (açık konu). Pilotta ücret alınmadığı için kredi uygulanmaz; olay raporu yine paylaşılır.
 
 ---
 
-## 8. KPI ağacı ve metrik sözlüğü
+## 8. KPI ağacı ve metrik sözlüğü **[Faz 1–2]**
 
-### 8.1 Kuzey yıldızı metriği
+### 8.1 Kuzey yıldızı metriği **[Faz 1]**
 
 **Haftalık kendi kanal siparişi:** Bir hafta içinde (Pazartesi 00:00 – Pazar 23:59, `Europe/Istanbul`) **teslim edilmiş** (`status = delivered`), test siparişi olmayan (`test_kind IS NULL`; `onboarding_test` ve `canary` hariç, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5) ve kanalı `wa_link` veya `web` olan siparişlerin sayısı (Faz 2'de `wa_ai` ve `wa_reorder`, Faz 3'te `table_qr` ve `wa_flow` eklenir; kanal kodları [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5).
 
@@ -835,7 +883,7 @@ Operasyonel tanım iki parçalıdır; ikisi ayrı sahiplere ve ayrı aksiyonlara
 - **İki görünüm:** platform toplamı ve **aktif işletme başına medyan** (birkaç büyük işletme ortalamayı yanıltmasın).
 - **Hedef:** Pilotta aktif işletme başına medyan ≥ 5/hafta ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12'deki "14 günde ≥ 10" eşiğiyle uyumlu). Faz 2 büyüme hedefi K4 kapısında pilot verisiyle konur.
 
-### 8.2 KPI ağacı
+### 8.2 KPI ağacı **[Faz 1]**
 
 ```mermaid
 flowchart TD
@@ -854,7 +902,7 @@ flowchart TD
   G["Koruyucu metrikler: brüt marj, destek/işletme,<br/>döviz gider oranı (Meta hariç), nakit pisti,<br/>Meta maliyeti/sipariş, SLO"] -.-> NSM
 ```
 
-### 8.3 İş metrikleri
+### 8.3 İş metrikleri **[Faz 1–2]**
 
 Sahip: Kurucu-İş (Finans ile). "Ödeyen işletme" = `subscription.status IN ('active','past_due','read_only')` ve ücret > 0. Pilot işletmeler ücretsiz olduğu için MRR'a girmez; pilot döneminde "taahhüt edilen MRR" (niyet mektubu + ön ödeme) ayrıca raporlanır.
 
@@ -874,7 +922,7 @@ Sahip: Kurucu-İş (Finans ile). "Ödeyen işletme" = `subscription.status IN ('
 | **Brüt marj** | (Abonelik geliri − COGS) / abonelik geliri; COGS kalemleri [01](01-vizyon-pazar-is-modeli.md) §7.1 | Muhasebe + maliyet metrikleri (§8.6) | **Karma ≥ %70 (1.000 işletme ölçeğinde)** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12). Paket bazında ayrı izlenir: Esnaf bu varsayımlarla %29–67'de kalır (açık karar: [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13.11); ölçek küçükken (≈ 100 işletme) karma marj hedefin altında beklenir | Aylık; paket kırılımlı |
 | **Kanal payı** | Kanal siparişi / (kanal siparişi + işletmenin beyan ettiği pazaryeri siparişi) | `orders` + `marketplace_declarations` (`period_month`, `marketplace_orders`); beyan yoksa hesaplanmaz | Pilotun 8. haftasında (pilot sonu) ≥ %10 ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12) | Aylık; pilotta haftalık |
 
-### 8.4 Ürün metrikleri
+### 8.4 Ürün metrikleri **[Faz 1]**
 
 Sahip: Teknik lider (ürün). Hedefler A05 §11'deki hipotez hedefleridir [T]; pilotun ilk 2 haftasında gerçek veriyle güncellenir.
 
@@ -892,7 +940,7 @@ Sahip: Teknik lider (ürün). Hedefler A05 §11'deki hipotez hedefleridir [T]; p
 | **Telefonsuz sipariş oranı** | Teslimat telefonu olmayan teslimat siparişi / teslimat siparişi | `orders` (`delivery_phone_e164`), `customers` | < %10 [T] (R31) | Aylık |
 | **Kanal karışımı** | Kanal bazında sipariş payı (`wa_link`, `web`, `manual`…) ve `source_meta` kaynağı (QR kodu, Google, Instagram) | `orders` | İzleme; boş `source_meta` < %20 (R41) | Haftalık |
 
-### 8.5 Operasyon metrikleri
+### 8.5 Operasyon metrikleri **[Faz 1–2]**
 
 Sahip: Operasyon lideri (sistem metrikleri için teknik lider).
 
@@ -910,7 +958,7 @@ Sahip: Operasyon lideri (sistem metrikleri için teknik lider).
 | **Sahte sipariş oranı** | `cancel_reason = suspected_fake` / sipariş | `orders` | < %1 [T] | Haftalık |
 | **Sağlık skoru dağılımı** | Yeşil / sarı / kırmızı işletme sayısı; kırmızıda ortalama kalış süresi | `tenant_health_scores` (`band`), `tenants.health_band` (§5.6) | Kırmızı ≤ %10 [T] | Haftalık |
 
-### 8.6 Maliyet metrikleri
+### 8.6 Maliyet metrikleri **[Faz 1–2]**
 
 Sahip: Finans. Kur: aylık ortalama (`fx_rates`). Meta mesaj ücretleri işletmenin kendi Meta hesabından ödendiği için bizim COGS'umuzda yoktur; ancak işletmenin toplam maliyeti ve churn riski için izlenir (R16).
 
@@ -926,7 +974,7 @@ Sahip: Finans. Kur: aylık ortalama (`fx_rates`). Meta mesaj ücretleri işletme
 | **İşletmenin Meta maliyeti / sipariş** (bilgi) | Tenant'ın aylık tahmini Meta ücreti / teslim edilen sipariş | `wa_message_costs` (`est_try_kurus`) | İzleme; çeyrekte +%50 → R16 KRI | Aylık |
 | **Sipariş başı durum mesajı** | Otomatik durum mesajı / sipariş (gecikme/iptal bilgilendirmesi gibi olağan dışı durum mesajları bütçe dışı; Akış A karşılama + "Menüyü aç" ek 1 mesaj) | `orders.wa_status_msg_count` | ≤ 4 (toplam ≤ 5; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.5) | Haftalık |
 
-### 8.7 Pilot başarı kartı (K4 kapısı)
+### 8.7 Pilot başarı kartı (K4 kapısı) **[Faz 1]**
 
 | # | Kriter | Kaynak | Eşik |
 |---|---|---|---|
@@ -943,11 +991,11 @@ Sahip: Finans. Kur: aylık ortalama (`fx_rates`). Meta mesaj ücretleri işletme
 
 ---
 
-## 9. Dashboard'lar ve yönetim ritmi
+## 9. Dashboard'lar ve yönetim ritmi **[Faz 1–2]**
 
-### 9.1 Dashboard listesi
+### 9.1 Dashboard listesi **[Faz 1–2]**
 
-Faz 1'de ayrı bir BI aracı kurulmaz: sistem metrikleri Grafana'da, iş ve ürün metrikleri admin panelinin "Metrikler" ekranında ([05](05-admin-paneli-ve-pazarlama-sitesi.md)) günlük rollup tablolarından ([06](06-teknik-mimari.md) §8.5 `report-daily-rollup`) okunur. Ayrı BI aracı Faz 2'de değerlendirilir.
+Faz 1'de ayrı bir BI aracı kurulmaz: sistem metrikleri Grafana'da, iş ve ürün metrikleri admin panelinin "Metrikler" ekranında ([05](05-admin-paneli-ve-pazarlama-sitesi.md)) günlük rollup tablolarından ([06](06-teknik-mimari.md) §8.5 `report-daily-rollup`) okunur. Ayrı BI aracı Faz 2'de değerlendirilir; tetikleri ve kuralları §4.11'dedir.
 
 | Dashboard | İçerik | Kullanan | Yenilenme | Faz |
 |---|---|---|---|---|
@@ -959,7 +1007,7 @@ Faz 1'de ayrı bir BI aracı kurulmaz: sistem metrikleri Grafana'da, iş ve ür�
 | **Maliyet** | Altyapı, SMS, LLM, platform WhatsApp, döviz gider oranı, işletmenin Meta maliyeti/sipariş | `finance` | Aylık | 1 |
 | **Deney panosu (Seviye 0)** | İşletme × hafta tablosu (§4.4), G1–G8 durumu | Kurucular | Haftalık (Hafta 0–8) | Faz 0 |
 
-### 9.2 Ritim takvimi
+### 9.2 Ritim takvimi **[Faz 1]**
 
 | Ritim | Ne | Kim | Süre |
 |---|---|---|---|
@@ -970,7 +1018,7 @@ Faz 1'de ayrı bir BI aracı kurulmaz: sistem metrikleri Grafana'da, iş ve ür�
 | **Çeyreklik** | Strateji ve fiyat gözden geçirmesi (Meta rate card, TÜFE, rakipler), SLO eşiklerinin kalibrasyonu, pentest/tatbikat planı | Kurucular + danışmanlar | Yarım gün |
 | **Kapılarda** | K1–K4 kararları (§4.10) | Kurucular | — |
 
-### 9.3 Haftalık metrik toplantısı gündemi (45 dk)
+### 9.3 Haftalık metrik toplantısı gündemi (45 dk) **[Faz 1]**
 
 1. **Kuzey yıldızı ve girdileri (10 dk):** haftalık kanal siparişi (toplam ve işletme başı medyan), yeni canlı işletme, aktivasyon kohortu, huni oranları. Hedeften sapma varsa "neden" sorusu tek cümleyle yanıtlanır.
 2. **Güvenilirlik (10 dk):** SLO durumu, hata bütçesi kalan dakika, geçen haftanın olayları ve açık postmortem aksiyonları, kaçan sipariş (sistem/işletme).
@@ -979,7 +1027,7 @@ Faz 1'de ayrı bir BI aracı kurulmaz: sistem metrikleri Grafana'da, iş ve ür�
 5. **Riskler ve deneyler (5 dk):** eşiği aşan KRI'lar (§3.3), deney durumu (Hafta 0–8'de G1–G8).
 6. **Kararlar (5 dk):** her kararın sahibi ve tarihi yazılır; bir sonraki toplantıda ilk iş kontrol edilir.
 
-### 9.4 Aylık kurucu / yatırımcı raporu şablonu
+### 9.4 Aylık kurucu / yatırımcı raporu şablonu **[Faz 1]**
 
 ```markdown
 # Siparişin Önünde — {Ay Yıl} raporu
@@ -1035,6 +1083,58 @@ Teknik kontroller [06](06-teknik-mimari.md) §15'tedir; bu bölüm **takvimi ve 
 | **Olay müdahale tatbikatı (runbook)** | Çeyreklik; her yeni nöbetçi için bir kez | RB-1…RB-8'den biri, staging'de kaos senaryosu ([06](06-teknik-mimari.md) §16.3) | Teknik lider | İlk duyuru ≤ 15 dk; runbook boşlukları kapatıldı |
 | **Güvenlik farkındalığı** | İşe girişte + yılda bir | Oltalama, paylaşılan tablet, KVKK gizlilik taahhüdü ([08](08-mevzuat-kvkk-odeme-fatura.md) §7.4) | Kurucu-İş | Tüm ekip tamamladı |
 | **`security.txt` ve sorumlu bildirim** | Sürekli, çeyreklik kontrol | Bildirim adresi, yanıt süresi (≤ 3 iş günü [T]) | Teknik lider | Güncel |
+| **İş sürekliliği masa başı tatbikatı** | İlki ticari lansmandan önce [T], sonra yılda bir (KVKK ihlal tatbikatıyla aynı gün yapılabilir) | §10.1 senaryoları: kurucuya ulaşılamaması, alan adı kaybı, Meta portföyü yöneticisinin kilitlenmesi, barındırma kesintisi, banka hesabının bloke olması | Kurucu-İş + Teknik lider | Her senaryoda kritik hesaba ikinci yöneticiyle ≤ 4 sa'te erişildi [T]; boşluklar aksiyona dönüştü |
+
+### 10.1 İş sürekliliği ve sigorta **[Faz 1–2]**
+
+Amaç: tek bir kişinin, hesabın ya da tedarikçinin kaybı işi durdurmasın (R37, R42). Teknik felaket kurtarma [06](06-teknik-mimari.md) §13.5–13.6'dadır; bu bölüm hesapları, kişileri, sigortayı ve tedarikçiden çıkışı kapsar.
+
+**Kritik hesap envanteri.** Envanterin kendisi parola yöneticisinde tutulur ([09](09-yol-haritasi-ve-sprint-plani.md) §9.6); hesap adları, kullanıcı adları ve kurtarma bilgileri bu dokümana yazılmaz.
+
+| Hesap | Neden kritik | Yöneticiler (≥ 2, farklı kişiler) | İkinci faktör | Ek koruma | Faz |
+|---|---|---|---|---|---|
+| Meta Business portföyü (platform WABA, Meta App, Tech Provider kaydı) | Platform WABA'sı alarm zincirinin 2. dakika basamağını ve destek hattını taşır; App kaybı tüm işletmeleri etkiler (R06) | KUR + TL ([09](09-yol-haritasi-ve-sprint-plani.md) F0-M01) | Donanım anahtarı (desteklenmiyorsa TOTP) | App Secret secret manager'da; yöneticiler kurumsal e-postalı hesaplarla eklenir | **[Faz 1]** |
+| Alan adı kayıt kuruluşu | Ana alan adı, tüm `{slug}` alt alan adları, e-posta ve `hooks.` webhook adresi buna bağlı | KUR + TL | Donanım anahtarı | Kayıt kuruluşu kilidi, otomatik yenileme + ikinci ödeme yöntemi, bitişten önce takvim hatırlatması; savunma alan adları ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §2.5) | **[Faz 1]** |
+| Cloudflare | DNS, TLS, WAF, R2 ürün görselleri, Turnstile | TL + KUR | Donanım anahtarı | API token'ları kapsamlı ve süreli; DNS bölgesi düzenli dışa aktarılır (RB-9) | **[Faz 1]** |
+| GitHub organizasyonu | Kod, CI, sürüm | TL + FE (sahip rolü 2 kişide) | Donanım anahtarı | Korumalı `main`; depo aynası ikinci konumda [T] | **[Faz 1]** |
+| Banka (internet bankacılığı) | Maaşlar, tedarikçi ödemeleri, abonelik tahsilatının yattığı hesap | KUR + ikinci imza yetkilisi | Bankanın onay yöntemi | İmza sirkülerinde en az 2 yetkili; ödeme limitleri | **[Faz 1]** |
+| SMS sağlayıcı | SMS OTP yedeği ve 5. dakika alarm SMS'i | TL + KUR | TOTP | Onaylı başlık; ikinci sağlayıcıda hazır hesap (RB-11) | **[Faz 1]** |
+| Barındırma sağlayıcısı (TR) | Prod, yedekler, ikinci ingress VPS'i | TL + KUR | Donanım anahtarı (destekleniyorsa) | Altyapı kod olarak; yedekler ikinci TR lokasyonunda; DPA imzalı (R38) | **[Faz 1]** |
+| Kurumsal e-posta | Diğer hesapların kurtarma adresi | KUR + TL | Donanım anahtarı | Kurtarma adresi kişisel e-posta değildir; SPF/DKIM/DMARC ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §2.5) | **[Faz 1]** |
+| Parola yöneticisi ve secret manager | Diğer tüm hesapların anahtarı | KUR + TL | Donanım anahtarı | Acil erişim prosedürü yazılı; KEK ayrı tutulur ([06](06-teknik-mimari.md) §15.2) | **[Faz 1]** |
+| PSP, Paraşüt, uygulama mağazası geliştirici hesabı | Abonelik tahsilatı, e-fatura, Android uygulaması | KUR + `finance` / TL | TOTP | Aylık erişim gözden geçirmesine dahil | **[Faz 2]** |
+
+**Kurallar:**
+- Her kritik hesapta en az 2 yönetici vardır ve bunlar farklı kişilerdir; paylaşılan ortak yönetici hesabı kullanılmaz. Her yöneticinin donanım anahtarı (FIDO2) ve yedek anahtarı vardır [T].
+- **Kurtarma kodları** kâğıda basılır, mühürlü zarfta şirket kasasında (ya da banka kasasında) tutulur. Zarf açılınca olay kaydı yazılır ve kodlar yenilenir. Dijital kopya yalnız parola yöneticisinin kısıtlı kasasındadır.
+- Bu envanter §10'daki aylık "Platform erişim gözden geçirme" kapsamındadır.
+
+**Kurucu iş göremezliği:**
+- Her kurucu için şirket işlemleri, banka, Meta ve alan adı yönetimini kapsayan noter onaylı vekâletname diğer kurucuya ya da güvenilir bir kişiye verilir; kapsamı avukatla belirlenir (teyit edilmeli).
+- Banka imza yetkisi en az iki kişidedir; tek kurucuya ulaşılamaması ödemeleri durdurmaz.
+- Pay sahipleri sözleşmesi ölüm, iş göremezlik ve uzun süreli ulaşılamama hallerini düzenler ([11](11-finansal-model-ve-finansman.md) §9.3 "Kilitlenme ve çıkış").
+- Teknik bilgi tek kişide kalmaz: runbook'lar (§6.6), ADR'ler ([09](09-yol-haritasi-ve-sprint-plani.md) §9.6) ve en az 2 kişideki prod erişimi (R37, [06](06-teknik-mimari.md) §15.2).
+
+**Sigorta:**
+- **Siber sigorta** (veri ihlali müdahalesi, adli bilişim, bildirim masrafları, işletme kesintisi, üçüncü taraf talepleri) ve **mesleki sorumluluk (hata ve ihmal) sigortası** (kesinti sonrası tazminat talepleri, R33) için ticari lansmandan önce en az 2–3 teklif alınır ([09](09-yol-haritasi-ve-sprint-plani.md) §10.3, §11.2). Tutar kaynaklarda yoktur, teklifle belirlenir.
+- KVKK idari para cezalarının sigortalanabilirliği ve teminat kapsamı avukat ve sigorta aracısıyla teyit edilmeli. Poliçe limitleri dış SLA'daki sorumluluk sınırıyla (§7.5) uyumlu seçilir.
+
+**Tedarikçiden çıkış planları:**
+
+| Tedarikçi | Kilitlenme riski | Çıkış yolu | Hazırlık | Bağlı risk |
+|---|---|---|---|---|
+| Meta (Cloud API) | Tek hata noktası | Türk Solution Partner üzerinden taşıyıcı değişimi (`WaTransport`, Plan B); arada WhatsApp'sız mod | İmzalı ön anlaşma, `partner_<ad>` adaptörü ([09](09-yol-haritasi-ve-sprint-plani.md) §2.5) | R06 |
+| Barındırma (TR) | Fiyat, kalite, kesinti | Başka bir TR sağlayıcıya taşıma: Compose ve altyapı kod olarak, PITR yedeğinden geri yükleme | Yedekler ikinci TR lokasyonunda; yılda 2 tam DR tatbikatı (§10) | R38, R14 |
+| SMS sağlayıcı | Başlık onayı, arıza | İkinci sağlayıcıda hazır hesap ve onaylı başlık | RB-11 | R23 |
+| Cloudflare | Kesinti, hesap kilidi | DNS-only moda geçiş; DNS bölgesini başka sağlayıcıya aktarma | DNS dışa aktarımı, origin TLS (RB-9) | R14, R15 |
+| E-posta sağlayıcısı | Hesap kilidi | Alan adı bizde olduğu için MX kaydı değişikliğiyle taşıma | Posta arşivinin düzenli dışa aktarımı [T] | R42 |
+| PSP **[Faz 2]** | Hesap blokesi, fiyat | İkinci PSP; havale/EFT yedeği. Kart saklama token'larının taşınabilirliği teyit edilmeli | Sözleşmede veri taşıma maddesi | R27 |
+| Paraşüt **[Faz 2]** | API sınırı, fiyat | Özel entegratöre geçiş (Nilvera, QNB eSolutions, Uyumsoft; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9) | Fatura verisi bizde de tutulur | R27 |
+| Google Maps | Kota ve fiyat | Self-host Photon/OSRM ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10) | 300+ işletme tetiği ([09](09-yol-haritasi-ve-sprint-plani.md) F3-12) | — |
+| Anthropic **[Faz 2]** | Fiyat, erişim, m.9 dayanağı | `llm_parsing` kill-switch'i ile Akış C durur, Akış A/B etkilenmez; model değişimi | Türkçe eval setiyle model karşılaştırması | R34 |
+| GitHub | Hesap kilidi | Depo aynasından başka bir platformda CI | Düzenli ayna/yedek [T] | R42 |
+
+**Yıllık masa başı tatbikatı:** Takvim ve başarı ölçütü §10 tablosundadır. Senaryolar: (1) bir kurucuya 2 hafta ulaşılamıyor; (2) alan adının süresi doldu ya da kayıt kuruluşu hesabı ele geçirildi; (3) Meta portföyünün aktif yöneticilerinden birinin hesabı kilitlendi; (4) barındırma sağlayıcısı 24 saat kesintide; (5) şirket banka hesabı bloke. Bulunan her boşluk sahibi ve tarihiyle aksiyona dönüşür, R42 yeniden puanlanır.
 
 ---
 
@@ -1064,3 +1164,7 @@ Teknik kontroller [06](06-teknik-mimari.md) §15'tedir; bu bölüm **takvimi ve 
 | 20 | **WhatsApp'sız modda Akış B yedeği.** | **Kapandı:** [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7: SMS OTP yedeği **Faz 1** ("WhatsApp'sız mod"); bu doküman (§1, R06, R23, §5.5 Kapı 1, §5.8, RB-2), [01](01-vizyon-pazar-is-modeli.md) ve [06](06-teknik-mimari.md) §13.6 buna göre hizalı. SMS maliyeti adil kullanım kotasıyla izlenir (§8.6; Esnaf 100, Pro 300, Zincir şube başına 300 SMS/ay, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4). |
 | 21 | **Kill switch adları:** [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4'teki kanonik liste `signup_open`, `wa_onboarding`, `campaigns_global`, `llm_parsing`, `sms_fallback`, tenant bazında `ordering_enabled`. | Bu doküman bu adları kullanır (R34, RB-2); `platform_wa_alerts` bir `ops` bayrağıdır ([07](07-veri-modeli-ve-api.md) §3.7). [06](06-teknik-mimari.md) §16.6 de aynı kanonik listeyi kullanır; diğer anahtarlar olağan feature flag'dir. Kapandı. |
 | 22 | **Esnaf paketi ekonomisi:** karma brüt marj hedefi ≥ %70 (1.000 işletme ölçeğinde) tutarken Esnaf bu varsayımlarla %29–67'de kalıyor. | Proje sahibi kararı: [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13.11 (varsayılan: pilot verisiyle Faz 2 fiyat revizyonunda karar). Bu doküman brüt marjı paket kırılımıyla izler (§8.3) ve destek maliyeti / işletme metriğini (§8.6) karara girdi olarak raporlar. |
+| 23 | **Hipotez H15 ve deney D13** ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §8.9 önerisi). | **Kapandı:** §4.2 (H15), §4.3 (D13), §4.1 takvimi ve §4.10'daki "Tasarım kontrolü" (26 Ekim, S3 planlaması) eklendi; R05 azaltmasına bağlandı. Alarm laboratuvar testi ve "30 siparişli Cuma akşamı" provası P0 kontrol listesindedir ([09](09-yol-haritasi-ve-sprint-plani.md) §11.1). Açık kalan: SUS Türkçe çevirisi ve ISO 7731 referansı ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §13 #12, teyit edilmeli). |
+| 24 | **İş sürekliliği ve sigorta** (§10.1, R42). | Siber ve mesleki sorumluluk sigortası tutarları kaynaklarda yok; ticari lansmandan önce en az 2–3 teklif alınır. KVKK idari para cezasının sigortalanabilirliği, vekâletnamenin kapsamı ve kart saklama token'larının PSP'ler arası taşınabilirliği teyit edilmeli. R42 puanı (2 × 4) yargıdır [T], ilk tatbikattan sonra kalibre edilir. |
+| 25 | **Rekabet tepkisi oyun kitabı ve deney politikası** (§3.5, §4.11). | Eşikler ([T]: "pazaryeri aracı" kayıp nedeni > %20, asgari deney süresi, BI aracı tetikleri) pilot verisiyle kalibre edilir. §3.5'teki şirket adları örnektir; hiçbiriyle çıkış görüşmesi yapılmadı. Müşteri verisinin satış/birleşmede devri avukatla teyit edilmeli. |
+| 26 | **Analitik olay tablosu:** §4.11 son müşteri deneyleri [07](07-veri-modeli-ve-api.md) `analytics_events` tablosuna ve `POST /api/v1/store/events` uç noktasına dayanır. | **Kapandı:** [07](07-veri-modeli-ve-api.md) §3.5 ve §6'da, saklama [08](08-mevzuat-kvkk-odeme-fatura.md) §2.8 satır 20'de (90 gün, `retention.analytics`) tanımlı. Açık kalan: `sessionStorage` oturum kimliğinin rıza gerektirip gerektirmediği ([13](13-varsayim-ve-teyit-kaydi.md) V-006). |

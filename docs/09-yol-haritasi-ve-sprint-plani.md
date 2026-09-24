@@ -1,9 +1,9 @@
 # 09 — Yol Haritası ve Sprint Planı
 
 > **Amaç:** Ekibin 25 Eylül 2026 sabahından itibaren neyi, hangi sırayla ve kimin sahipliğinde yapacağını tek yerde tanımlamak. Doküman kritik yolu, karar kapılarını, sprint sprint iş listesini, pilotu, ekibi, bütçeyi ve lansman kontrol listelerini kapsar.
-> **Kapsam:** Fazlar ve takvim (Faz 0 → Faz 3), Meta kritik yolu ve Plan B tetikleri, Faz 0 görev listesi ve ilk 10 iş günü, talep doğrulama deneyi, Faz 1 MVP'nin 6 sprinti, Definition of Done ve kalite kapıları, pilot planı, Faz 2–3 epikleri, ekip ve RACI, bütçe, lansman kontrol listeleri.
+> **Kapsam:** Fazlar ve takvim (Faz 0 → Faz 3), Meta kritik yolu ve Plan B tetikleri, Faz 0 görev listesi ve ilk 10 iş günü, talep doğrulama deneyi, Faz 1 MVP'nin 6 sprinti, Definition of Done ve kalite kapıları, pilot planı, Faz 2–3 epikleri ve ölçeklenme oyun kitabı, ekip ve RACI, iş tanımları, işe alım ve iç süreçler (ADR, doküman sahipliği), bütçe, lansman kontrol listeleri. Marka, tasarım ve kullanılabilirlik görevleri [12](12-marka-tasarim-ve-kullanilabilirlik.md) §12.2'den alınmıştır.
 > **Kapsam dışı (bağlantı verilir):** Özelliklerin ayrıntılı tasarımı ([03](03-musteri-deneyimi-ve-storefront.md), [04](04-isletme-paneli.md), [05](05-admin-paneli-ve-pazarlama-sitesi.md)); WhatsApp teknik sözleşmesi ([02](02-whatsapp-entegrasyonu.md)); mimari ve test altyapısı ([06](06-teknik-mimari.md)); tablolar ve API ([07](07-veri-modeli-ve-api.md)); hukuki içerik ([08](08-mevzuat-kvkk-odeme-fatura.md)); risk matrisi, deney eşiklerinin kanonik hali, SLO/KPI ve olay yönetimi ([10](10-riskler-operasyon-ve-metrikler.md)).
-> **İlgili dokümanlar:** [00 Kararlar ve sözlük](00-kararlar-ve-sozluk.md) · [01 İş modeli](01-vizyon-pazar-is-modeli.md) · [02 WhatsApp](02-whatsapp-entegrasyonu.md) · [06 Mimari](06-teknik-mimari.md) · [07 Veri modeli](07-veri-modeli-ve-api.md) · [08 Mevzuat](08-mevzuat-kvkk-odeme-fatura.md) · [10 Riskler ve metrikler](10-riskler-operasyon-ve-metrikler.md)
+> **İlgili dokümanlar:** [00 Kararlar ve sözlük](00-kararlar-ve-sozluk.md) · [01 İş modeli](01-vizyon-pazar-is-modeli.md) · [02 WhatsApp](02-whatsapp-entegrasyonu.md) · [06 Mimari](06-teknik-mimari.md) · [07 Veri modeli](07-veri-modeli-ve-api.md) · [08 Mevzuat](08-mevzuat-kvkk-odeme-fatura.md) · [10 Riskler ve metrikler](10-riskler-operasyon-ve-metrikler.md) · [11 Finansal model](11-finansal-model-ve-finansman.md) · [12 Marka, tasarım ve kullanılabilirlik](12-marka-tasarim-ve-kullanilabilirlik.md) · [13 Varsayım ve teyit kaydı](13-varsayim-ve-teyit-kaydi.md)
 > **Kaynaklar ve atıf:** `A0N §x` = `arastirma/0N-….md` raporunun bölümü (URL'ler orada): [A01](arastirma/01-whatsapp-platform.md) WhatsApp, [A02](arastirma/02-pazar-rakipler-is-modeli.md) pazar/GTM, [A03](arastirma/03-mevzuat-odeme-fatura.md) mevzuat, [A04](arastirma/04-mimari-teknoloji.md) mimari, [A05](arastirma/05-urun-ux.md) ürün/UX backlog'u, [A06](arastirma/06-riskler-kirmizi-takim.md) riskler ve deneyler.
 > **Tarih:** 2026-09-24 · **Durum:** Taslak (1. sürüm)
 
@@ -21,7 +21,7 @@
 | FE | Geliştirici 2: panel, storefront, pazarlama sitesi | |
 | DEV3 | Geliştirici 3 (opsiyonel): admin, raporlar, test otomasyonu | Yoksa işleri TL ve FE'ye dağılır, "C" maddeler kayar |
 | AI | Claude: kod, test, doküman ve veri girişi yardımcısı | Çıktısı her zaman insan incelemesinden geçer. Prod verisi görmez |
-| MM · AV · MV · TAS | Mali müşavir · avukat · marka vekili · serbest tasarımcı | Dış hizmet |
+| MM · AV · MV · TAS | Mali müşavir · avukat · marka vekili · serbest ürün ve marka tasarımcısı (S1–S6 yarı zamanlı, [12](12-marka-tasarim-ve-kullanilabilirlik.md) §8.1) | Dış hizmet |
 
 ---
 
@@ -53,6 +53,7 @@
 | 12 Şub 2027 Cum | H20 | **K4 kesinleşme** (Dalga 3'ün, yani son dalganın 8. haftası): ticari lansman kararı kesinleşir; pilot (Hafta 10–20) biter | KUR |
 | 15 Şub 2027 Pzt | H21 | **Ticari lansman** (hedef). Kurucu üye programı açılır | KUR |
 | ≈ 8–22 Mar 2027 | H24–26 | Pilotların 3 aylık ücretsiz dönemi biter, işletmeler kurucu üye koşullarıyla ücretliye geçer | KUR, `finance` |
+| ≈ Mar 2027 (hangisi önce gelirse) | H23–26 | **İÜM — İlk ücretli müşteri kapısı** ([13](13-varsayim-ve-teyit-kaydi.md) §1.5'teki "İÜM" ile aynı ad): pilotların ücretliye geçişi (≈ 8–22 Mart 2027) **ya da** ticari lansmandan (15 Şub 2027) sonraki ilk self-servis ücretli kayıt, hangisi önce gelirse. Ön koşul: F2-01 faturalama altyapısı veya manuel fatura düzeni (F0-H16) hazır; bağlı teyitler [13](13-varsayim-ve-teyit-kaydi.md) §2.2 "İÜM" satırı (V-060–V-063: e-belge yükümlülüğü, PSP koşulları, Paraşüt, damga vergisi). **İstisna:** D6'da iade garantili ön ödeme gelirse ilk fatura H4–H8'de kesilir (F0-H16); bu durumda İÜM'ye bağlı mali teyitler o tarihe çekilir | KUR, `finance` (MM) |
 | Mar 2027 | H23–26 | SambaPOS/Adisyo entegrasyonu canlıda (GloriaFood 30 Nisan 2027'de kapanıyor, [01](01-vizyon-pazar-is-modeli.md) §8.3) | TL |
 | ≈ Haz 2027 | Ay 9 | Faz 2 sonu: ~100 işletme hedefi. Faz 3 başlar | KUR |
 | ≈ Mar 2028 | Ay 18 | Faz 3 sonu: ikinci şehir açılmış, 1.000 işletme yolunda | KUR |
@@ -92,6 +93,15 @@ gantt
     D10 pazaryeri sözleşme incelemesi          :d10, 2026-10-05, 2026-10-23
     D11 Coexistence +90 teyidi                 :d11, 2026-10-26, 2026-11-20
     D12 request_welcome testi                  :d12, 2026-09-29, 2026-10-09
+    section Tasarım ve UX (12)
+    Logo ve marka platformu (F0-D01)           :u1, 2026-09-25, 2026-10-01
+    Bağlamsal gözlem (F0-D05)                  :u2, 2026-09-28, 2026-10-16
+    Storefront prototip testi (S2-12)          :u3, 2026-10-12, 2026-10-16
+    Panel prototip testi (S2-14)               :u4, 2026-10-19, 2026-10-23
+    Tasarım kontrolü (S3 planlaması)           :milestone, u5, 2026-10-26, 0d
+    Alarm laboratuvar testi (S3-14)            :u6, 2026-10-26, 2026-11-06
+    Cuma akşamı provası (S5-14)                :milestone, u7, 2026-12-03, 0d
+    Pilotta SUS ve saha alarm testi (S6-20)    :u8, 2026-12-07, 2027-01-08
     section Ürün geliştirme
     S1 Temel ve WhatsApp borusu                :s1, 2026-09-28, 2026-10-09
     S2 Menü, storefront, App Review dilimi     :s2, 2026-10-12, 2026-10-23
@@ -160,6 +170,7 @@ gantt
     Market, şarküteri, çiçekçi dikeyleri          :c6, 2028-01-10, 2028-03-24
     section Kilometre taşları
     Ticari lansman                                :milestone, n1, 2027-02-15, 0d
+    İlk ücretli müşteri (İÜM)                     :milestone, n4, 2027-03-08, 0d
     GloriaFood kapanışı                           :milestone, n2, 2027-04-30, 0d
     Yaklaşık 100 işletme                          :milestone, n3, 2027-06-25, 0d
 ```
@@ -263,8 +274,8 @@ Plan B, pilotun bir **Türk Solution Partner** üzerinden başlatılmasıdır ([
 | F0-H02 | Mali müşavir seçimi (3 teklif) | KUR | H0 | — | Sözleşme |
 | F0-H03 | Ltd kuruluşu: unvan, adres, ana sözleşme, MERSİS, tescil, vergi levhası, imza sirküleri, faaliyet belgesi, NACE | KUR, MM | 1–2 hafta | H01, H02 | Belgeler PDF |
 | F0-H04 | Banka hesabı, e-Tebligat, e-imza, şirket kartı | KUR | H2 | H03 | IBAN, kart |
-| F0-H05 | Marka araştırması (EPATS) ve başvuru: 9, 35, 38, 42. sınıflar, kelime + logo | KUR, MV, TAS | H0–H1 | Logo taslağı | Başvuru numarası |
-| F0-H06 | Alan adları, Cloudflare DNS, kurumsal e-posta | TL | Gün 1 | H01 (isim teyidi) | `@siparisinonunde.com` |
+| F0-H05 | Marka araştırması (EPATS) ve başvuru: 9, 35, 38, 42. sınıflar, kelime + logo | KUR, MV, TAS | H0–H1 | Logo taslağı (F0-D01), tescil edilebilirlik görüşü (F0-D02) | Başvuru numarası |
+| F0-H06 | Alan adları, Cloudflare DNS, kurumsal e-posta | TL | Gün 1 | H01 (isim teyidi) | `@siparisinonunde.com` (savunma alan adları ve DMARC: F0-D03) |
 | F0-H07 | Avukat seçimi; uyum paketinin kapsamı ve takvimi (§2.3) | KUR, AV | H0–H1 | — | Sabit ücretli iş emri |
 | F0-H08 | Gizlilik politikası, kullanım koşulları, veri silme talimatı | AV | H1–H2 | H07 | Yayında URL'ler |
 | F0-H09 | Pay sahipleri sözleşmesi, fikri hak devirleri, personel gizlilik taahhütnameleri | AV, KUR | H1–H4 | H03 | İmzalı belgeler |
@@ -317,6 +328,7 @@ Plan B, pilotun bir **Türk Solution Partner** üzerinden başlatılmasıdır ([
 | F0-G07 | Pilot aday havuzu (30–40 işletme, [01](01-vizyon-pazar-is-modeli.md) §8.2) | KUR | H2–H6 | G02 | Aday listesi |
 | F0-G08 | Esnaf odası ve TÜRES şubesiyle ilk temas | KUR | H3–H4 | H01 | Toplantı notu |
 | F0-G09 | K1 problem kapısı değerlendirmesi | KUR | 16 Eki | G02, G03 | Karar notu |
+| F0-G10 | **POS ve entegrasyon ortakları görüşmeleri:** SambaPOS, Adisyo, robotPOS, Simpra ile API dokümanı, sandbox erişimi, ticari koşul ve NDA (NDA şablonu avukattan). GloriaFood'un 30.04.2027'deki kapanışı süreli bir fırsattır ([01](01-vizyon-pazar-is-modeli.md) §8.3). Entegrasyon ve iş ortaklığı stratejisi ve karar matrisi [01](01-vizyon-pazar-is-modeli.md) §8.8'dedir; adaptör katmanı [06](06-teknik-mimari.md) §4.5 | KUR (TL teknik değerlendirme) | H2–H4 (ilk görüşmeler en geç 23 Eki, H4) | H07 (NDA şablonu) | Görüşme notu + firma başına API/sandbox erişim durumu ve ticari koşul özeti → **F2-05'e girdi**; teyit [13](13-varsayim-ve-teyit-kaydi.md) V-014 (yazılı erişim hedefi 28 Ara 2026) |
 
 ### 3.5 İlk 10 iş günü: "yarın sabah ne yapıyoruz?"
 
@@ -326,7 +338,7 @@ Plan B, pilotun bir **Türk Solution Partner** üzerinden başlatılmasıdır ([
 - **TL:** Alan adlarının müsaitliği kontrol edilir ve satın alınır ([00](00-kararlar-ve-sozluk.md) §13.6). Cloudflare, kurumsal e-posta, GitHub organizasyonu, secret manager. Meta Business Portfolio ve Meta App açılır, WhatsApp ürünü eklenir ve test numarası alınır.
 - **FE + AI:** Monorepo iskeleti (pnpm + Turborepo, `apps/*`, `packages/*`), `CLAUDE.md` v0.
 - **OPS:** 25 işletmelik D1 listesi (15 paket restoranı, 5 su bayisi, 5 pastane) ve görüşme kılavuzu. Pazartesi–Çarşamba için ilk 6 randevu.
-- **TAS:** Logo brifi (marka başvurusu kelime + logo olarak yapılacak).
+- **TAS:** Logo brifi (marka başvurusu kelime + logo olarak yapılacak; F0-D01). KUR aynı gün ürün tasarımcısı sözleşmesini (F0-D04) ve marka vekilinin tescil edilebilirlik görüşünü (F0-D02) başlatır (§3.6).
 - **Gün sonu çıktısı:** Karar kaydı, alan adı, Meta App ID, randevular.
 
 **Gün 2 — Pazartesi 28 Eylül (H1, S1 başlar)**
@@ -384,6 +396,19 @@ Plan B, pilotun bir **Türk Solution Partner** üzerinden başlatılmasıdır ([
 - **KUR:** K1 için görüşme sentezinin taslağı (acı sıralaması, hacim, ödeme isteği). Pilot aday havuzu açılır.
 - **OPS:** D3'ün kalan işletmeleri için anlaşma ve başlangıç sayımı. Deney panosu hazırlanır.
 - *(Cuma 9 Ekim: 14:00 S1 demo, 15:00 retro. S2 planlaması Pazartesi 12 Ekim 09:00'da, ilk haftalık metrik toplantısı aynı gün 11:00'de.)*
+
+### 3.6 Marka, tasarım ve UX araştırması (Faz 0)
+
+Görevler [12](12-marka-tasarim-ve-kullanilabilirlik.md) §12.2'deki önerilerin birebir aktarımıdır; içerik, ölçütler ve takvim 12'dedir. Parantez içindeki bölüm numaraları 12'ye aittir. "Ö." sütunu sprintlerdeki öncelik etiketidir.
+
+| ID | Görev | Sahip | Süre | Bağımlılık | Çıktı | Ö. |
+|---|---|---|---|---|---|---|
+| F0-D01 | Marka platformu v1 + logo brifi → 3 yön → son vektör ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §2, §3.1) | KUR, TAS | Gün 1 – 1 Eki | — | Marka platformu v1; logo kaynak dosyaları (SVG, PDF, PNG) ve 1 sayfalık kullanım kılavuzu | M (F0-H05'in girdisi) |
+| F0-D02 | Marka vekili tescil edilebilirlik görüşü + yedek isim ön araştırması ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §2.4) | KUR, MV | H0–H1 | — | Yazılı görüş ve yedek isim listesi; sonuç [00](00-kararlar-ve-sozluk.md) §13.6'ya işlenir (isim kilidi H1 sonu) | M |
+| F0-D03 | Alan adı paketi: `.com.tr`, yazım hataları, yedek isimler; kayıt kuruluşu kilidi; SPF/DKIM/DMARC ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §2.5) | TL | Gün 1–2 | F0-H06'nın genişletilmesi | Kayıtlı alan adları, kilit ve otomatik yenileme açık, DMARC kaydı (`p=reject` hedefi) | S |
+| F0-D04 | Ürün tasarımcısı sözleşmesi, S1–S6 ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §8.1) | KUR | H0 | — | İmzalı sözleşme (bütçe teklifle, §10.2 satır 20) | M |
+| F0-D05 | Bağlamsal gözlem: 3–5 restoran, gürültü ölçümü, pazaryeri alarm kayıtları ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §8.3) | TAS, OPS | H1–H3 | F0-G01 | Gözlem notları, ortam gürültüsü tablosu, pazaryeri alarm kayıtları | M |
+| F0-D06 | Seviye 0 basılı şablonları: markasız, işletme logolu (BM-01…04) | TAS, OPS | H1–H2 | F0-G04 | Baskıya hazır BM-01…04 (D3 materyali, §4.3) | M |
 
 ---
 
@@ -512,6 +537,7 @@ D8 (panel dayanıklılık gözlemi) ve D9 (destek yükü) pilotta yapılır (§7
 - **İş bölümü:** TL WhatsApp, ingress, FSM, altyapı ve güvenlikten sorumludur. FE storefront, panel ve siteden sorumludur. `packages/core` (fiyat, FSM) çift inceleme ister.
 - **Ritüeller:** Sprint başındaki Pazartesi 09:00 planlama. Her gün 09:30'da 15 dakikalık stand-up. Her Pazartesi 11:00 haftalık metrik ve iş kolu toplantısı (45 dk; Faz 0'da deney, Meta ve hukuk durumu da burada; [10](10-riskler-operasyon-ve-metrikler.md) §9.3). Çarşamba 16:00 backlog incelemesi (KUR + TL, 30 dk). Sprint sonu Cuma 14:00 demo (staging'de, gerçek telefonla; pilot döneminde bir pilot işletme video ile katılır), 15:00 retro. Pilotta her Cuma 16:00 hafta sonu hazırlığı ve her gün 10 dakikalık kurucu toplantısı yapılır (10 §9.2).
 - **Takip:** GitHub Projects. Hikâye kimlikleri bu dokümandakilerdir (S1-01…). Epikler A05 §9'daki E1–E12'dir; **E0** (platform ve altyapı) bu dokümanın eklemesidir. Ekran ve mesaj kimlikleri plan dokümanlarındandır: storefront ve mesajlar [03](03-musteri-deneyimi-ve-storefront.md) (S-xx, Mxx), panel ve kurye [04](04-isletme-paneli.md) (P-xx, K-xx), admin [05](05-admin-paneli-ve-pazarlama-sitesi.md) (A-xx).
+- **Tasarım ve UX işleri ([12](12-marka-tasarim-ve-kullanilabilirlik.md)):** Sprint tablolarındaki **UX** epiği (S1-11, S2-12…S2-14, S3-13…S3-15, S4-14, S5-14, S5-15, S6-19, S6-20) E0 gibi bu dokümanın eklemesidir; görev tanımları [12](12-marka-tasarim-ve-kullanilabilirlik.md) §12.2'den birebir alınmıştır, sahipler hikâye metninde parantez içindedir. Bu işlerin çoğu TAS, OPS ve KUR kapasitesindedir. **Kapasite kontrolü [T]:** geliştiricilere (TL, FE) düşen ek yük sprint başına yaklaşık S1 ≈ 1, S2 ≈ 2–3 (S2-13, S2-12 bulgularının uygulanması), S3 ≈ 2–3 (Storybook hikâyeleri, görsel regresyon kapısı, P-19 "Dinle" düğmeleri), S4 ≈ 1 (ekran kayıtları), S5 ≈ 2 (prova hazırlığı, EG-03 yoklaması), S6 ≈ 1 geliştirici-günüdür. S2, S3 ve S5 zaten ~%80 planlı kapasitede olduğundan bu işlerin kayabilecek kısımları §5.9'daki tasarım kesme notundadır; P0 maddesi olan alarm laboratuvar testi (S3-14) ve "Cuma akşamı" provası (S5-14) kesilmez.
 
 ### 5.3 S1 — Temel ve WhatsApp borusu (H1–H2 · 28 Eyl – 9 Eki)
 
@@ -529,6 +555,7 @@ D8 (panel dayanıklılık gözlemi) ve D9 (destek yükü) pilotta yapılır (§7
 | S1-08 | E2 → D12 `request_welcome` testi ([00](00-kararlar-ve-sozluk.md) §7, [10](10-riskler-operasyon-ve-metrikler.md) §4.9) | Türkiye (+90) numarasıyla W1–W5 senaryoları koşulur. En az 4'ünde olay gelir ve serbest yanıt teslim edilirse karşılama `request_welcome` ile tetiklenir; değilse yalnız ilk mesajla. Sonuç [02](02-whatsapp-entegrasyonu.md) §6.3'e işlenir | M |
 | S1-09 | E0 → Gözlemlenebilirlik v0 | Sentry (PII scrub), Pino JSON log (telefon maskeli), harici uptime kontrolü | S |
 | S1-10 | E0 → PITR v0 | pgBackRest WAL arşivi çalışıyor; staging'de ilk geri yükleme denemesi | S |
+| S1-11 | UX → Token v1, `packages/ui` teması (shadcn eşlemesi, açık/koyu), Storybook iskeleti (FE, TAS; bağımlılık F0-T03) | [12](12-marka-tasarim-ve-kullanilabilirlik.md) §4.2–4.3 token'ları kodda; uygulama kodunda ham renk ve ham piksel boşluk yok; Storybook ayağa kalkar ve axe eklentisi çalışır | S |
 
 **Teknik işler:** Stack kararının kaydı; `CLAUDE.md` v1; `packages/core` ve `contracts` (Zod) iskeleti; secret manager; rate card konfigürasyon tablosu; `cloudflared` tüneli; Conventional Commits ve PR şablonu ("tenant/RLS etkisi", "migration geriye uyumlu mu" kutuları).
 **Demo:** Telefondan test numarasına "Merhaba" yazılır → kayıt staging DB'de görünür → otomatik yanıt gelir. İki tenant ile RLS gösterilir: B'nin oturumu A'nın şubesini 404 olarak görür.
@@ -551,6 +578,9 @@ D8 (panel dayanıklılık gözlemi) ve D9 (destek yükü) pilotta yapılır (§7
 | S2-09 | E2 → Outbox, `wa-outbound` worker, numara ve alıcı limiter'ı | Transaction içinde ağ çağrısı yok. Aynı iş iki kez çalışınca tek mesaj gider | M |
 | S2-10 | E11 → Feature flag ve kill switch (A-13) | Yalnız kanonik kill-switch listesi ([00](00-kararlar-ve-sozluk.md) §4) seed'lenir: `signup_open`, `wa_onboarding`, `campaigns_global`, `llm_parsing`, `sms_fallback` ve tenant bazında `ordering_enabled` (`tenants.ordering_enabled`). `campaigns_global` ve `llm_parsing` Faz 2 modüllerini korur, anahtarları Faz 1'den vardır ([07](07-veri-modeli-ve-api.md) §3.7). Diğer anahtarlar `ops` flag'idir. Değişiklik gerekçeli, tüm süreçlerde ≤ 60 sn'de etkili olur ve `audit_log`'a (`killswitch.toggle`) yazılır | M |
 | S2-11 | E4 → Menü önizleme (P-15) | Storefront görünümü panelden açılır | C |
+| S2-12 | UX → Storefront prototip testi (8 son müşteri, MT-01…07) + bulguların S2'ye uygulanması (TAS, FE; H3; bağımlılık: prototip H2) | [12](12-marka-tasarim-ve-kullanilabilirlik.md) §8.5 ölçütleri: sipariş < 3 dk (medyan), 8 kişiden ≥ 7'si yardımsız, kritik hata 0, SUS ≥ 70; derece 3–4 bulgular ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §8.7) kapanmadan ilgili ekran "hazır" sayılmaz | M |
+| S2-13 | UX → Storefront tema kuralı `brandPalette()` + P-26 "Ana renk" alanı ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §5.1) (FE; bağımlılık S2-04) | [12](12-marka-tasarim-ve-kullanilabilirlik.md) §5.1 kabul kriterleri: 200 rastgele renkle özellik tabanlı test eşikleri sağlar; storefront'ta axe kontrast ihlali 0; renk değişikliği 10 sn içinde yansır | M |
+| S2-14 | UX → Panel prototip testi (5 kasiyer, PT-01…08) + ses ayırt etme testi (TAS, KUR; H4; bağımlılık: panel prototipi H3) | [12](12-marka-tasarim-ve-kullanilabilirlik.md) §8.5: alarm → onay < 10 sn (medyan), hiçbir katılımcı > 15 sn değil; SUS ≥ 70; ses ayırt etme ≥ %90. Bulgular 26 Ekim S3 planlamasına ("Tasarım kontrolü", [10](10-riskler-operasyon-ve-metrikler.md) §4.10) girer | M |
 
 **Teknik işler:** Next.js 16 `proxy.ts`; `images` kuyruğu (EXIF temizleme, varyantlar); R2; App Review videoları için test kullanıcısı ve inceleyici notları (İngilizce).
 **Demo:** App Review senaryolarının ([02](02-whatsapp-entegrasyonu.md) §2.4) kesintisiz kuru provası. Menüden seçenekli ürünle sepet ve doğru toplam.
@@ -574,6 +604,9 @@ D8 (panel dayanıklılık gözlemi) ve D9 (destek yükü) pilotta yapılır (§7
 | S3-10 | E3 → İşletme yanıtsızlığında sistem iptali ([00](00-kararlar-ve-sozluk.md) §5, §10) | Yanıtsız kalan `new` sipariş varsayılan 15 dk'da (işletme ayarı 10–30 dk; ayar ekranı S5-06) `cancelled` olur (`cancelled_by = system`, `tenant_no_response`) ve müşteriye özür + telefon bilgisi gider; "otomatik reddet" yoktur; bekleyen reddi olan siparişe uygulanmaz; sahte saatle test edilir | M |
 | S3-11 | E3 → Sipariş geçmişi ve arama (P-07) | Sipariş no, isim, telefonun son 4 hanesiyle arama | C |
 | S3-12 | E3 → Ret ve 30 sn "bekleyen ret" ([00](00-kararlar-ve-sozluk.md) §7) | `rejection_reason` zorunlu (`closed`, `out_of_zone`, `item_unavailable`, `too_busy`, `duplicate`, `suspected_fake`, `other` + not). Ret ayrı durum değildir: `orders.rejection_scheduled_at` dolar, iptal edilebilir gecikmeli iş kurulur; 30 sn içinde "Geri al" basılmazsa sipariş `rejected` olur ve müşteri mesajı gider. `rejected→new` geçişi yoktur | M |
+| S3-13 | UX → Bileşen seti v1 (UI-01…15) + Storybook hikâyeleri + görsel regresyon CI kapısı (FE, TAS; bağımlılık S1-11) | Her bileşenin tüm durumları × iki tema × gerçek Türkçe metin hikâyesi var ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §4.4); durum rozeti fg/bg çiftlerinde kontrast ≥ 4,5:1; görsel regresyon kapısı §6.3'te çalışıyor | M |
+| S3-14 | UX → Alarm ses seti SES-01…10 + P-19 "Dinle" düğmeleri + laboratuvar duyulabilirlik testi ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §6.4 adım 2) (TAS, TL; bağımlılık F0-D05) | Alarm personel konumunda ortam gürültüsünün ≥ 10 dB üstünde (1, 3 ve 5 m); toplam ses dosyası < 150 KB, PWA önbelleğinde; sonuç P0 kontrol listesine yazılır (§11.1) | M |
+| S3-15 | UX → Fiziksel test cihaz parkı + elle keşif listesi v1 (EK-01…14) (TL, OPS; bağımlılık: bütçe onayı, §10.2 satır 21) | [12](12-marka-tasarim-ve-kullanilabilirlik.md) §9.2 cihazları temin edildi; EK-01…14 bir sürümde koşuldu ve sonuç sürüm notuna yazıldı | S |
 
 **Paralel iş:** App Review başvurusu (TL, 27 Ekim). İnceleyiciden soru gelirse aynı gün yanıtlanır. D11 başlar (ES minimal S2'de hazır).
 **Demo:** Storefront siparişi → tablette ses → "Onayla · 30 dk" → Hazır → Teslim. Telefon siparişi. SSE bağlantısını koparıp geri verme. İki tablette onay yarışı.
@@ -598,6 +631,7 @@ D8 (panel dayanıklılık gözlemi) ve D9 (destek yükü) pilotta yapılır (§7
 | S4-11 | E11 → Kuyruklar ve DLQ (A-11), WhatsApp sağlık tablosu (A-06) | DLQ'daki iş yeniden oynatılabilir. Kırmızı tenant'lar listenin üstünde | S |
 | S4-12 | E3 → Müşteri iptali ve iptal talebi (M27a/b, M12b; [04](04-isletme-paneli.md) §4.9) | `new`'de müşteri doğrudan iptal eder (`cancelled_by = customer`, `customer_request`). `accepted` ve sonrasında yalnız iptal talebi açılır (`cancellation_requests`; kartta rozet + ses); işletme onaylarsa yine `cancelled_by = customer`, `customer_request` yazılır ve onaylayan personel `audit_log`'a kaydedilir ([00](00-kararlar-ve-sozluk.md) §7) | M |
 | S4-13 | E0 → Prod ortamı Türkiye'de | F0-H11'de seçilen yurt içi sağlayıcıda ana sunucu (Compose), WAL ve yedekler ikinci TR lokasyonunda; kişisel veri (PostgreSQL, yedekler, müşteri medyası) yurt dışına çıkmaz, ürün görselleri R2'de olabilir ([00](00-kararlar-ve-sozluk.md) §10, [06](06-teknik-mimari.md) §13.1, §13.3). Prod smoke testi `sandbox` tenant'ıyla yeşil | M |
+| S4-14 | UX → EG-06 (Meta kart videosu), EG-11; makale 5–8 (OPS, FE; bağımlılık S4-05, S4-06) | [12](12-marka-tasarim-ve-kullanilabilirlik.md) §10.1 biçim kuralları: video ≤ 2 dk ve altyazılı, kendi CDN'imizde, kurgusal veri; makaleler [10](10-riskler-operasyon-ve-metrikler.md) §5.4 #5–#8 ile birebir; panelde ilgili ekranın "?" düğmesinden açılır | S |
 
 **Paralel iş:** D11 Coexistence senaryoları (C1–C9) ve D7 işletme tarafı (3 dost işletme, tester rolü). **K2 ve K3 toplantısı** demo ile aynı gün (20 Kasım).
 **Demo:** Gerçek telefondan "Merhaba" → karşılama ve "Menüyü aç" → storefront'ta sepet → panelde ses → Onayla → müşterinin telefonuna "Onaylandı" ve takip linki gelir. Esnaf telefondan yazınca bot susar.
@@ -622,6 +656,8 @@ D8 (panel dayanıklılık gözlemi) ve D9 (destek yükü) pilotta yapılır (§7
 | S5-11 | E11 → KVKK talep aracı (A-17) ve manuel prosedür | Dışa aktarma ve anonimleştirme audit'li yapılır. Başvuru 30 gün içinde yanıtlanır | M |
 | S5-12 | E4 → AI menü çıkarma iç aracı (A-22) | Fotoğraf veya PDF'ten taslak tablo çıkar. İnsan onayı olmadan yayına çıkmaz | S |
 | S5-13 | E2 → Plan B adaptörü `partner_<ad>` | Yalnız T3 tetiklendiyse "M" olur | koşullu |
+| S5-14 | UX → **"30 siparişli Cuma akşamı" provası** (3 Ara; kuru prova 27 Kas) + UAT senaryoları ve imza formu ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §9.4–9.5) (OPS, TL; bağımlılık S5-01…S5-10) | [12](12-marka-tasarim-ve-kullanilabilirlik.md) §9.5 geçme ölçütleri: kaçan sipariş 0; webhook→panel p95 < 3 sn; sipariş başına durum mesajı ≤ 4 (+ Akış A karşılaması); 2 dk uyarısı ± 15 sn; 30 fişin tamamı basıldı; onay medyanı < 60 sn; açık P1/P2 hata yok. UAT-01…12 ve imza formu Dalga 1 için hazır | M (P0 maddesi) |
+| S5-15 | UX → P0 eğitim paketi: EG-02, EG-03 v1, EG-04, EG-07, EG-10 (OPS, TAS; bağımlılık S3-13) | Kasa kartı, 3 dk kasiyer videosu + panel içi 5 soruluk yoklama (geçme ≥ 4/5), 3 × 30 sn mikro video, son müşteri içeriği ve kurulum kiti hazır ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §10.1) | M |
 
 **Paralel iş:** Son müşteri hukuk seti storefront'ta yayında (S-10). Runbook'lar ([10](10-riskler-operasyon-ve-metrikler.md) §6.6) ve her nöbetçi için bir runbook tatbikatı. Pilot Dalga 1 kurulumu (H10, flag kapalı).
 **Demo = P0 kapısı (4 Aralık):** §11.1 kontrol listesi madde madde gözden geçirilir.
@@ -651,6 +687,8 @@ D8 (panel dayanıklılık gözlemi) ve D9 (destek yükü) pilotta yapılır (§7
 | S6-16 | E4 → Excel içe/dışa aktarma temel (P-14) | Şablon indir, yükle, önizle, hatalı satırı düzelt | C |
 | S6-17 | E9 → Pazaryeri sipariş beyanı ve aylık değer raporu | Ay başında panelde "Geçen ay pazaryerinden kaç sipariş aldınız?" kartı (`marketplace_declarations`; kanal payının, yani pilot metriği P2'nin paydası). `report-monthly-value` işi her ayın 1'inde `tenant_value_reports` üretir (kanal siparişi, tahmini komisyon tasarrufu, tekrar eden müşteri, ortalama onay süresi; panel + e-posta; test siparişleri ve `manual` kanalı hariç; [06](06-teknik-mimari.md) §8.5, [10](10-riskler-operasyon-ve-metrikler.md) §5.6). İlk rapor 1 Ocak 2027'de Dalga 1–2'ye gider | M |
 | S6-18 | E11 → Tenant sağlık skoru (A-03 listesi) | `tenant-health-score` işi her gün 06:00'a kadar `tenant_health_scores` üretir (0–100; yeşil/sarı/kırmızı; kanal siparişi eğilimi, panel kullanımı, operasyon kalitesi, WhatsApp sağlığı, destek sinyali, ticari durum). Kırmızıya düşüşte `admin_tasks` açılır ([07](07-veri-modeli-ve-api.md) §3.7, [10](10-riskler-operasyon-ve-metrikler.md) §5.6). Pilot panosunda görünür | S |
+| S6-19 | UX → Makale 9, 12, 13, 15, 17, 18; EG-05, EG-08, EG-09; P-36'ya BM şablonları (OPS, FE, TAS; bağımlılık S6-06) | [10](10-riskler-operasyon-ve-metrikler.md) §5.4'teki 18 makalenin tamamı panelde; P-36 BM-01…04 düzenini işletme logosuyla üretir, platform adı basılıda yer almaz ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §5.3, §7) | S |
+| S6-20 | UX → Pilotta yerinde SUS + saha alarm testi ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §6.4 adım 4, §8.8) (TAS, OPS; H11–H14; bağımlılık Dalga 1) | Saha alarm testinde 10 tetiğin ≥ 9'u 10 sn içinde fark edilir; her dalganın 2. haftasında yerinde SUS alınır; sonuç D13 olarak [10](10-riskler-operasyon-ve-metrikler.md) §4.3'e işlenir. Saha testi < 9/10 ise F2-07 öne çekilir | S |
 
 **Demo:** Faz 1'in kapanışı. Uçtan uca: WhatsApp → storefront → panel → kurye → teslim → değerlendirme → rapor. Pilotlardan ilk veriler gösterilir.
 **Riskler:** Pilot desteği kapasiteyi yer (%30 tampon). "S" ve "C" maddeler H13'e veya S7'ye kayar (§5.9).
@@ -659,7 +697,8 @@ D8 (panel dayanıklılık gözlemi) ve D9 (destek yükü) pilotta yapılır (§7
 
 - **H13 (21–25 Ara):** Dalga 3 canlıya geçer. Pilotun ilk iki haftasındaki hatalar ve S6'dan kayan "S" maddeler kapatılır. Yeni özellik başlatılmaz.
 - **Kesme sırası** (kapasite yetmezse veya K2 "KOŞULLU GO" çıkarsa): (1) S6-14, S6-15, S6-16, S3-11, S2-11 → Faz 2; (2) S6-12 sihirbaz → S9 (self-servis onboarding ile birlikte); S6-18 sağlık skoru → H13 (o zamana kadar pilot panosunda elle izlenir); (3) S6-11 toplu fiyat ve S6-13 → S7; (4) S6-07 site (Faz 1 kapsamı) → tek sayfa + hesaplayıcı + yasal sayfalarda kalınır; (5) S6-01 kurye görünümü → Faz 2 başı (A05 §4.2.4: "kesilirse 2"); [00](00-kararlar-ve-sozluk.md) §11 basit kurye görünümünü Faz 1'e koyduğu için bu adım uygulanmadan önce 00 güncellenir.
-- **Asla kesilmeyenler:** Sipariş kaçmaz paketi (S5-06…S5-10), SMS OTP yedeği ve WhatsApp'sız mod (S5-02), kill-switch'ler (S2-10), hukuk onay adımı ve belgeleri, tenant yalıtımı, KVKK talep aracı ve saklama işleri (S6-09), şablon promosyon kontrolü, pazaryeri sipariş beyanı (S6-17; P2 ölçümü buna bağlı).
+- **Tasarım ve UX işleri için kesme notu** (kapasite yetmezse, yukarıdaki (1) adımıyla birlikte uygulanır): S2-13'ün serbest renk seçicisi ve logodan renk önerisi → S6 (pilot, [12](12-marka-tasarim-ve-kullanilabilirlik.md) §5.1'deki 12 hazır ve önceden doğrulanmış renkle yapılır); S3-13'ün görsel regresyon CI kapısı → H13 (bileşen seti v1 ve Storybook hikâyeleri S3'te kalır); S3-15 cihaz parkının P0'da gerekmeyen cihazları (Sunmi, eski iPad) → H13; S6-19 makaleleri → H13; S4-14 makaleleri S5'e kayabilir, ancak EG-06 (Meta kart videosu) Dalga 1 kurulumundan önce hazır olur. S1-11 gecikirse S3-13 ile birleştirilir.
+- **Asla kesilmeyenler:** Sipariş kaçmaz paketi (S5-06…S5-10), SMS OTP yedeği ve WhatsApp'sız mod (S5-02), kill-switch'ler (S2-10), hukuk onay adımı ve belgeleri, tenant yalıtımı, KVKK talep aracı ve saklama işleri (S6-09), şablon promosyon kontrolü, pazaryeri sipariş beyanı (S6-17; P2 ölçümü buna bağlı), alarm laboratuvar testi (S3-14'ün [12](12-marka-tasarim-ve-kullanilabilirlik.md) §6.4 adım 2 kısmı) ve "30 siparişli Cuma akşamı" provası (S5-14); son ikisi P0 maddesidir (§11.1).
 
 ---
 
@@ -680,7 +719,7 @@ Hikâyenin kabul kriteri, faz etiketi ve ilgili doküman bağlantısı yazılmı
 - [ ] **Performans:** Storefront bütçesi korunur (LCP ≤ 2,5 sn, ilk JS ≤ 120 KB gzip, Lighthouse mobil ≥ 90; [06](06-teknik-mimari.md) §12). Webhook→panel p95 < 3 sn'de gerileme yok.
 - [ ] **Gözlemlenebilirlik:** Yeni kritik yolun metriği, alarmı ve runbook bağlantısı var.
 - [ ] Riskli değişiklik feature flag arkasında. Migration expand/contract kuralına uyar ve geriye uyumlu.
-- [ ] **Doküman:** İlgili plan dokümanı (00–10) güncellendi veya "değişiklik yok" notu düşüldü. OpenAPI (`contracts`) yeniden üretildi. Sürüm notu yazıldı.
+- [ ] **Doküman:** İlgili plan dokümanı (00–13) güncellendi veya "değişiklik yok" notu düşüldü. OpenAPI (`contracts`) yeniden üretildi. Sürüm notu yazıldı. PR şablonundaki **"Yardım içeriği etkisi"** kutusu işaretlendi: bağlı ekranın metni, buton yeri veya akışı değiştiyse etkilenen yardım içeriği aynı sürümde metin olarak, en geç bir sonraki sprintte video olarak güncellenir ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §10.4). Karar değiştiren PR'da ADR yazıldı (§9.6).
 - [ ] **Türkçe metin:** Mikro metin sözlüğüne uygun. Müşteri mesajlarında promosyon yok. Buton başlıkları ≤ 20 karakter (teyit edilmeli).
 
 ### 6.3 Kalite kapıları
@@ -695,6 +734,7 @@ Hikâyenin kabul kriteri, faz etiketi ve ilgili doküman bağlantısı yazılmı
 | Webhook replay | WhatsApp kodu değişen PR | İmzalı fixture kütüphanesi | Yeşil | Evet |
 | E2E | `main` öncesi | Playwright (3G profili dahil) | İlgili akışlar yeşil | Evet |
 | Erişilebilirlik | Storefront/panel PR'ı | axe | 0 ciddi ihlal | Evet |
+| Görsel regresyon | `packages/ui`'a dokunan PR | Playwright `toHaveScreenshot`, Storybook hikâyeleri üzerinde; CI'da Docker ile sabit yazı tipi ve render; görüntü alanları 360×640, 800×1280, 1280×800, 1366×768 ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §4.5) | Piksel farkı > %0,1 ise görsel fark PR'da onaylanır [T]; ana aksiyon ≥ 56 px DOM ölçümüyle | Evet (onaylanmamış görsel farkla birleştirme yok) |
 | Performans | PR | Lighthouse CI | Aşım uyarı verir; 2 sürüm üst üste aşılırsa engeller | Kısmen |
 | Bağımlılık ve sır taraması | PR + gecelik | OSV / `pnpm audit`, gitleaks, Trivy | Yüksek önemli bulgu yok | Evet |
 | DAST | Gecelik (staging) | OWASP ZAP baseline | Yüksek bulgu yok | Sürüm kapısı |
@@ -702,7 +742,7 @@ Hikâyenin kabul kriteri, faz etiketi ve ilgili doküman bağlantısı yazılmı
 | Kaos | S5 | Compose senaryoları | Kayıpsız toparlanma | P0 kapısı |
 | Geri yükleme | Haftalık otomatik, aylık elle | Script | RTO ≤ 1 sa, veri eksiksiz | P0 kapısı |
 | Staging smoke | Her deploy | `sandbox` tenant'ı | Yeşil | Prod deploy'u engeller |
-| Deploy penceresi | Prod | Deploy aracı | 11:30–14:00, 18:00–22:30 ve Cuma 17:00 sonrası deploy yok ([06](06-teknik-mimari.md) §16.2) | Evet (acil düzeltme hariç) |
+| Deploy penceresi | Prod | Deploy aracı | 11:30–14:00, 18:00–22:30 ve Cuma 17:00 sonrası deploy yok ([06](06-teknik-mimari.md) §16.2); prod'a çıkış haftalık sürüm treniyle, acil düzeltme hotfix yoluyla; panel güncellemesi yalnız açık `new` sipariş yokken ve yoğun saat dışında ya da "Vardiya başlat" anında uygulanır ([06](06-teknik-mimari.md) §16.7) | Evet (acil düzeltme hariç) |
 
 ### 6.4 Sprint ve sürüm düzeyinde DoD
 
@@ -820,7 +860,7 @@ Kanonik liste [10](10-riskler-operasyon-ve-metrikler.md) §8.7'deki **pilot baş
 | F2-02 | Harici pentest, düzeltmeler, yeniden test | Gri kutu ([06](06-teknik-mimari.md) §15.8) | M | Faz 1 kapsamı sabit; firma teklifi H10'da | [00](00-kararlar-ve-sozluk.md) §11: ticari lansmandan önce zorunlu; pre-mortem #5 | H16–H18 |
 | F2-03 | 3 sunucu topolojisi | PG primary + hot standby, Valkey replikası ([06](06-teknik-mimari.md) §13.3) | M | Barındırma sözleşmesi | %99,9 SLO ve RTO; pre-mortem #3 | S8 |
 | F2-04 | Self-servis onboarding (Faz 2) | Sihirbazın (P-38) iyileştirilmesi, AI menü çıkarma self-servis (insan onayıyla), Excel içe/dışa aktarmanın tamamı (P-14), Meta kart video rehberi, 14 gün kartsız deneme ile self-servis kayıt | M | A-22 iç aracının pilot hata verisi | CAC ≤ 4.000 TL hedefi ve destek maliyeti (R03) | S9 |
-| F2-05 | SambaPOS/Adisyo entegrasyonu + GloriaFood geçiş kampanyası | Sipariş aktarımı, entegrasyonlar ekranı (P-46), `/gloriafood-gecis` sayfası | M–L | Partnerlerin API erişimi (teyit edilmeli) | GloriaFood 30.04.2027'de kapanıyor; Pro paketine dahil ([01](01-vizyon-pazar-is-modeli.md) §6.3) | S10–S11 (Mart 2027'ye hazır) |
+| F2-05 | SambaPOS/Adisyo entegrasyonu + GloriaFood geçiş kampanyası | Sipariş aktarımı, entegrasyonlar ekranı (P-46), `/gloriafood-gecis` sayfası | M–L | Partnerlerin API erişimi (teyit edilmeli); Faz 0 görüşmelerinin sonucu (F0-G10, [13](13-varsayim-ve-teyit-kaydi.md) V-014) | GloriaFood 30.04.2027'de kapanıyor; Pro paketine dahil ([01](01-vizyon-pazar-is-modeli.md) §6.3) | S10–S11 (Mart 2027'ye hazır) |
 | F2-06 | Referans programı | Panelde davet linki, getiren ve gelene 1'er ay ücretsiz ([05](05-admin-paneli-ve-pazarlama-sitesi.md) B.6) | S | F2-01 | En ucuz edinme kanalı ([01](01-vizyon-pazar-is-modeli.md) §7.3) | S10 |
 | F2-07 | Capacitor 8 Android uygulaması | Güvenilir alarm (native bildirim kanalı), otomatik ESC/POS (USB/BT/LAN), Sunmi, raster fiş | L | Pilot cihaz ve yazıcı envanteri | R05 sipariş kaçırma; esnafın fiş ihtiyacı. **D8 PWA alarm sorunu gösterirse S10'a çekilir** | S12–S13 |
 | F2-08 | Tekrar sipariş ve sipariş esnekliği | Akış D sohbet içi "aynısından" (kanal `wa_reorder`, onay [Onayla] butonuyla → `verification_method = wa_button`; [00](00-kararlar-ve-sozluk.md) §5), otomatik kabul (kurallı, varsayılan kapalı), ileri saatli sipariş, ürün değişikliği onayı (M14), kalem düzenleme | M | Faz 1 FSM | Tekrar sipariş kanal alışkanlığı yaratır; en güçlü churn savunması | S12–S13 |
@@ -835,6 +875,8 @@ Kanonik liste [10](10-riskler-operasyon-ve-metrikler.md) §8.7'deki **pilot baş
 | F2-17 | Gelişmiş raporlar, "Verilerim" (S-11), "Siparişlerim" (S-15), kurye gün sonu | P-33'ün Faz 2 kısmı, K-04 | S–M | — | Değer raporu (churn), KVKK self-servis | Aralarda |
 | F2-18 | Pazarlama sitesi, Faz 2 genişletmesi ([05](05-admin-paneli-ve-pazarlama-sitesi.md) C.2) | Blog, yardım merkezi, durum sayfası, müşteri hikâyeleri, bayi başvurusu, referans sayfası, CMS (A-24) | M | Pilot vakaları, içerik sorumlusu | SEO ve destek yükü | Aralarda |
 | F2-19 | Güvenilir cihaz, OTP iyileştirmesi, sesli arama (IVR) alarmı değerlendirmesi | — | S | Pilot ölçümü: Akış B'deki kopma > %15 ise öne alınır | R05, dönüşüm | Koşullu |
+| F2-20 | Native alarm sesleri ve bildirim kanalı (F2-07 ile), KDS bileşenleri, üç ayda bir SUS ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §6.1, §8.8; sahip FE, TAS) | SES-01…10 dosyalarının Capacitor bildirim kanalı sesi olarak kullanılması; UI-18 (KDS kalem satırı, istasyon filtresi); panel için üç ayda bir SUS ve yeni ekran başına 5 kişilik hızlı test | S (F2-07 ve F2-15'in içinde) [T] | F2-07, F2-15 | R05 sipariş kaçırma; kullanılabilirlik ölçümünün pilottan sonra sürmesi | F2-07 ile S12–S13; KDS F2-15 ile S18–S19; SUS çeyreklik |
+| F2-21 | i18n: ICU kapsamı %100, sözde yerel ayar CI testi, yardım içeriği eşlemesi ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §10.4, §11.3; sahip FE) | Tüm UI metinleri ICU mesaj biçiminde; CI'da `tr-XA` sözde dil görüntüsü; `packages/i18n/help-map.ts` ekran ↔ yardım içeriği eşlemesi | S [T] | — | Faz 3 dillerinin (F3-16) ön koşulu; yardım içeriğinin güncel kalması | Aralarda |
 
 **Fiyat revizyonu:** Esnaf paketinin marjı mevcut varsayımlarla %29–67'dir ([00](00-kararlar-ve-sozluk.md) §12, §13.11). Pilot verisiyle fiyat ve kota revizyonu kararı K4 ön-onayında (H18) verilir, K4 kesinleşmesinde (H20) teyit edilir ve F2-01'deki paket haklarına işlenir.
 
@@ -859,6 +901,59 @@ Kanonik liste [10](10-riskler-operasyon-ve-metrikler.md) §8.7'deki **pilot baş
 | F3-13 | Uyum olgunluğu: ISO 27001, kendi İYS entegratörlüğümüz, VERBİS eşik takibi | L (organizasyon) | — | Zincir satışları |
 | F3-14 | Sektör ve şehir sayfaları (yalnız gerçek müşterisi ve içeriği olan yerler, [05](05-admin-paneli-ve-pazarlama-sitesi.md) C.2) | S–M | Vaka içerikleri | SEO |
 | F3-15 | Küçük işler: çok dilli menü, puan sistemi ve doğum günü, MM Lite değerlendirmesi, Star CloudPRNT | S (her biri) | — | Niş talepler |
+| F3-16 | EN/RU/AR/DE storefront, RTL, `product_translations` ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §11.3; sahip FE, TL). Önce storefront ve müşteri mesajları, panel Türkçe kalır; WhatsApp şablonları dil koduyla ayrı onaylanır; yabancı numaraya SMS OTP maliyeti ve limitleri [06](06-teknik-mimari.md)'da değerlendirilir. F3-15'teki "çok dilli menü" bu epikle birlikte yapılır | M [T] | F2-21 | Turistik bölgeler; ikinci şehir turistik bir ilçe içerirse öne alınır (§8.2.1) |
+
+#### 8.2.1 Ölçeklenme oyun kitabı: ikinci şehir ve dikeyler **[Faz 2–3]**
+
+İkinci şehir (F3-02) ve yeni dikeyler (F2-16, F3-11) aynı sırayla açılır: puan kartı → giriş koşulları → öncülük modeli → P1 kapsaması → dikey spesifikasyonu. GTM ilkeleri [01](01-vizyon-pazar-is-modeli.md) §8.1 ve §8.4'tedir. Karar KUR'dadır ve çeyreklik strateji gözden geçirmesinde verilir ([10](10-riskler-operasyon-ve-metrikler.md) §9.2).
+
+**1. Şehir seçim puan kartı.** [01](01-vizyon-pazar-is-modeli.md) §8.1'deki beş kriter ve ağırlıklar aynen kullanılır. Her aday şehir ya da ilçe kümesi her kriterde 1–5 puan alır; ağırlıklı toplam (en fazla 5,0) adaylar arasında karşılaştırılır. İkinci şehirde "ekibin fiziksel yakınlığı" kriteri, saha temsilcisinin veya bayinin günlük ziyaret kapasitesi olarak okunur.
+
+| Kriter ([01](01-vizyon-pazar-is-modeli.md) §8.1) | Ağırlık | İkinci şehirde ölçüm | Veri kaynağı |
+|---|---|---|---|
+| Ekibin fiziksel yakınlığı → saha/bayi erişimi | %30 | Yerel saha temsilcisi veya sertifikalı kurulum ortağı var mı; günlük ziyaret yapılabiliyor mu | Bayi başvuruları (F2-12), işe alım havuzu (§9.5) |
+| Paket servis yoğunluğu | %25 | Pazaryerinde listelenen restoran sayısı (ilçe bazında) | Pazaryeri listeleri (yöntem teyit edilmeli) |
+| Kendi kuryesi olan bağımsız esnaf yoğunluğu | %20 | Saha gözlemi ve D1 yöntemiyle kısa keşif görüşmeleri | [10](10-riskler-operasyon-ve-metrikler.md) §4.3 D1 |
+| Ulaşılabilir esnaf odası / dernek | %15 | Lokantacılar odası, TÜRES şubesi | Temas kaydı |
+| POS bayisi ve teknik servis varlığı | %10 | SambaPOS/Adisyo bayileri; F2-05 entegrasyonunun yerel karşılığı | POS ortakları (F0-G10) |
+
+**Eleme kuralları:** P1 kapsaması (madde 4) sağlanamıyorsa şehir açılmaz. Öncelik 1 segmentinin yoğunluğu ölçülemiyorsa puanlama yapılmaz. Aday turistik bir ilçe içeriyorsa çok dilli storefront (F3-16) ihtiyacı not edilir.
+
+**2. İkinci şehir giriş koşulları** (hepsi birlikte sağlanır; X ve Y öneridir [T]):
+
+| Koşul | Eşik | Dayanak |
+|---|---|---|
+| İlk şehirde aktif ödeyen işletme (X) | ≥ 100 [T] | Faz 2 sonu hedefi ~100 işletme (§1.1) |
+| Aylık logo churn, son 3 ay ortalaması (Y) | < %5 [T] | [00](00-kararlar-ve-sozluk.md) §12: ilk yıl %5–7 bandının iyi ucu |
+| Karma CAC, son 3 ay | ≤ 4.000 TL | [00](00-kararlar-ve-sozluk.md) §12 |
+| Destek teması / işletme / ay | ≤ 3 | [10](10-riskler-operasyon-ve-metrikler.md) §8.5 |
+| Sağlık skoru kırmızı işletme oranı | ≤ %10 [T] | [10](10-riskler-operasyon-ve-metrikler.md) §8.5 |
+| Sistem kaynaklı kaçan sipariş, son 3 ay | 0 | [00](00-kararlar-ve-sozluk.md) §12, [10](10-riskler-operasyon-ve-metrikler.md) §7.2 |
+| Onboarding kotası | 200/7 gün açık (F3-03) ya da Plan B partnerinin kapasitesi yazılı | [13](13-varsayim-ve-teyit-kaydi.md) V-019 |
+| Nakit pisti, ikinci şehrin maliyeti eklendikten sonra | ≥ 9 ay | [00](00-kararlar-ve-sozluk.md) §12, §10.4 |
+
+Koşullardan biri tutmazsa ikinci şehir ertelenir ve ilk şehirde yeni ilçelerle yoğunlaşma sürer.
+
+**3. Öncülük modeli**
+
+| Model | Ne zaman uygun | Artı | Eksi / risk | Ön koşul |
+|---|---|---|---|---|
+| **Saha öncülüğü** (ekipten biri ya da yerel saha temsilcisi) | Puan kartı yüksek, yerel bayi ağı zayıf | Pilot kalitesinde concierge kurulum, hızlı öğrenme | En pahalı model: saha temsilcisi ~70.000 TL/ay (§9.2) | Saha satış işe alımı (§9.4–9.5), kurulum kiti (EG-10) |
+| **Uzaktan öncülük** (self-servis + görüntülü concierge) | Self-servis onboarding olgun (F2-04), Kapı 2 medyanı ≤ 1 gün ([10](10-riskler-operasyon-ve-metrikler.md) §8.5) | Düşük maliyet, hızlı ölçek | Yerinde kurulum ve D8 gözlemi yok; ses, cihaz ve yazıcı sorunları uzaktan çözülür (R05) | Eğitim içerikleri EG-01…12 ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §10), uzaktan tanı kartı, cihaz önerisi |
+| **Bayi öncülüğü** (sertifikalı kurulum ortağı) | Yerel POS bayisi veya teknik servis istekli | Yerel güven, birinci seviye destek bayide, CAC düşer | Kalite kontrolü zor; bayi gelir paylaşımı (§10.3: ilk 12 ay aylık ücretin %30'u, öneri) | Bayi paneli (F2-12), sertifika eğitimi, bayi sözleşmesi (AV + MM) |
+
+**Varsayılan [T]:** İlk ay saha öncülüğü ve bayi adaylarının eğitimi yapılır, ilk kurulumlar oturunca bayi öncülüğüne geçilir. Uzaktan model yalnız giriş koşullarındaki destek ve sağlık eşikleri tutuyorsa kullanılır.
+
+**4. P1 kapsaması.** P1 hattı tek numara ve tek nöbet çizelgesiyle iki şehri kapsar (aynı saat dilimi ve aynı saatler, [00](00-kararlar-ve-sozluk.md) §4). Yerinde müdahale isteyen sorunlarda (cihaz, yazıcı, ses) ikinci şehirde bayi teknisyeni (`reseller_technician`) ya da yerel saha kişisi aynı gün ziyaret eder. Bu yoksa geçici çözüm uzaktan uygulanır: WhatsApp'sız mod, manuel sipariş, başka cihaz ([10](10-riskler-operasyon-ve-metrikler.md) §5.2). Nöbet yükü R37 ile izlenir; ikinci şehir açılmadan önce nöbet rotasyonu en az bir kişi büyütülür [T] ve ilk kurulumlar için Cuma–Cumartesi 18:00–23:00 takviyesi planlanır. Açılış koşulu: ikinci şehirden yapılan P1 test araması canlı saatlerde 5 dk içinde yanıtlanır ([10](10-riskler-operasyon-ve-metrikler.md) §5.1 kabul kriteri).
+
+**5. Dikey spesifikasyonları.** Her dikey açılmadan önce Commerce Policy kontrolü yapılır ([00](00-kararlar-ve-sozluk.md) §6.10; dikey beyaz listesi R29) ve Seviye 0 yöntemiyle küçük bir talep deneyi koşulur ([10](10-riskler-operasyon-ve-metrikler.md) §4.4 kuralları; su bayisi için H12 verisi).
+
+| Dikey | Faz | Özel ihtiyaç | Commerce Policy kontrolü | Veri modeli etkisi ([07](07-veri-modeli-ve-api.md)) | Epik |
+|---|---|---|---|---|---|
+| Su bayi | **[Faz 2]** | Damacana depozitosu (ilk siparişte depozito, boş kap iadesi); tekrarlayan sipariş ("her 10 günde 2 damacana") | Tüp/LPG satanlar hedef dışıdır; menüde tüp/LPG ürünü kategori filtresine takılır | `recurring_orders` (Faz 2; her çalıştırma `awaiting_customer` sipariş açar, müşteri onaylayınca `new` olur). Ürün düzeyinde depozito tutarı ve müşteri başına iade bekleyen kap sayısı 07'de yok; eklenmesi önerilir (alan adları 07 sahibince) | F2-16 |
+| Pastane | **[Faz 2]** | Ön sipariş (teslim günü ve saati), özel pasta formu (kat, yazı, örnek görsel), ön siparişte kapora | Alkollü ürünler (ör. likörlü tatlı) ürün bayrağıyla engellenir (kapsamı teyit edilmeli). Alerji bilgisi yapılandırılmış alan olarak tutulmaz, yalnız serbest sipariş notu ([00](00-kararlar-ve-sozluk.md) §9) | Planlı sipariş `orders.scheduled_for` (Faz 2). Kapora online ödemeyle (F2-11, işletmenin kendi PSP hesabı). Özel pasta formunun yapılandırılmış alanları ve görsel eki 07'de yok; eklenirse medya saklama süresi [08](08-mevzuat-kvkk-odeme-fatura.md) §2.8'e bağlanır | F2-16 |
+| Market / şarküteri | **[Faz 3]** | Geniş katalog (Excel içe aktarma, P-14), tartılı ürün, stok | Alkol ve tütün ürün bayrağıyla engellenir ([00](00-kararlar-ve-sozluk.md) §9); tekel hedef dışıdır | Tartılı ürün birimi ve stok alanı 07'de yok (07 sahibince) | F3-11 |
+| Çiçekçi | **[Faz 3]** | İleri tarihli teslim, not kartı metni, alıcının sipariş verenden farklı olması | Yasaklı kategori yok | Alıcı bilgisi teslimat alanlarıyla (`orders.delivery_phone_e164`) karşılanır; not kartı serbest nottur. Üçüncü kişi (alıcı) verisi için aydınlatma [08](08-mevzuat-kvkk-odeme-fatura.md) ile teyit edilmeli | F3-11 |
 
 ---
 
@@ -868,7 +963,7 @@ Kanonik liste [10](10-riskler-operasyon-ve-metrikler.md) §8.7'deki **pilot baş
 
 | Dönem | Ekip | Not |
 |---|---|---|
-| Faz 0–1 (H0–H12) | 1–2 kurucu (KUR, OPS) + 2 geliştirici (TL, FE) + AI; dış: MM, AV, MV, TAS | DEV3 opsiyonel. Tek geliştiriciyle S3–S6 bu takvime sığmaz |
+| Faz 0–1 (H0–H12) | 1–2 kurucu (KUR, OPS) + 2 geliştirici (TL, FE) + AI; dış: MM, AV, MV, TAS (S1–S6 yarı zamanlı ürün ve marka tasarımcısı, ~25–30 kişi-gün [T], [12](12-marka-tasarim-ve-kullanilabilirlik.md) §8.1) | DEV3 opsiyonel. Tek geliştiriciyle S3–S6 bu takvime sığmaz |
 | Pilot (H10–H20) | Aynı ekip + kurucular ve TL'nin P1 nöbeti | Destek için yarı zamanlı yardım opsiyonel |
 | Ticari lansman (K4 ön-onayı sonrası H19+, lansman H21) | + destek/onboarding uzmanı + saha satış temsilcisi | §9.2 tetikleri |
 | Faz 2 ortası | + 3. geliştirici (mobil/Capacitor) + yarı zamanlı içerik | |
@@ -909,7 +1004,95 @@ R = yapar, A = hesap verir (tek kişi), C = danışılır, I = bilgilendirilir.
 | P1 hattı ve nöbet | **A** | R | R | R (nöbette) | — |
 | Karar kapıları (K1–K4) | **A/R** | C | C | I | — |
 | Bütçe ve harcama | **A/R** | I | C (altyapı) | — | C (MM) |
-| Plan dokümanlarının güncelliği (00–10) | **A** | C | R | R | — |
+| Plan dokümanlarının güncelliği (00–13) | **A** | C | R | R | — |
+| Marka, tasarım sistemi ve kullanılabilirlik testi ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §1.3) | **A** | R (eğitim içeriği, UAT) | C (ses, cihaz, PWA) | R (`packages/ui`) | R (TAS), C (MV, AV) |
+| POS ve entegrasyon ortakları (F0-G10, F2-05) | **A/R** | I | C (API değerlendirmesi) | I | C (AV: NDA, sözleşme) |
+| İşe alım ve çalışan onboarding'i (§9.4–9.5) | **A/R** | R (destek ve saha) | R (geliştirici) | C | C (AV, MM) |
+| Kritik hesaplar ve iş sürekliliği ([10](10-riskler-operasyon-ve-metrikler.md) §10.1) | **A** | C | R | I | C (AV: vekâlet) |
+
+### 9.4 İş tanımları, hedefler ve ücretlendirme **[Faz 1–2]**
+
+Rol tanımları işe alım tetikleriyle (§9.2) ve maliyet varsayımlarıyla ([11](11-finansal-model-ve-finansman.md) §2.3) birlikte okunur. Hedefler [T]'dir ve ilk 90 günün sonunda gözden geçirilir.
+
+| Rol | Temel sorumluluklar | İlk 90 gün hedefi [T] | Sürekli başarı ölçütü | Bağlı olduğu kişi |
+|---|---|---|---|---|
+| **Geliştirici** (TL, FE; DEV3 ve Faz 2'deki mobil ağırlıklı 3. geliştirici) | Sprint hikâyeleri, kod incelemesi, `CLAUDE.md` kuralları, testler; Faz 2'den itibaren nöbet | DoD'yi (§6.2) karşılayan ilk hikâyeler; bir runbook tatbikatı; nöbete hazır olmak | Sprint hedefinin ≥ %60'ı tamamlanıyor (R02 KRI altına düşülmüyor); SLO ve hata bütçesi ([10](10-riskler-operasyon-ve-metrikler.md) §7); sistem kaynaklı kaçan sipariş 0 | TL |
+| **Ürün tasarımcısı** (TAS; S1–S6 yarı zamanlı, Faz 2'de ihtiyaç oldukça) | Marka, token ve bileşen setinin Figma aynası, prototip, kullanılabilirlik testleri, eğitim görselleri ([12](12-marka-tasarim-ve-kullanilabilirlik.md)) | Bileşen seti v1; D13 prototip ölçütlerinin raporu ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §8.7) | Panel ve storefront SUS ≥ 70; kritik hata 0 ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §8.5) | KUR |
+| **Destek/onboarding uzmanı** | L1 destek, concierge kurulum ([10](10-riskler-operasyon-ve-metrikler.md) §5.5), sağlık skoru müdahaleleri (§5.6), bilgi bankasının güncelliği; Faz 2'de P1 hattının ilk yanıtı | 10 §5.5 kontrol listesiyle yardımsız kurulum; 18 makaleye hâkimiyet | İlk yanıt SLA uyumu ≥ %90, P1'de %100; temas/işletme/ay ≤ 3; Kapı 2 medyanı ≤ 1 gün; kırmızı işletmeye 2 iş günü içinde arama ([10](10-riskler-operasyon-ve-metrikler.md) §5.6, §8.5) | OPS |
+| **Saha satış temsilcisi** | Demo, kapanış, pilot ilçelerde yoğunlaşma, kuruluma devir, itiraz kaydı ([01](01-vizyon-pazar-is-modeli.md) §8.6–8.7) | Satış kitiyle bağımsız demo; ilk kapanışlar | Ayda ~20 kapanış ve saha kanalında CAC ≤ 5.000 TL (§9.2); kapanışların 3. ay sonunda ödemeye devam etme oranı | KUR |
+
+**Saha satış prim yapısı (öneri) [T]:**
+- Toplam maliyet (~70.000 TL/ay: maaş, prim, yol; §9.2, [11](11-finansal-model-ve-finansman.md) §2.3) sabit ve değişken olarak bölünür. Öneri: sabit %70, değişken %30 [T].
+- Prim, kapanıştan sonra işletmenin **3. aylık ödemesi tahsil edildiğinde** hak edilir. İşletme ilk 3 ayda ayrılırsa prim doğmaz (geri alma) [T]. Pilot ve kurucu üye kapanışlarına da aynı kural uygulanır.
+- Prim paket ve ödeme biçimine göre ağırlıklandırılır: Pro ve yıllık peşin kapanış, Esnaf aylık kapanıştan yüksek primlidir; Zincir (Faz 2) şube sayısıyla ölçeklenir. Katsayılar pilot verisiyle konur.
+- **CAC sınırı:** Kapanış başına saha maliyeti (maaş + prim + yol) karma CAC tavanını (≤ 4.000 TL, [00](00-kararlar-ve-sozluk.md) §12) aşmamalıdır. Mevcut varsayımlarla ~70.000 TL / ~20 kapanış ≈ 3.500 TL/kapanış eder; bu tutar Esnaf tavanının (≈ 2.800 TL) üstündedir. Bu yüzden saha satışı Pro ve yıllık peşin satışa odaklanır, Esnaf ağırlıklı olarak self-servis ve bayi kanalına bırakılır (R04 azaltması, [10](10-riskler-operasyon-ve-metrikler.md) §3.3).
+- Prim `finance` tarafından aylık hesaplanır ve lead → demo → kapanış kaydıyla doğrulanır.
+
+**Ücret bantları ve hisse opsiyonu:**
+- Ücret bantları [11](11-finansal-model-ve-finansman.md) §2.3'teki rol maliyetlerini (işverene maliyet) merkez alır. Bant genişliği ve yıllık güncelleme (TÜFE ve piyasa verisi) kurucu kararıdır. Bandın dışındaki teklif kurucuların birlikte onayını ister ve nakit pisti kuralına (§10.4) tabidir. Bantlar pilot sonrasındaki ilk işe alımdan (H19) önce yazılı hale getirilir.
+- Hisse opsiyonu: opsiyon havuzu %10–15 [T], ilk 10 çalışana tahsis, 4 yıl vesting + 1 yıl cliff ([11](11-finansal-model-ve-finansman.md) §9.2). Ltd'de uygulama pay sahipleri sözleşmesindeki alım opsiyonu ve devir taahhüdüyle kurulur ([11](11-finansal-model-ve-finansman.md) §9.3); opsiyonların vergilendirmesi mali müşavirle teyit edilmeli. Teklif mektubunda opsiyon miktarı, vesting ve iyi/kötü ayrılma kuralları yazılır.
+
+### 9.5 İşe alım süreci ve çalışan onboarding'i **[Faz 1–2]**
+
+**İşe alım süreci** (her rolde aynı adımlar; ilandan teklife hedef ≤ 4 hafta [T]):
+1. İş tanımı ve bant (§9.4) yazılır; tetik (§9.2) ve nakit pisti kuralı (§10.4) kontrol edilir.
+2. **Kaynak:** Geliştirici için referans ağı, yerel yazılım toplulukları ve kariyer siteleri. Destek için restoran operasyonu veya çağrı merkezi deneyimi olan adaylar ve pilot işletmelerin önerileri. Saha için POS bayisi, yemek kartı veya pazaryeri saha satış deneyimi. Tasarımcı için portfolyo.
+3. Ön görüşme (30 dk, KUR veya TL).
+4. **Vaka görevi** (en fazla yarım gün; ücretli olması önerilir [T]). Geliştirici: gerçek bir hikâyenin küçük bir parçası (ör. `packages/core` durum geçişine test yazma; müşteri verisi yok). Destek: rol canlandırma: Cuma 20:30'da "ses gelmiyor" P1 araması ve [10](10-riskler-operasyon-ve-metrikler.md) §5.4 makalesiyle çözüm. Saha: 15 dakikalık satış konuşması ve iki itiraz ([01](01-vizyon-pazar-is-modeli.md) §8.6–8.7). Tasarımcı: bir P-xx ekranının kısa eleştirisi ve iyileştirme önerisi.
+5. Ekiple görüşme ve adayın onayıyla **en az 2 referans kontrolü**.
+6. Teklif: bant, prim (saha), opsiyon, deneme süresi; iş sözleşmesinde gizlilik ve fikri hak devri maddeleri (AV).
+- Aday verisi (CV, görüşme notu) için aydınlatma yapılır. İşe alınmayan adayın verisi saklama-imha politikasındaki süre sonunda silinir ([08](08-mevzuat-kvkk-odeme-fatura.md) §2.8; süre teyit edilmeli).
+
+**Çalışan onboarding'i (ilk 2 hafta):**
+
+| Zaman | Adım | Sahip |
+|---|---|---|
+| Başlamadan önce | Sözleşme, KVKK gizlilik taahhüdü ve fikri hak devri imzalı ([08](08-mevzuat-kvkk-odeme-fatura.md) §7.4); cihaz ve kurumsal hesaplar hazır | KUR, AV |
+| Gün 1 | Erişimler **en az yetki** ilkesiyle açılır: kurumsal e-posta, parola yöneticisi (§9.6), GitHub (2FA zorunlu), ekip sohbeti; rolüne göre admin rolü (`support_agent`, `sales_rep`, `finance`) ve TOTP. Prod erişimi ilk gün verilmez | TL |
+| Gün 1–2 | [00](00-kararlar-ve-sozluk.md) ve rolüyle ilgili plan dokümanları; ürün demosu; kasa kartı (EG-02) ve 3 dk kasiyer videosu (EG-03) | Bağlı olduğu kişi |
+| Hafta 1 | Güvenlik farkındalığı eğitimi ([10](10-riskler-operasyon-ve-metrikler.md) §10: oltalama, paylaşılan tablet, KVKK); runbook'ların okunması ([10](10-riskler-operasyon-ve-metrikler.md) §6.6) | TL |
+| Hafta 1 | Bir pilot işletmede yoğun saat gözlemi (D8 yöntemi; müşteri verisi fotoğraflanmaz) | OPS |
+| Hafta 2 | Rolüne göre ilk bağımsız iş: ilk PR, ilk gözetimli kurulum ya da ilk demo | Bağlı olduğu kişi |
+| Nöbete girmeden önce | En az bir runbook tatbikatı ([10](10-riskler-operasyon-ve-metrikler.md) §5.9 kabul kriteri); prod erişimi ikinci bir kişinin onayıyla açılır | TL |
+
+30/60/90 gün görüşmeleri §9.4'teki hedeflerle yapılır. Çıkışta [10](10-riskler-operasyon-ve-metrikler.md) §10'daki "Personel çıkışı" kontrol listesi 24 saat içinde uygulanır.
+
+### 9.6 İç araçlar, nöbet ve izin, karar kayıtları ve doküman sahipliği **[Faz 1]**
+
+**İç araçlar:**
+
+| Araç | Kullanım | Kural |
+|---|---|---|
+| GitHub (organizasyon, Projects) | Kod, iş takibi, PR şablonu | Herkese 2FA; korumalı `main` (F0-T02) |
+| Kurumsal e-posta | Dış iletişim; kritik hesapların kurtarma adresi | Yurt içi sağlayıcı tercih edilir ([00](00-kararlar-ve-sozluk.md) §10). Kritik hesapların kurtarma adresi kişisel e-posta olmaz |
+| Ekip sohbeti | Günlük iletişim, olay kanalları (`#olay-…`, [10](10-riskler-operasyon-ve-metrikler.md) §6.2) | Müşteri kişisel verisi yazılmaz; ekran görüntüleri maskelenir |
+| **Parola yöneticisi** (ekip kasası) | Paylaşılan hesap parolaları; kurtarma kodlarının dijital kopyası (yalnız kasa yöneticilerine açık) | Ürün seçimi teklifle. Ana parola + 2FA zorunlu; kasa en az 2 yöneticili; çıkışta erişim ≤ 24 saatte kapanır. Prod sırları (Meta App Secret, KEK, API anahtarları) parola yöneticisinde değil secret manager'dadır ([06](06-teknik-mimari.md) §15.2) |
+| Figma | Tasarım (TAS) | Token adları kodla aynıdır; çelişkide kod geçerlidir ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §4.1) |
+| Ortak sürücü | Sözleşmeler, teyit kanıtları (`teyit/V-NNN/`, [13](13-varsayim-ve-teyit-kaydi.md) §1.7), pilot vaka izinleri | Klasör bazlı erişim; müşteri verisi içermez |
+
+İç araçların hepsi alt işleyen ve aktarım envanterine girer ([08](08-mevzuat-kvkk-odeme-fatura.md) §2.11). Yeni araç eklemek TL ve KUR onayı ister.
+
+**Nöbet ücreti ve izin politikası:**
+- **Pilot:** Nöbeti kurucular tutar ([00](00-kararlar-ve-sozluk.md) §4); ayrı nöbet ücreti yoktur. Dinlenme kuralı [10](10-riskler-operasyon-ve-metrikler.md) §5.9'dadır.
+- **Faz 2 ve sonrası:** Nöbete giren çalışana nöbet ek ödemesi **veya** eşdeğer izin verilir. Tutar ve biçim, fazla çalışma ve gece çalışması kurallarıyla birlikte avukat ve mali müşavirle belirlenir (teyit edilmeli). Kişi başı haftalık nöbet akşamı R37 KRI eşiğini ([10](10-riskler-operasyon-ve-metrikler.md) §3.3) aşmaz.
+- **İzin:** Yıllık izinler nöbet çizelgesiyle birlikte en az 2 hafta önceden yazılır ([10](10-riskler-operasyon-ve-metrikler.md) §5.9). Pilot dalga kurulum haftalarında ve ticari lansman haftasında aynı anda birden fazla kurucu veya nöbetçi izne çıkmaz [T].
+
+**Karar kayıtları (ADR), doküman sahipliği ve değişiklik günlüğü:**
+- **Kural (bağlayıcı):** Bir karar değişirse **önce [00](00-kararlar-ve-sozluk.md)** güncellenir, sonra ilgili plan dokümanları (00 başlık notu).
+- **ADR:** Mimari ve ürün kararları `docs/adr/NNNN-kisa-baslik.md` altında tek sayfalık kayıtla tutulur [T]: Bağlam, Seçenekler, Karar, Sonuçlar, Durum (`onerildi`, `kabul`, `yerine_gecti: NNNN`). ADR gerektiren kararlar: stack (F0-T01), tenant yalıtımı ve RLS, kuyruk ve outbox, barındırma sağlayıcısı, `WaTransport` ve Plan B, ödeme ve faturalama sağlayıcıları, yeni alt işleyen. ADR [00](00-kararlar-ve-sozluk.md)'daki bir kararı değiştiriyorsa 00 aynı PR'da güncellenir.
+- **Doküman sahipliği (öneri) [T]:** Her dokümanda hesap veren (A) KUR'dur (§9.3). Bakım sorumlusu (R):
+
+| Doküman | R | Doküman | R |
+|---|---|---|---|
+| 00 Kararlar ve sözlük | KUR | 07 Veri modeli ve API | TL |
+| 01 İş modeli | KUR | 08 Mevzuat | KUR (AV) |
+| 02 WhatsApp | TL | 09 Yol haritası | KUR (TL) |
+| 03 Storefront | FE | 10 Riskler ve operasyon | OPS (TL) |
+| 04 İşletme paneli | FE | 11 Finansal model | KUR (`finance`) |
+| 05 Admin ve site | FE (KUR) | 12 Marka ve tasarım | TAS (KUR) |
+| 06 Mimari | TL | 13 Teyit kaydı | KUR (TL) |
+
+- **Değişiklik günlüğü:** Her plan dokümanının başlığındaki "Durum" satırı sürüm ve tarih taşır. Anlamlı değişiklikler `docs/DEGISIKLIKLER.md` dosyasında tarih, doküman ve bölüm, değişiklik, karar kaynağı (00 maddesi veya ADR) ve kim sütunlarıyla tutulur [T]. Teyit durumundaki değişiklikler ayrıca [13](13-varsayim-ve-teyit-kaydi.md) §7'ye yazılır.
 
 ---
 
@@ -946,6 +1129,9 @@ R = yapar, A = hesap verir (tek kişi), C = danışılır, I = bilgilendirilir.
 | 17 | Harici pentest (Faz 2 başı; teklif H10'da alınır) | Teklif | [06](06-teknik-mimari.md) §15.8 | H16–H18 |
 | 18 | **Maaşlar** | Kurucular: varsayım. Geliştiriciler: G × M × 3 ay | Kaynaklarda rakam yok | Sürekli |
 | 19 | Beklenmeyen gider tamponu | Toplamın %10–15'i [T] (öneri) | — | — |
+| 20 | Ürün ve marka tasarımcısı (yarı zamanlı/serbest, S1–S6; TAS rolünün genişletilmesi ya da ikinci kişi) | Teklif (en az 2–3 teklif); efor ~25–30 kişi-gün [T]. Satır 5 (logo, basılı materyal, site görseli) marka tasarımını kapsamaya devam eder | [12](12-marka-tasarim-ve-kullanilabilirlik.md) §8.1, §12.3; F0-D04 | H0–H13 |
+| 21 | Fiziksel test cihaz parkı (ucuz Android tabletler, iPad'ler, Sunmi, telefonlar, mini PC, 58/80 mm termal yazıcılar, 4G modem, akıllı priz, kablolu hoparlör, ses seviye ölçer) | Teklif; satır 15 "pilot cihaz desteği" ile birleştirilebilir | [12](12-marka-tasarim-ve-kullanilabilirlik.md) §9.2; S3-15 | S3 (H5–H6) |
+| 22 | Kullanılabilirlik testi katılımcı teşviki (13 kişi: 5 kasiyer + 8 son müşteri) | Teklif; küçük hediye çeki, tutarı kurucu belirler | [12](12-marka-tasarim-ve-kullanilabilirlik.md) §8.1, §8.4; S2-12, S2-14 | H3–H4 |
 
 ### 10.3 İlk 12 ay (Ekim 2026 – Eylül 2027)
 
@@ -965,6 +1151,8 @@ R = yapar, A = hesap verir (tek kişi), C = danışılır, I = bilgilendirilir.
 | Geliştiriciler | G × M × 12 | Varsayım | — |
 | Kurucular | Varsayım | — | — |
 | Mali müşavir ve sürekli hukuk (bayi sözleşmesi, kampanya modülü ekleri, görüşler) | Teklif | — | A03 §13 |
+| Ürün tasarımı, Faz 2 (üç ayda bir SUS, yeni ekran testleri, F2-20) | Teklif | İhtiyaç oldukça serbest tasarımcı | [12](12-marka-tasarim-ve-kullanilabilirlik.md) §8.8 |
+| Siber sigorta + mesleki sorumluluk sigortası | Teklif (en az 2–3; ticari lansmandan önce) | Kapsam [10](10-riskler-operasyon-ve-metrikler.md) §10.1 | [10](10-riskler-operasyon-ve-metrikler.md) §10.1 |
 | Teşvik ve kaynak (gelir tarafı) | Teknokent (kurumlar vergisi istisnası; KDV geçici m.20'nin SaaS'a uygulanabilirliği teyit edilmeli), TÜBİTAK BiGG, KOSGEB (güncel çağrılar teyit edilmeli) | — | A03 §7.3 |
 
 **Gelir tarafına dair uyarı [T]:** Lansmandan sonra ayda 20–25 yeni işletme ile Ay 9'da ~100 işletmeye ulaşılır ([01](01-vizyon-pazar-is-modeli.md) §8.3). Hepsi kurucu üye Pro (1.253 TL) olsa MRR ≈ 125 bin TL olur. Bu tutar yalnız destek ve saha satış maaşlarını (~130 bin TL/ay) karşılayabilir. İlk 12 ayda geliştirici maaşları ve Esnaf paketi ağırlığı için dış finansman veya kurucu kaynağı gerekir. Kurucu üye döneminin brüt marjı düşüktür ([01](01-vizyon-pazar-is-modeli.md) §7.2); karma brüt marj hedefi ≥ %70 ancak 1.000 işletme ölçeğinde beklenir, Esnaf'ta CAC tavanı ≈ 2.800 TL'dir ([00](00-kararlar-ve-sozluk.md) §12).
@@ -1002,6 +1190,8 @@ Bu iki eşik §9.2'deki işe alım tetiklerine ve §10.3'teki 12 aylık tahmine 
 - [ ] Kill switch'ler çalışıyor ([00](00-kararlar-ve-sozluk.md) §4): `signup_open`, `wa_onboarding`, `campaigns_global`, `llm_parsing`, `sms_fallback`, tenant bazında `ordering_enabled` (son ikisi pilotta tatbikatla denendi).
 - [ ] Rate card konfigürasyonda. Maliyet defteri kayıt tutuyor.
 - [ ] Runbook'lar hazır ([10](10-riskler-operasyon-ve-metrikler.md) §6.6): webhook kesintisi, Meta kesintisi ve WhatsApp'sız mod, DB geri yükleme, token iptali. Her nöbetçi en az bir runbook tatbikatı yaptı.
+- [ ] **Alarm laboratuvar testi geçti** (S3-14; [12](12-marka-tasarim-ve-kullanilabilirlik.md) §6.4 adım 2): alarm, hedef tabletlerde personel konumunda (1, 3 ve 5 m) kayıtlı mutfak gürültüsünün ≥ 10 dB üstünde. Kalınırsa [12](12-marka-tasarim-ve-kullanilabilirlik.md) §6.4'teki "başarısızlıkta" adımları (tablet yeri, kablolu harici hoparlör) Dalga 1 kurulum kitine eklenir.
+- [ ] **"30 siparişli Cuma akşamı" provası geçti** (S5-14; Perşembe 3 Aralık 19:00–21:00, prod `sandbox` tenant'ı; [12](12-marka-tasarim-ve-kullanilabilirlik.md) §9.5): kaçan sipariş 0, webhook→panel p95 < 3 sn, sipariş başına durum mesajı ≤ 4 (+ Akış A karşılaması), 2 dk uyarısı ± 15 sn, 30 fişin tamamı basıldı, onay medyanı < 60 sn, açık P1/P2 hata yok. Kalınırsa P0 aynı gün "koşullu" değerlendirilir.
 
 **Hukuki**
 - [ ] Şirket, vergi levhası ve e-Tebligat tamam. Marka başvurusu yapıldı.
@@ -1023,6 +1213,8 @@ Bu iki eşik §9.2'deki işe alım tetiklerine ve §10.3'teki 12 aylık tahmine 
 - [ ] Destek teması etiketleme şablonu (D9) hazır. Pilot metrik panosu admin'de.
 - [ ] D8 gözlem planı yapıldı (her işletmede bir Cuma, bir Cumartesi akşamı).
 - [ ] Meta durumu netleşti: Live mod ve 10/7 gün kotası, ya da Plan A'/Plan B aktif.
+- [ ] Dalga 1 için UAT senaryoları (UAT-01…12) ve imza formu hazır ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §9.4). P0 eğitim paketi (S5-15: EG-02 kasa kartı, EG-03 v1 kasiyer videosu ve yoklaması, EG-04 mikro videolar, EG-07 son müşteri içeriği, EG-10 kurulum kiti) hazır.
+- [ ] Panel prototip testinin ve storefront prototip testinin (S2-12, S2-14) derece 3–4 bulguları kapandı ya da gerekçesiyle ertelendi ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §8.7; D13, [10](10-riskler-operasyon-ve-metrikler.md) §4.3).
 
 ### 11.2 Ticari lansman öncesi (K4 ön-onay: 29 Ocak 2027 · kesinleşme: 12 Şubat 2027 · lansman: 15 Şubat 2027)
 
@@ -1042,6 +1234,9 @@ Bu iki eşik §9.2'deki işe alım tetiklerine ve §10.3'teki 12 aylık tahmine 
 - [ ] 2–3 izinli pilot vakası (rakamlar ve video) hazır.
 - [ ] İlk KVKK veri ihlali masa başı tatbikatı pilot bitmeden yapıldı ([10](10-riskler-operasyon-ve-metrikler.md) §10, [08](08-mevzuat-kvkk-odeme-fatura.md) §9.2).
 - [ ] Ramazan döneminde (tarih teyit edilmeli) iftar saatleri deploy dondurma penceresine eklendi.
+- [ ] K4 öncesi ikinci SUS turu yapıldı (H17–H18) ve sonuç K4 ön-onay dosyasına eklendi; SUS ilk turdan düşükse gerekçesi yazıldı ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §8.8). Saha alarm testi (S6-20) ≥ 9/10; değilse F2-07 öne çekildi.
+- [ ] Kritik hesap envanteri tamam: her kritik hesapta ≥ 2 yönetici ve donanım anahtarı, kurtarma kodları mühürlü kasada, alan adı kilidi ve otomatik yenileme açık; siber ve mesleki sorumluluk sigortası teklifleri alındı ([10](10-riskler-operasyon-ve-metrikler.md) §10.1).
+- [ ] İÜM kapısına bağlı mali teyitler (V-060–V-063) kapandı ya da gerekçesiyle ertelendi (§1.1, [13](13-varsayim-ve-teyit-kaydi.md) §2.2).
 
 ---
 
@@ -1080,3 +1275,9 @@ Bu iki eşik §9.2'deki işe alım tetiklerine ve §10.3'teki 12 aylık tahmine 
 24. Test WABA/test numarası için 30 Eylül ödeme yöntemi şartının geçerli olup olmadığı.
 25. WhatsApp Business uygulamasındaki sohbet etiketi özelliğinin adı (D3 sayımı); canary numaraları arasındaki otomatik mesajlaşmanın Meta politikasına uygunluğu (10 açık konu 19); platform SMS başlığının onay süresi ([00](00-kararlar-ve-sozluk.md) §7); `kurye_giris_v1` ve olay/bakım şablonlarının utility kategorisinde onaylanıp onaylanmadığı ([02](02-whatsapp-entegrasyonu.md) §5.3).
 26. Ramazan ve Kurban Bayramı 2027 tarihleri. Lansman sonrası kurulum ziyaretlerini ve deploy pencerelerini etkiler.
+
+**Son ekleme turu ([12](12-marka-tasarim-ve-kullanilabilirlik.md) ve [13](13-varsayim-ve-teyit-kaydi.md) ile hizalama)**
+27. **Tasarım ve UX görevlerinin kapasitesi:** [12](12-marka-tasarim-ve-kullanilabilirlik.md) §12.2'deki görevler birebir eklendi (§3.6, S1-11…S6-20, F2-20, F2-21, F3-16). Geliştiricilere düşen ek yük S2, S3 ve S5'te belirgindir (§5.2 kapasite kontrolü [T]). Kayabilecek kısımlar §5.9'daki tasarım kesme notundadır; alarm laboratuvar testi ve "Cuma akşamı" provası P0 maddesi olduğu için kesilmez. Tasarımcı bütçesi, cihaz parkı ve katılımcı teşviki teklifle belirlenir (§10.2 satır 20–22; kurucu kararı).
+28. **İÜM tanımı:** Bu plan İÜM'yü "pilotların ücretliye geçişi (≈ 8–22 Mart 2027) ya da ticari lansmandan sonraki ilk self-servis ücretli kayıt, hangisi önce gelirse" diye tanımlar; D6 ön ödemesi gelirse ilk fatura H4–H8'e çekilir (§1.1). [13](13-varsayim-ve-teyit-kaydi.md) §1.5 İÜM'yü "ilk fatura" üzerinden tanımlıyor ve §8 #3 bu satırın eklenmesini istiyordu; 13'ün bu tanımla hizalanması önerilir.
+29. **[T] önerileri proje sahibi onayı bekler:** saha satış prim yapısı (sabit %70 / değişken %30, 3. ay tahsilatında hak ediş; §9.4), ücret bandı kuralı ve opsiyon havuzu ([11](11-finansal-model-ve-finansman.md) §9.2), ikinci şehir giriş eşikleri (X = 100 aktif ödeyen işletme, Y = aylık logo churn < %5; §8.2.1), doküman sahipliği tablosu ve ADR düzeni (§9.6).
+30. **POS görüşmelerinin sonucu (F0-G10):** SambaPOS, Adisyo, robotPOS ve Simpra görüşmeleri F2-05'in kapsamını, Pro paketine dahil edilip edilmeyeceğini ve GloriaFood geçiş kampanyasının (30.04.2027) yapılabilirliğini belirler ([13](13-varsayim-ve-teyit-kaydi.md) V-014).

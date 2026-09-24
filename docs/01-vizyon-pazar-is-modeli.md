@@ -195,7 +195,7 @@ Alanda üç model var (arastirma/01 §8.3): **`wa.me` modeli** (sepet hazır met
 | Simpra | Bulut, zincir odaklı | QR, kiosk, platform entegrasyonları | Zincir segmentinde ortak (açık API **[Faz 3]**) |
 | robotPOS | Kurumsal | QR menü ve sipariş | Entegrasyon adayı (Faz 2 kapsamında değil) |
 
-Kaynak: arastirma/02 §4. Genel adisyon bandı aylık 465–1.050 TL; online sipariş entegrasyonu çoğunlukla ayrı ücretli. **Strateji:** POS'la rekabet etmek yerine **"POS-agnostik WhatsApp sipariş kanalı"** olmak. POS'u olan işletmeye sipariş "bir kanal daha" olarak POS'a aktarılır, ekran değiştirmek zorunda kalmaz. POS bayileri ve teknik servisler, ayda onlarca restoran ziyaret eden hazır bir satış ağıdır.
+Kaynak: arastirma/02 §4. Genel adisyon bandı aylık 465–1.050 TL; online sipariş entegrasyonu çoğunlukla ayrı ücretli. **Strateji:** POS'la rekabet etmek yerine **"POS-agnostik WhatsApp sipariş kanalı"** olmak (Faz 0 görüşmeleri ve entegrasyon karar matrisi §8.8). POS'u olan işletmeye sipariş "bir kanal daha" olarak POS'a aktarılır, ekran değiştirmek zorunda kalmaz. POS bayileri ve teknik servisler, ayda onlarca restoran ziyaret eden hazır bir satış ağıdır.
 
 ### 4.3 Global emsaller ve derslerimiz
 
@@ -647,6 +647,48 @@ Sıra: **Talep doğrulama deneyi** (Seviye 0 concierge, Hafta 0–8) ile paralel
 | **"Bağlanmak istemiyorum, beğenmezsem?"** | "Aylık plan, taahhüt yok. 14 gün ücretsiz dene; bize kart vermiyorsun. Müşteri listeni istediğin zaman dışa aktarırsın." | Deneme, veri dışa aktarma |
 | **"Bot müşteriyi kızdırır."** | "Bot sadece selam verip menü linkini yollar. Müşteri 'yetkiliyle görüş' dediği an sen devralırsın; istersen botu tamamen kapatırsın." | AI politikası ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.9) |
 
+### 8.8 Entegrasyon ve iş ortaklığı stratejisi
+
+**İlke:** Biz **"POS-agnostik WhatsApp sipariş kanalı"**yız (§4.2). Entegrasyon iki iş görür: esnaf ekran değiştirmeden bizi kullanır, POS bayileri de dağıtım kanalına dönüşür (§8.5). Her entegrasyon kalıcı bakım yükü getirir. Bu yüzden her birinin fazı, sahibi ve karar ölçütü önceden yazılır. Teknik sözleşme (adaptör arayüzü, olay kataloğu, açık API ilkeleri) [06](06-teknik-mimari.md) §4.5'tedir.
+
+**Faz 0 görüşmeleri (sahip KUR, teknik destek TL; hedef H4 = 19–23 Ekim 2026)**
+
+| Firma | Neden öncelikli | Görüşmede alınacaklar | Çıktı |
+|---|---|---|---|
+| SambaPOS | GloriaFood modülü var. GloriaFood 30.04.2027'de kapanıyor; bu süreli bir geçiş havuzudur (§8.3) | API dokümanı ve sipariş aktarım yolu, sandbox erişimi, ticari koşul (entegrasyon paketi ücreti mi, gelir paylaşımı mı), NDA, bayi ağına erişim, ortak geçiş kampanyası | [09](09-yol-haritasi-ve-sprint-plani.md) F2-05 kapsamı |
+| Adisyo | Bulut POS; bayileri dağıtım kanalı | Aynı set | F2-05 kapsamı |
+| robotPOS | Kurumsal; entegrasyon adayı (§4.2) | Aynı set; zincir müşterileri | Faz 2 kapsamı değil; karar notu |
+| Simpra | Zincir odaklı | Aynı set; açık API ile entegrasyon ilgisi | Faz 3 açık API tasarımına girdi |
+
+- İlk görüşmeler H4 sonuna (23 Ekim 2026) kadar, yazılı API ve sandbox erişimi Faz 2 başına (28 Aralık 2026) kadar hedeflenir ([13](13-varsayim-ve-teyit-kaydi.md) V-014). Sonuç, F2-05'in kapsamına ve POS entegrasyonunun hangi pakete dahil edileceğine (§6.3) girdi verir. Görev [09](09-yol-haritasi-ve-sprint-plani.md) §3.4'te Faz 0 görevi olarak izlenir.
+- **Süreli fırsat:** GloriaFood kapanışı. SambaPOS entegrasyonu Mart 2027'ye yetişmezse geçiş kampanyası POS aktarımı olmadan, "menü taşıma + WhatsApp kanalı" teklifiyle yürür [T].
+- NDA şablonu görüşmelerden önce avukattan alınır ([08](08-mevzuat-kvkk-odeme-fatura.md) §12 #20).
+
+**Entegrasyon karar matrisi**
+
+| Alan | Adaylar | Ne yapılır | Faz | Sahip | Karar ölçütü / tetik |
+|---|---|---|---|---|---|
+| POS / adisyon | SambaPOS, Adisyo | Onaylanan sipariş POS'a aktarılır, mali belge POS'tan kesilir; ürün eşleştirme ekranı ([04](04-isletme-paneli.md) §13, P-46) | Faz 2 (F2-05, S10–S11) | KUR (iş), TL (teknik) | Faz 0 görüşme sonucu; yazılı API ve sandbox erişimi |
+| POS / adisyon | robotPOS, Simpra | Açık API üzerinden ortağın ya da bizim yazdığımız entegrasyon | Faz 3 | KUR | Zincir talebi ve ortak ilgisi |
+| Yazıcı | 80/58 mm USB/LAN termal, Sunmi dahili yazıcı, Bluetooth termal | Faz 1 tarayıcıdan yazdırma; Faz 2 Android/Sunmi uygulaması ve Windows ajanı; Faz 3 Star CloudPRNT ([06](06-teknik-mimari.md) §9.1) | 1 / 2 / 3 | TL | Pilot donanım envanteri ([06](06-teknik-mimari.md) açık konu 16). Yazıcı tedarikçisiyle "önerilen donanım listesi" ve yönlendirme anlaşması değerlendirilir [T] |
+| Muhasebe dışa aktarımı | Paraşüt, Logo, Mikro | Faz 1: sipariş listesi ve gün sonu CSV'si (P-07, P-32). Muhasebe programına doğrudan satış özeti aktarımı Faz 3'te değerlendirilir [T]. Mali belge yükümlülüğü işletmenin POS/ÖKC'sindedir ([08](08-mevzuat-kvkk-odeme-fatura.md) §5.7) | 1 (CSV) / 3 | KUR (mali müşavir danışmanlığıyla) | Muhasebeci kanalındaki (§8.5) talep sıklığı |
+| Online yemek kartı | Multinet, Pluxee, Edenred, Setcard, Metropol | Faz 1'de yalnız kapıda (`meal_card_on_delivery`). Online tahsilat her markayla ayrı iş ortaklığı ister | Faz 3 varsayımı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13.9) | KUR | Markalardan yazılı cevap ([13](13-varsayim-ve-teyit-kaydi.md) V-028) |
+| Kurye firmaları | Kurye çağırma platformları ve yerel kurye firmaları (adaylar Faz 2 sonunda listelenir) | Kendi kuryesi olmayan işletme için kurye çağırma | Faz 3 ([09](09-yol-haritasi-ve-sprint-plani.md) F3-09; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13.7) | KUR | Talep, partner API'si, KVKK ve pil (canlı konum) değerlendirmesi |
+| Online ödeme (işletmenin kendi hesabı) | PayTR, iyzico; Craftgate | İşletme kendi PSP hesabını bağlar, para doğrudan işletmeye gider | Faz 2 / Faz 3 | TL | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9 |
+
+**Pazaryeri siparişlerini tek ekranda toplamak: yapılmaz (Faz 1–2)**
+- **Karar:** Yemeksepeti, Uber Eats Trendyol Go ve Migros Yemek siparişleri panelimize çekilmez.
+- **Neden:**
+  1. **Odak:** Faz 1–2'nin işi kendi kanal siparişini büyütmek ve hiçbir siparişi kaçırmamaktır. Pazaryeri siparişlerini toplamak ayrı bir ürün kategorisidir (entegratör).
+  2. **API erişimi:** Pazaryerlerinin sipariş API'lerine erişim onaylı POS/entegratör ortaklığı gerektiriyor olabilir; koşullar doğrulanmadı (teyit edilmeli).
+  3. **Konumlandırma:** Ürün "pazaryerine bağımlı kalma" diyen bağımsız kanaldır. Pazaryeri siparişini panelin merkezine koymak bu mesajı bulanıklaştırır. Kanal payı ölçümü (§9) ve tasarruf kartı pazaryeri siparişini zaten beyanla ayrı tutar; pazaryeri müşteri verisi kullanılmaz (§9).
+- **Bugünkü çözüm:** Pazaryeri siparişlerini zaten toplayan POS'u (§4.2) olan işletme tek ekranı POS'ta görür. Biz siparişimizi POS'a aktarırız (F2-05).
+- **Yeniden değerlendirme koşulları (Faz 3 planlaması, ≈ Haziran 2027):** (a) pilot ve Faz 2 çıkış görüşmelerinde "iki ayrı ekran" en sık üç ayrılma sebebinden biriyse; (b) POS entegrasyonu bu ihtiyacı karşılamıyorsa; (c) bir pazaryeri resmi, açık bir entegrasyon programı sunuyorsa ve sözleşme hukuken uygunsa.
+
+**Açık API ilkeleri (Faz 3):** `/v1` sürümlü REST ve imzalı webhook; olay adları [07](07-veri-modeli-ve-api.md) §7.1 kataloğundan; kapsamlı ve iptal edilebilir API anahtarı; kişisel veri yalnız ilgili kapsam verilmişse; ortaklar için `sandbox` tenant'ı. Paket hakkı `plan_features.open_api`'dir (öneri: Zincir, §6.3) [T]. Ayrıntı [06](06-teknik-mimari.md) §4.5.
+
+**Partner sözleşme şablonu (sahip KUR + avukat):** Kapsam ve API kullanım koşulları; KVKK rolleri ve veri aktarımı; gelir paylaşımı veya yönlendirme ücreti; karşılıklı marka kullanımı; API değişikliğinde önceden bildirim; gizlilik (NDA); fesih ve veri iadesi. NDA Faz 0 görüşmelerinden önce, partner sözleşmesi F2-05 başlamadan önce hazır olur ([08](08-mevzuat-kvkk-odeme-fatura.md) §11.1-12). Bayi (kurulum ortağı) sözleşmesi ayrıdır ([05](05-admin-paneli-ve-pazarlama-sitesi.md) Bölüm B).
+
 ---
 
 ## 9. Pazaryerleriyle birlikte kullanım
@@ -736,3 +778,8 @@ Yazılımın kendisi kopyalanabilir. Savunma aşağıdaki katmanlarda kurulur:
 27. **Kurye (00 §13.7):** varsayılan yalnız işletmenin kendi kuryesi; kurye çağırma entegrasyonu Faz 3'te değerlendirilir (§2.4, §6.3).
 28. **AI serbest metin siparişinin paketleri (00 §13.8):** varsayılan Pro ve üstü, adil kullanım kotasıyla (§6.3, §7.1).
 29. **Yemek kartı online tahsilatı (00 §13.9):** varsayılan Faz 1'de yalnız kapıda (§6.3).
+
+**Entegrasyon ve iş ortaklığı (§8.8)**
+30. **Faz 0 POS görüşmeleri** (SambaPOS, Adisyo, robotPOS, Simpra; sahip KUR, hedef H4): API, sandbox, ticari koşul ve NDA sonuçları F2-05 kapsamını ve POS entegrasyonunun paket kapısını belirler ([13](13-varsayim-ve-teyit-kaydi.md) V-014).
+31. **Pazaryeri siparişlerini tek ekranda toplama:** Faz 1–2'de yapılmaz; Faz 3 planlamasında §8.8'deki üç koşulla yeniden değerlendirilir. Pazaryeri API erişim koşulları teyit edilmeli.
+32. **Muhasebe programına doğrudan aktarım** (Paraşüt, Logo, Mikro) ve **yazıcı tedarikçisiyle önerilen donanım anlaşması**: öneri [T]; talep verisiyle Faz 2 sonunda karar.

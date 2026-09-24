@@ -2,7 +2,7 @@
 > **Amaç:** Ekibin ilk sprintten itibaren referans alacağı teknik mimariyi tek yerde tanımlamak: stack, servisler, multi-tenancy, gerçek zamanlılık ("sipariş kaçmaz"), asenkron işleme, yazdırma, harita, AI, barındırma, güvenlik, gözlemlenebilirlik, CI/CD ve maliyet.
 > **Tarih:** 2026-09-24 · **Durum:** Taslak (1. sürüm) · **Bağlayıcı kaynak:** [Kararlar ve sözlük](00-kararlar-ve-sozluk.md) §10 (teknik kararlar, kanonik alarm zamanlaması), §3 (sözlük), §4 (roller, oturum süreleri, kill-switch'ler, SMS maliyeti), §5 (durum makinesi, sebep kodları, adlandırma, kuyruklar, SSE), §7 (akışlar, WhatsApp'sız mod, mesaj koruma kuralları), §11 (fazlar, pilot öncesi zorunlu "sipariş kaçmaz" paketi). Tablo adları, alanlar ve API yolları [07](07-veri-modeli-ve-api.md) ile hizalıdır.
 
-**Kapsam:** Mimari ilkeler, stack ve gerekçesi, sistem/konteyner görünümü, repo yapısı ve kod kuralları, multi-tenancy, kimlik ve yetki, SSE + olay günlüğü + kademeli alarm, kuyruklar/outbox/cron, yazdırma, PostGIS ve geocoding, LLM boru hattı ve menü içe aktarma, storefront performansı, barındırma ve felaket kurtarma, gözlemlenebilirlik, güvenlik mimarisi, ortamlar/CI/CD/test, ölçek ve maliyet.
+**Kapsam:** Mimari ilkeler, stack ve gerekçesi, sistem/konteyner görünümü, repo yapısı ve kod kuralları, multi-tenancy, kimlik ve yetki, SSE + olay günlüğü + kademeli alarm, kuyruklar/outbox/cron, yazdırma, PostGIS ve geocoding, LLM boru hattı ve menü içe aktarma, storefront performansı, barındırma ve felaket kurtarma, gözlemlenebilirlik, güvenlik mimarisi, ortamlar/CI/CD/test, sürüm yönetimi ve panel güncelleme politikası (§16.7), entegrasyon adaptör katmanı ve açık API ilkeleri (§4.5), i18n kuralları (§4.3), ölçek ve maliyet.
 
 **Kapsam dışı (bağlantı verilir):**
 - WhatsApp onboarding, şablon kataloğu, konuşma motoru, webhook/gönderim davranış sözleşmesi, hata kodları → [02 WhatsApp entegrasyonu](02-whatsapp-entegrasyonu.md). Bu doküman yalnız altyapısını tanımlar.
@@ -177,7 +177,7 @@ siparisinonunde/
 │  ├─ admin/            # Vite SPA: features/{tenants,waba-health,dlq,impersonation,flags,billing}
 │  └─ mobile-business/ · print-agent/ · courier/   # [Faz 2] Capacitor 8 (escpos, sunmi, alarm) · [Faz 2] Go · [Faz 3] Expo
 ├─ packages/
-│  ├─ core/             # Domain: sipariş FSM, konuşma FSM, fiyat/sepet, bölge/ücret, çalışma saatleri (saf, I/O yok)
+│  ├─ core/             # Domain: sipariş FSM, konuşma FSM, fiyat/sepet, bölge/ücret, çalışma saatleri (saf, I/O yok); events.ts = ürün analitiği olay sözlüğü
 │  ├─ db/               # Drizzle şema, SQL migration'lar, RLS politikaları, withTenant(), seed, test fixture'ları
 │  ├─ auth/             # Better Auth yapılandırması, izin tanımları, authorize()
 │  ├─ whatsapp/         # WaTransport, Graph istemcisi, webhook tipleri, imza, şablon kayıt defteri, hata kodları
@@ -185,6 +185,7 @@ siparisinonunde/
 │  ├─ llm/              # Prompt'lar, şemalar, normalizasyon, aday getirme, PII maskeleme, eval seti + runner
 │  ├─ receipt/          # Fiş modeli → HTML / ESC/POS / raster
 │  ├─ geo/              # PostGIS yardımcıları, geocoding adaptörleri (google/photon), mesafe
+│  ├─ integrations/     # [Faz 2] POS adaptörleri (PosAdapter, §4.5); [Faz 3] açık API giden webhook imzalama
 │  ├─ contracts/        # Zod şemaları: API istek/yanıt, SSE olayları, iş (job) yükleri → OpenAPI
 │  ├─ ui/ · i18n/ · config/   # shadcn bileşenleri; tr (varsayılan)/en; tsconfig/eslint/vitest ortak ayarları
 ├─ infra/
@@ -209,6 +210,9 @@ siparisinonunde/
 - **Kimlikler:** `uuid` kullanılır. PostgreSQL 18'in `uuidv7()` fonksiyonu zaman sıralı olduğu için indeks dostudur. Müşteriye görünen sipariş no ve takip token'ı ayrı alanlardır.
 - **Adlandırma:** Tablo ve sütunlar `snake_case`'tir; **tablo adları çoğuldur** (`tenants`, `branches`, `orders`, `order_items`, `branch_events`; `audit_log` ve `tenant_usage_daily` kütle adı istisnasıdır). Sözlükteki tekil adlar (`tenant`, `order`…) varlık adıdır; `order` SQL'de ayrılmış kelime olduğundan tablo `orders`'tır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5, [07](07-veri-modeli-ve-api.md) §1.1). Tam tablo ve alan listesi 07 §3'tedir; bu dokümandaki SQL'ler 07'deki adları kullanır. TS'de `camelCase` kullanılır. Durum ve sebep kodları, enum değerleri ve kuyruk adları [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5'teki gibi aynen yazılır.
 - **Sınırlar:** Her HTTP girdisi, iş yükü, SSE olayı ve LLM çıktısı Zod ile doğrulanır. Hatalar RFC 9457 `application/problem+json` biçiminde döner.
+- **Metin ve yerelleştirme (i18n) [Faz 1 altyapı · Faz 3 diller]:** Panel, admin ve storefront metinleri ile müşteri mesaj gövdeleri koddan ayıklanır ve `packages/i18n` kataloğundan gelir. Kaynak katalog `tr`'dir, anahtar biçimi `panel.orders.accept_button`. Mesajlar ICU MessageFormat ile yazılır (FormatJS önerisi, [12](12-marka-tasarim-ve-kullanilabilirlik.md) §11.3) [T]. Sayı içeren her metin **Faz 1'den itibaren** ICU `plural` ile, duruma göre değişen metin `select` ile kurulur; Türkçede çoğul tek biçimli olsa da Faz 3 dilleri (Rusça, Arapça) daha çok çoğul kategorisi ister. Metin birleştirme (`"Sepette " + n + " ürün"`) ve değişkene ek getirme ("{işletme}'den") yasaktır. JSX içindeki çıplak metin lint ile yakalanır (kural adı teyit edilmeli). Türkçe biçim yardımcıları (`formatTL()`, `formatSaat()`, `tr-TR` büyük/küçük harf) aynı pakettedir ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §11.2). Kenar boşlukları CSS mantıksal özellikleriyle yazılır; Faz 3'te RTL maliyeti böylece düşük kalır.
+  - **[Faz 3] Diller:** EN, RU, AR, DE, turistik bölgelerdeki işletmeler için. Önce storefront ve müşteri mesajları çevrilir, panel Türkçe kalır. Ürün adı ve açıklaması çevirileri `product_translations` tablosundadır ([07](07-veri-modeli-ve-api.md) §3.8). Dil tarayıcı diline göre seçilir ve elle değiştirilebilir. WhatsApp şablonları her dil kodu için ayrı onaylanır ([02](02-whatsapp-entegrasyonu.md)). Arapçada `dir="rtl"` kullanılır.
+  - **Yabancı numaraya SMS OTP:** Faz 1'de SMS OTP ve WhatsApp'sız mod durum SMS'leri yalnız `+90` numaralara gider [T]. Yabancı numaralı müşteri Akış B'yi WhatsApp doğrulamasıyla tamamlar; WhatsApp'sız modda "İşletmeyi arayın" yoluna düşer ([03](03-musteri-deneyimi-ve-storefront.md) §3.2.1). Yurt dışı SMS'in birim fiyatı yurt içinden farklıdır ve SMS pompalama (uluslararası ücret dolandırıcılığı) riskini büyütür; sağlayıcının yurt dışı teslim koşulları ve fiyatı teyit edilmeli ([08](08-mevzuat-kvkk-odeme-fatura.md) §11.3). Faz 3'te açılırsa ülke izin listesi, telefon ve ülke başına günlük OTP sınırı, aylık maliyet tavanı ve `sms_fallback` kill-switch'i ile birlikte açılır; yurt dışı SMS'ler SMS kotası sayacında ayrı izlenir.
 - **Loglama:** Pino JSON kullanılır. Telefon, adres, mesaj metni ve token loglanmaz (§14.2). Her log satırı `request_id`, `tenant_id` ve `trace_id` taşır.
 - **Test ve PR:** Test dosyası kodun yanında durur (`*.test.ts`); domain değişikliği testsiz birleşmez. Conventional Commits kullanılır; PR şablonunda "tenant/RLS etkisi", "migration geriye uyumlu mu", "yeni metrik/alarm" kutuları vardır.
 
@@ -221,6 +225,36 @@ siparisinonunde/
 6. **PII kuralı:** Log, Sentry, LLM ve push yüküne telefon, adres, ad ve mesaj metni girmez. Maskeleme yardımcıları `packages/core/pii` içindedir.
 7. **Yasaklar:** Resmi olmayan WhatsApp kütüphaneleri, `float` para, ham `db` import'u, transaction içinde ağ çağrısı, `SET` (yalnız `set_config(..., true)` serbest).
 8. Komutlar (`pnpm dev`, `pnpm test`, `pnpm test:tenant`, `pnpm test:e2e`, `pnpm db:migrate`, `pnpm eval:llm`), migration kuralları (§16.5) ve "yoğun saatte deploy yok" kuralı.
+
+### 4.5 Entegrasyon adaptör katmanı **[Faz 2 · açık API Faz 3]**
+Stratejik çerçeve (hangi entegrasyon, hangi fazda, kiminle) [01](01-vizyon-pazar-is-modeli.md) §8.8'dedir. Bu bölüm teknik sözleşmeyi tanımlar. İlke 10 (§1) burada da geçerlidir: dış sistem, adaptör arayüzünün arkasındadır ve testte sahte uygulamayla değiştirilir.
+
+- **Paket:** `packages/integrations` (Faz 2'de açılır). Her sağlayıcı bir adaptördür (`sambapos`, `adisyo`; Faz 0 görüşmelerine göre `robotpos`, `simpra`). Adaptör kimlik bilgileri `integrations.credentials_*` alanında envelope encryption ile saklanır (§15.2). Tablolar [07](07-veri-modeli-ve-api.md) §3.8'dedir: `integrations`, `external_refs`, `integration_logs`.
+- **POS adaptör arayüzü (öneri) [T]:**
+
+```ts
+interface PosAdapter {
+  capabilities(): { pushOrder: boolean; statusSync: boolean; menuImport: boolean; productMapping: boolean };
+  pushOrder(order: OrderSnapshot, ctx: IntegrationCtx): Promise<{ externalId: string }>;   // onaylanan sipariş POS'a; mali belge POS'tan
+  cancelOrder(externalId: string, reason: CancelReason, ctx: IntegrationCtx): Promise<void>;
+  fetchMenu?(ctx: IntegrationCtx): Promise<ExternalMenu>;                                   // isteğe bağlı: POS menüsünü içe aktarma önerisi
+  health(ctx: IntegrationCtx): Promise<{ ok: boolean; detail?: string }>;
+}
+```
+
+- **Tetik ve teslim:** POS aktarımı sipariş durum geçişinin yan etkisidir. `new → accepted` geçişiyle aynı transaction'da outbox'a bir kayıt yazılır (`dedupe_key = integration:{provider}:{order_id}:{event}`), `external_refs (entity_type, entity_id, provider, external_id)` UNIQUE'i çift aktarımı engeller (§8.3 idempotency). Aktarım başarısız olursa sipariş akışı **durmaz**: panelde kart rozeti "POS'a gitmedi · Tekrar dene" görünür ([04](04-isletme-paneli.md) §13), iş backoff'la yeniden denenir, tükenirse DLQ'ya düşer (§8.4). Kuyruk: kanonik listede entegrasyon kuyruğu yoktur. Faz 2'de ayrı bir `integrations` kuyruğu önerilir, böylece yavaş bir POS API'si `notify` ve `wa-outbound` işlerini geciktirmez. Kuyruk açılmadan önce [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5'e eklenir (açık konu #24).
+- **Olay kataloğu yeniden kullanılır:** Adaptörler ve Faz 3 giden webhook'ları yeni olay adı icat etmez. [07](07-veri-modeli-ve-api.md) §7.1'deki domain olayları (`order.created`, `order.updated`, `menu.changed`, `branch.settings_changed` …) aynı adlarla kullanılır. Dışa açılan yük şemaları `packages/contracts`'ta sürümlü Zod şemalarıdır (`order.updated@v1`). Ürün analitiği olayları bu katalogdan ayrıdır (`packages/core/events.ts`, [07](07-veri-modeli-ve-api.md) §3.5 `analytics_events`).
+- **Ürün eşleştirme:** POS ürün kodları `products.external_ref` ve `options.external_ref` alanlarına yazılır; eşleşmeyen kalem aktarımı durdurmaz, POS'a açıklamalı serbest kalem olarak gider ve panelde "Eşleşmeyen ürün" uyarısı çıkar [T].
+- **Gözlem:** `integration_push_total{provider,outcome}`, `integration_push_seconds` ve sağlayıcı başına hata oranı (§14.1). Sağlayıcı genelinde hata oranı 15 dk boyunca %20'yi aşarsa P2 alarmı [T]; tek tenant'taki hata işletmeye panel uyarısıdır.
+- **Uyum testi:** Her adaptör için sahte POS sunucusuyla sözleşme testi koşar: aynı sipariş iki kez gönderilir, zaman aşımı, 4xx/5xx ve iptal senaryoları. Sağlayıcı sandbox'ı yoksa yalnız sahte sunucu ve pilot işletmede gözetimli canlı deneme yapılır.
+
+**Açık API ilkeleri [Faz 3]:**
+1. **Adres ve sürüm:** `api.siparisinonunde.com/v1/…` (§3.4). Kırıcı değişiklik `/v2` ile gelir, kalkacak uçta `Deprecation`/`Sunset` başlıkları kullanılır (§16.5). OpenAPI 3.1 belgesi Zod şemalarından üretilir.
+2. **Kimlik:** Tenant başına API anahtarı (`api_keys`, yalnız hash'i saklanır, kapsamlı: `orders:read`, `orders:write`, `menu:read`, `menu:write` …), iptal edilebilir ve son kullanım zamanı görünür. Anahtar yalnız `owner` tarafından ve taze oturumla üretilir.
+3. **Giden webhook:** `webhook_subscriptions`; yük HMAC-SHA256 ile imzalı (`kid` ile anahtar döndürme), teslim en az bir kez, olay kimliğiyle tekilleştirme alıcının işidir, üstel backoff ile yeniden deneme ve teslim günlüğü tutulur. Olay adları §4.5'teki katalogdur.
+4. **Veri minimizasyonu:** Kişisel alan (ad, telefon, adres) yalnız ilgili kapsam verilmişse döner. İşletmenin bağladığı üçüncü taraf, işletmenin kendi tedarikçisidir; bu aktarımın KVKK rolü ve DPA'ya yansıması avukatla teyit edilmeli ([08](08-mevzuat-kvkk-odeme-fatura.md) §2.2).
+5. **Limitler ve yalıtım:** Anahtar başına rate limit (§15.4), tenant yalıtım paketi açık API yollarını da kapsar (§5.6), her çağrı `audit_log`'a `actor_type = api_key` olarak yazılır [T].
+6. **Sandbox:** Entegrasyon ortakları için staging'de `sandbox` tenant'ına bağlı test anahtarı verilir; prod verisi paylaşılmaz.
 
 ## 5. Multi-tenancy
 ### 5.1 Model
@@ -444,6 +478,9 @@ Zamanlama [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10'daki **kanon
 
 - **Otomatik kabul [Faz 2]** (kurallı, varsayılan kapalı; `branches.auto_accept_rules`): Kurala uyan sipariş hemen `accepted` olur. Alarm zinciri bu durumda `ack` üzerine kurulur (görülmeyen sipariş yine eskale edilir).
 - **Planlı sipariş** (`new` + `scheduled_for`): Geldiği anda kısa bir "planlı sipariş" sesi çalar. Hazırlık zamanında (`scheduled_for − hazırlık süresi`) ses, push, platform WhatsApp ve SMS adımları yeniden kurulur; müşteriye gecikme bilgisi ve 15 dk otomatik iptal planlı siparişe uygulanmaz ([07](07-veri-modeli-ve-api.md) §4.1).
+- **Test siparişlerinde alarm ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 "Test siparişlerinde alarm"):**
+  - **`onboarding_test` (kısaltılmış zincir):** Sihirbazın test siparişinde ([04](04-isletme-paneli.md) §3.4.3) ve pilot UAT'ında ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §9.4) yalnız adım 1–3 kurulur: t = 0 panel sesi + Web Push, t + 60 sn ses tekrarı, t + 2 dk platform WhatsApp uyarısı (`isletme_yeni_siparis_v1`). Platform uyarısı yalnız `owner`'ın platform WhatsApp izni varsa gider ve sipariş numarası yerine "TEST #1001" biçiminde **TEST** etiketi taşır (şablon parametresinin bu biçime izin verdiği teyit edilmeli, [02](02-whatsapp-entegrasyonu.md) §5.3). **Atlanır:** t + 5 dk SMS, t + 10 dk müşteriye gecikme bilgisi, t + 15 dk otomatik iptal ve özür mesajı. Test siparişi `new` durumunda kalır; işletme onaylayarak veya reddederek kapatır. Siparişin kendi durum mesajları ("onaylandı" vb.) normal gider, çünkü testin amacı esnafın telefonuna "Onaylandı" mesajının düştüğünü görmesidir. İş planlama anında `test_kind` okunur, adım 4–6 için `alarm_escalations` satırı hiç açılmaz. `order-new-watch` (§8.5) `onboarding_test` siparişlerini iptal etmez.
+  - **`canary`:** Alarm zinciri hiç kurulmaz; hiçbir dış bildirim (Web Push, platform WhatsApp, SMS, e-posta, müşteri mesajı) gitmez. Panel sessizce ack'ler (§7.10).
 - Tüm eşikler platform varsayılanıdır; işletme panelden sınırlar içinde ayarlar ([04](04-isletme-paneli.md)): otomatik iptal 10–30 dk; müşteri bilgisi otomatik iptalden en az 5 dk önce gider (sunucu doğrular) ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10). Ayarlar `branches.alarm_policy` ve `branches.new_order_timeout_min` alanlarındadır.
 
 ### 7.7 Panel çevrimdışı dedektörü **[Faz 1]**
@@ -472,6 +509,7 @@ Kaynak: MDN BCD üzerinden A04 §3.4–3.6. Wake Lock sayfa gizlenince düşer v
 - 5. dakikada yalnız SMS gider, platform WhatsApp uyarısı tekrarlanmaz. 15 dk (varsayılan; ayar 10–30 dk) yanıtsız kalan sipariş en geç 1 dk gecikmeyle `cancelled` / `tenant_no_response` olur, müşteriye özür + işletme telefonu gider; hiçbir yolda sistem `rejected` üretmez (sahte saatle test).
 - Açık saatte tüm cihazlar kapatıldığında `owner` 4 dk içinde uyarı alır.
 - Tenant canary'si (§7.10), paneli "çevrimiçi" görünen ama olay almayan şube için 30 dk içinde işletme uyarısı üretir.
+- `onboarding_test` siparişi 20 dk onaylanmadan bekletildiğinde yalnız ses, Web Push ve (izin varsa) "TEST" etiketli platform WhatsApp uyarısı üretilir; SMS, müşteriye gecikme bilgisi ve otomatik iptal çalışmaz (sahte saatle test). `canary` siparişi için hiçbir `notifications` satırı oluşmaz.
 
 ### 7.10 Sentetik canary **[Faz 1]** (pilot öncesi zorunlu paket)
 [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11 gereği her tenant için periyodik, uçtan uca test siparişi çalışır. Amaç "webhook 200 dönüyor ama sipariş panelde yok" türü sessiz arızaları gerçek müşteri siparişinden önce yakalamaktır. Operasyonel eşikler ve SLO'lar [10](10-riskler-operasyon-ve-metrikler.md) §7.1 ve §7.3'te, veri modeli [07](07-veri-modeli-ve-api.md) §4.1'dedir.
@@ -551,7 +589,7 @@ CREATE TABLE outbox (                      -- tam alan listesi: 07 §3.4
 |---|---|---|---|
 | `wa-webhook-sweeper`, `outbox-sweeper` | 1 dk | İşlenmemiş ham olay/outbox kayıtlarını yeniden kuyruğa atar | 1 |
 | `order-awaiting-timeout` | 1 dk | `awaiting_customer` 30 dk → `cancelled` (`cancelled_by = system`, sebep `customer_timeout`); pencere açıksa müşteriye bilgi | 1 |
-| `order-new-watch` | 1 dk | Alarm işi eksik `new` siparişleri yakalar (emniyet); `new_order_timeout_min` (varsayılan 15 dk) dolan siparişi `cancelled` yapar (`cancelled_by = system`, `tenant_no_response`) ve müşteriye özür + işletme telefonu mesajını outbox'a yazar (§7.6). Planlı siparişe uygulanmaz | 1 |
+| `order-new-watch` | 1 dk | Alarm işi eksik `new` siparişleri yakalar (emniyet); `new_order_timeout_min` (varsayılan 15 dk) dolan siparişi `cancelled` yapar (`cancelled_by = system`, `tenant_no_response`) ve müşteriye özür + işletme telefonu mesajını outbox'a yazar (§7.6). Planlı siparişe ve `onboarding_test` siparişine uygulanmaz; canary zaten alarmsızdır | 1 |
 | `scheduled-order-release` | 1 dk | Hazırlık zamanı gelen planlı siparişleri öne çıkarır, alarmı kurar | 2 |
 | `branch-pause-expiry` | 1 dk | `paused_until` dolan şubeyi `open`'a döndürür, `branch.settings_changed` üretir | 1 |
 | `panel-offline-detector` | 1 dk | §7.7 | 1 |
@@ -559,7 +597,7 @@ CREATE TABLE outbox (                      -- tam alan listesi: 07 §3.4
 | `canary-platform` | 5 dk (gece 15 dk) | Meta dahil uçtan uca platform canary'si (§7.10) | 1 |
 | `wa-tenant-silence` | 5 dk | Mesai saatinde beklenmedik webhook sessizliği ([02](02-whatsapp-entegrasyonu.md) §10.2) | 1 |
 | `partition-maintenance`, `idempotency-cleanup` | Günlük 02:00 / saatlik | `branch_events`, `audit_log` (aylık) ve `wa_webhook_events` (günlük) için gelecek partition'ları açar, süresi dolanı düşürür; süresi dolan `idempotency_keys` kayıtlarını siler | 1 |
-| `retention.*` (veri silme ve anonimleştirme) | Günlük 03:00 (`retention.customer_inactive` haftalık) | [08](08-mevzuat-kvkk-odeme-fatura.md) §2.8 saklama tablosunun her satırı bir iştir: `retention.order_notes`, `retention.media`, `retention.locations`, `retention.wa_messages`, `retention.tracking_pages`, `retention.customer_inactive`, `retention.tenant_offboarding`, `retention.audit`, `retention.access_logs`, `retention.users`, `retention.leads`, `retention.technical` (Faz 1); `retention.consents` (Faz 2); `retention.courier_locations` (Faz 3). Tenant başına ayrı transaction, 1.000'lik gruplar, her koşu `retention_runs` kaydı (imha tutanağı); 48 saattir koşmamış veya başarısız iş admin alarmı ([07](07-veri-modeli-ve-api.md) §9) | 1 |
+| `retention.*` (veri silme ve anonimleştirme) | Günlük 03:00 (`retention.customer_inactive` haftalık) | [08](08-mevzuat-kvkk-odeme-fatura.md) §2.8 saklama tablosunun her satırı bir iştir: `retention.order_notes`, `retention.media`, `retention.locations`, `retention.wa_messages`, `retention.tracking_pages`, `retention.customer_inactive`, `retention.tenant_offboarding`, `retention.audit`, `retention.access_logs`, `retention.users`, `retention.leads`, `retention.technical`, `retention.analytics` (ürün analitiği olayları, 90 gün, aylık partition düşürme) (Faz 1); `retention.consents` (Faz 2); `retention.courier_locations` (Faz 3). Tenant başına ayrı transaction, 1.000'lik gruplar, her koşu `retention_runs` kaydı (imha tutanağı); 48 saattir koşmamış veya başarısız iş admin alarmı ([07](07-veri-modeli-ve-api.md) §9) | 1 |
 | `wa-token-health`, `wa-template-sync` | Günlük 04:00 / 04:30 | [02](02-whatsapp-entegrasyonu.md) §7.8, §5.4 | 1 |
 | `report-daily-rollup` | Günlük 04:15 (+ final sipariş olaylarında artımlı) | Rollup tablolarını (`report_daily_branch`, `report_daily_products`; `report_hourly` Faz 2) ve `tenant_usage_daily`'yi günceller; son 3 günü idempotent yeniden hesaplar; yalnız test olmayan siparişler (`test_kind`) sayılır ([07](07-veri-modeli-ve-api.md) §8) | 1 |
 | `tenant-health-score` | Günlük 05:30 | İşletme sağlık skoru (0–100; yeşil/sarı/kırmızı) ve kırmızı tetikleyiciler → `tenant_health_scores` (06:00'a kadar hazır; kanonik tanım [10](10-riskler-operasyon-ve-metrikler.md) §5.6) | 1 |
@@ -571,7 +609,7 @@ CREATE TABLE outbox (                      -- tam alan listesi: 07 §3.4
 | `subscription-renewal`, `dunning` | Günlük 10:00 | Yenilemeden 3 gün önce hatırlatma; dunning: G+1/G+3/G+7 yeniden deneme + hatırlatma → G+10 salt-okunur → G+21 askı → G+75 kapanış ve silme süreci ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9) | 2 |
 | `llm-budget-reset` | Aylık 1'i 00:00 | Tenant LLM kotalarını sıfırlar | 2 |
 
-**Saklama süreleri:** Kanonik tablo [08](08-mevzuat-kvkk-odeme-fatura.md) §2.8'dir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9); iş eşlemesi [07](07-veri-modeli-ve-api.md) §9'dadır. Özet (varsayılanlar): sipariş serbest notu final durumdan 30 gün sonra boşaltılır · gelen konum koordinatı 30 gün (adres metni ve bölge kalır) · WhatsApp medyası 30 gün · WhatsApp mesaj içeriği 6 ay (meta veri ve sipariş özeti kalır) · takip linki (`/t/{token}`) teslimden (ret/iptalde final durumdan) 7 gün sonra geçersizleşir, 410 döner ve kişisel alanlar gösterilmez ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7, [08](08-mevzuat-kvkk-odeme-fatura.md) §2.8 satır 5) · hareketsiz müşteri 24 ay sonra anonimleştirilir (tenant 6–24 ay arasında kısaltabilir) · ham webhook olayı, `branch_events`, terminal outbox ve `print_jobs` 30 gün, `idempotency_keys` 24 sa · `audit_log` 2 yıl, erişim logları 1 yıl · kurye konumu 30 gün (Faz 3) · yedekler 35 gün rotasyon · imha kaydı (`retention_runs`) ≥ 3 yıl.
+**Saklama süreleri:** Kanonik tablo [08](08-mevzuat-kvkk-odeme-fatura.md) §2.8'dir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9); iş eşlemesi [07](07-veri-modeli-ve-api.md) §9'dadır. Özet (varsayılanlar): sipariş serbest notu final durumdan 30 gün sonra boşaltılır · gelen konum koordinatı 30 gün (adres metni ve bölge kalır) · WhatsApp medyası 30 gün · WhatsApp mesaj içeriği 6 ay (meta veri ve sipariş özeti kalır) · takip linki (`/t/{token}`) teslimden (ret/iptalde final durumdan) 7 gün sonra geçersizleşir, 410 döner ve kişisel alanlar gösterilmez ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7, [08](08-mevzuat-kvkk-odeme-fatura.md) §2.8 satır 5) · hareketsiz müşteri 24 ay sonra anonimleştirilir (tenant 6–24 ay arasında kısaltabilir) · ham webhook olayı, `branch_events`, terminal outbox ve `print_jobs` 30 gün, `idempotency_keys` 24 sa · `audit_log` 2 yıl, erişim logları 1 yıl · ürün analitiği olayları (`analytics_events`, PII yok) 90 gün · kurye konumu 30 gün (Faz 3) · yedekler 35 gün rotasyon · imha kaydı (`retention_runs`) ≥ 3 yıl.
 
 ## 9. Yazdırma mimarisi
 ### 9.1 Faz faz
@@ -592,9 +630,16 @@ Tek veri modelinden (`ReceiptDoc`) üç çıktı üretilir: `toHtml()`, `toEscPo
 | Başlık | Şube adı, **büyük sipariş no**, teslim türü (Paket/Gel-al), planlı saat | Aynı + işletme adı, tarih/saat |
 | Kalemler | Adet × ürün, seçenekler, "çıkarılacaklar" vurgulu, kalem notu | Aynı + birim fiyat ve tutar |
 | Not | Sipariş notu (kalın) | Sipariş notu |
-| Müşteri | — | Ad, teslimat telefonu, adres + **adres tarifi**, bölge |
+| Müşteri | **Kişisel veri yok:** ad, telefon ve adres basılmaz | Ad; paket (kurye) fişinde adres + **adres tarifi** tam ve bölge; teslimat telefonu **maskeli** (son 4 hane: "0 5•• ••• •• 12"); gel-al fişinde adres yok |
 | Tutar | **Fiyat yok** (`kitchen` fiyat görmez) | Ara toplam, teslimat ücreti, indirim, **KDV dahil toplam**, ödeme yöntemi (kapıda nakit/kart/yemek kartı markası) |
 | Alt bilgi | Kanal rozeti (WA/Web/Telefon), "KOPYA" (yeniden baskıda) | "Mali değeri yoktur" (mali müşavir teyidi), takip/harita QR'ı (kurye) |
+
+**Fişte kişisel veri kuralı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 "Fişte kişisel veri") [Faz 1]:**
+- Mutfak fişi ve mutfak ekranı sipariş no, teslim türü ve kalemlerle çalışır; müşteri adı, telefonu ve adresi mutfak şablonunun veri modelinde (`ReceiptDoc.kitchen`) hiç yoktur. Böylece şablon hatasıyla bile basılamaz.
+- Paket fişi pakete iliştirilir ve üçüncü kişilerin eline geçebilir. Bu yüzden telefon her zaman maskelidir; kurye tam numarayı yalnız kurye görünümünden arar ([04](04-isletme-paneli.md) §9.2). Adres ve adres tarifi teslimat için tam basılır. Takip QR'ı `/t/{token}` linkidir; sayfa kişisel alanları zaten maskeli gösterir ve teslimden 7 gün sonra 410 döner (§15.3). Harita QR'ı yalnız teslimat konumunun harita bağlantısıdır, telefon içermez.
+- Maskeleme `packages/core/pii`'deki aynı yardımcıyla yapılır (§4.4 PII kuralı). `print_jobs.payload` render snapshot'ı da maskeli değeri taşır; tam telefon yazdırma kuyruğuna ve yazıcı ajanına (Faz 2) hiç gitmez.
+- Üst ve alt bilgi önerisi (işletme logosu, "Bir sonraki siparişinizi WhatsApp'tan verin" satırı, 80 mm'de isteğe bağlı `wa.me` QR'ı, 1–2 satırlık KVKK kısa notu) [12](12-marka-tasarim-ve-kullanilabilirlik.md) §7.4 BM-06'dadır; KVKK notunun metni avukat teyidine bağlıdır.
+- **Kabul kriteri:** Fiş HTML snapshot testi (§16.3) mutfak fişinde ad, telefon ve adres alanının olmadığını, paket fişinde telefonun yalnız son 4 hanesinin göründüğünü doğrular.
 
 ### 9.3 ESC/POS ve raster
 - **Varsayılan raster:** Fiş, sunucuda veya uygulamada 1 bit görüntüye çevrilip basılır. Türkçe karakterler (ğ, ş, ı, İ) her yazıcıda aynı görünür. Biraz yavaştır.
@@ -744,7 +789,7 @@ Faz 1'de yalnız ekip içi concierge aracıdır: platform ekibi admin panelinden
 - **Render stratejisi:** Menü sayfası statiktir (ISR) ve menü yayınlanınca `revalidateTag('menu:{branchId}')` ile anında yenilenir. Açık/kapalı durumu, tahmini süre ve stok küçük bir JSON'dan istemcide çekilir (`/api/v1/store/status`, 15 sn cache), böylece sayfa statik kalır. Sepet istemcide (localStorage), checkout dinamiktir. Takip sayfası `/t/{token}` cache'lenmez, `noindex` taşır ve 15 sn'de bir yoklar; WhatsApp'sız modda (SMS OTP ile doğrulanan sipariş) müşterinin durum bilgisini aldığı ana yer burasıdır.
 - **Cache:** HTML `s-maxage=60, stale-while-revalidate=600` [T]. Statik varlıklar değişmez (immutable) hash'li dosyalardır. Ürün görselleri R2 + Cloudflare CDN'den gelir.
 - **Görseller:** Yüklemede `images` kuyruğu EXIF'i temizler ve AVIF/WebP 320/640/1080 px varyantları üretir. `<img srcset>`, `loading="lazy"`, sabit en-boy oranı (CLS) ve düşük çözünürlüklü yer tutucu kullanılır. Cloudflare Images opsiyoneldir (Free'de 5.000 benzersiz dönüşüm/ay, A04 §7.6).
-- **Düşük bant genişliği:** Sistem yazı tipleri kullanılır, üçüncü taraf script yoktur (analitik yalnız çerez rızasıyla). MapLibre yalnız adres adımında tembel yüklenir. `Save-Data` veya yavaş bağlantıda görseller kapalı "hafif menü" gösterilir. HTTP/3 + Brotli Cloudflare'de açıktır.
+- **Düşük bant genişliği:** Sistem yazı tipleri kullanılır, üçüncü taraf script yoktur (üçüncü taraf analitik yalnız çerez rızasıyla). Ürün analitiği birinci taraftır ve çerezsizdir: olaylar `sendBeacon` ile `POST /api/v1/store/events`'e gider, `analytics_events`'e PII'siz yazılır ([07](07-veri-modeli-ve-api.md) §6.2, §3.5; [03](03-musteri-deneyimi-ve-storefront.md) §11). MapLibre yalnız adres adımında tembel yüklenir. `Save-Data` veya yavaş bağlantıda görseller kapalı "hafif menü" gösterilir. HTTP/3 + Brotli Cloudflare'de açıktır.
 - **Hedefler (mobil, p75; CrUX ve kendi RUM'umuz) [T]:**
 
 | Metrik | Hedef |
@@ -845,6 +890,8 @@ DNS; wildcard sertifika ve TLS; WAF ve DDoS koruması; rate limiting kuralları 
 | `wa_send_total`, `wa_send_errors_total` | Counter, `code`, `category`, `mode` | 131042/190 → anında tenant alarmı; genel hata oranı > %5 → P2 |
 | `wa_webhook_last_received_timestamp` | Gauge, platform + tenant | 11:00–23:00 arası 5 dk yok → P1 |
 | `sse_connections`, `branch_online_devices` | Gauge | 5 dk'da %50 düşüş → P1 |
+| `panel_devices_by_version` | Gauge, `app`, `version`, `channel` (nabızdaki `app_version`) | Asgari sürüm ve N−1 payı (§16.7); contract migration'ı bu değer sıfır olmadan yapılmaz |
+| `integration_push_total`, `integration_push_seconds` **[Faz 2]** | Counter/histogram, `provider`, `outcome` | Sağlayıcı genelinde hata oranı 15 dk boyunca > %20 → P2 [T]; tek tenant hatası işletmeye panel uyarısı (§4.5) |
 | `llm_requests_total`, `llm_cost_usd_total`, `print_jobs_failed_total` | Counter, `model`/`outcome`/`branch` | LLM hata > %20 → devre kesici; baskı hatası → işletmeye panel uyarısı |
 | HTTP RED | `http_request_duration_seconds`, route/durum | 5xx > %2 5 dk → P1 |
 | Altyapı | PG (bağlantı, replikasyon gecikmesi, şişkinlik), disk, yedek yaşı | Disk > %85, yedek > 26 sa → P2 |
@@ -970,7 +1017,7 @@ Sırlar ortam başına ayrıdır. Staging'den prod'a kimlik bilgisi taşınmaz.
 1. **PR:** `pnpm install` (Turborepo remote cache) → lint + typecheck → birim testler → entegrasyon testleri (Testcontainers: PG18 + PostGIS, Valkey) → **tenant yalıtım paketi** → ilgili uygulamalarda Playwright e2e → güvenlik taramaları (§15.7) → LLM eval (yalnız ilgili değişiklikte).
 2. **`main`'e birleştirme:** Docker imajları (etiket = git SHA) → GHCR → **staging'e otomatik deploy** → migration → smoke testi (`sandbox` tenant'ı: gelen mesaj → karşılama → storefront siparişi → durum mesajları, [02](02-whatsapp-entegrasyonu.md) §11).
 3. **Prod:** Elle onay → migration adımı (§16.5) → rolling deploy (`api-hooks`, `api`, `worker`, `web`) → deploy sonrası smoke → sağlık kontrolü başarısızsa otomatik geri dönüş (önceki imaj).
-4. **Deploy penceresi:** 11:30–14:00 ve 18:00–22:30 arası (restoran yoğun saatleri) ve cuma 17:00 sonrası acil düzeltme dışında prod deploy yapılmaz. Deploy aracı ilk sprintte seçilir: SSH + Compose tabanlı script veya Kamal (teyit edilmeli).
+4. **Deploy penceresi:** 11:30–14:00 ve 18:00–22:30 arası (restoran yoğun saatleri) ve cuma 17:00 sonrası acil düzeltme dışında prod deploy yapılmaz. Deploy aracı ilk sprintte seçilir: SSH + Compose tabanlı script veya Kamal (teyit edilmeli). Prod'a çıkış haftalık sürüm treniyle, acil düzeltme hotfix yoluyla yapılır (§16.7).
 5. **Gecelik/haftalık:** Tam e2e, ZAP baseline; haftalık yük testi ve restore tatbikatı.
 
 ### 16.3 Test stratejisi
@@ -981,7 +1028,7 @@ Sırlar ortam başına ayrıdır. Staging'den prod'a kimlik bilgisi taşınmaz.
 | Tenant yalıtımı | Özel paket (§5.6) | Katalog, fail-closed, otomatik IDOR, SSE/ajan, worker | Zorunlu, atlanamaz |
 | Sözleşme | Zod → OpenAPI; SSE olay şemaları | Panel ↔ API uyumu; geriye uyumsuz değişiklik tespiti | Zorunlu |
 | WhatsApp webhook replay | İmzalı fixture kütüphanesi + ham olay yeniden oynatma aracı ([02](02-whatsapp-entegrasyonu.md) §11) | Parse, yönlendirme, dedupe, sırasız status, hata kodları; Graph API sahte sunucusu | Zorunlu |
-| E2E | Playwright | Akış A (imzalı token), Akış B (kod ve SMS OTP — WhatsApp'sız mod), Akış E; panelde SSE ile düşen sipariş + onay (iki tarayıcı bağlamı); sahte saatle alarm zinciri ve 15 dk `tenant_no_response` iptali; 30 sn bekleyen ret + geri al; canary siparişinin panelde görünmemesi; kurye magic link; fiş HTML snapshot'ı; 3G ağ profili; storefront'ta axe erişilebilirlik | `main` öncesi ilgili akışlar |
+| E2E | Playwright | Akış A (imzalı token), Akış B (kod ve SMS OTP — WhatsApp'sız mod), Akış E; panelde SSE ile düşen sipariş + onay (iki tarayıcı bağlamı); sahte saatle alarm zinciri ve 15 dk `tenant_no_response` iptali; 30 sn bekleyen ret + geri al; canary siparişinin panelde görünmemesi; `onboarding_test`'te kısaltılmış alarm zinciri (§7.6); kurye magic link; fiş HTML snapshot'ı (mutfak fişinde kişisel veri yok, paket fişinde telefon maskeli, §9.2); açık `new` sipariş varken panel sürüm güncellemesi ve ses kilidinin korunması (§16.7); 3G ağ profili; storefront'ta axe erişilebilirlik | `main` öncesi ilgili akışlar |
 | Yük | k6 | §16.4 | Faz 1 sonu, sonra haftalık |
 | Kaos | Compose senaryoları | DB 5 dk kapalı (webhook'lar spool'a düşer), bir ingress düğümünün kapatılması, Redis kaybı, worker çökmesi, NOTIFY dinleyicisi kaybı → kayıpsız toparlanma; canary'nin her senaryoda alarm üretmesi | Pilot öncesi |
 | LLM eval | `pnpm eval:llm` | §11.6 | İlgili değişiklikte |
@@ -1002,7 +1049,8 @@ Playwright'ta ses için Chrome `--autoplay-policy=no-user-gesture-required` bayr
 - **Trunk-based:** `main` her an deploy edilebilir, özellikler feature flag arkasında birleşir. **Migration'lar:** drizzle-kit SQL üretir, SQL gözden geçirilip commit edilir. RLS, PostGIS, partition ve trigger'lar elle yazılmış SQL'dir. Migration'lar `app_owner` rolüyle, uygulama rolünden ayrı bir adımda ve **deploy'dan önce** çalışır.
 - **Expand/contract:** Sütun kaldırma veya yeniden adlandırma aynı sürümde yapılmaz. (1) ekle, (2) çift yaz + geri doldur (batch işi), (3) okumayı taşı, (4) sonraki sürümde kaldır.
 - **Güvenlik ayarları:** Her migration `SET lock_timeout = '5s'` ve makul `statement_timeout` ile çalışır. İndeksler `CREATE INDEX CONCURRENTLY` ile oluşturulur. Büyük tabloda tablo yeniden yazan değişiklik yoğun saatte yapılmaz. Migration geri alınmaz, ileri düzeltme (forward-fix) yapılır. Uygulama imajı bir önceki sürüme dönebilecek şekilde geriye uyumludur.
-- **Sürümleme:** Tüm API yolları URL'de `/v1` taşır (`/api/v1/{store|panel|courier|admin}/…`, `api.siparisinonunde.com/v1/…`); kırıcı değişiklik `/v2` ile gelir, kalkacak uçta `Deprecation`/`Sunset` başlıkları kullanılır ([07](07-veri-modeli-ve-api.md) §6.1). Panel API'si SPA ile birlikte deploy edilir. SPA `X-App-Version` farkında "yeni sürüm, yenile" gösterir. Açık API **[Faz 3]** de `/v1` ile başlar. Mobil uygulama ve yazıcı ajanı semver kullanır, sunucu minimum sürümü zorlar.
+- **Sürümleme:** Tüm API yolları URL'de `/v1` taşır (`/api/v1/{store|panel|courier|admin}/…`, `api.siparisinonunde.com/v1/…`); kırıcı değişiklik `/v2` ile gelir, kalkacak uçta `Deprecation`/`Sunset` başlıkları kullanılır ([07](07-veri-modeli-ve-api.md) §6.1). Panel API'si SPA ile birlikte deploy edilir. SPA `X-App-Version` farkını görünce yeni sürümü arka planda indirir ve yalnız §16.7'deki güvenli anlarda uygular; açık `new` sipariş varken paneli asla yeniden yüklemez. Açık API **[Faz 3]** de `/v1` ile başlar. Mobil uygulama ve yazıcı ajanı semver kullanır, sunucu minimum sürümü zorlar.
+- **Panel güncelleme politikası, sürüm treni, hotfix, öncü halka ve "Yenilikler":** §16.7.
 
 ### 16.6 Feature flag
 - `feature_flags(key, description, default_enabled, rules jsonb, owner, expires_at)` + `tenant_feature_overrides` tabloları, 30 sn Redis cache'i ve admin panelinden yönetim ([05](05-admin-paneli-ve-pazarlama-sitesi.md)). Değerlendirme sırası: tenant override → plan → yüzde dağıtımı (`hash(tenant_id)`) → global varsayılan.
@@ -1010,6 +1058,57 @@ Playwright'ta ses için Chrome `--autoplay-policy=no-user-gesture-required` bayr
 - **Kill-switch'ler (admin; kanonik liste [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4, yalnız bunlar):** `signup_open` (kayıt formu), `wa_onboarding` (Embedded Signup başlatma), `campaigns_global` (kampanya gönderimi, Faz 2), `llm_parsing` (AI ayrıştırma; §11.5 devre kesicisi otomatik kapatır), `sms_fallback` (SMS yedeği: SMS OTP ve kritik durum SMS'leri; kapatılırsa SMS yedeği tamamen durur ve Akış B yalnız WhatsApp ile çalışır; WhatsApp'sız modu bu anahtar açmaz, o tenant bazında otomatik ya da admin olay kaydından toplu devreye girer, §13.6) ve tenant bazında `ordering_enabled` (işletmenin sipariş almasını durdurur; storefront ve bot "şu an online sipariş alınmıyor, lütfen arayın" moduna geçer). Kill-switch'ler varsayılan **açıktır**; kapatmak ilgili yeteneği durdurur. Değişiklik ≤ 60 sn içinde tüm süreçlerde etkili olur ve `audit_log`'a yazılır.
 - **Diğer operasyonel anahtarlar kill-switch değil, olağan feature flag'dir** (aynı değerlendirme sırası, tenant override'ı mümkün): `bot_global` (konuşma botunu platform genelinde susturur), `auto_print` (otomatik baskı, Faz 2), `akis_b_wa_verification` (Akış B WhatsApp doğrulaması), `platform_wa_alerts` (platform WABA uyarı şablonları).
 - Geçici flag'ler tam dağıtımdan sonra en geç 2 sprint içinde koddan silinir (`expires_at` geçen flag CI uyarısı üretir).
+
+### 16.7 Sürüm yönetimi ve panel güncelleme politikası **[Faz 1]**
+**Sorun:** Panel bir PWA'dır. Yeni sürüm için sayfanın yeniden yüklenmesi gerekir. Tarayıcı, yeniden yüklenen sayfada sesi kullanıcı jesti olmadan açmaz (§7.8). Yoğun saatte kendiliğinden yenilenen bir kasa tableti, sonraki siparişi **sessiz** karşılar. Bu, "sipariş kaçmaz" ilkesine (§1) doğrudan bir tehdittir. Bu bölüm güncellemenin ne zaman ve nasıl uygulanacağını tanımlar. Elle kontrolü [12](12-marka-tasarim-ve-kullanilabilirlik.md) §9.3 EK-06, işletme tarafındaki görünümü [04](04-isletme-paneli.md) §4.1'dedir.
+
+**1. Güncelleme ne zaman uygulanır**
+- Yeni service worker arka planda iner ve **bekleme** (`waiting`) durumunda kalır. Otomatik `skipWaiting` kapalıdır (vite-plugin-pwa/Serwist "prompt" modu; davranış teyit edilmeli). Hash'li statik dosyaların en az son 2 sürümü sunucuda tutulur, böylece eski sekme dosya kaybetmez.
+- Güncelleme **yalnız** şu iki anda uygulanır:
+  - **(a) Güvenli an:** Cihazın şubesinde açık `new` sipariş yoktur, alarm çalmıyordur, şube `busy` değildir, saat yoğun saat penceresi (11:30–14:00, 18:00–22:30; §16.2) dışındadır ve ekranda kaydedilmemiş form (telefon siparişi, menü düzenleme) yoktur. Şube `closed` iken bu koşul kendiliğinden sağlanır; gece güncellemesi tercih edilen yoldur.
+  - **(b) "Vardiya başlat" anı:** P-03 ekranı açıldığında ([04](04-isletme-paneli.md) §4.1) bekleyen güncelleme önce uygulanır, sayfa yeni sürümle açılır, sonra "Siparişleri almaya başla" jesti istenir. Böylece ses kilidi yeni sürümde açılır.
+- **Hiçbir koşulda** açık `new` sipariş varken, alarm çalarken ya da bekleyen ret (`rejection_scheduled_at`) sürerken yeniden yükleme yapılmaz. Kullanıcının kendisinin sayfayı yenilemesi bu kuralın dışındadır; o durumda da aşağıdaki kurtarma adımları çalışır.
+- Güncelleme hazır olduğunda panel küçük, sessiz bir not gösterir: "Yeni sürüm hazır. Vardiya başında yüklenecek." Not bant değildir, alarm bandının yerini almaz.
+
+**2. Yeniden yüklemeden sonra ses kilidi açılmazsa**
+Yeniden yükleme her zaman P-03 vardiya ekranıyla açılır ([04](04-isletme-paneli.md) §4.1). Ses kilidi açılmadan geçen her an için şunlar uygulanır:
+- **Hemen:** Kırmızı tam genişlik bant: "Ses kapalı — yeni siparişleri duyamazsınız. [Sesi aç]" (UI-09, [12](12-marka-tasarim-ve-kullanilabilirlik.md) §4.4).
+- **İlk nabızda** (`audio_unlocked = false`, `app_version` yeni): sunucu o cihaza ve şubenin diğer kayıtlı cihazlarına Web Push gönderir: "Panel güncellendi. Sesi açmak için panele dokunun." (PII yok; `notifications.kind = audio_locked`).
+- **5 dk sonra hâlâ kilitliyse:** `owner`'a platform WhatsApp uyarısı gider. Bu, §7.7'deki "cihaz bağlı ama sesi kilitli" kuralının aynısıdır; yeni eşik tanımlanmaz. Şubede sesi açık başka bir cihaz varsa bu uyarı gitmez.
+- Bu arada `new` sipariş gelirse kademeli alarm zinciri (§7.6) değişmeden çalışır. Web Push ve 2 dk platform WhatsApp basamakları, kilitli cihazdan bağımsız olarak siparişi bir insana ulaştırır.
+
+**3. Asgari sürüm zorunluluğu**
+- Her panel, admin ve (Faz 2) Android uygulaması sürümü `app_releases` kaydıyla yayımlanır ([07](07-veri-modeli-ve-api.md) §3.7): `app`, `version`, `channel`, `min_supported_version`, `enforce_after`, `is_hotfix`, `notes_md`. API her yanıtta `X-App-Version` (güncel) ve `X-Min-App-Version` başlıklarını döner; cihaz nabzı (`POST /api/v1/panel/devices/heartbeat`, §7.4) `app_version`'ı bildirir.
+- **Geçiş süresi:** `min_supported_version` yükseltildiğinde eski sürüm `enforce_after` anına kadar normal çalışır. Varsayılan geçiş süresi en az 24 saat ve en az bir gece kapanışıdır [T]; böylece güncelleme (a) veya (b) yoluyla doğal olarak uygulanır. Süre dolunca panel yalnız bir sonraki güvenli anda (a) **zorunlu** yenilenir ve "Panelin yeni sürümü yükleniyor" notunu gösterir.
+- **Sipariş aksiyonları asla engellenmez.** Sürümü asgari sürümün altında kalan panel de siparişi onaylayabilir, reddedebilir ve durumunu ilerletebilir. Güvenlik açığı gibi acil durumlarda sunucu yalnız ilgili **sipariş dışı** uç noktaları (ör. menü, ayar, dışa aktarma) `app_version_unsupported` hatasıyla reddedebilir ([07](07-veri-modeli-ve-api.md) §6.1).
+- **Geriye uyumluluk (N−1):** API en az bir önceki panel sürümüyle tam uyumludur (sözleşme testi, §16.3). Expand/contract (§16.5) düzeninde "contract" adımı, N−1 sürümünün aktif cihaz payı nabız verisine göre sıfıra inmeden yapılmaz.
+- Yazıcı ajanı (Faz 2) imzalı otomatik güncellemeyi yalnız yazdırma kuyruğu boşken uygular (§9.5) [T]. Capacitor uygulamasında (Faz 2) web katmanı aynı (a)/(b) kurallarıyla, native kabuk mağaza güncellemesiyle güncellenir; asgari sürüm aynı alanla zorlanır.
+
+**4. Haftalık sürüm treni ve hotfix yolu**
+- **Sürüm treni:** Prod'a haftada bir planlı çıkış yapılır. Öneri: Salı 10:00–11:30, deploy penceresi (§16.2) içinde, hafta sonu yoğunluğundan ve Cuma dondurmasından uzakta [T]. Trende `main`'de staging smoke testini geçmiş her şey girer. 2 haftalık sprintte iki tren olur. Tren öncesi kontrol: staging'de e2e paketi yeşil, elle keşif listesi ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §9.3) koşuldu, sürüm notu ("Yenilikler") yazıldı, migration expand/contract kuralına uygun. Hata bütçesi %50'nin üstünde tükenmişse trene yalnız güvenilirlik düzeltmeleri girer (§14.5).
+- **Hotfix yolu:** P1/P2 hata veya güvenlik açığı için `main`'den `hotfix/*` dalı açılır. PR tam CI'dan geçer; tenant yalıtım paketi atlanamaz. Ardından staging smoke testi ve prod'a elle onay gelir. Deploy penceresi dışındaki çıkış yalnız P1 ve güvenlik düzeltmesi içindir (§16.2 "acil düzeltme"); olay kaydına bağlanır ([10](10-riskler-operasyon-ve-metrikler.md) §6). Panel hotfix'i `app_releases.is_hotfix = true` ile işaretlenir. Gerekirse `min_supported_version` yükseltilir, ama sipariş aksiyonu kuralı yine geçerlidir.
+- Sunucu tarafı (api, worker, web) her trende rolling deploy ile yenilenir (§13.3). SSE bağlantısı yeniden kurulur ve `Last-Event-ID` ile telafi edilir (§7.3). Bu, panelin yeniden yüklenmesini gerektirmez.
+
+**5. Öncü halka (kademeli açılış)**
+- Yeni davranış feature flag arkasında birleşir (§16.5, §16.6) ve halka halka açılır:
+  - **Halka 0:** iç tenant'lar (`platform`, `sandbox`, demo).
+  - **Halka 1:** pilot işletmeler (`tenants.is_pilot`) ve gönüllü "erken erişim" işletmeleri [T].
+  - **Halka 2:** herkes (yüzde dağıtımı, `hash(tenant_id)`).
+- Halka 1'den 2'ye geçiş için özellik en az bir Cuma veya Cumartesi akşam yoğunluğunu (19:00–22:00) sorunsuz geçirmiş olmalıdır [T]. Sorun çıkarsa flag ≤ 60 sn içinde kapatılır (§16.6); paket geri alınmaz.
+- Panel paketi normalde tüm halkalara aynı sürümle gider, yeni kod yolu flag'le kapalı kalır. Ses, service worker veya SSE altyapısını değiştiren sürümler paket düzeyinde halkalanır: `app_releases.channel = 'pilot'` iken güncelleme sinyali (nabız yanıtındaki hedef sürüm) yalnız halka 0–1 cihazlarına verilir [T].
+
+**6. "Yenilikler" ve duyuru**
+- Panelde Yardım (P-39) altında **"Yenilikler"** listesi bulunur. Kaynak `app_releases.notes_md`'dir; metin esnaf dilinde ve kısadır ([04](04-isletme-paneli.md) §14.3). Yeni sürüm uygulandığında bildirim merkezinde (P-40) tek bir sessiz kayıt oluşur; ses ve bant yoktur.
+- `owner` ve `manager`'a ayda bir "Bu ay panelde neler değişti" e-postası gider (Faz 1'de ekip elle gönderir, Faz 2'de admin A-14'ten otomatik; [05](05-admin-paneli-ve-pazarlama-sitesi.md) A-14). İçerik hizmet bilgisidir, tanıtım ve kampanya içermez ([08](08-mevzuat-kvkk-odeme-fatura.md) §3.7).
+- **WhatsApp'tan tanıtım duyurusu yapılmaz.** Platform WABA'sı yalnız utility uyarı ve olay bildirimleri içindir ([02](02-whatsapp-entegrasyonu.md) §5.3). Yeni özellik tanıtımı marketing sayılır; hem kategori ve kalite riski hem de ETK/İYS yükü doğurur. Planlı bakım ve olay duyuruları ayrıdır (`platform_planli_bakim_v1`, [10](10-riskler-operasyon-ve-metrikler.md) §6.3).
+
+**7. Testler ve kabul kriterleri**
+- [ ] **E2E (Playwright, bayraksız ses jestiyle):** Açık `new` sipariş varken staging'e yeni panel sürümü çıkılır. Panel yeniden yüklenmez, alarm döngüsü sürer, cihazın `audio_unlocked = true` değeri korunur. Sipariş onaylanıp yoğun saat dışına çıkılınca (sahte saat) güncelleme uygulanır ve P-03 açılır.
+- [ ] Yeniden yüklemeden sonra ses kilidi açılmazsa bant ≤ 5 sn [T] içinde görünür, ilk nabızda Web Push gider, 5 dk sonra `owner`'a platform WhatsApp uyarısı gider (sahte saat). Şubede sesi açık ikinci cihaz varsa `owner` uyarısı gitmez.
+- [ ] P-03 açıldığında bekleyen güncelleme önce uygulanır; "Siparişleri almaya başla" jesti yeni sürümde sesi açar.
+- [ ] N−1 panel sürümü yeni API ile bütün sipariş aksiyonlarını tamamlar (sözleşme testi). Asgari sürümün altındaki panel sipariş aksiyonlarında `app_version_unsupported` almaz.
+- [ ] Rolling deploy sırasında açık panelde hiçbir olay kaybolmaz (§7.9).
+- [ ] Kaydedilmemiş telefon siparişi formu açıkken güncelleme uygulanmaz.
 
 ## 17. Ölçek ve maliyet tahmini
 Varsayımlar (A04 §12, tümü [T]): işletme başına 900 sipariş/ay, %30 serbest metin (LLM, Faz 2), %3 SMS yedeği (SMS OTP + WhatsApp'sız mod durum SMS'i + alarm SMS'i, Faz 1). Kur 1 USD ≈ 48,4 TL ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8). Meta mesaj ücretleri işletmenin kendi hesabından ödenir ve tabloda yoktur. **Yurt içi sağlayıcı fiyatları doğrulanmadı.** Aralıklar A04'teki (ağırlıkla AB referanslı) tahminlerdir ve yurt içi teklifle yukarı yönlü değişebilir.
@@ -1063,3 +1162,7 @@ Proje sahibi kararları [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §1
 | 20 | **Stack:** TypeScript monorepo mu, Laravel 13 + Filament 5 mi? (proje sahibi kararı, 00 §13.1) | Varsayılan TypeScript (§2.1); karar ilk hafta verilir, sonra değişmez (§2.3). |
 | 21 | **Canary ayrıntılarında 07/10 farkı** (eski 10 §7.3 tenant canary'sini ayrı bir test bayrağıyla işaretleyip 24 saat sonra siliyordu; eski 07 `test_kind` değer listesi 00'dan farklıydı). | **Karara bağlandı:** 00 §5 `test_kind` (`onboarding_test`, `canary`; `NULL` = gerçek sipariş). [07](07-veri-modeli-ve-api.md) §3.0/§4.1 ve [10](10-riskler-operasyon-ve-metrikler.md) §7.3 bu dokümanla (§7.10) aynı: `test_kind = 'canary'`, ack sonrası / en geç 10 dk'da kalıcı silme. |
 | 22 | **İkinci ingress düğümünün spool tasarımı** (§13.3): DB'ye erişilemezken yerel kalıcı spool + 200. | Öneri; kaos testinde (§16.3) doğrulanır. Alternatif: spool yok, 503 + Meta yeniden denemesi (daha basit, ama Meta'nın yeniden deneme davranışına bağımlı). |
+| 23 | **Panel güncelleme politikasının teknik teyitleri** (§16.7): service worker'ın "prompt" modunda bekletilmesi ve yalnız uygulama kararıyla etkinleşmesi (vite-plugin-pwa/Serwist), iOS ana ekran PWA'sında güncelleme davranışı, hash'li dosyaların iki sürüm tutulması; sürüm treni günü, geçiş süresi ve halka bekleme süresi [T]. | S1–S3'te fiziksel cihaz parkıyla ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §9.2) doğrulanır; EK-06 elle kontrolü ve §16.7 e2e testi pilot öncesi kapıdır. |
+| 24 | **Entegrasyon kuyruğu** (§4.5): kanonik kuyruk listesinde ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5) POS/entegrasyon işi için kuyruk yok. | Öneri: Faz 2 başında `integrations` kuyruğu; açılmadan önce 00 §5'e eklenir. O zamana kadar entegrasyon kodu yazılmaz (F2-05 Faz 2'dedir). |
+| 25 | **Açık API'de veri rolü** (§4.5, Faz 3): işletmenin bağladığı üçüncü tarafa kişisel veri aktarımının KVKK rolü ve DPA'ya yansıması; `audit_log`'a `api_key` aktör tipi. | Faz 3 tasarımında avukat görüşüyle ([08](08-mevzuat-kvkk-odeme-fatura.md)); aktör tipi [07](07-veri-modeli-ve-api.md) `audit_log`'a o zaman eklenir. |
+| 26 | **Yabancı numaraya SMS OTP** (§4.3): Faz 1'de yalnız `+90` [T]. | Faz 3 dil desteğiyle birlikte sağlayıcının yurt dışı teslim ve fiyatı yazılı teyit edilir; ülke izin listesi ve maliyet tavanıyla açılır. |
