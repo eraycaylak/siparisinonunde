@@ -885,9 +885,9 @@ Kapsam: [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5'teki `cancel_re
 > {kalan_dk} dakika içinde onaylanmazsa siparişiniz otomatik olarak iptal edilecek ve size buradan haber vereceğiz.
 > Beklemek ister misiniz? Takip: {takip_link}
 
-- **Zamanlama kuralı:** otomatik iptal süresi işletme ayarıdır, **10–30 dk** aralığında seçilir, varsayılan **15 dk**. M13 varsayılan olarak **t=10 dk**'da gider ve her durumda otomatik iptalden **en az 5 dk önce** gider: `M13 zamanı = min(10 dk, iptal süresi − 5 dk)` (ör. iptal 10 dk → M13 t=5 dk; iptal 30 dk → M13 t=10 dk). `{kalan_dk}` = iptal süresi − M13 zamanı.
+- **Zamanlama kuralı:** otomatik iptal süresi işletme ayarıdır, **10–30 dk** aralığında seçilir, varsayılan **15 dk**. M13 varsayılan olarak **t=10 dk**'da gider ve her durumda otomatik iptalden **en az 5 dk önce** gider: `M13 zamanı = min(bilgi ayarı [varsayılan 10 dk], iptal süresi − 5 dk)` (ör. iptal 10 dk → M13 t=5 dk; iptal 30 dk, varsayılan ayar → M13 t=10 dk). Ayar ekranı [04](04-isletme-paneli.md) §7.7'dedir. `{kalan_dk}` = iptal süresi − M13 zamanı.
 - *Siparişi iptal et* müşteri iptalidir (`new` → `cancelled`, `customer`, `customer_request`) ve M12b ile yanıtlanır. *Beklerim* (M13a) süreyi uzatmaz; iptal süresi dolduğunda (varsayılan t=15 dk) işletme hâlâ yanıt vermediyse M12d gider.
-- Pencere kapalıysa veya WhatsApp'sız moddaysa bu bilgi yalnız takip sayfasında görünür (§7.3).
+- Pencere kapalıysa veya WhatsApp'sız moddaysa bu bilgi yalnız takip sayfasında görünür (§7.3). Planlı siparişte [Faz 2] M13 ve otomatik iptal uygulanmaz; canary siparişte müşteri mesajı gitmez ([D02 §10.3](02-whatsapp-entegrasyonu.md)).
 
 **M18 · AI sipariş özeti** — tetik: Akış C ve sohbet içi tekrar (Akış D) · service, reply · butonlar: *Onayla* · *Düzenle* · *İptal* · [Faz 2]
 > Siparişinizi şöyle anladım 👇
@@ -1107,12 +1107,12 @@ Karara bağlanan maddeler "Karara bağlandı" diye kapatılmıştır; numaralar 
 
 | # | Konu | Durum / bu dokümanda uygulanan |
 |---|---|---|
-| 1 | **AI özet butonları.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 Akış C, §10): [Onayla] [Düzenle] [İptal]; ibare ve ön bilgilendirme linki gövdede (M18). D02 §6.1 diyagramı, §6.5 ve D02 Açık konular #2 hâlâ eski seti ([Siparişi onayla][Değiştir][Menüyü aç]) kullanıyor; D02'de düzeltilmeli. |
+| 1 | **AI özet butonları.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 Akış C, §10): [Onayla] [Düzenle] [İptal]; ibare ve ön bilgilendirme linki gövdede (M18); [Düzenle] sepeti dolu storefront linkini açar. D02 §6.1 ve §6.5 de hizalı. |
 | 2 | **Storefront onay butonu.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9; D08 §4.4 ile hizalı): buton "Siparişi onayla · {toplam}", ibare hemen altında ve kilitli. Nihai hukuk metni avukat teyidinde (D08 §11). |
 | 3 | **SMS OTP fazı.** | **Karara bağlandı:** Faz 1 ("WhatsApp'sız mod", [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 Akış B); D08 §2.11 de Faz 1 (§3.2.1). |
 | 4 | **Araştırma ile küçük farklar (bilgi).** Ret mesajı gecikmesi A05'te 60 sn; token URL'si A05'te `/s/{token}`; Akış B ön dolu metni A05'te "Merhaba, sipariş kodum: X"; JS bütçesi A05'te < 150 KB. | Kapandı: 00 §7 (30 sn bekleyen ret), D02 (`?wa=`), 00 §7/D02 ("Sipariş kodu: X") ve D06 (≤ 120 KB) uygulandı. |
 | 5 | **Sebep kodları ve müşteri metinleri.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5): yedi `rejection_reason` kodunun her birinin müşteri metni M11'de, tüm `cancel_reason` kodlarınınki M12a–g'de, kısa sebep metinleri D02 §5.2'de. Açık kalan: müşterinin serbest iptal gerekçesinin alan adı D07'de tanımlanmalı. |
-| 6 | **Karşılama sıklığı.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7): tam karşılama 12 saatte 1, kısa yanıt + "Menüyü aç" 30 dk'da 1, açık siparişte durum kartı (§8.1). D02 §6.2 `replyOnce` yalnız 30 dk soğuma kullanıyor; 12 saat kuralı D02'ye eklenmeli. |
+| 6 | **Karşılama sıklığı.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7): tam karşılama 12 saatte 1, kısa yanıt + "Menüyü aç" 30 dk'da 1, açık siparişte durum kartı (§8.1). D02 §6.2 `onInbound` yalnız 30 dk soğuma kullanıyor ve kapalılık kontrolünü açık sipariş kontrolünden önce yapıyor; 12 saat kuralı ve bu sıra D02'de hizalanmalı. |
 | 7 | **"Hazırlanıyor" açıkken bütçe.** | Kapandı: M07 yalnız M06c gittiyse gönderilir (§9.6 kural 4); D02 §4.3 ile aynı. |
 | 8 | **Değerlendirmenin fazı.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7): Faz 1'de M10 butonlarıyla 3 seçenekli puan + isteğe bağlı kısa yorum, yalnız işletme panelinde; `reviews` tablosu Faz 1 (D07 hizalı). Herkese açık yayın ve işletme yanıtı Faz 2 (§7.5). |
 | 9 | **`wa_flow` kanal kodu.** | **Karara bağlandı:** [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5 `channel` listesinde (Faz 3). Açık kalan: sohbet içi tekrar sipariş [Faz 2] için kanal kodu (A05 önerisi `wa_link`); 00 §5'e eklenmeli. |
