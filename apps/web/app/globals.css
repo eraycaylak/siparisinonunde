@@ -1,0 +1,322 @@
+@import "tailwindcss";
+
+/*
+  Tasarım token'ları: docs/12 §3.2 (marka + nötr), §3.3 (durum renkleri), §4.2 (token listesi), §4.3 (tema).
+  Tema: <html data-theme="light|dark|system"> + .dark sınıfı (satır içi betik ayarlar).
+  data-theme="system" iken prefers-color-scheme izlenir.
+*/
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  color-scheme: light;
+
+  /* Marka */
+  --ink-900: #14233a;
+  --ink-50: #f3f6fa;
+  --saffron-500: #f5a524;
+
+  /* Nötrler */
+  --bg: #ffffff;
+  --surface: #f5f6f8;
+  --surface-raised: #ffffff;
+  --fg: #111827;
+  --fg-muted: #4b5563;
+  --border: #d9dde3;
+  --border-strong: #6b7280;
+
+  /* shadcn eşlemesi */
+  --primary: var(--ink-900);
+  --primary-fg: #ffffff;
+  --accent: var(--ink-50);
+  --accent-fg: var(--ink-900);
+  --destructive: #b91c1c;
+  --destructive-fg: #ffffff;
+  --success: #15803d;
+  --success-fg: #ffffff;
+  --warning: #c2410c;
+  --warning-bg: #fff7ed;
+  --info: #1d4ed8;
+  --info-bg: #dbeafe;
+  --ring: var(--ink-900);
+
+  /* Bantlar ve not kutusu (iki temada aynı) */
+  --band-alarm: #c81e1e;
+  --band-alarm-fg: #ffffff;
+  --band-warn: #fbbf24;
+  --band-warn-fg: #111827;
+  --band-ok: #15803d;
+  --band-ok-fg: #ffffff;
+  --note-bg: #fef9c3;
+  --note-fg: #111827;
+
+  /* Sipariş durum renkleri (fg / bg / kenar) */
+  --status-awaiting_customer-fg: #4b5563;
+  --status-awaiting_customer-bg: #f3f4f6;
+  --status-new-fg: #b91c1c;
+  --status-new-bg: #fee2e2;
+  --status-accepted-fg: #1d4ed8;
+  --status-accepted-bg: #dbeafe;
+  --status-preparing-fg: #6d28d9;
+  --status-preparing-bg: #ede9fe;
+  --status-ready-fg: #15803d;
+  --status-ready-bg: #f0fdf4;
+  --status-on_the_way-fg: #0f766e;
+  --status-on_the_way-bg: #ccfbf1;
+  --status-delivered-fg: #166534;
+  --status-delivered-bg: #f0fdf4;
+  --status-rejected-fg: #991b1b;
+  --status-rejected-bg: #fef2f2;
+  --status-cancelled-fg: #374151;
+  --status-cancelled-bg: #f3f4f6;
+
+  /* Katmanlar ve hareket (12 §4.2) */
+  --z-sticky: 10;
+  --z-drawer: 40;
+  --z-modal: 50;
+  --z-toast: 60;
+  --z-banner: 80;
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Koyu tema değerleri — .dark sınıfı */
+.dark {
+  color-scheme: dark;
+  --bg: #0f1419;
+  --surface: #18202a;
+  --surface-raised: #1e2732;
+  --fg: #f3f4f6;
+  --fg-muted: #a7b0ba;
+  --border: #2c3640;
+  --border-strong: #6b7785;
+  --primary: #f3f6fa;
+  --primary-fg: var(--ink-900);
+  --accent: #232b35;
+  --accent-fg: #f3f4f6;
+  --destructive: #fca5a5;
+  --destructive-fg: #111827;
+  --success: #86efac;
+  --success-fg: #0f1419;
+  --warning: #fdba74;
+  --warning-bg: #3a2412;
+  --info: #93c5fd;
+  --info-bg: #15233f;
+  --ring: var(--saffron-500);
+  --status-awaiting_customer-fg: #c4cbd4;
+  --status-awaiting_customer-bg: #232b35;
+  --status-new-fg: #fca5a5;
+  --status-new-bg: #3a1416;
+  --status-accepted-fg: #93c5fd;
+  --status-accepted-bg: #15233f;
+  --status-preparing-fg: #c4b5fd;
+  --status-preparing-bg: #261a45;
+  --status-ready-fg: #86efac;
+  --status-ready-bg: #0f2e1c;
+  --status-on_the_way-fg: #5eead4;
+  --status-on_the_way-bg: #0b2e2b;
+  --status-delivered-fg: #86efac;
+  --status-delivered-bg: #18202a;
+  --status-rejected-fg: #fca5a5;
+  --status-rejected-bg: #18202a;
+  --status-cancelled-fg: #a7b0ba;
+  --status-cancelled-bg: #18202a;
+}
+
+/* JS kapalıyken ya da ilk boyamada: data-theme="system" + sistem koyu ise */
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"]:not(.light) {
+    color-scheme: dark;
+    --bg: #0f1419;
+    --surface: #18202a;
+    --surface-raised: #1e2732;
+    --fg: #f3f4f6;
+    --fg-muted: #a7b0ba;
+    --border: #2c3640;
+    --border-strong: #6b7785;
+    --primary: #f3f6fa;
+    --primary-fg: var(--ink-900);
+    --accent: #232b35;
+    --accent-fg: #f3f4f6;
+    --destructive: #fca5a5;
+    --destructive-fg: #111827;
+    --success: #86efac;
+    --success-fg: #0f1419;
+    --warning: #fdba74;
+    --warning-bg: #3a2412;
+    --info: #93c5fd;
+    --info-bg: #15233f;
+    --ring: var(--saffron-500);
+    --status-awaiting_customer-fg: #c4cbd4;
+    --status-awaiting_customer-bg: #232b35;
+    --status-new-fg: #fca5a5;
+    --status-new-bg: #3a1416;
+    --status-accepted-fg: #93c5fd;
+    --status-accepted-bg: #15233f;
+    --status-preparing-fg: #c4b5fd;
+    --status-preparing-bg: #261a45;
+    --status-ready-fg: #86efac;
+    --status-ready-bg: #0f2e1c;
+    --status-on_the_way-fg: #5eead4;
+    --status-on_the_way-bg: #0b2e2b;
+    --status-delivered-fg: #86efac;
+    --status-delivered-bg: #18202a;
+    --status-rejected-fg: #fca5a5;
+    --status-rejected-bg: #18202a;
+    --status-cancelled-fg: #a7b0ba;
+    --status-cancelled-bg: #18202a;
+  }
+}
+
+@theme inline {
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "Helvetica Neue", Arial, sans-serif,
+    "Apple Color Emoji", "Noto Color Emoji";
+
+  --color-ink: var(--ink-900);
+  --color-ink-50: var(--ink-50);
+  --color-saffron: var(--saffron-500);
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-primary: var(--primary);
+  --color-primary-fg: var(--primary-fg);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-destructive: var(--destructive);
+  --color-destructive-fg: var(--destructive-fg);
+  --color-success: var(--success);
+  --color-success-fg: var(--success-fg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+  --color-ring: var(--ring);
+
+  --color-band-alarm: var(--band-alarm);
+  --color-band-alarm-fg: var(--band-alarm-fg);
+  --color-band-warn: var(--band-warn);
+  --color-band-warn-fg: var(--band-warn-fg);
+  --color-band-ok: var(--band-ok);
+  --color-band-ok-fg: var(--band-ok-fg);
+  --color-note: var(--note-bg);
+  --color-note-fg: var(--note-fg);
+
+  --color-status-awaiting_customer-fg: var(--status-awaiting_customer-fg);
+  --color-status-awaiting_customer-bg: var(--status-awaiting_customer-bg);
+  --color-status-new-fg: var(--status-new-fg);
+  --color-status-new-bg: var(--status-new-bg);
+  --color-status-accepted-fg: var(--status-accepted-fg);
+  --color-status-accepted-bg: var(--status-accepted-bg);
+  --color-status-preparing-fg: var(--status-preparing-fg);
+  --color-status-preparing-bg: var(--status-preparing-bg);
+  --color-status-ready-fg: var(--status-ready-fg);
+  --color-status-ready-bg: var(--status-ready-bg);
+  --color-status-on_the_way-fg: var(--status-on_the_way-fg);
+  --color-status-on_the_way-bg: var(--status-on_the_way-bg);
+  --color-status-delivered-fg: var(--status-delivered-fg);
+  --color-status-delivered-bg: var(--status-delivered-bg);
+  --color-status-rejected-fg: var(--status-rejected-fg);
+  --color-status-rejected-bg: var(--status-rejected-bg);
+  --color-status-cancelled-fg: var(--status-cancelled-fg);
+  --color-status-cancelled-bg: var(--status-cancelled-bg);
+
+  /* Köşe yarıçapı (12 §4.2) */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  /* Gölge (12 §4.2) */
+  --shadow-sm: 0 1px 2px rgb(17 24 39 / 0.06);
+  --shadow-md: 0 4px 12px rgb(17 24 39 / 0.08);
+  --shadow-lg: 0 12px 32px rgb(17 24 39 / 0.12);
+
+  /* Dokunma hedefleri (12 §4.2): h-hit, min-h-hit, min-w-hit … */
+  --spacing-hit: 48px;
+  --spacing-hit-sf: 44px;
+  --spacing-hit-primary: 56px;
+  --spacing-hit-primary-lg: 64px;
+
+  --text-5xl: 3rem;
+  --text-5xl--line-height: 3.25rem;
+
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Odak halkası: 2 px + 2 px boşluk (12 §4.3) */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--saffron-500);
+    color: var(--ink-900);
+  }
+
+  /* Form alanları iOS yakınlaştırmasını önlemek için ≥ 16 px */
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+
+  dialog::backdrop {
+    background: rgb(15 20 25 / 0.55);
+  }
+
+  [hidden] {
+    display: none !important;
+  }
+}
+
+@layer utilities {
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .scroll-pad {
+    scroll-padding-top: 5rem;
+    scroll-padding-bottom: 6rem;
+  }
+}
+
+/* Hareket azaltma: animasyon ve yanıp sönme yok (12 §4.2, WCAG 2.3.1) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Yazdırma: panel kabuğu ve bantlar yazdırılmaz */
+@media print {
+  [data-print-hide] {
+    display: none !important;
+  }
+}

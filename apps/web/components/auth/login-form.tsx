@@ -1,0 +1,170 @@
+'use client';
+
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
+import { LogIn } from 'lucide-react';
+import { Alert } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
+import { Field } from '@/components/ui/field';
+import { Input } from '@/components/ui/input';
+import { errorMessage, isApiError } from '@/lib/api';
+import { homePathFor, logout, safeNextPath, useLogin, useMe } from '@/lib/auth';
+import { PasswordInput } from './password-input';
+
+export interface LoginFormProps {
+  /** 'panel': işletme girişi; 'admin': platform girişi (yetki kontrolü + TOTP). */
+  variant?: 'panel' | 'admin';
+}
+
+function loginErrorText(err: unknown): string {
+  if (isApiError(err)) {
+    if (err.status === 401 || err.code === 'invalid_credentials') return 'E-posta/telefon ya da parola hatalı. Kontrol edip tekrar deneyin.';
+    if (err.status === 429 || err.code === 'rate_limited') return 'Çok fazla deneme yaptınız. 1 dakika bekleyip tekrar deneyin.';
+    if (err.code === 'account_disabled') return 'Bu hesap kapatılmış. İşletme sahibinizle görüşün.';
+    if (err.code === 'invalid_totp') return 'Doğrulama kodu hatalı ya da süresi dolmuş.';
+  }
+  return errorMessage(err, 'Giriş yapılamadı. Tekrar deneyin.');
+}
+
+/** E-posta/telefon + parola ile giriş (14 §6.1 POST /auth/login). */
+export function LoginForm({ variant = 'panel' }: LoginFormProps) {
+  const router = useRouter();
+  const params = useSearchParams();
+  const me = useMe();
+  const login = useLogin();
+  const [values, setValues] = useState({ login: '', password: '', totp: '' });
+  const [needTotp, setNeedTotp] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{ login?: string; password?: string; totp?: string }>({});
+  const [error, setError] = useState<string | null>(null);
+  const [showForgot, setShowForgot] = useState(false);
+  const submitted = useRef(false);
+  const loginRef = useRef<HTMLInputElement>(null);
+
+  const next = params.get('next');
+
+  // Zaten oturum varsa hedefe geç.
+  useEffect(() => {
+    if (submitted.current || !me.data) return;
+    if (variant === 'admin') {
+      if (me.data.isPlatformAdmin) router.replace(safeNextPath(next, '/admin'));
+      return;
+    }
+    router.replace(safeNextPath(next, homePathFor(me.data)));
+  }, [me.data, next, router, variant]);
+
+  useEffect(() => {
+    loginRef.current?.focus();
+  }, []);
+
+  const onSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    const fe: typeof fieldErrors = {};
+    if (values.login.trim().length < 3) fe.login = 'E-posta adresinizi ya da telefonunuzu yazın.';
+    if (!values.password) fe.password = 'Parolanızı yazın.';
+    if (needTotp && !/^\d{6}$/.test(values.totp.trim())) fe.totp = '6 haneli kodu yazın.';
+    setFieldErrors(fe);
+    if (Object.keys(fe).length > 0) return;
+
+    submitted.current = true;
+    try {
+      const res = await login.mutateAsync({
+        login: values.login.trim(),
+        password: values.password,
+        ...(needTotp ? { totp: values.totp.trim() } : {}),
+      });
+      if (variant === 'admin') {
+        if (!res.isPlatformAdmin) {
+          await logout().catch(() => undefined);
+          submitted.current = false;
+          setError('Bu hesabın platform yetkisi yok. İşletme girişini kullanın.');
+          return;
+        }
+        router.replace(safeNextPath(next, '/admin'));
+        return;
+      }
+      router.replace(safeNextPath(next, homePathFor({ isPlatformAdmin: res.isPlatformAdmin, memberships: res.memberships })));
+    } catch (err) {
+      submitted.current = false;
+      if (isApiError(err) && err.code === 'totp_required') {
+        setNeedTotp(true);
+        setError(null);
+        return;
+      }
+      setError(loginErrorText(err));
+    }
+  };
+
+  return (
+    <form noValidate onSubmit={onSubmit} className="flex flex-col gap-5">
+      {error ? <Alert variant="danger">{error}</Alert> : null}
+      <Field label="E-posta ya da telefon" required error={fieldErrors.login}>
+        <Input
+          ref={loginRef}
+          name="login"
+          autoComplete="username"
+          inputMode="email"
+          autoCapitalize="none"
+          spellCheck={false}
+          value={values.login}
+          onChange={(e) => setValues((v) => ({ ...v, login: e.target.value }))}
+        />
+      </Field>
+      <Field label="Parola" required error={fieldErrors.password}>
+        <PasswordInput
+          name="password"
+          autoComplete="current-password"
+          value={values.password}
+          onChange={(e) => setValues((v) => ({ ...v, password: e.target.value }))}
+        />
+      </Field>
+      {needTotp ? (
+        <Field label="Doğrulama kodu" required error={fieldErrors.totp} hint="Doğrulama uygulamanızdaki 6 haneli kod.">
+          <Input
+            name="totp"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            maxLength={6}
+            value={values.totp}
+            onChange={(e) => setValues((v) => ({ ...v, totp: e.target.value.replace(/\D/g, '') }))}
+          />
+        </Field>
+      ) : null}
+      <Button type="submit" size="lg" block loading={login.isPending}>
+        <LogIn aria-hidden />
+        Giriş yap
+      </Button>
+      {variant === 'panel' ? (
+        <div className="flex flex-col gap-3 text-sm">
+          <button
+            type="button"
+            className="min-h-10 self-start font-semibold text-fg underline underline-offset-4"
+            onClick={() => setShowForgot((s) => !s)}
+            aria-expanded={showForgot}
+          >
+            Parolamı unuttum
+          </button>
+          {showForgot ? (
+            <Alert variant="info">
+              Personelseniz işletme sahibinizden parolanızı sıfırlamasını isteyin. İşletme sahibiyseniz destek hattımıza WhatsApp’tan yazın.
+            </Alert>
+          ) : null}
+          <p className="text-fg-muted">Kuryeyseniz işletmenizin gönderdiği giriş linkini kullanın.</p>
+          <p className="text-fg-muted">
+            Hesabınız yok mu?{' '}
+            <Link href="/panel/kayit" className="font-semibold text-fg underline underline-offset-4">
+              Ücretsiz deneyin
+            </Link>
+          </p>
+        </div>
+      ) : null}
+      {me.isError && !me.data ? (
+        <p className="text-sm text-fg-muted">Sunucuya şu an ulaşılamıyor olabilir; giriş denemeniz başarısız olursa biraz sonra tekrar deneyin.</p>
+      ) : null}
+      <span className="sr-only" aria-live="polite">
+        {login.isPending ? 'Giriş yapılıyor' : ''}
+      </span>
+    </form>
+  );
+}
