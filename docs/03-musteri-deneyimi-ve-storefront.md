@@ -250,11 +250,7 @@ sequenceDiagram
 - **Görünme koşulu:** WhatsApp bağlamı (token → müşteri) ya da müşterinin açıkça seçtiği "Bu cihazda hatırla" çerezi (§4.4) olmalı. Kart, son başarılı (`delivered`) siparişi gösterir.
 - **İçerik:** tarih, ilk 3 kalem ("ve 2 ürün daha") ve **güncel** toplam.
 - **Buton:** "Aynısını sipariş ver". Kalemler güncel fiyatla sepete eklenir ve kullanıcı doğrudan checkout'a gider. Adres ve ödeme son siparişteki gibi ön seçilidir.
-- **Değişiklik varsa** önce "Sepetiniz güncellendi" alt sayfası açılır:
-  - "Künefe bugün tükendi, sepete eklenmedi."
-  - "Ekstra kaşar seçeneği artık yok, çıkarıldı."
-  - "Fiyatlar güncellendi: 285,00 TL → 315,00 TL."
-  - Butonlar: [Devam et] [Menüye dön].
+- **Değişiklik varsa** önce "Sepetiniz güncellendi" alt sayfası açılır: "Künefe bugün tükendi, sepete eklenmedi." · "Ekstra kaşar seçeneği artık yok, çıkarıldı." · "Fiyatlar güncellendi: 285,00 TL → 315,00 TL." Butonlar: [Devam et] [Menüye dön].
 
 **[Faz 2] Sohbet içi tekrar:**
 
@@ -377,26 +373,15 @@ sequenceDiagram
 | S-15 | Siparişlerim (geçmiş liste) | `/siparislerim` | 2 |
 | S-13 | Masa modu | `/?masa=` | 3 |
 
-**Ortak bileşenler [Faz 1]:**
-- **Üst çubuk:** logo, ad, "Bilgi" (S-14).
-- **Yardım menüsü:** "İşletmeyi ara" (`tel:`) ve "WhatsApp'tan yaz". Her sayfada aynı yerde durur (WCAG 3.2.6).
-- **Yapışkan sepet çubuğu.**
-- **Toast/"Geri al" şeridi** (5 sn).
-- **Alt sayfa (bottom sheet):** odak tuzağıyla, ESC ve geri tuşuyla kapanır.
-- **Altbilgi:** künye linki, yasal linkler, "İçerik bildir" (5651, [D08 §4.7](08-mevzuat-kvkk-odeme-fatura.md)), "Altyapı: Siparişin Önünde".
-- **Tema:** işletmenin marka rengi. Buton metninin rengi (siyah/beyaz) kontrast oranına göre otomatik seçilir (§10.3).
+**Ortak bileşenler [Faz 1]:** üst çubuk (logo, ad, "Bilgi" → S-14); her sayfada aynı yerde duran **yardım menüsü** ("İşletmeyi ara" `tel:`, "WhatsApp'tan yaz"; WCAG 3.2.6); yapışkan sepet çubuğu; 5 sn'lik "Geri al" şeridi; alt sayfa (odak tuzaklı, ESC ve geri tuşuyla kapanır); altbilgi (künye, yasal linkler, "İçerik bildir" [D08 §4.7](08-mevzuat-kvkk-odeme-fatura.md), "Altyapı: Siparişin Önünde"). Tema işletmenin marka rengidir; buton metninin rengi kontrasta göre otomatik seçilir (§10.3).
 
 ### 4.1 S-01 Menü (ana) [Faz 1]
 
 **İçerik (yukarıdan aşağı):**
-1. **Başlık:** logo, ad, durum rozeti (Açık / Yoğun / Kapalı, renk + ikon + kelime), "Kapanış 23.00".
-2. **Teslimat özeti:** "30–40 dk · Teslimat 0–25 TL · Min. sepet 150 TL'den". Adres seçildiyse kesin değerler: "Ev · 20 TL · Min. 150 TL".
-3. **Teslim türü anahtarı:** Paket servis / Gel-al (işletmenin açtıkları).
-4. **"Son siparişin" kartı** (§3.4). Faz 2'de yanında damga kartı durur.
-5. **Arama:** aksan duyarsız ("lamacun" → Lahmacun, "cig kofte" → Çiğ Köfte; A05 §8.7).
-6. **Yapışkan kategori sekmeleri** ve kategori bölümleri.
-7. **Ürün kartları:** ad, kısa açıklama, fiyat, varsa görsel, "+" butonu. Seçeneksiz ürün tek dokunuşla sepete eklenir; seçenekli ürün S-02'yi açar.
-8. **Yapışkan sepet çubuğu:** "Sepeti gör · 3 ürün · 485,00 TL".
+1. **Başlık:** logo, ad, durum rozeti (Açık / Yoğun / Kapalı; renk + ikon + kelime), "Kapanış 23.00". **Teslimat özeti:** "30–40 dk · Teslimat 0–25 TL · Min. sepet 150 TL'den"; adres seçildiyse kesin değerler (§5.4). **Teslim türü anahtarı:** Paket servis / Gel-al.
+2. **"Son siparişin" kartı** (§3.4); Faz 2'de yanında damga kartı durur.
+3. **Arama** (aksan duyarsız: "lamacun" → Lahmacun, "cig kofte" → Çiğ Köfte; A05 §8.7), **yapışkan kategori sekmeleri**, kategori bölümleri.
+4. **Ürün kartları:** ad, kısa açıklama, fiyat, varsa görsel, "+". Seçeneksiz ürün tek dokunuşla sepete eklenir, seçenekli ürün S-02'yi açar. **Yapışkan sepet çubuğu:** "Sepeti gör · 3 ürün · 485,00 TL".
 
 **Durumlar:**
 
@@ -462,30 +447,6 @@ sequenceDiagram
 - İç içe grup [Faz 2]. MVP'de menü ürünleri düz grup olarak modellenir.
 - Ürün notunun yer tutucusu: *"Örn: Az soslu olsun"*.
 
-```text
-+--------------------------------------+
-| [x]                         [görsel] |
-| Tavuk Dürüm               145,00 TL  |
-| Lavaş, tavuk, domates, turşu · 250 g |
-| Alerjen: Gluten · Süt                |
-|--------------------------------------|
-| Porsiyon          Zorunlu · 1 seçin  |
-|  (o) Tam                             |
-|  ( ) Yarım                -40,00 TL  |
-|  ( ) 1,5 porsiyon         +60,00 TL  |
-| Ekstralar         En çok 5 seçin     |
-|  [ ] Ekstra kaşar         +25,00 TL  |
-|  [ ] Ekstra et            +70,00 TL  |
-| Çıkarılacaklar                       |
-|  [x] Soğansız   [ ] Domatessiz       |
-|--------------------------------------|
-| Ürün notu (isteğe bağlı)       0/140 |
-| [ Örn: Az soslu olsun              ] |
-|--------------------------------------|
-|   [ - ]  1  [ + ]                    |
-| [     Sepete ekle · 145,00 TL      ] |
-+--------------------------------------+
-```
 
 ### 4.3 S-03 Sepet [Faz 1]
 
@@ -520,11 +481,7 @@ Checkout **tek, kaydırılan sayfadır**. Tamamlanan bölüm tek satıra katlan�
 - **"Bu cihazda hatırla" [Faz 1, T]:** Yalnız Akış B'de görünür, **işaretsizdir**. Metin: "Adımı, telefonumu ve adresimi bu cihazda sonraki siparişlerim için hatırla." İşaretlenirse 90 gün süreli, host'a özel httpOnly çerez yazılır. Çerez "Son siparişin" kartını ve ön dolumu sağlar, ama Faz 1'de doğrulama adımını atlatmaz. Altbilgide "Bu cihazı unut" bağlantısı bulunur.
 - **Kanıt:** Metin sürüm kimlikleri, zaman, IP/cihaz ve tutar hash'i siparişe bağlanır (D08 §4.4).
 
-**Doğrulama ve hata metinleri:**
-- Hatalar alanın altında gösterilir, `aria-describedby` ile bağlanır. Gönderimde ilk hatalı alana odaklanılır.
-- "Telefon numarası 10 haneli olmalı (5xx xxx xx xx)."
-- "Daire numarasını yazın ya da 'Müstakil ev'i işaretleyin."
-- "Bu adrese teslimat yok. Gel-al ile devam edebilirsiniz."
+**Doğrulama:** Hatalar alanın altında gösterilir ve `aria-describedby` ile bağlanır; gönderimde ilk hatalı alana odaklanılır. Örnekler: "Telefon numarası 10 haneli olmalı (5xx xxx xx xx)." · "Daire numarasını yazın ya da 'Müstakil ev'i işaretleyin."
 
 ```text
 +--------------------------------------+
@@ -709,7 +666,7 @@ Sunucu, istemciden gelen ücret ve bölge bilgisini yok sayar ve hesabı yeniden
 2. Müşteri işletmenin PSP'sinin barındırdığı sayfaya/iframe'e gider. Kart verisine hiç dokunulmaz (SAQ-A, A03 §5.3). Para doğrudan işletmeye gider, **hiçbir koşulda bizim hesabımıza girmez** (KARARLAR §9).
 3. Başarılıysa `paid` olur ve sipariş Akış A'da `new`'e geçer. Akış B'de online ödenmiş siparişin doğrulama adımını atlaması önerilir (§12).
 4. Başarısız veya 15 dk'da tamamlanmamışsa [T]: "Ödeme alınamadı. Kartınızdan para çekilmedi. [Tekrar dene] [Kapıda ödemeye geç]".
-5. Ret veya iptalde iade PSP üzerinden tetiklenir. M11/M12'ye iade satırı eklenir (§9.3).
+5. Ret veya iptalde iade PSP üzerinden tetiklenir. M11/M12'ye iade satırı eklenir (§9.2).
 6. Akış C'de ödeme linki "Online öde" CTA URL mesajıyla gönderilir [Faz 2].
 
 ---
@@ -725,48 +682,19 @@ Sunucu, istemciden gelen ücret ve bölge bilgisini yok sayar ve hesabı yeniden
 
 ### 7.2 İçerik (yukarıdan aşağı)
 
-1. İşletme adı · "Sipariş #1047".
-2. **Durum başlığı + büyük saat:** "YOLDA · Tahmini 20.35".
-3. **Adım çubuğu:** Her adımda saat yazar. Renk + ikon + kelime birlikte kullanılır.
-4. **Kurye kartı** (yalnız `on_the_way`): "Kurye: Burak" (yalnız ilk ad).
-5. **Aksiyonlar:** [İşletmeyi ara] [WhatsApp'tan yaz]; duruma göre [İptal et] / [İptal talebi gönder]; teslimden sonra [Değerlendir] ve [Aynısını sipariş ver].
-6. **Sipariş özeti:** Kalemler, seçenekler, not, ara toplam, teslimat, toplam (KDV dahil), ödeme ve para üstü.
-7. **Teslimat:** maskeli adres; gel-alda şube adresi ve harita linki.
-8. **Belgeler:** ön bilgilendirme formu ve mesafeli satış sözleşmesi (siparişin sürümü), aydınlatma metni.
-9. **Kanal çağrısı** (Akış B ve E): "Bir dahaki siparişinizi WhatsApp'tan verebilirsiniz" + `wa.me` butonu.
+1. İşletme adı · "Sipariş #1047"; **durum başlığı + büyük saat** ("YOLDA · Tahmini 20.35"); **adım çubuğu** (her adımda saat; renk + ikon + kelime); `on_the_way`'de **kurye kartı** ("Kurye: Burak").
+2. **Aksiyonlar:** [İşletmeyi ara] [WhatsApp'tan yaz]; duruma göre [İptal et] / [İptal talebi gönder]; teslimden sonra [Değerlendir] ve [Aynısını sipariş ver].
+3. **Sipariş özeti:** kalemler, seçenekler, not, ara toplam, teslimat, toplam (KDV dahil), ödeme ve para üstü. **Teslimat:** maskeli adres; gel-alda şube adresi ve harita linki.
+4. **Belgeler:** siparişin sürümüyle ön bilgilendirme formu ve mesafeli satış sözleşmesi, aydınlatma metni. **Kanal çağrısı** (Akış B ve E): "Bir dahaki siparişinizi WhatsApp'tan verebilirsiniz" + `wa.me` butonu.
 
-### 7.3 Durum çizelgesi
+### 7.3 Durum çizelgesi, ETA, kurye ve iletişim
 
-| Adım | Paket servis | Gel-al | Tetik |
-|---|---|---|---|
-| 1 | Alındı · 20.03 | Alındı | `new` |
-| 2 | Onaylandı · Tahmini 20.35 | Onaylandı · 20.20'de hazır | `accepted` |
-| (3) | Hazırlanıyor | Hazırlanıyor | `preparing` (işletme kullanıyorsa) |
-| 4 | Yolda · Kurye: Burak · 20.21 | Hazır · Gelip alabilirsiniz | `on_the_way` / `ready` |
-| 5 | Teslim edildi · 20.33 | Teslim edildi | `delivered` |
-| Terminal | Sipariş alınamadı · sebep / İptal edildi · sebep | Aynı | `rejected` / `cancelled` |
+- **Adımlar ve etiketler** §3.0'daki tablodur; her adımın yanında saati yazar ("Onaylandı · 20.05"). Gel-alda 4. adım "Hazır · Gelip alabilirsiniz" olur. Pakette `ready` ayrı adım değildir; 2. adımın altına "Hazır, kurye bekleniyor" alt satırı eklenir.
+- **ETA:** Onaydan önce aralık ("30–40 dk içinde"), sonra kesin saat gösterilir. Tahmini saat 10 dk'dan fazla geçildiyse [T] şu satır çıkar: "Siparişiniz biraz gecikti. Bir sorun olduğunu düşünüyorsanız işletmeyi arayabilirsiniz. [Ara]". **Otomatik WhatsApp mesajı gitmez**; süre değişikliği işletmenin panelden seçtiği hazır yanıttır ([D02 §4.3](02-whatsapp-entegrasyonu.md)). Canlı kurye konumu yoktur [Faz 3].
+- **Kurye [Faz 1]:** Yalnız ilk adı gösterilir; telefonu **gösterilmez**. İşletme ayarla kurye telefonunu açabilir (varsayılan kapalı, A05 §7.3). **Maskeli arama (sanal numara)** Faz 3'te değerlendirilir; sağlayıcı, maliyet ve KVKK etkisi açık konudur (§12). Kurye müşterinin adresini ve telefonunu yalnız kendine atanan siparişte görür, teslimden sonra göremez (A06 §5.4, [04](04-isletme-paneli.md)).
+- **İletişim:** "İşletmeyi ara" şube telefonunu (`tel:`) arar. "WhatsApp'tan yaz" `https://wa.me/<numara>?text=Sipariş%20%231047%20hakkında` açar; ön dolu metin panelde siparişle eşleştirilir [T]. WhatsApp'sız modda yalnız "İşletmeyi ara" görünür.
 
-Paket siparişte `ready` durumu ayrı adım olarak gösterilmez; adım 2'nin altına "Hazır, kurye bekleniyor" alt satırı olarak eklenir.
-
-### 7.4 ETA ve gecikme
-
-- Onaydan önce aralık gösterilir ("30–40 dk içinde"), onaydan sonra kesin saat.
-- Tahmini saat 10 dk'dan fazla geçildiyse [T] sayfada şu satır çıkar: "Siparişiniz biraz gecikti. Bir sorun olduğunu düşünüyorsanız işletmeyi arayabilirsiniz. [Ara]". **Otomatik WhatsApp mesajı gitmez.** Süre değişikliği mesajı işletmenin panelden seçtiği hazır yanıttır ([D02 §4.3](02-whatsapp-entegrasyonu.md)).
-- Canlı kurye konumu yoktur [Faz 3].
-
-### 7.5 Kurye bilgisi ve arama
-
-- **Faz 1:** Yalnız kuryenin ilk adı gösterilir. Kurye telefonu **gösterilmez**; "İşletmeyi ara" şube telefonunu arar. İşletme isterse ayarla kurye telefonunu açabilir (varsayılan kapalı, A05 §7.3 M09 notu).
-- **Maskeli arama (sanal numara)** [Faz 3, değerlendirme]: Müşteri ile kurye birbirinin numarasını görmeden konuşabilir. Telekom sağlayıcısı, maliyet ve KVKK etkisi açık konudur (§12).
-- Kurye müşterinin adresini ve telefonunu yalnız kendine atanan siparişte görür, teslimden sonra bu alanlar gizlenir (A06 §5.4, [04](04-isletme-paneli.md)).
-
-### 7.6 İletişim butonları
-
-- **İşletmeyi ara:** `tel:` şube telefonu.
-- **WhatsApp'tan yaz:** `https://wa.me/<numara>?text=Sipariş%20%231047%20hakkında` — ön dolu metin panelde siparişle eşleştirilir [T].
-- WhatsApp'sız modda yalnız "İşletmeyi ara" gösterilir.
-
-### 7.7 İptal kuralı
+### 7.4 İptal kuralı
 
 | Durum | Müşteri ne yapabilir | Nasıl | Sonuç |
 |---|---|---|---|
@@ -779,7 +707,7 @@ Paket siparişte `ready` durumu ayrı adım olarak gösterilmez; adım 2'nin alt
 - Müşterinin seçtiği gerekçe ("Yanlış sipariş verdim", "Çok gecikti", "Diğer") kod değildir; serbest not olarak saklanır. Sebep kodu her zaman `customer_request`'tir (KARARLAR §5).
 - Online ödemede [Faz 2] iptal edilen siparişin iadesi PSP üzerinden otomatik tetiklenir.
 
-### 7.8 Değerlendirme (S-08)
+### 7.5 Değerlendirme (S-08)
 
 - **Nerede:** M10'daki 3 buton (**😋 Harika · 🙂 İdare eder · 😕 Beğenmedim**) ve teslimden sonra takip sayfasındaki aynı üç seçenek. Ayrı bir değerlendirme mesajı harcanmaz (KARARLAR §7).
 - **Web'de:** Seçimden sonra isteğe bağlı yorum alanı açılır (en fazla 280 karakter [T]). Olumsuz seçimde sorun çipleri gösterilir: Geç geldi · Soğuk geldi · Eksik/yanlış ürün · Lezzet · Kurye · Diğer.
@@ -834,7 +762,7 @@ Motorun teknik işleyişi ve kod sırası [D02 §6](02-whatsapp-entegrasyonu.md)
 | Koşul (öncelik sırasıyla) | Mesaj | Not |
 |---|---|---|
 | Müşteri opt-out'lu (`opt_out_all`) | Hiçbir otomatik yanıt | Yalnız panel gelen kutusuna düşer |
-| Konuşma insan modunda veya bot susturulmuş (§8.8) | Hiçbir otomatik yanıt | |
+| Konuşma insan modunda veya bot susturulmuş (§8.5) | Hiçbir otomatik yanıt | |
 | Kara listedeki müşteri, askıdaki işletme | M33 (12 saatte 1) | Nötr metin |
 | Aktif siparişi var | M26 (15 dk'da 1) | Mesaj işletmeye de iletilir |
 | Şube kapalı (`closed`) | M03 (6 saatte 1) | |
@@ -846,13 +774,9 @@ Motorun teknik işleyişi ve kod sırası [D02 §6](02-whatsapp-entegrasyonu.md)
 | Son 30 dk içinde karşılama almış | Sessiz | Mesaj panelde "yanıt bekliyor" olur |
 | CTWA reklamından gelen | Aynı varyantlar | `src=ctwa`, FEP işaretlenir |
 
-### 8.2 Menü linki
+Her karşılama ve "Menüyü aç" CTA'sı yeni bir imzalı token üretir (2 saat). Kalem listeleri en fazla 5 satırdır, fazlası "ve N ürün daha" olarak yazılır. CTA URL mesajı tek buton taşıdığı için "yetkili" yolu gövdede yazılıdır.
 
-- Her karşılama ve "Menüyü aç" CTA'sı yeni bir imzalı token üretir (2 saat). Token'lı link storefront'u müşterinin bilgileriyle açar.
-- Karşılama gövdesi 1.024 karakteri aşmaz. Kalem listeleri en fazla 5 satırdır, fazlası "ve N ürün daha" olarak yazılır.
-- CTA URL mesajı tek buton taşır. Bu yüzden "yetkili" yolu gövdede yazılıdır ([D02 §6.3](02-whatsapp-entegrasyonu.md)).
-
-### 8.3 Kural tabanlı niyetler [Faz 1]
+### 8.2 Kural tabanlı niyetler [Faz 1]
 
 Faz 1'de AI yoktur. Aşağıdaki anahtar kelime grupları büyük/küçük harf ve Türkçe karakter duyarsız eşleşir. Tanınmayan her mesaj panel gelen kutusuna "yanıt bekliyor" olarak düşer.
 
@@ -869,24 +793,13 @@ Faz 1'de AI yoktur. Aşağıdaki anahtar kelime grupları büyük/küçük harf 
 | Yetkili | "yetkili", "insan", "operatör", "müşteri hizmetleri" | M20 + insana devir | Her zaman |
 | Opt-out / opt-in | Mesajın tamamı "DUR", "STOP", "MESAJ ATMAYIN", "ABONELİKTEN ÇIK" / "BAŞLAT" | M31 / M32 | Her zaman |
 
-### 8.4 Konu dışı mesajlar
+### 8.3 Konu dışı, yetkili, DUR/BAŞLAT
 
-- **Faz 1:** Mesaj karşılama varyantıyla yanıtlanır (soğuma içinde değilse); tekrarlanırsa bot susar ve mesaj panelde okunmamış kalır ([D02 §6.7](02-whatsapp-entegrasyonu.md)). Bot genel sohbete girmez.
-- **Faz 2 (AI):** M21 kibar ret + "Menüyü aç". Şiir, ödev, genel bilgi gibi istemler kırmızı takım setinde test edilir ([D02 §9.3](02-whatsapp-entegrasyonu.md)).
+- **Konu dışı:** Faz 1'de mesaj, soğuma içinde değilse karşılama varyantıyla yanıtlanır; tekrarlanırsa bot susar ve mesaj panelde okunmamış kalır ([D02 §6.7](02-whatsapp-entegrasyonu.md)). Faz 2'de (AI) M21 kibar ret + "Menüyü aç" gider. Şiir, ödev, genel bilgi gibi istemler kırmızı takım setinde test edilir. Bot genel sohbete girmez.
+- **"Yetkiliyle görüş"** her durumda çalışır (kapalıyken, AI modunda, sipariş aktifken). Konuşma `human` moduna geçer, panelde kırmızı rozetli sohbet en üste çıkar ve ses çalar; müşteriye M20 gider. Panelden "Bota devret" denirse ya da 60 dk mesajlaşma olmazsa bot moduna sessizce dönülür.
+- **DUR/BAŞLAT:** Yalnız **mesajın tamamı** eşleşirse opt-out sayılır ("Dur, adresi değiştireyim" sayılmaz). DUR → M31: kampanya mesajları durur, sipariş bildirimlerinin de kapatılıp kapatılmayacağı sorulur ([D02 §6.9](02-whatsapp-entegrasyonu.md)). BAŞLAT → M32; pazarlama izni geri gelmez, ayrı açık onay ister.
 
-### 8.5 "Yetkiliyle görüş"
-
-- Her durumda çalışır: işletme kapalıyken, AI modundayken, sipariş aktifken.
-- Konuşma `human` moduna geçer, panelde kırmızı rozetli sohbet en üste çıkar ve ses çalar. Müşteriye M20 (mesai içi/dışı) gider.
-- Panelden "Bota devret" denirse ya da 60 dk mesajlaşma olmazsa bot moduna dönülür. Müşteriye bu dönüş için mesaj gönderilmez.
-
-### 8.6 DUR / BAŞLAT
-
-- Yalnız **mesajın tamamı** eşleşirse opt-out sayılır; "Dur, adresi değiştireyim" opt-out değildir.
-- DUR → M31 sorusu: kampanya mesajları durdurulur, sipariş bildirimlerinin de kapatılıp kapatılmayacağı sorulur ([D02 §6.9](02-whatsapp-entegrasyonu.md)).
-- BAŞLAT → M32. Pazarlama izni geri gelmez; o, ayrı açık onay ister.
-
-### 8.7 Konum, ses, görsel ve diğer içerik
+### 8.4 Konum, ses, görsel ve diğer içerik
 
 | Gelen | Müşterinin gördüğü | Arka planda |
 |---|---|---|
@@ -896,7 +809,7 @@ Faz 1'de AI yoktur. Aşağıdaki anahtar kelime grupları büyük/küçük harf 
 | Kişi kartı, tepki, çıkartma | Yanıt yok | Saklanır |
 | Desteklenmeyen tür (131051) | M30 (günde 1) | — |
 
-### 8.8 İşletme telefondan veya panelden yazınca botun susması
+### 8.5 İşletme telefondan veya panelden yazınca botun susması
 
 - Esnaf telefondaki WhatsApp Business uygulamasından (Coexistence echo) ya da panelden müşteriye yazdığında bot o konuşmada **30 dk** susar. Süre 10–120 dk arasında işletme ayarıdır ([D02 §6.10](02-whatsapp-entegrasyonu.md)).
 - Susma yalnız konuşma yanıtlarını (karşılama, kapalı, SSS) etkiler. **Sipariş durum bildirimleri gitmeye devam eder.**
@@ -916,52 +829,11 @@ Faz 1'de AI yoktur. Aşağıdaki anahtar kelime grupları büyük/küçük harf 
 - **Promosyon yasağı:** Durum ve bilgi mesajlarına indirim, kampanya, kupon ya da takip linki dışında URL eklenemez ([D02 §5.1](02-whatsapp-entegrasyonu.md)). İşletme metinleri panelden düzenleyebilir, ancak yasal satırlar (aydınlatma, onay ibaresi, cayma notu) kilitlidir.
 - **Adres ve telefon mesajlarda tekrar edilmez.** M18'de yalnız adres adı ve mahalle geçer.
 
-### 9.2 Katalog
+### 9.2 Uzun mesajlar
 
-| Kod | Ad | Tetik | Tür | Butonlar | Faz |
-|---|---|---|---|---|---|
-| M01 | İlk karşılama | İlk mesaj / `request_welcome` | service · CTA URL | Menüyü aç | 1 |
-| M01K | Kısa karşılama | 30 dk–12 sa içinde tekrar yazan | service · CTA URL | Menüyü aç | 1 |
-| M02 | Tekrar gelen müşteri | Teslim edilmiş siparişi olan | service · CTA URL (Faz 2: reply) | Sipariş ver (Faz 2: Aynısından / Menüyü aç / Yetkiliyle görüş) | 1 / 2 |
-| M03 | Kapalı | `closed` | service · CTA URL | Menüye göz at (Faz 2: Ön sipariş ver) | 1 |
-| M04 | Sipariş alımı durduruldu | `paused` | service · CTA URL | Menüye göz at | 1 |
-| M05 | Sipariş alındı | `new` + 60 sn | service · CTA URL / `siparis_alindi_v1` | Siparişi takip et | 1 |
-| M06a/b/c | Onaylandı (paket / gel-al / birleşik) | `accepted` | service · CTA URL / `siparis_onaylandi_v1` | Siparişi takip et | 1 |
-| M07 | Hazırlanıyor | `preparing` (varsayılan kapalı) | service | — | 1 |
-| M08 | Hazır (gel-al) | `ready` + gel-al | service / `siparis_hazir_v1` | — | 1 |
-| M09 | Yolda | `on_the_way` | service · CTA URL / `siparis_yolda_v1` | Siparişi takip et | 1 |
-| M10 | Teslim + değerlendirme | `delivered` | service · reply / `siparis_teslim_v1` | 😋 Harika · 🙂 İdare eder · 😕 Beğenmedim | 1 |
-| M10a/d | Olumlu / nötr yanıt | Puan butonu | service | (Faz 2: M22 butonları) | 1 |
-| M10b/c | Olumsuz: sorun listesi / teşekkür | "Beğenmedim" / liste seçimi | service · list | Sorunu seç | 1 |
-| M11 | Reddedildi | `rejected` (+30 sn) | service / `siparis_reddedildi_v1` | Sebebe göre | 1 |
-| M12a–f | İptal | `cancelled` | service / `siparis_iptal_v1` | Sebebe göre | 1 |
-| M13 / M13a | Onay gecikmesi / "Beklerim" yanıtı | `new` T+10 dk | service · reply | Beklerim · Siparişi iptal et | 1 |
-| M14 | Ürün tükendi, değişiklik onayı | Panel aksiyonu | service · reply | Onsuz devam et · {alternatif} · Siparişi iptal et | 2 |
-| M15 | Konum isteme | Akış C, adres yok | service · location request | Konum gönder (sabit) | 2 |
-| M16 | Telefon isteme | Kurye telefonu yok | service · contact request | (sabit) | 2 |
-| M17b/c/d | Sipariş kodu: bulunamadı / süresi dolmuş / zaten onaylı | Kod mesajı | service · CTA URL | Menüyü aç / Siparişi takip et | 1 |
-| M18 | AI sipariş özeti | Akış C / D (sohbet) | service · reply | Onayla · Düzenle · İptal | 2 |
-| M19 | AI netleştirme | Belirsiz kalem | service · reply | Seçenekler / Menüyü aç | 2 |
-| M20 | İnsana devir | "yetkili" | service | — | 1 |
-| M21 | Konu dışı ret | AI, konu dışı | service · CTA URL | Menüyü aç | 2 |
-| M22 | Pazarlama izni sorusu | M10a içinde | service · reply | Evet, isterim · Hayır, teşekkürler | 2 |
-| M23 | Sepeti terk hatırlatması | 30–60 dk sonra, izinli | marketing şablonu | Sepete dön | 2+ |
-| M24–M25 | (Ayrılmış) İşletmenin kampanya mesajları | Kampanya modülü | marketing (`kampanya_genel_v1`) | — | 2 |
-| M26 | Aktif sipariş durumu | Aktif siparişte gelen mesaj | service · CTA URL | Siparişi takip et | 1 |
-| M27a/b | İptal niyeti | "iptal" (aktif sipariş) | service · reply / metin | Siparişi iptal et · Vazgeçtim | 1 |
-| M28a–d | SSS: saat / adres / bölge / ödeme | Niyet eşleşmesi | service · CTA URL | Menüyü aç | 1 |
-| M29 | Sesli mesaj alındı | Ses | service · CTA URL | Menüyü aç | 1 |
-| M30 | Desteklenmeyen içerik | 131051 | service | — | 1 |
-| M31 / M31a/b | DUR sorusu / yanıtları | "DUR" | service · reply | Evet, hepsini durdur · Hayır | 1 |
-| M32 | BAŞLAT | "BAŞLAT" | service | — | 1 |
-| M33 | Online sipariş kapalı | Askı, kara liste | service | — | 1 |
-| SMS-01…03 | OTP / onaylandı / ret-iptal | WhatsApp'sız mod | SMS | — | 1 |
+Her başlıkta tetik, tür, butonlar ve faz yazılıdır. `⏎` satır sonudur; butonlar *italik*tir.
 
-### 9.3 Metinler
-
-Tetik, tür ve butonlar §9.2'dedir; burada yalnız varyanta özgü farklar yazılır. `⏎` satır sonudur.
-
-**M01 · İlk karşılama** (üst bilgi isteğe bağlı: işletmenin kapak görseli)
+**M01 · İlk karşılama** — tetik: ilk mesaj / `request_welcome` · service, CTA URL · buton: *Menüyü aç* · [Faz 1]. Üst bilgi isteğe bağlı: işletmenin kapak görseli.
 > Merhaba {ad} 👋 {isletme} WhatsApp sipariş hattına hoş geldiniz!
 > Menümüzü açıp birkaç dokunuşla sipariş verebilirsiniz. Adresiniz ve ödeme tercihiniz bir sonraki siparişiniz için hatırlanır.
 > 🕒 Bugün açığız · Kapanış {kapanis}
@@ -973,7 +845,7 @@ Tetik, tür ve butonlar §9.2'dedir; burada yalnız varyanta özgü farklar yaz�
 - Yalnız gel-al yapan işletmede 🛵 satırı şöyle olur: "🛍️ Gel-al: siparişiniz yaklaşık {dk} dakikada hazır." `busy` durumunda: "⏳ Şu an yoğunuz, tahmini teslimat {eta_aralik}."
 - Aydınlatma satırı yalnız ilk temasta ve metin sürümü değiştiğinde eklenir ([D08 §2.4](08-mevzuat-kvkk-odeme-fatura.md)).
 
-**M02 · Tekrar gelen müşteri**
+**M02 · Tekrar gelen müşteri** — tetik: teslim edilmiş siparişi olan müşteri · service, CTA URL · buton: *Sipariş ver* [Faz 1]; [Faz 2] reply: *Aynısından* · *Menüyü aç* · *Yetkiliyle görüş*
 > Tekrar hoş geldiniz {ad} 😊
 > Son siparişiniz ({son_tarih}): {son_kalemler}
 > Aynısını tek dokunuşla tekrarlayabilir ya da menüden yeni seçim yapabilirsiniz.
@@ -981,29 +853,29 @@ Tetik, tür ve butonlar §9.2'dedir; burada yalnız varyanta özgü farklar yaz�
 
 - Mesajda eski tutar yazılmaz. Storefront "Son siparişin" kartıyla açılır ve kartta güncel tutar görünür.
 
-**M05 · Sipariş alındı**
+**M05 · Sipariş alındı** — tetik: `new`, 60 sn içinde onay yoksa · service, CTA URL (pencere dışı `siparis_alindi_v1`) · buton: *Siparişi takip et* · [Faz 1]
 > ✅ Siparişiniz alındı! Sipariş no: {no}
 > {kalemler}
 > Toplam: {toplam} · Ödeme: {odeme}
 > {isletme} siparişinizi onayladığında buradan haber vereceğiz.
 
-**M06 · Onaylandı**
+**M06 · Onaylandı** — tetik: `accepted` · service, CTA URL (pencere dışı `siparis_onaylandi_v1`) · buton: *Siparişi takip et* · [Faz 1]
 - **a) Paket:** "👨‍🍳 Siparişiniz onaylandı! ⏎ Tahmini teslim saati: {saat} (yaklaşık {dk} dk) ⏎ Sipariş no: {no}"
 - **b) Gel-al:** "👨‍🍳 Siparişiniz onaylandı! Tahminen {saat} civarında hazır olacak. ⏎ Adresimiz: {sube_adres_kisa} ⏎ Sipariş no: {no}"
 - **c) Birleşik** (alındıktan sonraki 60 sn içinde onaylandıysa, M05'in yerine): "✅ Siparişiniz alındı ve onaylandı! Sipariş no: {no} ⏎ {kalemler} ⏎ Toplam: {toplam} · Ödeme: {odeme} ⏎ Tahmini teslim saati: {saat} (yaklaşık {dk} dk)". Gel-alda son satır "Tahminen {saat} civarında hazır olacak." olur.
 
-**M09 · Yolda**
+**M09 · Yolda** — tetik: `on_the_way` · service, CTA URL (pencere dışı `siparis_yolda_v1`) · buton: *Siparişi takip et* · [Faz 1]
 > 🛵 Siparişiniz yola çıktı! Kuryemiz {kurye} yaklaşık {dk} dk içinde kapınızda olacak.
 > Ödeme: {odeme_detay}
 > Sipariş no: {no}
 
 - `{odeme_detay}` değerleri: "Kapıda nakit · 500,00 TL'ye para üstü hazırlandı" / "Kapıda kart, kuryemiz POS cihazı getirecek" / "Kapıda yemek kartı · Multinet" / "Online ödendi" [Faz 2]. Kurye atanmamışsa ad yazılmaz.
 
-**M10 · Teslim edildi + değerlendirme**
+**M10 · Teslim edildi + değerlendirme** — tetik: `delivered` · service, reply (pencere dışı `siparis_teslim_v1`) · butonlar: *😋 Harika* · *🙂 İdare eder* · *😕 Beğenmedim* · [Faz 1]
 > Afiyet olsun! 😊 Siparişiniz teslim edildi.
 > Bizi tercih ettiğiniz için teşekkürler. Deneyiminizi nasıl buldunuz?
 
-**M11 · Reddedildi** (ret anından 30 sn sonra gider; "Geri al" basılırsa hiç gitmez)
+**M11 · Reddedildi** — tetik: `rejected`, ret anından 30 sn sonra ("Geri al" basılırsa hiç gitmez) · service (pencere dışı `siparis_reddedildi_v1`) · buton sebebe göre · [Faz 1]
 > 😔 Üzgünüz, {no} numaralı siparişinizi şu an alamıyoruz.
 > {sebep_satiri}
 
@@ -1017,7 +889,7 @@ Tetik, tür ve butonlar §9.2'dedir; burada yalnız varyanta özgü farklar yaz�
 
 [Faz 2] Online ödemede M11 ve M12'ye şu satır eklenir: "Ödemeniz iade edildi; hesabınıza yansıması bankanıza göre birkaç gün sürebilir." (süre PSP'ye göre teyit edilmeli)
 
-**M12 · İptal**
+**M12 · İptal** — tetik: `cancelled` · service (pencere dışı `siparis_iptal_v1`) · [Faz 1]
 - **a) İşletme iptali** (`tenant`): "{no} numaralı siparişiniz {isletme} tarafından iptal edildi. Sebep: {sebep}. Özür dileriz 🙏 Sorunuz varsa buraya yazabilirsiniz." `{sebep}`: `item_unavailable` → "siparişinizdeki bir ürün tükendi", `courier_issue` → "teslimat şu an yapılamıyor", `other` → işletme notu.
 - **b) Müşteri iptali** (`customer_request`): "{no} numaralı siparişiniz isteğiniz üzerine iptal edildi."
 - **c) Zaman aşımı** (`customer_timeout`, yalnız Akış C): "Siparişiniz onaylanmadığı için iptal edildi. Yeniden sipariş vermek isterseniz menümüz burada." + **Menüyü aç**
@@ -1025,10 +897,10 @@ Tetik, tür ve butonlar §9.2'dedir; burada yalnız varyanta özgü farklar yaz�
 - **e) Mükerrer** (`duplicate`): "{no} numaralı sipariş, aynı siparişin tekrarı olduğu için iptal edildi. Diğer siparişiniz geçerlidir."
 - **f) Şüpheli** (`suspected_fake`, nötr metin): "{no} numaralı siparişiniz iptal edildi. Bilgi için lütfen işletmeyi arayın: {sube_tel}"
 
-**M13 · Onay gecikmesi** (T+10 dk, hâlâ `new`; sipariş başına en fazla 1; bütçe dışı; yalnız pencere açıksa)
+**M13 · Onay gecikmesi** — tetik: T+10 dk hâlâ `new` (sipariş başına en fazla 1, bütçe dışı, yalnız pencere açıksa) · service, reply · butonlar: *Beklerim* · *Siparişi iptal et* · [Faz 1]
 > {no} numaralı siparişiniz henüz onaylanmadı, işletme şu an yoğun olabilir. Beklemek ister misiniz?
 
-**M18 · AI sipariş özeti [Faz 2]**
+**M18 · AI sipariş özeti** — tetik: Akış C ve sohbet içi tekrar (Akış D) · service, reply · butonlar: *Onayla* · *Düzenle* · *İptal* · [Faz 2]
 > Siparişinizi şöyle anladım 👇
 > {kalemler_tutarli}
 > Teslimat: {adres_adi} ({mahalle}) · Ödeme: {odeme}
@@ -1038,45 +910,45 @@ Tetik, tür ve butonlar §9.2'dedir; burada yalnız varyanta özgü farklar yaz�
 
 - Gövde 1.024 karakteri aşarsa ilk kalemler + "ve N ürün daha" + tam özet linki gösterilir.
 
-**Kısa mesajlar:**
+### 9.3 Kısa mesajlar
 
-| Kod | Metin |
-|---|---|
-| M01K | Tekrar merhaba 👋 Sipariş vermek için menümüzü açabilirsiniz. |
-| M03 | Merhaba 👋 {isletme} şu an kapalı. {acilis} itibarıyla yeniden sipariş alacağız. ⏎ Bu arada menümüze göz atabilirsiniz. |
-| M04 | Merhaba 👋 Yoğunluk nedeniyle kısa bir süre yeni sipariş alamıyoruz 🙏 ⏎ {devam_satiri} ⏎ Anlayışınız için teşekkür ederiz. — `{devam_satiri}`: "Tahminen {devam_saati} itibarıyla yeniden sipariş alacağız." (saat girildiyse) / "Biraz sonra tekrar deneyebilirsiniz." |
-| M07 | 🔥 Siparişiniz hazırlanıyor. Sipariş no: {no} |
-| M08 | 🛍️ Siparişiniz hazır! Kasada sipariş numaranızı ({no}) söylemeniz yeterli. ⏎ Ödeme: {odeme} ⏎ Adresimiz: {sube_adres_kisa} |
-| M10a | Çok sevindik, teşekkür ederiz! 🙏 — [Faz 2] Pazarlama izni yoksa ve son 90 gün içinde "Hayır" denmemişse M22 sorusu ve butonları aynı mesaja eklenir. |
-| M10d | Teşekkür ederiz! Bir dahaki siparişinizde daha iyisini yapmak için çalışacağız 🙏 |
-| M10b | Üzgünüz 😔 Ne ters gitti? Bildiriminiz doğrudan işletme sahibine iletilecek. — Liste satırları: Geç geldi · Soğuk geldi · Eksik/yanlış ürün · Lezzet · Kurye · Diğer |
-| M10c | Teşekkürler, iletildi. {isletme} size buradan dönüş yapabilir. — "Diğer" seçildiyse: "Teşekkürler. İsterseniz yaşadığınız sorunu kısaca yazabilirsiniz, doğrudan işletmeye iletilecek." |
-| M13a | Teşekkürler, işletmeye hatırlattık. Onaylandığında buradan haber vereceğiz. |
-| M14 [F2] | Siparişinizdeki {urun} maalesef tükendi 😔 Nasıl devam edelim? — Alternatif butonu örneği: "Sütlaç olsun +10TL" (≤ 20 karakter) |
-| M15 [F2] | Teslimat için konumunuzu paylaşır mısınız? Ardından bina no, kat ve daireyi yazmanız yeterli. — Konum gelince: "Teşekkürler! Şimdi bina no, kat, daire ve varsa adres tarifini yazar mısınız? Örnek: No 12, Kat 3, Daire 7, eczanenin üstü." |
-| M16 [F2] | Kuryemizin gerekirse size ulaşabilmesi için telefon numaranızı paylaşır mısınız? Numaranız yalnızca siparişiniz için kullanılır. (REQUEST_CONTACT_INFO yükü teyit edilmeli, [D02 §6.8](02-whatsapp-entegrasyonu.md)) |
-| M17b | Bu kodla bekleyen bir sipariş bulamadık. Kodu kontrol edebilir ya da menüden yeniden sipariş verebilirsiniz. |
-| M17c | Bu sipariş kodunun süresi dolmuş ve sipariş iptal edildi. Yeniden sipariş vermek için menüyü açabilirsiniz. |
-| M17d | Bu sipariş zaten onaylandı 👍 Durumunu buradan takip edebilirsiniz. |
-| M19 [F2] | {urun} için hangisini istersiniz? — En fazla 2 seçenek butonu + Menüyü aç (örn. Adana: Dürüm · Porsiyon · Menüyü aç) |
-| M20 | Mesai içi: "Sizi yetkilimize aktardık 🙋 Birazdan buradan yanıt verecek." / Mesai dışı: "Şu an ekibimiz yanıt veremiyor. Mesajınızı aldık, {acilis} itibarıyla dönüş yapacağız." |
-| M21 [F2] | Ben yalnızca {isletme} menüsü ve siparişlerinizle ilgili yardımcı olabiliyorum 🙂 Sipariş vermek için menümüzü açabilir ya da "yetkili" yazarak ekibimize ulaşabilirsiniz. |
-| M22 [F2] | {isletme} kampanya ve duyurularını WhatsApp'tan almak ister misiniz? İstediğiniz zaman "DUR" yazarak ayrılabilirsiniz. — Kayıt: zaman, kanal, `wamid`, metin sürümü; 3 iş günü içinde İYS ([D08 §3.4](08-mevzuat-kvkk-odeme-fatura.md)). "Hayır" diyene 90 gün soru sorulmaz [T]. Nihai metin avukattan. |
-| M23 [F2+] | Sepetinizde {urun_ozet} bekliyor. Siparişinizi tamamlamak ister misiniz? — Marketing şablonu; yalnız ETK onaylı ve opt-in'li müşteriye, terkten 30–60 dk sonra, tek sefer; varsayılan kapalı. |
-| M26 | {no} numaralı siparişinizin durumu: {durum_etiketi}{eta_ek} ⏎ Mesajınızı işletmeye de ilettik. Bir yetkiliyle görüşmek isterseniz "yetkili" yazın. — `{durum_etiketi}` §3.0'daki etikettir; `{eta_ek}` = " · Tahmini {saat}" |
-| M27a | {no} numaralı siparişinizi iptal etmek istiyor musunuz? (`awaiting_customer`/`new`) |
-| M27b | Siparişiniz hazırlanmaya başladığı için iptal talebinizi işletmeye ilettik. En kısa sürede size dönüş yapılacak. (`accepted` ve sonrası; panelde iptal talebi açılır, sohbet insana devredilir) |
-| M28a | 🕒 Bugün {bugun_acilis}–{kapanis} arası açığız. Tüm çalışma saatlerimiz: {bilgi_link} |
-| M28b | 📍 Adresimiz: {sube_adres}. Haritada görmek için: {harita_link} |
-| M28c | 🛵 Teslimat ücreti {ucret_aralik}, minimum sepet {min_aralik}. Adresinize teslimat yapıp yapmadığımızı menüde adresinizi girerek hemen görebilirsiniz. |
-| M28d | 💳 Kapıda şu yöntemlerle ödeyebilirsiniz: {odeme_listesi}. (örn. "nakit, kredi kartı, yemek kartı (Multinet, Pluxee)") |
-| M29 | Sesli mesajınızı işletmeye ilettik 🎧 Hızlı sipariş için menümüzü açabilirsiniz. |
-| M30 | Bu içeriği okuyamadık, lütfen yazarak iletin. |
-| M31 | Kampanya mesajlarını durdurduk. Sipariş durum bildirimlerini de kapatalım mı? |
-| M31a | Tamam, size bundan sonra otomatik mesaj göndermeyeceğiz. İstediğiniz zaman BAŞLAT yazarak yeniden açabilirsiniz. |
-| M31b | Tamam, kampanya mesajı almayacaksınız. Sipariş bildirimleriniz gelmeye devam edecek. |
-| M32 | Sipariş bildirimlerini yeniden açtık 👍 Kampanya mesajları kapalı kalmaya devam ediyor. |
-| M33 | Merhaba, şu an WhatsApp üzerinden online sipariş alamıyoruz. Sipariş için lütfen bizi arayın: {sube_tel} |
+| Kod | Tetik · tür · faz | Metin | Butonlar |
+|---|---|---|---|
+| M01K | 30 dk–12 sa içinde tekrar yazan · CTA URL · F1 | Tekrar merhaba 👋 Sipariş vermek için menümüzü açabilirsiniz. | Menüyü aç |
+| M03 | `closed` (6 saatte 1) · CTA URL · F1 | Merhaba 👋 {isletme} şu an kapalı. {acilis} itibarıyla yeniden sipariş alacağız. ⏎ Bu arada menümüze göz atabilirsiniz. | Menüye göz at (F2, planlı sipariş açıksa: Ön sipariş ver) |
+| M04 | `paused` · CTA URL · F1 | Merhaba 👋 Yoğunluk nedeniyle kısa bir süre yeni sipariş alamıyoruz 🙏 ⏎ {devam_satiri} ⏎ Anlayışınız için teşekkür ederiz. — `{devam_satiri}`: "Tahminen {devam_saati} itibarıyla yeniden sipariş alacağız." ya da "Biraz sonra tekrar deneyebilirsiniz." | Menüye göz at |
+| M07 | `preparing` (varsayılan kapalı) · metin · F1 | 🔥 Siparişiniz hazırlanıyor. Sipariş no: {no} | — |
+| M08 | `ready`, gel-al · metin (pencere dışı `siparis_hazir_v1`) · F1 | 🛍️ Siparişiniz hazır! Kasada sipariş numaranızı ({no}) söylemeniz yeterli. ⏎ Ödeme: {odeme} ⏎ Adresimiz: {sube_adres_kisa} | — |
+| M10a | "Harika" · metin · F1 | Çok sevindik, teşekkür ederiz! 🙏 — [F2] İzin yoksa ve son 90 günde "Hayır" denmemişse M22 aynı mesaja eklenir. | (F2: M22 butonları) |
+| M10d | "İdare eder" · metin · F1 | Teşekkür ederiz! Bir dahaki siparişinizde daha iyisini yapmak için çalışacağız 🙏 | — |
+| M10b | "Beğenmedim" · list · F1 | Üzgünüz 😔 Ne ters gitti? Bildiriminiz doğrudan işletme sahibine iletilecek. — Satırlar: Geç geldi · Soğuk geldi · Eksik/yanlış ürün · Lezzet · Kurye · Diğer | Sorunu seç |
+| M10c | Liste seçimi · metin · F1 | Teşekkürler, iletildi. {isletme} size buradan dönüş yapabilir. — "Diğer"de: "Teşekkürler. İsterseniz yaşadığınız sorunu kısaca yazabilirsiniz, doğrudan işletmeye iletilecek." | — |
+| M13a | "Beklerim" · metin · F1 | Teşekkürler, işletmeye hatırlattık. Onaylandığında buradan haber vereceğiz. | — |
+| M14 | Panelde "ürün tükendi" · reply · F2 | Siparişinizdeki {urun} maalesef tükendi 😔 Nasıl devam edelim? | Onsuz devam et · {alternatif} (örn. "Sütlaç olsun +10TL") · Siparişi iptal et |
+| M15 | Akış C'de adres yok · konum isteme · F2 | Teslimat için konumunuzu paylaşır mısınız? Ardından bina no, kat ve daireyi yazmanız yeterli. — Konum gelince: "Teşekkürler! Şimdi bina no, kat, daire ve varsa adres tarifini yazar mısınız? Örnek: No 12, Kat 3, Daire 7, eczanenin üstü." | Konum gönder (sabit) |
+| M16 | Kurye telefonu yok · kişi bilgisi isteme · F2 | Kuryemizin gerekirse size ulaşabilmesi için telefon numaranızı paylaşır mısınız? Numaranız yalnızca siparişiniz için kullanılır. (Yük teyit edilmeli, [D02 §6.8](02-whatsapp-entegrasyonu.md)) | (sabit) |
+| M17b | Kod bulunamadı · CTA URL · F1 | Bu kodla bekleyen bir sipariş bulamadık. Kodu kontrol edebilir ya da menüden yeniden sipariş verebilirsiniz. | Menüyü aç |
+| M17c | Kodun süresi dolmuş · CTA URL · F1 | Bu sipariş kodunun süresi dolmuş ve sipariş iptal edildi. Yeniden sipariş vermek için menüyü açabilirsiniz. | Menüyü aç |
+| M17d | Kod zaten onaylı · CTA URL · F1 | Bu sipariş zaten onaylandı 👍 Durumunu buradan takip edebilirsiniz. | Siparişi takip et |
+| M19 | Belirsiz kalem · reply · F2 | {urun} için hangisini istersiniz? | En çok 2 seçenek + Menüyü aç (örn. Dürüm · Porsiyon · Menüyü aç) |
+| M20 | "yetkili" · metin · F1 | Mesai içi: "Sizi yetkilimize aktardık 🙋 Birazdan buradan yanıt verecek." / Mesai dışı: "Şu an ekibimiz yanıt veremiyor. Mesajınızı aldık, {acilis} itibarıyla dönüş yapacağız." | — |
+| M21 | AI, konu dışı · CTA URL · F2 | Ben yalnızca {isletme} menüsü ve siparişlerinizle ilgili yardımcı olabiliyorum 🙂 Sipariş vermek için menümüzü açabilir ya da "yetkili" yazarak ekibimize ulaşabilirsiniz. | Menüyü aç |
+| M22 | M10a içinde · reply · F2 | {isletme} kampanya ve duyurularını WhatsApp'tan almak ister misiniz? İstediğiniz zaman "DUR" yazarak ayrılabilirsiniz. — Kayıt: zaman, kanal, `wamid`, metin sürümü; 3 iş günü içinde İYS ([D08 §3.4](08-mevzuat-kvkk-odeme-fatura.md)). "Hayır" diyene 90 gün sorulmaz [T]. Nihai metin avukattan. | Evet, isterim · Hayır, teşekkürler |
+| M23 | Sepeti terkten 30–60 dk sonra · marketing şablonu · F2+ | Sepetinizde {urun_ozet} bekliyor. Siparişinizi tamamlamak ister misiniz? — Yalnız ETK onaylı ve opt-in'li müşteriye, tek sefer, varsayılan kapalı. İşletmenin kampanya mesajları (M24–M25 ayrılmış) kampanya modülünden `kampanya_genel_v1` ile gider ([04](04-isletme-paneli.md)). | Sepete dön · Kampanyaları durdur |
+| M26 | Aktif siparişte gelen mesaj (15 dk'da 1) · CTA URL · F1 | {no} numaralı siparişinizin durumu: {durum_etiketi}{eta_ek} ⏎ Mesajınızı işletmeye de ilettik. Bir yetkiliyle görüşmek isterseniz "yetkili" yazın. — Etiket §3.0'dan; `{eta_ek}` = " · Tahmini {saat}" | Siparişi takip et |
+| M27a | "iptal", `awaiting_customer`/`new` · reply · F1 | {no} numaralı siparişinizi iptal etmek istiyor musunuz? | Siparişi iptal et · Vazgeçtim |
+| M27b | "iptal", `accepted` ve sonrası · metin · F1 | Siparişiniz hazırlanmaya başladığı için iptal talebinizi işletmeye ilettik. En kısa sürede size dönüş yapılacak. (Panelde iptal talebi açılır, sohbet insana devredilir.) | — |
+| M28a | Saat sorusu · CTA URL · F1 | 🕒 Bugün {bugun_acilis}–{kapanis} arası açığız. Tüm çalışma saatlerimiz: {bilgi_link} | Menüyü aç |
+| M28b | Adres sorusu · CTA URL · F1 | 📍 Adresimiz: {sube_adres}. Haritada görmek için: {harita_link} | Menüyü aç |
+| M28c | Bölge/ücret sorusu · CTA URL · F1 | 🛵 Teslimat ücreti {ucret_aralik}, minimum sepet {min_aralik}. Adresinize teslimat yapıp yapmadığımızı menüde adresinizi girerek hemen görebilirsiniz. | Menüyü aç |
+| M28d | Ödeme sorusu · CTA URL · F1 | 💳 Kapıda şu yöntemlerle ödeyebilirsiniz: {odeme_listesi}. | Menüyü aç |
+| M29 | Sesli mesaj (30 dk'da 1) · CTA URL · F1 | Sesli mesajınızı işletmeye ilettik 🎧 Hızlı sipariş için menümüzü açabilirsiniz. | Menüyü aç |
+| M30 | Desteklenmeyen tür, 131051 (günde 1) · metin · F1 | Bu içeriği okuyamadık, lütfen yazarak iletin. | — |
+| M31 | "DUR" · reply · F1 | Kampanya mesajlarını durdurduk. Sipariş durum bildirimlerini de kapatalım mı? | Evet, hepsini durdur · Hayır |
+| M31a | "Evet, hepsini durdur" · metin · F1 | Tamam, size bundan sonra otomatik mesaj göndermeyeceğiz. İstediğiniz zaman BAŞLAT yazarak yeniden açabilirsiniz. | — |
+| M31b | "Hayır" · metin · F1 | Tamam, kampanya mesajı almayacaksınız. Sipariş bildirimleriniz gelmeye devam edecek. | — |
+| M32 | "BAŞLAT" · metin · F1 | Sipariş bildirimlerini yeniden açtık 👍 Kampanya mesajları kapalı kalmaya devam ediyor. | — |
+| M33 | Askı, deneme bitti, kara liste (12 saatte 1) · metin · F1 | Merhaba, şu an WhatsApp üzerinden online sipariş alamıyoruz. Sipariş için lütfen bizi arayın: {sube_tel} | — |
 
 ### 9.4 Pencere dışı: utility şablonları
 
@@ -1215,7 +1087,7 @@ Hedefler [D06 §12](06-teknik-mimari.md)'dedir (mobil, p75): LCP ≤ 2,5 sn (hed
 | `order_verify_expired` | Sunucu | 30 dk zaman aşımı | — |
 | `order_status_changed` | Sunucu | Her geçiş | `from`, `to`, `latency_s` |
 | `order_cancelled` / `order_rejected` | Sunucu | Terminal | `cancelled_by`, `reason` |
-| `wa_inbound` | Sunucu | Gelen mesaj | `type`, `intent` (§8.3), `has_referral` |
+| `wa_inbound` | Sunucu | Gelen mesaj | `type`, `intent` (§8.2), `has_referral` |
 | `wa_welcome_sent` | Sunucu | Karşılama | `variant` (M01/M01K/M02/M03/M04/M33) |
 | `wa_status_msg_sent` | Sunucu | Durum mesajı | `code` (M05…), `kind` (`service`/`utility`/`sms`), `order_msg_index` |
 | `wa_msg_skipped` | Sunucu | Atlanan mesaj | `reason` (`order_budget`, `no_notify_consent`, `window_closed_no_template`…) |
