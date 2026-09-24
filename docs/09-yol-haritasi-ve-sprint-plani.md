@@ -82,7 +82,7 @@ gantt
     section Talep doğrulama deneyi
     D1 problem görüşmeleri                     :d1, 2026-09-25, 2026-10-16
     D2 kesinti dökümü analizi                  :d2, 2026-10-05, 2026-10-23
-    D3 kurulum (menü sayfası, kart, magnet)    :d3a, 2026-10-05, 2026-10-16
+    D3 kurulum (sayım, QR, kart, magnet)       :d3a, 2026-10-05, 2026-10-16
     D3 ve D4 ölçüm penceresi                   :d3b, 2026-10-12, 2026-11-20
     D5 açılış sayfası ve fiyat testi           :d5, 2026-10-12, 2026-11-13
     D6 niyet mektupları                        :d6, 2026-10-19, 2026-11-20
@@ -396,7 +396,7 @@ KARARLAR §11'deki "Seviye 0 concierge" deneyidir. En büyük risk talep tarafı
 | D2 Kesinti dökümü | H1 | 10 restorandan izinli ve anonim 1–3 aylık pazaryeri kesinti dökümü | H1–H3 | OPS |
 | D3 Seviye 0 concierge | H3, H4, H12 | Yazılımsız kodlu QR, kart, magnet ve teşvik (§4.2–4.4) | H0–H8 (ölçüm H2–H8) | KUR, OPS |
 | D4 Teşvik A/B | H3 | D3 içinde 3 kart varyantı | D3 ile | OPS |
-| D5 Açılış sayfası + fiyat testi | H5 | 2 değer önerisi × 3 Pro fiyatı (1.290 / 1.790 / 2.290 TL) rastgele; hesaplayıcı dahil; kayıt olana gerçek fiyat ve kurucu üye koşulu açıkça bildirilir (10 §4.6) | H2–H6 | KUR, FE |
+| D5 Açılış sayfası + fiyat testi | H5 | 2 değer önerisi × 3 Pro fiyatı (1.290 / 1.790 / 2.290 TL) rastgele; hesaplayıcı dahil; kayıt olana gerçek fiyat ve kurucu üye koşulu açıkça bildirilir (10 §4.6) | H3–H7 (yayın marka başvurusunu ve avukat kontrolünü bekler) | KUR, FE |
 | D6 Ön satış / niyet mektubu | H5 | İmzalı niyet mektubu (varsayılan) veya iade garantili kurucu üye ön ödemesi (havale + elle fatura) | H4–H8 | KUR |
 | D7 Meta onboarding kuru koşusu | H6, H7 | Şirket tarafı adım süreleri; 3 dost işletmeyle tester rolünde kurulum (10 §4.7) | Şirket tarafı H0–H6; işletme tarafı H5–H8 (ES hazır olunca) | TL, OPS |
 | D10 Sözleşme incelemesi | H10 | 3 güncel pazaryeri sözleşmesi avukata. İlki kartlar pakete girmeden okunur | H1–H4 | KUR, AV |

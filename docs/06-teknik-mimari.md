@@ -981,9 +981,9 @@ Sırlar ortam başına ayrıdır. Staging'den prod'a kimlik bilgisi taşınmaz.
 | Tenant yalıtımı | Özel paket (§5.6) | Katalog, fail-closed, otomatik IDOR, SSE/ajan, worker | Zorunlu, atlanamaz |
 | Sözleşme | Zod → OpenAPI; SSE olay şemaları | Panel ↔ API uyumu; geriye uyumsuz değişiklik tespiti | Zorunlu |
 | WhatsApp webhook replay | İmzalı fixture kütüphanesi + ham olay yeniden oynatma aracı ([02](02-whatsapp-entegrasyonu.md) §11) | Parse, yönlendirme, dedupe, sırasız status, hata kodları; Graph API sahte sunucusu | Zorunlu |
-| E2E | Playwright | Akış A (imzalı token), Akış B (kod), Akış E; panelde SSE ile düşen sipariş + onay (iki tarayıcı bağlamı); sahte saatle alarm zinciri; kurye magic link; fiş HTML snapshot'ı; 3G ağ profili; storefront'ta axe erişilebilirlik | `main` öncesi ilgili akışlar |
+| E2E | Playwright | Akış A (imzalı token), Akış B (kod ve SMS OTP — WhatsApp'sız mod), Akış E; panelde SSE ile düşen sipariş + onay (iki tarayıcı bağlamı); sahte saatle alarm zinciri ve 15 dk `tenant_no_response` iptali; 30 sn bekleyen ret + geri al; canary siparişinin panelde görünmemesi; kurye magic link; fiş HTML snapshot'ı; 3G ağ profili; storefront'ta axe erişilebilirlik | `main` öncesi ilgili akışlar |
 | Yük | k6 | §16.4 | Faz 1 sonu, sonra haftalık |
-| Kaos | Compose senaryoları | DB 5 dk kapalı, Redis kaybı, worker çökmesi, NOTIFY dinleyicisi kaybı → kayıpsız toparlanma | Pilot öncesi |
+| Kaos | Compose senaryoları | DB 5 dk kapalı (webhook'lar spool'a düşer), bir ingress düğümünün kapatılması, Redis kaybı, worker çökmesi, NOTIFY dinleyicisi kaybı → kayıpsız toparlanma; canary'nin her senaryoda alarm üretmesi | Pilot öncesi |
 | LLM eval | `pnpm eval:llm` | §11.6 | İlgili değişiklikte |
 | Geri yükleme | Script | §13.5 | Haftalık |
 
@@ -1002,7 +1002,7 @@ Playwright'ta ses için Chrome `--autoplay-policy=no-user-gesture-required` bayr
 - **Trunk-based:** `main` her an deploy edilebilir, özellikler feature flag arkasında birleşir. **Migration'lar:** drizzle-kit SQL üretir, SQL gözden geçirilip commit edilir. RLS, PostGIS, partition ve trigger'lar elle yazılmış SQL'dir. Migration'lar `app_owner` rolüyle, uygulama rolünden ayrı bir adımda ve **deploy'dan önce** çalışır.
 - **Expand/contract:** Sütun kaldırma veya yeniden adlandırma aynı sürümde yapılmaz. (1) ekle, (2) çift yaz + geri doldur (batch işi), (3) okumayı taşı, (4) sonraki sürümde kaldır.
 - **Güvenlik ayarları:** Her migration `SET lock_timeout = '5s'` ve makul `statement_timeout` ile çalışır. İndeksler `CREATE INDEX CONCURRENTLY` ile oluşturulur. Büyük tabloda tablo yeniden yazan değişiklik yoğun saatte yapılmaz. Migration geri alınmaz, ileri düzeltme (forward-fix) yapılır. Uygulama imajı bir önceki sürüme dönebilecek şekilde geriye uyumludur.
-- **Sürümleme:** Panel API'si SPA ile birlikte deploy edilir. SPA `X-App-Version` farkında "yeni sürüm, yenile" gösterir. Açık API **[Faz 3]** `/v1` ile başlar. Mobil uygulama ve yazıcı ajanı semver kullanır, sunucu minimum sürümü zorlar.
+- **Sürümleme:** Tüm API yolları URL'de `/v1` taşır (`/api/v1/{store|panel|courier|admin}/…`, `api.siparisinonunde.com/v1/…`); kırıcı değişiklik `/v2` ile gelir, kalkacak uçta `Deprecation`/`Sunset` başlıkları kullanılır ([07](07-veri-modeli-ve-api.md) §6.1). Panel API'si SPA ile birlikte deploy edilir. SPA `X-App-Version` farkında "yeni sürüm, yenile" gösterir. Açık API **[Faz 3]** de `/v1` ile başlar. Mobil uygulama ve yazıcı ajanı semver kullanır, sunucu minimum sürümü zorlar.
 
 ### 16.6 Feature flag
 - `feature_flag(key, description, default, rules jsonb, owner, expires_at)` tablosu, 30 sn Redis cache'i ve admin panelinden yönetim ([05](05-admin-paneli-ve-pazarlama-sitesi.md)). Değerlendirme sırası: tenant override → plan → yüzde dağıtımı (`hash(tenant_id)`) → global varsayılan.

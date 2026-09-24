@@ -1035,7 +1035,8 @@ Faz 2 örneği: %10 kupon (üst sınır 50 TL) → indirim `round(47.500 × 0,10
 | `price_changed` | 409 | Yeni teklif döner |
 | `link_session_invalid` / `verification_code_invalid` / `otp_invalid` / `otp_locked` | 401 / 422 / 422 / 429 | |
 | `turnstile_failed` / `customer_blocked` | 403 | Kara listede nötr mesaj |
-| `subscription_read_only` / `tenant_suspended` / `plan_limit_reached` | 403 | §4.3, `plan_features` |
+| `subscription_read_only` / `tenant_suspended` / `ordering_disabled` / `plan_limit_reached` | 403 | §4.3, tenant kill-switch'i, `plan_features` |
+| `tracking_link_expired` | 410 | Takip linki teslimden 7 gün sonra |
 | `rate_limited` | 429 | |
 
 ### 6.2 Storefront API (herkese açık) **[Faz 1]**

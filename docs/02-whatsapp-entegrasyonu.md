@@ -706,7 +706,7 @@ flowchart LR
   SND -- Graph API, tenant token --> Meta
   SND --> DLQ[[DLQ]]
   WK --> Q3[["BullMQ: wa-media"]] --> MED[medya indirme] --> OBJ[(nesne deposu, TR)]
-  ORD -- "branch_events + SSE (REST aksiyonlar)" --> PANEL[İşletme paneli<br/>sesli uyarı]
+  ORD -- "branch_events + SSE" --> PANEL[İşletme paneli<br/>sesli uyarı]
   DSP --> NTF[["BullMQ: notify<br/>alarm §10.3, SMS, platform WABA,<br/>bekleyen ret 30 sn"]]
 ```
 
@@ -735,7 +735,7 @@ app.post('/wa', async (req, reply) => {
 });
 ```
 
-- Meta 200 dışı yanıtta **7 güne kadar** üstel geri çekilmeyle yeniden dener (A01 §9.3); kısa kesintide sipariş kaybolmaz ama gecikir → §10 alarmları. İmza anahtarı App Secret'tır (prod/staging ayrı); ingress stateless, en az 2 instance. Ham olay tablosu 30 gün saklanır (replay ve hata ayıklama için), sonra silinir; telefonlar loglarda maskelenir.
+- Meta 200 dışı yanıtta **7 güne kadar** üstel geri çekilmeyle yeniden dener (A01 §9.3); kısa kesintide sipariş kaybolmaz ama gecikir → §10 alarmları. İmza anahtarı App Secret'tır (prod/staging ayrı); ingress stateless ve **en az iki ayrı sunucu/VM** üzerinde çalışır (pilotta ucuz ikinci VPS yeterli; aynı sunucuda iki süreç yetmez, [00](00-kararlar-ve-sozluk.md) §11). Ham olay tablosu 30 gün saklanır (replay ve hata ayıklama için), sonra silinir; telefonlar loglarda maskelenir.
 
 ### 7.3 Worker: bölme, yönlendirme, dedupe
 
