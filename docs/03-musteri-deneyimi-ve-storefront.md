@@ -1,7 +1,7 @@
 # 03 — Müşteri Deneyimi ve Storefront
 
 > **Amaç:** Son müşterinin işletmeyi bulduğu andan siparişini değerlendirdiği ana kadar yaşadığı her şeyi tanımlamak: akışlar, storefront ekranları, takip sayfası, WhatsApp bot konuşması ve tüm Türkçe mesaj metinleri. Tasarımcı, geliştirici ve hukukçu bu dokümandan doğrudan iş çıkarabilmeli.
-> **Tarih:** 2026-09-24 · **Durum:** Taslak (00 son sürümüyle hizalandı) · **Bağlayıcı kaynak:** [Kararlar ve sözlük](00-kararlar-ve-sozluk.md) §5 (durumlar, sebep, ödeme, teslim ve kanal kodları), §6 (WhatsApp), §7 (akışlar, mesaj koruma kuralları, token), §9 (onay adımı, veri minimizasyonu).
+> **Tarih:** 2026-09-24 · **Durum:** Taslak (00 son sürümüyle hizalandı) · **Bağlayıcı kaynak:** [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4 (SMS maliyeti, kill-switch'ler), §5 (durumlar, sebep, ödeme, teslim ve kanal kodları), §6 (WhatsApp), §7 (akışlar, mesaj koruma kuralları, karşılama sıklığı, müşteri iptali, değerlendirme, SMS başlığı, token), §9 (onay adımı, veri minimizasyonu), §10 (kademeli alarm).
 
 **Kapsam:** Müşteri tarafı ilkeler, giriş noktaları, Akış A–E ve Flows, storefront ekranları (S-01…S-15), sepet/checkout, adres ve bölge UX'i, ödeme UX'i, sipariş takip sayfası, müşteri gözünden bot konuşması, müşteriye giden tüm WhatsApp ve SMS metinleri, mesaj bütçesi, müşteri tarafı güven/gizlilik/erişilebilirlik/performans, ölçüm planı.
 
@@ -829,7 +829,7 @@ Her başlıkta tetik, tür, butonlar ve faz yazılıdır. `⏎` satır sonudur; 
 
 - Mesajda eski tutar yazılmaz. Storefront "Son siparişin" kartıyla açılır ve kartta güncel tutar görünür.
 
-**M05 · Sipariş alındı** — tetik: **Akış A:** `new` + 60 sn içinde onay yoksa (debounce); **Akış B:** müşterinin doğrulama kodu mesajına **anında** yanıt (debounce yok); **Akış E:** kasiyer kaydında, pencere kapalıysa şablonla · service, CTA URL (pencere dışı `siparis_alindi_v1`) · buton: *Siparişi takip et* · [Faz 1]
+**M05 · Sipariş alındı** — tetik: **Akış A:** `new` + 60 sn içinde onay yoksa (debounce); **Akış B:** müşterinin doğrulama kodu mesajına **anında** yanıt (debounce yok); **Akış E:** sipariş `new` olarak kaydedildiyse, debounce yok (pencere kapalıysa şablonla; genelde doğrudan `accepted` kaydedilir ve yalnız M06 gider) · service, CTA URL (pencere dışı `siparis_alindi_v1`) · buton: *Siparişi takip et* · [Faz 1]
 > ✅ Siparişiniz alındı! Sipariş no: {no}
 > {kalemler}
 > Toplam: {toplam} · Ödeme: {odeme}
