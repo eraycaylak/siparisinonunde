@@ -925,14 +925,14 @@ stateDiagram-v2
   [*] --> trialing: self-servis kayıt (14 gün)
   [*] --> active: pilot (tutar 0) / doğrudan ödeme
   trialing --> active: plan + ödeme
-  trialing --> suspended: deneme bitti + 3 gün uyarı
+  trialing --> suspended: deneme bitti + 3 gün uyarı (D+3)
   active --> past_due: G0 çekim başarısız
   past_due --> active: ödeme
   past_due --> read_only: G+10
   read_only --> suspended: G+21
   read_only --> active: ödeme
   suspended --> active: ödeme (≤ 5 dk)
-  suspended --> cancelled: G+45 fesih bildirimi / deneme D+90
+  suspended --> cancelled: G+75 kapanış ve silme / deneme D+90
   active --> cancelled: işletme iptali (dönem sonu)
 ```
 
@@ -940,10 +940,10 @@ stateDiagram-v2
 |---|---|---|---|---|
 | `trialing`, `active`, `past_due` | ✓ | ✓ | ✓ | `past_due`: G+1/G+3/G+7 yeniden deneme + bant |
 | `read_only` | ✓ | ✓ | Kapalı: menü/fiyat, ayarlar, bölgeler, personel, rapor dışa aktarma, kampanya, entegrasyon. Açık: sipariş işlemleri, tükendi, fiş, sohbet, KVKK dışa aktarma (D08 §6.3) | API `403 subscription_read_only` |
-| `suspended` | ✗: storefront ve bot "Online sipariş geçici olarak alınamıyor. Telefon: …" der | Açık siparişler için ✓ | Yalnız ödeme, dışa aktarma, açık siparişi kapatma, sohbet | `tenant_suspended` |
-| `cancelled` | ✗ | ✗ | Yalnız dışa aktarma; silme `data_export_until`'de (G+75 / D+90) | `retention.tenant_offboarding` |
+| `suspended` | ✗: storefront ve bot "Online sipariş geçici olarak alınamıyor. Telefon: …" der | Açık siparişler için ✓ | Yalnız ödeme, dışa aktarma, açık siparişi kapatma, sohbet. G+45'te kapanış ön bildirimi gider ve 30 günlük dışa aktarma penceresi başlar (yalnız hatırlatma; durum değişmez, D08 §6.3) | `tenant_suspended` |
+| `cancelled` | ✗ | ✗ | Dunning'de G+75, denemede D+90: kapanış ve silme aynı gün (`retention.tenant_offboarding`). Gönüllü iptalde dönem sonundan itibaren 30 gün yalnız dışa aktarma, sonra silme (`data_export_until`) | `retention.tenant_offboarding` |
 
-**Deneme bitişi (KARARLAR §9):** 14. gün dolunca plan seçilmediyse `trial_warning_started_at` yazılır ve 3 gün uyarı bandı gösterilir → `suspended` (`suspension_reason = trial_ended`; sipariş alma durur) → 90 gün içinde plan seçilirse veriler aynen döner → D+90 `cancelled` ve silme. Pilot bitişinde plan seçilmezse aynı kural (`pilot_ended`).
+**Deneme bitişi (KARARLAR §9):** 14. gün dolunca plan seçilmediyse `trial_warning_started_at` yazılır ve 3 gün uyarı bandı gösterilir → D+3 `suspended` (`suspension_reason = trial_ended`; sipariş alma durur) → 90 gün içinde plan seçilirse veriler aynen döner → D+90 `cancelled` ve silme. Pilot bitişinde plan seçilmezse aynı kural (`pilot_ended`).
 
 **`tenants.lifecycle_stage` türetmesi** (`core.deriveLifecycleStage()`, D05 §A.2.1; elle yazılmaz): girdiler `subscriptions.status`, `tenants.live_at`, `is_pilot`/`pilot_ends_at`, admin askısı (`suspension_reason ∈ {policy, abuse, legal}`). Öncelik: `churned` (`cancelled`) > `suspended` (abonelik `suspended` **veya** admin askısı) > `read_only` > `past_due` > `onboarding` (`live_at IS NULL`) > `pilot` > `trial` (`trialing`) > `active`. `lead` aşaması `leads` tablosundadır; tenant açılınca ilk `tenant_lifecycle_events` satırı `lead → onboarding` olur. Her değişiklik `tenant_lifecycle_events`'e yazılır; tetikler `subscription.status_changed`, onboarding `live`, pilot atama/bitişi ve admin askı aksiyonlarıdır. Admin askısı ve `tenants.ordering_enabled = false`, sipariş kabulünde `suspended` satırıyla aynı davranır (`tenant_suspended` / `ordering_disabled`).
 
@@ -1056,9 +1056,10 @@ Faz 2 örneği: %10 kupon (üst sınır 50 TL) → indirim `round(47.500 × 0,10
 | POST | `/store/orders` | Idempotency-Key + Turnstile | Sipariş: link oturumu geçerliyse `new` (Akış A), değilse `awaiting_customer` + kod (Akış B) |
 | POST | `/store/orders/{token}/otp` | takip token'ı + Idempotency-Key | WhatsApp'sız mod: `{phone}` → SMS OTP |
 | POST | `/store/orders/{token}/otp/verify` | takip token'ı | `{code}` → `new` |
-| GET | `/store/orders/{token}` | takip token'ı | Takip verisi: durum, ETA, kurye adı, özet, belgeler. Kişisel alanlar maskeli, finalden 30 gün sonra gizli |
-| POST | `/store/orders/{token}/cancel` | takip token'ı | `awaiting_customer`/`new` → `cancelled`; sonrası için iptal talebi |
-| POST | `/store/orders/{token}/review` | takip token'ı | `{rating, reasons[]}` |
+| GET | `/store/orders/{token}` | takip token'ı | Takip verisi: durum, ETA, kurye adı, özet, belgeler (kişisel alanlar maskeli). **Teslimden (ret/iptalde final andan) 7 gün sonra 410 `tracking_link_expired`**; sipariş anındaki sözleşme ve ön bilgilendirme sürümü kişisel veri içermeyen kalıcı `legal_documents.url` adresinde kalır (D08 §2.8 satır 5) |
+| POST | `/store/orders/{token}/cancel` | takip token'ı | `awaiting_customer`/`new` → doğrudan `cancelled` (`customer`, `customer_request`); `accepted` ve sonrasında `cancellation_requests` açar (`{note?}`) |
+| POST | `/store/orders/{token}/review` | takip token'ı | `{rating, reasons[], comment?}` (Faz 1; yalnız işletme görür) |
+| POST | `/store/orders/{token}/source` | takip token'ı | İsteğe bağlı "Bizi nereden buldunuz?" → `acquisition_source` |
 | GET | `/store/legal/{kind}?order={token}` | — | Aydınlatma, ön bilgilendirme, mesafeli satış; siparişte kabul edilen sürümle |
 
 ### 6.3 Panel API **[Faz 1 aksi belirtilmedikçe]**
@@ -1074,15 +1075,17 @@ Faz 2 örneği: %10 kupon (üst sınır 50 TL) → indirim `round(47.500 × 0,10
 | GET | `/branches/{b}/snapshot?since_seq=` | O,M,C,K | Emniyet sorgusu: açık siparişler + `max_seq` |
 | GET | `/branches/{b}/orders?status=&from=&to=&q=&cursor=` | O,M,C,K | Liste ve arama (no, isim, telefonun son 4 hanesi) |
 | GET | `/orders/{id}` | O,M,C,K | Detay + zaman çizelgesi (`kitchen` fiyatsız) |
-| POST | `/branches/{b}/orders` | O,M,C | Manuel sipariş (Akış E; `conversation_id` ile "sohbetten sipariş") |
+| POST | `/branches/{b}/orders` | O,M,C | Manuel sipariş (Akış E; `conversation_id` ile "sohbetten sipariş"; `{eta_minutes, wa_notify, out_of_zone_override?, out_of_zone_fee_kurus?}` → `new → accepted` tek transaction) |
 | POST | `/orders/{id}/ack` | O,M,C,K | Görüldü |
 | POST | `/orders/{id}/accept` | O,M,C | `{eta_minutes}` + `If-Match` |
-| POST | `/orders/{id}/reject`, `/orders/{id}/reject/undo` | O,M,C | `{rejection_reason, note?}`; 30 sn geri alma |
+| POST | `/orders/{id}/reject`, `/orders/{id}/reject/undo` | O,M,C | `{rejection_reason, note?, sold_out_product_ids?[], pause_minutes?}` → `rejection_scheduled_at` (30 sn bekleyen ret); `undo` 30 sn içinde |
 | POST | `/orders/{id}/advance` | O,M,C (K: `preparing`, `ready`) | `{to, courier_id?}` |
-| POST | `/orders/{id}/cancel` | O,M,C | `{cancelled_by: tenant\|customer, cancel_reason, note?}` |
-| POST | `/orders/{id}/cancel-request/decline` | O,M,C | Müşteri iptal talebini reddet |
+| POST | `/orders/{id}/cancel` | O,M,C | İşletme iptali: `{cancel_reason, note?}` → `cancelled_by = tenant` |
+| POST | `/orders/{id}/cancel-request/approve`, `/orders/{id}/cancel-request/decline` | O,M,C | Müşteri iptal talebini onayla (`cancelled_by = customer`, `customer_request`, onaylayan audit) / reddet (`{decline_reason}`) |
+| PATCH | `/orders/{id}` | O,M,C | Faz 1 düzenleme (D04 §4.12): adres tarifi/kat/daire/teslimat telefonu, ödeme yöntemi ve para üstü, `internal_note`, `acquisition_source`; kalem çıkarma `{remove_item_ids[], customer_agreed: true}` (`new`/`accepted`/`preparing`; toplam sunucuda yeniden hesaplanır, audit) |
+| POST | `/orders/{id}/delay` | O,M,C | `{extra_minutes}` → ETA güncellenir, müşteriye bütçe dışı gecikme mesajı; `delay_notice_count` ≤ 2 [T] |
 | POST | `/orders/{id}/verify-manually` | O,M,C | "Telefonla doğruladım" (`awaiting_customer` → `new`, audit) |
-| POST | `/orders/{id}/eta`, `/orders/{id}/payment`, `/orders/{id}/courier` | O,M,C | ETA güncelle (otomatik mesaj yok); ödeme alındı; kurye ata |
+| POST | `/orders/{id}/eta`, `/orders/{id}/payment`, `/orders/{id}/courier` | O,M,C | ETA güncelle (mesajsız); ödeme alındı; kurye ata |
 | POST / GET | `/orders/{id}/print`, `/orders/{id}/receipt?template=&width=` | O,M,C,K | Yazdırma işi; fiş HTML'i |
 | GET | `/menus/{id}/tree` | O,M,C,K | Tam menü ağacı |
 | POST / PATCH / DELETE | `/categories…`, `/products…`, `/option-groups…`, `/options…` | O,M | CRUD; ürünle birlikte alias ve grup bağları; sıralama `POST /menus/{id}/reorder` |

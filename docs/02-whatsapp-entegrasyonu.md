@@ -832,10 +832,10 @@ Graph API çağrıları doğrudan değil, `WaTransport` arayüzü (`sendMessage`
 
 | Webhook alanı | Anlam | Bizim alan |
 |---|---|---|
-| `contacts[].user_id`, `messages[].from_user_id` | BSUID, her zaman | `customer.wa_bsuid` (NOT NULL for WA müşterisi) |
-| `contacts[].wa_id`, `messages[].from` | Telefon, gelmeyebilir | `customer.phone_e164` (nullable) |
-| `contacts[].username`, `contacts[].profile.name` | Kullanıcı adı, profil adı | `customer.wa_username`, `customer.wa_profile_name` (yalnız gösterim) |
-| `contacts[].parent_user_id` | Parent BSUID (açılmışsa) | `customer.wa_parent_bsuid` (nullable) |
+| `contacts[].user_id`, `messages[].from_user_id` | BSUID, her zaman | `customers.wa_bsuid` (WhatsApp müşterisinde dolu; SMS/telefon kaynaklı kayıtta boş) |
+| `contacts[].wa_id`, `messages[].from` | Telefon, gelmeyebilir | `customers.phone_e164` (nullable; ayrı `wa_id` kolonu yok) |
+| `contacts[].username`, `contacts[].profile.name` | Kullanıcı adı, profil adı | `customers.wa_username`, `customers.wa_profile_name` (yalnız gösterim) |
+| `contacts[].parent_user_id` | Parent BSUID (açılmışsa) | `customers.wa_parent_bsuid` (nullable) |
 | `statuses[].recipient_user_id` / `recipient_id` | Alıcının BSUID'si (her zaman) / telefonu (BSUID'ye gönderildiyse gelmez) | Eşleme |
 
 **Gönderim:** WhatsApp kaynaklı telefon varsa telefona gönderilir (Meta, webhook'larda telefonun gelmeye devam etmesi için bunu öneriyor); yoksa BSUID'ye. BSUID'ye gönderimde istek alan adı teyit edilmeli. Authentication şablonları yalnız telefona.
@@ -845,8 +845,8 @@ Graph API çağrıları doğrudan değil, `WaTransport` arayüzü (`sendMessage`
 Akış: BSUID ile ara → yoksa ve `wa_id` geldiyse telefonla ara (kural 2/4) → yoksa yeni kayıt → `wa_id` varsa telefonu yaz → profil/kullanıcı adını güncelle.
 
 1. **Kimlik anahtarı** `(tenant_id, wa_bsuid)` UNIQUE. Telefon asla birincil anahtar değildir.
-2. **Telefonla otomatik birleştirme** yalnız şu durumda: mevcut kayıt BSUID'siz (Akış E telefon siparişi, POS/Excel içe aktarımı) ve telefon WhatsApp kaynaklı (webhook `wa_id`, REQUEST_CONTACT_INFO, telefona gönderilen mesajın status'undaki `recipient_user_id`).
-3. **Storefront formundaki telefon** (`order.delivery_phone`) müşteri kimliğini değiştirmez ve otomatik birleştirme tetiklemez (başkasının telefonu olabilir). `customer.phone_e164` yalnız doğrulanmış kaynaktan yazılır; `phone_source` alanı tutulur (`wa_webhook`, `wa_shared`, `manual`, `import`).
+2. **Telefonla otomatik birleştirme** yalnız şu durumda: mevcut kayıt BSUID'siz (Akış E telefon siparişi, WhatsApp'sız moddaki SMS OTP siparişi, POS/Excel içe aktarımı) ve telefon WhatsApp kaynaklı (webhook `wa_id`, REQUEST_CONTACT_INFO, telefona gönderilen mesajın status'undaki `recipient_user_id`).
+3. **Storefront formundaki telefon** (`orders.delivery_phone_e164`) müşteri kimliğini değiştirmez ve otomatik birleştirme tetiklemez (başkasının telefonu olabilir). `customers.phone_e164` yalnız doğrulanmış kaynaktan yazılır; `phone_source` alanı tutulur (`wa_webhook`, `wa_shared`, `sms_otp`, `manual`, `import`). SMS OTP ile doğrulanan telefon (`sms_otp`) müşteri kaydına yazılır ama BSUID'li bir kayıtla otomatik birleştirme tetiklemez; yalnız kural 2 yönünde (WhatsApp'tan gelen kayıt → BSUID'siz SMS kaydı) birleşir.
 4. **Çatışma** (aynı telefon, farklı BSUID): otomatik birleştirme yok → panelde/adminde "olası aynı kişi" incelemesi (numara el değiştirmiş olabilir).
 5. **Birleştirme işlemi:** siparişler, konuşmalar, mesajlar hedef kayda taşınır; kaynak `merged_into_id` ile yumuşak silinir; pazarlama izni için **en kısıtlayıcı** değer alınır (biri opt-out ise sonuç opt-out); `audit_log` kaydı.
 6. Kullanıcı adı ve profil adı yalnız gösterimdir, eşleme için kullanılmaz.
@@ -855,16 +855,16 @@ Akış: BSUID ile ara → yoksa ve `wa_id` geldiyse telefonla ara (kural 2/4) �
 ### 8.4 Özel durumlar
 
 - **Aynı kişi farklı işletmelerde farklı BSUID'ye sahiptir** (her tenant ayrı portföy). Platform genelinde "tek müşteri" WhatsApp kimliğiyle kurulmaz; KVKK açısından da tenant verisi ayrı kalır.
-- **Portföy değişimi:** işletme yeniden bağlanırken farklı portföy seçerse tüm BSUID'ler değişir. `wa_account.business_id` değiştiğinde "portföy geçişi" modu açılır: 90 gün boyunca yeni BSUID'li müşteri, **eski portföyden** BSUID'li bir kayıtla WhatsApp kaynaklı telefon üzerinden eşleşirse otomatik birleştirilir (kural 4'ün istisnası). BSUID'nin hangi portföye ait olduğu `customer.wa_bsuid_business_id` ile tutulur.
+- **Portföy değişimi:** işletme yeniden bağlanırken farklı portföy seçerse tüm BSUID'ler değişir. `wa_accounts.business_id` değiştiğinde "portföy geçişi" modu açılır (`wa_accounts.previous_business_id`, `portfolio_migration_until`): 90 gün boyunca yeni BSUID'li müşteri, **eski portföyden** BSUID'li bir kayıtla WhatsApp kaynaklı telefon üzerinden eşleşirse otomatik birleştirilir (kural 4'ün istisnası). BSUID'nin hangi portföye ait olduğu `customers.wa_bsuid_business_id` ile tutulur.
 - **Çok şubeli tenant [Faz 2]:** aynı portföydeki şubelerde BSUID aynıdır; müşteri tenant seviyesindedir. Parent BSUID davranışı doğrulanamadı → Açık konular #13.
 
-**Kabul kriterleri (kimlik):** `wa_id` içermeyen webhook fixture'ı ile müşteri oluşur, sipariş verir ve durum mesajlarını alır; Akış E'de telefonla oluşturulan müşteri, aynı kişi WhatsApp'tan yazdığında tek kayıtta birleşir; storefront'a farklı telefon girilmesi mevcut müşteri kaydını değiştirmez.
+**Kabul kriterleri (kimlik):** `wa_id` içermeyen webhook fixture'ı ile müşteri oluşur, sipariş verir ve durum mesajlarını alır; Akış E'de telefonla veya WhatsApp'sız modda SMS OTP ile oluşturulan müşteri, aynı kişi WhatsApp'tan (`wa_id`'li) yazdığında tek kayıtta birleşir; storefront'a farklı telefon girilmesi mevcut müşteri kaydını değiştirmez.
 
 ## 9. Politika uyumu
 
 ### 9.1 WhatsApp Business Messaging Policy **[Faz 1]**
 
-- **Opt-in:** Müşterinin işletmeye yazması sipariş bildirimleri için ilişki kurar. Storefront'ta (Akış B) "Sipariş durumunu {İşletme adı} WhatsApp'tan bildirsin" ifadesi görünür. Akış E'de kasiyer "Müşteri WhatsApp bildirimine onay verdi" kutusunu işaretlemeden şablon gitmez.
+- **Opt-in:** Müşterinin işletmeye yazması sipariş bildirimleri için ilişki kurar. Storefront'ta (Akış B) "Sipariş durumunu {İşletme adı} WhatsApp'tan bildirsin" ifadesi görünür; WhatsApp'sız modda bunun yerine "Sipariş durumu takip sayfasında, önemli adımlar SMS ile bildirilir" yazar. Akış E'de kasiyer "Müşteri WhatsApp bildirimine onay verdi" kutusunu işaretlemeden şablon gitmez.
 - **Pazarlama için ayrı, açık onay:** storefront'ta işaretlenmemiş kutu ve sohbette "Kampanyalardan haberdar olmak ister misiniz? [Evet] [Hayır]"; onay metninde işletme adı açıkça yazar; zaman damgası ve kaynak saklanır. İYS/6563 yükümlülükleri → [08](08-mevzuat-kvkk-odeme-fatura.md).
 - **Opt-out:** WhatsApp içinden (§6.9) veya dışından (panelden, e-postayla) gelen her talep uygulanır.
 - **İnsana devir:** otomasyonda hızlı, açık, doğrudan insana devir yolu zorunlu → §6.5 her durumda aktif.
@@ -872,8 +872,8 @@ Akış: BSUID ile ara → yoksa ve `wa_id` geldiyse telefonla ara (kural 2/4) �
 ### 9.2 Commerce Policy **[Faz 1]**
 
 - Gıda ve restoran siparişi yasak listede değildir. Yasak (özet): alkol, tütün ve ekipmanı (nargile tütünü, e-sigara dahil), ilaç, tıbbi/sağlık ürünleri, tehlikeli madde, canlı hayvan, silah, kumar, yetişkin içerik, flört, MLM, maaş günü kredisi, para (A01 §6.2).
-- **Menü bayrağı:** ürün ve kategoride "WhatsApp'ta gösterme/satma" bayrağı (alan adı [07](07-veri-modeli-ve-api.md)'de; öneri `wa_restricted` + `restricted_reason`: `alcohol | tobacco | pharma | hazardous | other`).
-  - Bayraklı ürün WhatsApp mesajlarında, WhatsApp'tan açılan storefront oturumunda ve WhatsApp ile onaylanan siparişlerde yer alamaz. MVP'deki tüm sipariş akışları WhatsApp'a dokunduğu için **bayraklı ürün sepete eklenemez**.
+- **Menü bayrağı:** ürün ve kategoride "WhatsApp'ta gösterme/satma" bayrağı: `products.wa_restricted` + `restricted_reason` (`alcohol | tobacco | pharma | hazardous | other`; [07](07-veri-modeli-ve-api.md) §3.2).
+  - Bayraklı ürün WhatsApp mesajlarında, WhatsApp'tan açılan storefront oturumunda ve WhatsApp ile onaylanan siparişlerde yer alamaz. Ayrıca alkol ve tütün storefront'ta da satılamaz ([00](00-kararlar-ve-sozluk.md) §9); bu yüzden **bayraklı ürün hiçbir kanalda (WhatsApp'sız mod ve Akış E dahil) sepete eklenemez** (`products.wa_restricted`).
   - Menü içe aktarımında (Excel/fotoğraf) anahtar kelime ve kategori filtresi otomatik bayrak önerir (bira, rakı, şarap, viski, sigara, nargile, tüp, LPG, ilaç…); işletme kaldırmak isterse `manager` onayı + `audit_log`.
 - **Hedeflenmeyen dikeyler:** tüp bayi, eczane, tekel, nargile kafe, meyhane. Pet shop yalnız hayvan satmıyorsa. Yeni dikeyden önce resmi metin tekrar okunur.
 
@@ -890,7 +890,7 @@ Akış: BSUID ile ara → yoksa ve `wa_id` geldiyse telefonla ara (kural 2/4) �
   - **131049** → o müşteri için pazarlama 7 gün bastırılır (`marketing_suppressed_until`, konfigürasyon), yeniden denenmez.
   - **131050** → `marketing_opt_in = false` (müşteri pazarlamayı durdurmuş).
 - **Kampanya modülü [Faz 2]:** işletmenin İYS kaydı + alıcının önceden onayı + her mesajda ücretsiz ret yolu ("Kampanyaları durdur") + **gönderim öncesi İYS sorgusu (yazılımda zorunlu; WhatsApp operatör İYS filtresinden geçmez)** + `audit_log`. Müşteri başına haftada en fazla 1 kampanya, işletme başına günde en fazla 1 kampanya gönderimi; kampanya önizlemesinde tahmini maliyet, alıcı sayısı, messaging limit uygunluğu ve bastırılan kişi sayısı gösterilir.
-- **Kalite puanı:** `phone_number_quality_update` → `wa_phone_number.quality` (`GREEN`/`YELLOW`/`RED`). `YELLOW`: işletmeye uyarı, kampanyalar manuel onaya düşer. `RED`: kampanya modülü kilitlenir, admin inceler; sipariş bildirimleri devam eder.
+- **Kalite puanı:** `phone_number_quality_update` → `wa_phone_numbers.quality_rating` (`GREEN`/`YELLOW`/`RED`). `YELLOW`: işletmeye uyarı, kampanyalar manuel onaya düşer. `RED`: kampanya modülü kilitlenir, admin inceler; sipariş bildirimleri devam eder.
 - **Messaging limit:** 7 Ekim 2025'ten beri portföy seviyesinde; yeni portföy 250 tekil kullanıcı/24 saat; basamaklar 2.000 → 10.000 → 100.000 → sınırsız; artış ~6 saatte; kalite düşünce limit artık düşmüyor (A01 §6.3). Pencere içi yanıtlar sayılmaz. Tenant başına sayaç; kampanya limiti aşacaksa bölünür veya engellenir.
 - **Numara sınırı:** yeni portföyde 2 kayıtlı numara; doğrulama veya 2.000 limitiyle 20. Zincir paketinde (Faz 2) 3+ şube için işletmenin kendi Business Verification'ı onboarding'de yönlendirilir.
 - **Yaptırım:** tekrarlayan ihlalde 5/7/30 günlük gönderim engelleri (A01 §6.3 [3P]); `account_update` ile izlenir.

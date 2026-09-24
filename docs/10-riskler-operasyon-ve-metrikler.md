@@ -474,7 +474,7 @@ Pilot ve ilk 100 işletmede kurulum ekip tarafından yapılır ([00-kararlar-ve-
 
 ### 5.6 İşletme sağlık skoru ve churn önleme
 
-**Sağlık skoru (0–100) [T]** — günlük hesaplanır (günlük rollup, [06](06-teknik-mimari.md) §8.5); admin işletme listesinde filtrelenir. Ağırlıklar pilot verisiyle kalibre edilir.
+**Sağlık skoru (0–100) [T]** — günlük hesaplanır (günlük rollup, [06](06-teknik-mimari.md) §8.5; tablo `tenant_health_scores`, son değer `tenants.health_score` / `health_band`, [07](07-veri-modeli-ve-api.md) §3.7); admin işletme listesinde filtrelenir. Ağırlıklar pilot verisiyle kalibre edilir.
 
 | Bileşen | Ağırlık | Ölçüm | Tam puan |
 |---|---|---|---|
@@ -506,7 +506,7 @@ Pilot ve ilk 100 işletmede kurulum ekip tarafından yapılır ([00-kararlar-ve-
 > Bu ay **{k} müşteriniz** size ikinci kez sipariş verdi. Siparişleri ortalama **{s} saniyede** onayladınız.
 > Önümüzdeki ay için önerimiz: {öneri — ör. "Paket kartlarınız azalmış olabilir; yeni kart için bize yazın."}
 
-**Kabul kriterleri (sağlık skoru ve rapor):** Skor her gün 06:00'a kadar hesaplanır ve admin listesinde bant renkleriyle görünür; kırmızıya düşen işletme için otomatik görev açılır; değer raporu test siparişlerini (`test_kind` = `onboarding_test` veya `canary`), `sandbox` tenant'ını ve `manual` kanalını kanal siparişine katmaz; rapordaki sipariş sayısı panel raporuyla birebir tutar.
+**Kabul kriterleri (sağlık skoru ve rapor):** Skor her gün 06:00'a kadar hesaplanır ve admin listesinde bant renkleriyle görünür; kırmızıya düşen işletme için otomatik görev açılır; değer raporu (`tenant_value_reports`) test siparişlerini (`test_kind` dolu: `onboarding_test`, `canary`), demo tenant'ları (`tenants.is_demo`) ve `manual` kanalını kanal siparişine katmaz; rapordaki sipariş sayısı panel raporuyla birebir tutar.
 
 ### 5.7 Sahte sipariş ve kötüye kullanım süreci
 
@@ -587,6 +587,7 @@ Meta'nın kararları şeffaf değildir ve destek süreleri garanti değildir (A0
 
 - SEV1'de en az iki kişi çalışır: IC/iletişim ve teknik müdahale ayrı kişilerdir. Tek kişi varsa önce ikinci kişi aranır, sonra müdahaleye başlanır (en fazla 5 dk).
 - Her olayın tek bir yazılı kanalı vardır (ekip sohbetinde `#olay-AAAAGG-kısa-ad`); karar ve komutlar oraya yazılır.
+- Her olay admin panelinde `incidents` kaydı olarak açılır (`sev`, zamanlar, IC, özet, postmortem bağlantısı); etkilenen işletmeler `incident_tenants`'ta (etki, bildirim zamanı, SLA kredisi) tutulur. Kişisel veri ihlali ise `data_breach_incidents` kaydı bağlanır ([07](07-veri-modeli-ve-api.md) §3.6–3.7). Sağlık skorunun "SEV1/SEV2'den etkilenme" tetikleyicisi bu kayıttan okunur (§5.6).
 
 ```mermaid
 flowchart LR
@@ -761,8 +762,8 @@ Runbook'ların tam hâli `infra/runbooks/` altında tutulur ve her alarm kendi r
 | S2 | **Webhook → panel gecikmesi:** ingress alımından SSE yazımına | `wa_webhook_to_panel_seconds` | **p95 < 3 sn**; açık saatlerdeki 5 dk pencerelerin ≥ %99'unda [T] | p95 > 3 sn (5 dk) → P2 |
 | S3 | **Storefront siparişi → panel** | `order_created_to_panel_seconds` | p95 < 2 sn [T] | p95 > 3 sn (5 dk) → P2 |
 | S4 | **Sipariş ack (görüldü) süresi:** `first_acked_at − placed_at`, şubede en az bir çevrimiçi cihaz varken | `orders.first_acked_at` (`order_acks`), `order_ack_seconds` | p95 < 5 sn [T] | p95 > 15 sn → P2 |
-| S5 | **Platform canary (Meta dahil, uçtan uca)** | `canary_wa_e2e_seconds`, başarı oranı (§7.3) | Başarı ≥ %99,5; p95 < 10 sn [T] | > 60 sn veya 2 ardışık kayıp → P1 |
-| S6 | **Tenant canary (her tenant, Meta hariç; `test_kind = 'canary'`)** | `canary_e2e_seconds{branch}` ([07](07-veri-modeli-ve-api.md) §4.1; §7.3) | Açık saatte ≥ %99 başarı [T] | Başarısız + cihaz "çevrimiçi" → işletme alarmı |
+| S5 | **Platform canary (Meta dahil, uçtan uca)** | `canary_e2e_seconds`, başarı oranı (§7.3; [06](06-teknik-mimari.md) §7.10, §14.1) | Başarı ≥ %99,5; p95 < 10 sn [T] | > 60 sn veya 2 ardışık kayıp → P1 |
+| S6 | **Tenant canary (her tenant, Meta hariç; `test_kind = 'canary'`)** | `canary_ack_seconds{branch}` (§7.3; [06](06-teknik-mimari.md) §7.10) | Açık saatte ≥ %99 başarı [T] | Başarısız + cihaz "çevrimiçi" → işletme alarmı |
 | S7 | **Durum mesajı gönderimi:** outbox → Graph API kabulü | `wa_send` gecikmesi | p95 < 10 sn [T] | Outbox en eski > 60 sn → P2 |
 | S8 | **Durum mesajı teslim oranı:** `delivered` / Graph API'nin kabul ettiği (131026 gibi alıcı kaynaklı kalıcı hatalar hariç), 24 saat içinde | `messages` durumları | ≥ %97 [T]; DLQ'ya düşen durum mesajı < %0,5 ([02](02-whatsapp-entegrasyonu.md) §11) | Günlük oran < %95 → P2 |
 | S9 | **Alarm zinciri zamanlaması:** kanonik basamakların ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10: t = 60 sn, 2 dk, 5 dk, 10 dk) planlanan zamandan ± 15 sn içinde çalışması; en kritik ölçüm t = 2 dk platform WhatsApp basamağı | `alarm_escalations.fired_at − scheduled_at` | ≥ %99 [T] | Gecikme > 60 sn → P2 |
@@ -791,8 +792,8 @@ Operasyonel tanım iki parçalıdır; ikisi ayrı sahiplere ve ayrı aksiyonlara
 
 | Katman | Ne yapar | Sıklık | Ölçer |
 |---|---|---|---|
-| **Tenant canary (her tenant, Meta hariç; zorunlu paket)** | Her tenant'ın her şubesi için `test_kind = 'canary'` sentetik sipariş gerçek sipariş yolundan geçer (storefront API → DB → `branch_events` (`is_canary`) → SSE). Panel bunu göstermez ve ses çalmaz, yalnız sessizce ack'ler. Alarm zinciri ve müşteri mesajı çalışmaz (WhatsApp adımı dry-run). Ack alınınca veya en geç 10 dk sonra kayıt kalıcı silinir ([07](07-veri-modeli-ve-api.md) §4.1) | Şubenin açık saatlerinde 15 dk [T] | Sipariş → cihaz ack süresi (`canary_e2e_seconds{branch}`); cihaz "çevrimiçi" görünürken ack gelmiyorsa "bayat panel" |
-| **Platform canary (Meta dahil)** | Platformun ayrı canary numarası `sandbox` tenant'ının numarasına mesaj gönderir; mesaj Meta → ingress (iki sunucu/VM) → `wa-inbound` → konuşma motoru → SSE ile başsız (headless) bir panel istemcisine ulaşır; bot yanıtı canary numarasına geri döner. Gerçek WhatsApp gönderimi yalnız `sandbox` tenant'ında yapılır | Açık saatlerde (10:00–02:00) 5 dk, gece 15 dk | Gönderim → panel ve gönderim → yanıt süresi (`canary_wa_e2e_seconds`); başarı oranı |
+| **Tenant canary (her tenant, Meta hariç; zorunlu paket)** | Her tenant'ın her şubesi için `test_kind = 'canary'` sentetik sipariş gerçek sipariş yolundan geçer (storefront API → DB → `branch_events` (`is_canary`) → SSE). Panel bunu göstermez ve ses çalmaz, yalnız sessizce ack'ler. Alarm zinciri ve müşteri mesajı çalışmaz (WhatsApp adımı dry-run). Ack alınınca veya en geç 10 dk sonra kayıt kalıcı silinir ([07](07-veri-modeli-ve-api.md) §4.1) | Şubenin açık saatlerinde 15 dk [T] | Sipariş → cihaz ack süresi (`canary_ack_seconds{branch}`); cihaz "çevrimiçi" görünürken ack gelmiyorsa "bayat panel" (`notifications.kind = stale_panel`) |
+| **Platform canary (Meta dahil)** | Platformun ayrı canary numarası `sandbox` tenant'ının (`tenants.is_demo = true`) numarasına mesaj gönderir; mesaj Meta → ingress (iki sunucu/VM) → `wa-inbound` → konuşma motoru → SSE ile başsız (headless) bir panel istemcisine ulaşır; bot yanıtı canary numarasına geri döner. Gerçek WhatsApp gönderimi yalnız `sandbox` tenant'ında yapılır | Açık saatlerde (10:00–02:00) 5 dk, gece 15 dk | Gönderim → panel ve gönderim → yanıt süresi (`canary_e2e_seconds`); başarı oranı |
 | **Tenant WhatsApp sağlığı** | `debug_token`, `subscribed_apps`, numara ve kalite durumu | Günlük ([02](02-whatsapp-entegrasyonu.md) §7.8) + tenant sessizliği alarmı | Token/abonelik/kalite |
 
 - Canary numaraları arasındaki otomatik mesajlaşmanın Meta politikalarına uygunluğu ve aylık maliyeti (service mesajları, numara başına ilk 1.000 ücretsiz) teyit edilmeli; beklenen maliyet ayda birkaç dolardır [T].
@@ -824,7 +825,7 @@ Operasyonel tanım iki parçalıdır; ikisi ayrı sahiplere ve ayrı aksiyonlara
 
 ### 8.1 Kuzey yıldızı metriği
 
-**Haftalık kendi kanal siparişi:** Bir hafta içinde (Pazartesi 00:00 – Pazar 23:59, `Europe/Istanbul`) **teslim edilmiş** (`status = delivered`), test siparişi olmayan (`test_kind` `onboarding_test` veya `canary` değil; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5) ve kanalı `wa_link` veya `web` olan siparişlerin sayısı (Faz 2'de `wa_ai`, Faz 3'te `table_qr` ve `wa_flow` eklenir).
+**Haftalık kendi kanal siparişi:** Bir hafta içinde (Pazartesi 00:00 – Pazar 23:59, `Europe/Istanbul`) **teslim edilmiş** (`status = delivered`), test siparişi olmayan (`test_kind IS NULL`; `onboarding_test` ve `canary` hariç, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5) ve kanalı `wa_link` veya `web` olan siparişlerin sayısı (Faz 2'de `wa_ai`, Faz 3'te `table_qr` ve `wa_flow` eklenir).
 
 - **Neden bu metrik:** Ürünün tek vaadi olan "işletmenin kendi kanalından komisyonsuz sipariş" doğrudan sayılır; R01'i (en büyük risk) ölçer; işletmenin gördüğü değerle (tasarruf) ve churn'le doğrudan ilişkilidir.
 - **Neden haftalık:** Pilot ve deney kararları haftalık ritimle verilir; aylık toplamı [01](01-vizyon-pazar-is-modeli.md) §2.1'deki kuzey yıldızı ifadesidir.
@@ -858,10 +859,10 @@ Sahip: Kurucu-İş (Finans ile). "Ödeyen işletme" = `subscription.status IN ('
 | Metrik | Formül | Veri kaynağı | Hedef | Sıklık |
 |---|---|---|---|---|
 | **MRR** | Σ ödeyen aboneliklerin aylık normalize KDV hariç ücreti (yıllık / 12; indirimler düşülmüş) | `subscriptions`, `plans` | Büyüme hedefi K4'te | Aylık (haftalık izleme) |
-| **Net yeni MRR** | Yeni + genişleme − daralma − kayıp MRR | `subscriptions` + `subscription.status_changed` ve plan değişikliği olayları (ayrı abonelik geçmişi tablosu [07](07-veri-modeli-ve-api.md)'de yok; §11 #12) | > 0 | Aylık |
-| **Logo churn (aylık)** | Ay içinde ayrılan ödeyen işletme / ay başındaki ödeyen işletme | `subscriptions` (`status = cancelled`), `tenants.lifecycle_stage = churned` | İlk yıl %5–7, sonra < %3 ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12) | Aylık |
+| **Net yeni MRR** | Yeni + genişleme − daralma − kayıp MRR | `subscriptions`, `tenant_lifecycle_events` + plan değişikliği olayları (plan/tutar değişikliği geçmişi [07](07-veri-modeli-ve-api.md)'de ayrı tablo olarak yok; §11 #12) | > 0 | Aylık |
+| **Logo churn (aylık)** | Ay içinde ayrılan ödeyen işletme / ay başındaki ödeyen işletme | `subscriptions` (`status = cancelled`), `tenant_lifecycle_events` (`to_stage = churned`) | İlk yıl %5–7, sonra < %3 ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12) | Aylık |
 | **Gelir churn / NRR** | Kayıp + daralma MRR / ay başı MRR; NRR = (ay başı MRR + genişleme − daralma − kayıp) / ay başı MRR | `subscriptions` | Gelir churn ≤ logo churn | Aylık |
-| **Aktivasyon oranı** | Canlıya geçtikten sonraki 14 günde ≥ 10 kanal siparişi alan işletme / dönemde canlıya geçen işletme | `orders` (`channel`, `test_kind`), canlıya geçiş tarihi (`tenants.onboarding_step = live`; WhatsApp için `wa_phone_numbers.live_at`) | Pilot ≥ %70 [T] | Haftalık (kohort) |
+| **Aktivasyon oranı** | Canlıya geçtikten sonraki 14 günde ≥ 10 kanal siparişi alan işletme / dönemde canlıya geçen işletme | `orders` (`channel`, `test_kind`), canlıya geçiş tarihi (`tenants.live_at`; pencere `live_at` + 14 gün) | Pilot ≥ %70 [T] | Haftalık (kohort) |
 | **Demo → deneme / pilot** | Denemeye veya pilota geçen / demo yapılan | Lead listesi (admin) | ≥ %30 (A06 KRI eşiği) | Aylık |
 | **Deneme → ücretli** **[Faz 2]** | 14 gün sonunda plan seçen / denemesi biten | `subscriptions` | ≥ %40 (A06 KRI eşiği) | Aylık (kohort) |
 | **Pilot → ücretli** | Pilot sonrası ödemeye geçen / pilot işletme | `subscriptions`, `tenants.is_pilot` | ≥ %60 (K4) | Pilot sonu |
@@ -869,7 +870,7 @@ Sahip: Kurucu-İş (Finans ile). "Ödeyen işletme" = `subscription.status IN ('
 | **Geri ödeme süresi** | CAC / (ARPA × brüt marj) | Yukarıdakiler | < 4 ay | Aylık |
 | **LTV** | ARPA × brüt marj / aylık logo churn | Yukarıdakiler | LTV/CAC ≥ 3 [T] | Çeyreklik |
 | **Brüt marj** | (Abonelik geliri − COGS) / abonelik geliri; COGS kalemleri [01](01-vizyon-pazar-is-modeli.md) §7.1 | Muhasebe + maliyet metrikleri (§8.6) | ≥ %70 | Aylık |
-| **Kanal payı** | Kanal siparişi / (kanal siparişi + işletmenin beyan ettiği pazaryeri siparişi) | `orders` + aylık pazaryeri sipariş beyanı ([07](07-veri-modeli-ve-api.md)'de alan yok; §11 #12) | Pilotun 8. haftasında (pilot sonu) ≥ %10 ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12) | Aylık; pilotta haftalık |
+| **Kanal payı** | Kanal siparişi / (kanal siparişi + işletmenin beyan ettiği pazaryeri siparişi) | `orders` + `marketplace_declarations` (`period_month`, `marketplace_orders`); beyan yoksa hesaplanmaz | Pilotun 8. haftasında (pilot sonu) ≥ %10 ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12) | Aylık; pilotta haftalık |
 
 ### 8.4 Ürün metrikleri
 
@@ -878,12 +879,12 @@ Sahip: Teknik lider (ürün). Hedefler A05 §11'deki hipotez hedefleridir [T]; p
 | Metrik | Formül | Veri kaynağı | Hedef | Sıklık |
 |---|---|---|---|---|
 | **İşletme başı haftalık kanal siparişi** | Kuzey yıldızı / aktif işletme (medyan) | `orders` | Pilot ≥ 5 | Haftalık |
-| **Karşılama → link açma** | Oturuma çevrilmiş (açılmış) link token'ı / verilen link token'ı | `storefront_link_tokens` (`session_started_at`) | ≥ %60 | Haftalık |
+| **Karşılama → link açma** | İlk açılışı olan (oturuma çevrilmiş) link token'ı / verilen link token'ı | `storefront_link_tokens` (`first_opened_at`) | ≥ %60 | Haftalık |
 | **Link → sipariş** | Siparişe bağlanan token / açılan token | `storefront_link_tokens` (`order_id`) | ≥ %35 | Haftalık |
 | **Akış B doğrulama oranı** | Doğrulanan / oluşturulan Akış B siparişi (`awaiting_customer` → `new`); WhatsApp kodu ve SMS OTP ayrı kırılım | `order_verification_codes` (`status = used`), `otp_verifications` (`status = verified`) | ≥ %85; < %85 ise "güvenilir cihaz" (Faz 2) öne alınır | Haftalık |
 | **Onay süresi** | `accepted_at − placed_at` (medyan, p95; otomatik kabul — Faz 2 — hariç) | `orders` | Medyan < 60 sn; p95 ≤ 2 dk | Haftalık, şube bazında |
-| **Geç onay oranı** | `new` durumunda > 2 dk kalan (t = 2 dk platform WhatsApp basamağı çalışan) / tüm `new` | `report_daily_branch` (2 dk'yı aşan onaysız sayısı), `alarm_escalations` (`kind = new_order_unacked`, t = 2 dk basamağında `fired_at` dolu) | < %5 [T]; pilot 2. hafta ≥ %80'i 2 dk içinde (H8) | Haftalık |
-| **"Siparişim nerede?" oranı** | Kabul ile teslim arasında "nerede / ne zaman gelir" niyetli gelen mesajı olan sipariş / teslim edilen sipariş | `messages` + konuşma motoru niyet etiketi ([07](07-veri-modeli-ve-api.md)'de alan yok; §11 #12) | < %5 | Haftalık |
+| **Geç onay oranı** | `new` durumunda > 2 dk kalan (t = 2 dk platform WhatsApp basamağı çalışan) / tüm `new` | `report_daily_branch` (2 dk'yı aşan onaysız sayısı), `alarm_escalations` (`kind = new_order_unacked`, `step = 3` yani t = 2 dk basamağı, `fired_at` dolu) | < %5 [T]; pilot 2. hafta ≥ %80'i 2 dk içinde (H8) | Haftalık |
+| **"Siparişim nerede?" oranı** | Kabul ile teslim arasında "nerede / ne zaman gelir" niyetli gelen mesajı olan sipariş / teslim edilen sipariş | `messages.intent = order_status_query` (konuşma motoru niyet etiketi) | < %5 | Haftalık |
 | **Tekrar sipariş oranı** | 30 gün içinde 2. kanal siparişini veren müşteri / ilk kanal siparişini veren müşteri | `orders` (`customer_id`) | ≥ %30 [T] | Aylık (kohort) |
 | **Ret ve iptal oranları** | `rejected` ve `cancelled` / tüm siparişler; sebep kodu kırılımıyla | `orders` (`rejection_reason`, `cancelled_by`, `cancel_reason`; kodlar [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5) | İzleme; `too_busy` artışı yoğunluk sinyali, `tenant_no_response` §7.2 | Haftalık |
 | **Telefonsuz sipariş oranı** | Teslimat telefonu olmayan teslimat siparişi / teslimat siparişi | `orders` (`delivery_phone_e164`), `customers` | < %10 [T] (R31) | Aylık |
@@ -900,12 +901,12 @@ Sahip: Operasyon lideri (sistem metrikleri için teknik lider).
 | **Destek teması / işletme / ay** | Temas sayısı / aktif işletme (ilk ay hariç ayrı) | Destek aracı → `support_tickets` [Faz 2] | ≤ 3; 2. ayda > 4 → H9 başarısız | Haftalık |
 | **İlk yanıt SLA uyumu** | Öncelik süresinde ilk yanıt verilen temas / temas | Destek aracı | ≥ %90 [T]; P1'de %100 | Haftalık |
 | **P1 ve olay sayısı** | Haftalık P1 temas; SEV1/SEV2 olay sayısı ve süresi | Destek aracı, olay kaydı | Azalan eğilim | Haftalık |
-| **Onboarding süresi** | Kapı 1 ve Kapı 2 tamamlanma süresi (medyan) | `wa_onboarding_sessions` (`completed_at`), `tenants.onboarding_step` | Kapı 1 aynı gün; Kapı 2 ≤ 1 gün | Haftalık |
+| **Onboarding süresi** | Kapı 1 ve Kapı 2 tamamlanma süresi (medyan) | `tenants.web_live_at` (Kapı 1), `tenants.live_at` (Kapı 2), `tenant_onboarding_steps`, `wa_onboarding_sessions` | Kapı 1 aynı gün; Kapı 2 ≤ 1 gün | Haftalık |
 | **ES terk oranı** | `CANCEL`/`ERROR` ile biten ES / başlatılan ES; `current_step` kırılımı | `wa_onboarding_sessions` (`status` = `cancelled`/`failed`; `current_step` `es_events` içinde) | < %30 | Haftalık |
 | **Meta ödeme hatası oranı** | 131042 durumundaki canlı tenant / canlı tenant | `wa_accounts.sending_paused_reason = payment_missing`, `messages.error_code` | 0 | Günlük |
 | **Kalite uyarısı** | YELLOW/RED numara sayısı | `wa_phone_numbers.quality_rating` | 0 | Günlük |
 | **Sahte sipariş oranı** | `cancel_reason = suspected_fake` / sipariş | `orders` | < %1 [T] | Haftalık |
-| **Sağlık skoru dağılımı** | Yeşil / sarı / kırmızı işletme sayısı; kırmızıda ortalama kalış süresi | Günlük rollup (§5.6; sağlık skoru tablosu [07](07-veri-modeli-ve-api.md)'de yok, §11 #12) | Kırmızı ≤ %10 [T] | Haftalık |
+| **Sağlık skoru dağılımı** | Yeşil / sarı / kırmızı işletme sayısı; kırmızıda ortalama kalış süresi | `tenant_health_scores` (`band`), `tenants.health_band` (§5.6) | Kırmızı ≤ %10 [T] | Haftalık |
 
 ### 8.6 Maliyet metrikleri
 
@@ -915,8 +916,8 @@ Sahip: Finans. Kur: aylık ortalama (`fx_rates`). Meta mesaj ücretleri işletme
 |---|---|---|---|---|
 | **Altyapı / işletme** | Aylık altyapı faturası (sunucu, depolama, Cloudflare, gözlemlenebilirlik) / aktif işletme | Faturalar | ≤ 120 TL/ay ([01](01-vizyon-pazar-is-modeli.md) §7.1 üst sınırı) | Aylık |
 | **LLM / işletme** **[Faz 2]** | `llm_cost_usd_total` × kur / AI kullanan işletme | Prometheus, tenant LLM sayacı | Pakete göre kota; tenant bütçe koruması | Aylık |
-| **SMS / işletme** | SMS sağlayıcı faturası / aktif işletme (OTP, alarm, kritik durum SMS'i; platform maliyeti, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4) | `sms_messages` (`purpose`, `segments`, `est_cost_kurus`), `tenant_usage_daily.sms_count`, fatura | ≤ 80 TL/ay; adil kullanım kotası Esnaf 100 / Pro 300 SMS/ay, aşımda işletme uyarılır | Aylık |
-| **Platform WhatsApp uyarı maliyeti** | Platform WABA şablon ücretleri | `notifications` (`channel = platform_wa`), `tenant_usage_daily.platform_wa_count` × `wa_rate_cards` | İzleme | Aylık |
+| **SMS / işletme** | SMS sağlayıcı faturası / aktif işletme (OTP, alarm, kritik durum SMS'i; platform maliyeti, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4) | `sms_messages` (`purpose`, `segments`, `est_cost_kurus`), `tenant_usage_monthly` (`sms_count` kotaya sayılan, `sms_ops_count`), fatura | ≤ 80 TL/ay; adil kullanım kotası Esnaf 100 / Pro 300 SMS/ay, aşımda işletme uyarılır | Aylık |
+| **Platform WhatsApp uyarı maliyeti** | Platform WABA şablon ücretleri | `notifications` (`channel = platform_wa`), `tenant_usage_monthly.platform_wa_count` × `wa_rate_cards` | İzleme | Aylık |
 | **Destek maliyeti / işletme** | Destek + onboarding personel maliyeti / aktif işletme | Bordro, zaman kaydı | ≤ 200 TL/ay (≥ %70 marj için, [01](01-vizyon-pazar-is-modeli.md) §7.2) | Aylık |
 | **Döviz bazlı gider / brüt gelir** | USD/EUR faturalı giderler (LLM, SaaS araçları, Cloudflare, platform Meta ücretleri) × kur / abonelik geliri | Muhasebe | **≤ %15** [T] (A06 §7.5) | Aylık |
 | **İşletmenin Meta maliyeti / sipariş** (bilgi) | Tenant'ın aylık tahmini Meta ücreti / teslim edilen sipariş | `wa_message_costs` (`est_try_kurus`) | İzleme; çeyrekte +%50 → R16 KRI | Aylık |
@@ -927,7 +928,7 @@ Sahip: Finans. Kur: aylık ortalama (`fx_rates`). Meta mesaj ücretleri işletme
 | # | Kriter | Kaynak | Eşik |
 |---|---|---|---|
 | P1 | İşletme başına ilk 14 günde kanal siparişi | `orders` | ≥ 10 ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12) |
-| P2 | Pilotun 8. haftasında (pilot sonu) kendi kanal payı | `orders` + pazaryeri beyanı | ≥ %10 ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12) |
+| P2 | Pilotun 8. haftasında (pilot sonu) kendi kanal payı | `orders` + `marketplace_declarations` | ≥ %10 ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12) |
 | P3 | Panelin günlük aktif kullanımı | `devices` | İşletmelerin açık günlerinin ≥ %90'ında [T] |
 | P4 | Kaçan sipariş (sistem) | §7.2 | 0 |
 | P5 | Webhook → panel p95 | S2 | < 3 sn |

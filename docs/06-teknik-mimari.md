@@ -1005,24 +1005,24 @@ Playwright'ta ses için Chrome `--autoplay-policy=no-user-gesture-required` bayr
 - **Sürümleme:** Tüm API yolları URL'de `/v1` taşır (`/api/v1/{store|panel|courier|admin}/…`, `api.siparisinonunde.com/v1/…`); kırıcı değişiklik `/v2` ile gelir, kalkacak uçta `Deprecation`/`Sunset` başlıkları kullanılır ([07](07-veri-modeli-ve-api.md) §6.1). Panel API'si SPA ile birlikte deploy edilir. SPA `X-App-Version` farkında "yeni sürüm, yenile" gösterir. Açık API **[Faz 3]** de `/v1` ile başlar. Mobil uygulama ve yazıcı ajanı semver kullanır, sunucu minimum sürümü zorlar.
 
 ### 16.6 Feature flag
-- `feature_flag(key, description, default, rules jsonb, owner, expires_at)` tablosu, 30 sn Redis cache'i ve admin panelinden yönetim ([05](05-admin-paneli-ve-pazarlama-sitesi.md)). Değerlendirme sırası: tenant override → plan → yüzde dağıtımı (`hash(tenant_id)`) → global varsayılan.
-- **Paket hakları (entitlement) flag değildir.** Paket içerik matrisi ([01](01-vizyon-pazar-is-modeli.md) §6.3) ayrı `plan_feature` tablosundadır. Flag geçici dağıtım ve acil durdurma içindir.
-- **Acil durdurma anahtarları (kill switch):** `ai_ordering`, `bot_global`, `sms_fallback`, `auto_print`, `akis_b_wa_verification`, `platform_wa_alerts`.
+- `feature_flags(key, description, default_enabled, rules jsonb, owner, expires_at)` + `tenant_feature_overrides` tabloları, 30 sn Redis cache'i ve admin panelinden yönetim ([05](05-admin-paneli-ve-pazarlama-sitesi.md)). Değerlendirme sırası: tenant override → plan → yüzde dağıtımı (`hash(tenant_id)`) → global varsayılan.
+- **Paket hakları (entitlement) flag değildir.** Paket içerik matrisi ([01](01-vizyon-pazar-is-modeli.md) §6.3) ayrı `plan_features` tablosundadır. Flag geçici dağıtım ve acil durdurma içindir.
+- **Kill-switch'ler (kanonik, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4):** `signup_open` (kayıt formu), `wa_onboarding` (Embedded Signup başlatma), `campaigns_global` (kampanya gönderimi, Faz 2), `llm_parsing` (AI ayrıştırma; §11.5 devre kesicisi otomatik kapatır), `sms_fallback` (SMS OTP / WhatsApp'sız mod) ve tenant bazında `ordering_enabled` (işletmenin sipariş almasını durdurur; storefront ve bot "şu an online sipariş alınmıyor, lütfen arayın" moduna geçer). Ek operasyonel anahtarlar: `bot_global`, `auto_print`, `akis_b_wa_verification`, `platform_wa_alerts`. Değişiklik ≤ 60 sn içinde tüm süreçlerde etkili olur ve `audit_log`'a yazılır.
 - Geçici flag'ler tam dağıtımdan sonra en geç 2 sprint içinde koddan silinir (`expires_at` geçen flag CI uyarısı üretir).
 
 ## 17. Ölçek ve maliyet tahmini
-Varsayımlar (A04 §12, tümü [T]): işletme başına 900 sipariş/ay, %30 serbest metin (LLM, Faz 2), %3 SMS yedeği. Meta mesaj ücretleri işletmenin kendi hesabından ödenir ve tabloda yoktur. **Yurt içi sağlayıcı fiyatları doğrulanmadı.** Aralıklar A04'teki (ağırlıkla AB referanslı) tahminlerdir ve yurt içi teklifle yukarı yönlü değişebilir.
+Varsayımlar (A04 §12, tümü [T]): işletme başına 900 sipariş/ay, %30 serbest metin (LLM, Faz 2), %3 SMS yedeği (SMS OTP + WhatsApp'sız mod durum SMS'i + alarm SMS'i, Faz 1). Kur 1 USD ≈ 48,4 TL ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8). Meta mesaj ücretleri işletmenin kendi hesabından ödenir ve tabloda yoktur. **Yurt içi sağlayıcı fiyatları doğrulanmadı.** Aralıklar A04'teki (ağırlıkla AB referanslı) tahminlerdir ve yurt içi teklifle yukarı yönlü değişebilir.
 
 | Kalem | Pilot (≤ 10) | 100 işletme | 1.000 işletme |
 |---|---|---|---|
 | Yük | Önemsiz | Zirve ~0,2 sipariş/sn | Zirve ~1,7 sipariş/sn, ~15–20 WA olayı/sn, ~3.000 SSE bağlantısı |
-| Uygulama sunucuları | 1 sunucu (4 vCPU / 8–16 GB): $15–40 | 2 × (8 vCPU / 16 GB): $60–150 | 4–6 düğüm: $250–600 |
+| Uygulama sunucuları | 1 sunucu (4 vCPU / 8–16 GB): $15–40 + ikinci ingress VPS: $5–15 | 2 × (8 vCPU / 16 GB): $60–150 | 4–6 düğüm: $250–600 |
 | PostgreSQL + PostGIS | Aynı sunucuda | Primary + standby: $100–250 | Primary + senkron standby + okuma replikası: $400–1.000 |
 | Redis/Valkey | Aynı sunucuda | $0–20 | Sentinel 3 düğüm: $60–150 |
 | Staging | $10–20 | $20–40 | $50–100 |
 | Yedek depolama (2 TR lokasyonu) | ~$0–10 | $5–20 | $30–100 |
 | Görseller (R2 + dönüşüm) | $0 | ~$1–5 + ~$7,5 | $30–80 |
-| Cloudflare | $0 (Free) | $20–250 (teyit edilmeli) | $200–500 (teyit edilmeli) |
+| Cloudflare | $0 (Free) + Load Balancing ~$5 (teyit edilmeli) | $20–250 (teyit edilmeli) | $200–500 (teyit edilmeli) |
 | Gözlemlenebilirlik | $0–30 | $50–150 | $200–600 |
 | LLM (Faz 2) | ~$14–32 | ~$135–324 | ~$1.350–3.240 |
 | SMS yedeği | ~$2 | ~$17 | ~$167 |
@@ -1032,6 +1032,7 @@ Varsayımlar (A04 §12, tümü [T]): işletme başına 900 sipariş/ay, %30 serb
 | İşletme başı | — | ~$6–12 | ~$3,5–7 |
 
 - **En büyük değişken LLM'dir.** 1.000 işletmede altyapıyı geçebilir. Kaldıraçlar: menü linkini varsayılan tutmak, AI'yı üst pakete/kotaya bağlamak (§11.5).
+- **SMS platform maliyetidir:** SMS OTP ve kritik durum SMS'leri aboneliğe adil kullanım kotasıyla dahildir (Esnaf 100, Pro 300 SMS/ay; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4). Sayaç `tenant_usage_daily.sms_count` + `sms_messages`; kota aşımında işletme uyarılır (Faz 2'de ek SMS paketi). Alarm SMS'i kota dolsa bile gönderilir [T].
 - Tenant başına LLM, SMS ve platform WABA sayaçları süper admin panelinde görünür. Paketleme kararları bu veriye dayanır ([01](01-vizyon-pazar-is-modeli.md) §7).
 
 ## 18. Açık konular

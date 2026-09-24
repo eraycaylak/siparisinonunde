@@ -805,21 +805,21 @@ Kanonik liste [10](10-riskler-operasyon-ve-metrikler.md) §8.7'deki **pilot baş
 | F2-01 | **Ticari altyapı** | Paket hakları (`plan_feature`), PSP kart saklama ve tekrarlayan çekim, faturalama motoru, Paraşüt e-Arşiv/e-Fatura, havale/EFT, dunning (G+1/3/7 → G+10 salt-okunur → G+21 askı → G+75), deneme bitişi, kurucu üye sayacı | L | PSP üye işyeri başvurusu (site şartları [08](08-mevzuat-kvkk-odeme-fatura.md) §7.2), Paraşüt API paketi, sözleşmenin dunning eki | Ticari lansmanın ve pilotların Mart 2027'de ücretliye geçişinin ön koşulu | S7–S8 (H14–17) |
 | F2-02 | Harici pentest, düzeltmeler, yeniden test | Gri kutu ([06](06-teknik-mimari.md) §15.8) | M | Faz 1 kapsamı sabit; firma teklifi H10'da | KARARLAR: ticari lansmandan önce zorunlu; pre-mortem #5 | H16–H18 |
 | F2-03 | 3 sunucu topolojisi | PG primary + hot standby, Valkey replikası ([06](06-teknik-mimari.md) §13.3) | M | Barındırma sözleşmesi | %99,9 SLO ve RTO; pre-mortem #3 | S8 |
-| F2-04 | Self-servis onboarding v1 | Sihirbazın iyileştirilmesi, AI menü çıkarma self-servis (insan onayıyla), Excel/CSV içe aktarma, Meta kart video rehberi, takılan adım hunisi | M | A-14 iç aracının pilot hata verisi | CAC ≤ 4.000 TL hedefi ve destek maliyeti (R03) | S9 |
-| F2-05 | SambaPOS/Adisyo entegrasyonu + GloriaFood geçiş kampanyası | Sipariş aktarımı (P-INT-01) | M–L | Partnerlerin API erişimi (teyit edilmeli) | GloriaFood 30.04.2027'de kapanıyor; Pro paketine dahil ([01](01-vizyon-pazar-is-modeli.md) §6.3) | S10–S11 (Mart 2027'ye hazır) |
-| F2-06 | Referans programı | Panelde davet linki, getiren ve gelene 1'er ay ücretsiz | S | F2-01 | En ucuz edinme kanalı ([01](01-vizyon-pazar-is-modeli.md) §7.3) | S10 |
+| F2-04 | Self-servis onboarding v1 | Sihirbazın (P-38) iyileştirilmesi, AI menü çıkarma self-servis (insan onayıyla), Excel içe/dışa aktarmanın tamamı (P-14), Meta kart video rehberi, 14 gün kartsız deneme ile self-servis kayıt | M | A-14 iç aracının pilot hata verisi | CAC ≤ 4.000 TL hedefi ve destek maliyeti (R03) | S9 |
+| F2-05 | SambaPOS/Adisyo entegrasyonu + GloriaFood geçiş kampanyası | Sipariş aktarımı, entegrasyonlar ekranı (P-46), `/gloriafood-gecis` sayfası | M–L | Partnerlerin API erişimi (teyit edilmeli) | GloriaFood 30.04.2027'de kapanıyor; Pro paketine dahil ([01](01-vizyon-pazar-is-modeli.md) §6.3) | S10–S11 (Mart 2027'ye hazır) |
+| F2-06 | Referans programı | Panelde davet linki, getiren ve gelene 1'er ay ücretsiz ([05](05-admin-paneli-ve-pazarlama-sitesi.md) B.6) | S | F2-01 | En ucuz edinme kanalı ([01](01-vizyon-pazar-is-modeli.md) §7.3) | S10 |
 | F2-07 | Capacitor 8 Android uygulaması | Güvenilir alarm (native bildirim kanalı), otomatik ESC/POS (USB/BT/LAN), Sunmi, raster fiş | L | Pilot cihaz ve yazıcı envanteri | R05 sipariş kaçırma; esnafın fiş ihtiyacı. **D8 PWA alarm sorunu gösterirse S10'a çekilir** | S12–S13 |
 | F2-08 | Tekrar sipariş ve sipariş esnekliği | Akış D sohbet içi "aynısından", otomatik kabul (kurallı, varsayılan kapalı), ileri saatli sipariş, ürün değişikliği onayı (M14), kalem düzenleme | M | Faz 1 FSM | Tekrar sipariş kanal alışkanlığı yaratır; en güçlü churn savunması | S12–S13 |
-| F2-09 | Akış C: AI serbest metin siparişi | Haiku 4.5 + structured outputs + aday getirme + sunucu doğrulaması; özet + [Onayla][Düzenle][İptal]; pilottan toplanan Türkçe eval seti; tenant token bütçesi; `ai_ordering` kill switch; Pro ve üstü + adil kullanım (varsayılan) | L | Eval seti, Anthropic için m.9 dayanağı (avukat), PII maskeleme | "Yazarak sipariş" alışkanlığı; Pro'yu farklılaştırır | S14–S15 |
-| F2-10 | Kupon, doğrudan kanal avantajı, damga kartı | P-PRM-01…03, S-12 | M | F2-01 (paket hakları), D4 sonucu | R01 kanal taşıma teşviki | S14–S15 |
+| F2-09 | Akış C: AI serbest metin siparişi | Haiku 4.5 + structured outputs + aday getirme + sunucu doğrulaması; özet (M18) + [Onayla][Düzenle][İptal]; AI onay kuyruğu (P-47); pilottan toplanan Türkçe eval seti; tenant token bütçesi; `ai_ordering` kill switch; Pro ve üstü + adil kullanım (varsayılan) | L | Eval seti, Anthropic için m.9 dayanağı (avukat), PII maskeleme | "Yazarak sipariş" alışkanlığı; Pro'yu farklılaştırır | S14–S15 |
+| F2-10 | Kupon, doğrudan kanal avantajı, damga kartı | P-42, P-43, S-12 | M | F2-01 (paket hakları), D4 sonucu | R01 kanal taşıma teşviki | S14–S15 |
 | F2-11 | Online ödeme M1 | İşletmenin kendi PayTR hesabı (sonra iyzico), ödeme linki (CTA URL), iade, taksit kapalı, ek protokol | M–L | PSP iş ortağı programı, avukatın ek protokolü | Sahte siparişe karşı koruma (R21), Pro değeri | S16–S17 |
-| F2-12 | Bayi paneli ve bayi programı | `reseller` rolü, müşteri atama, komisyon hesabı, sözleşme ve stopaj düzeni | M | Avukat + mali müşavir | 100'den 1.000'e dağıtım; birinci seviye destek bayide | S16–S17 |
+| F2-12 | Bayi paneli ve bayi programı | `reseller` rolü, müşteri atama, komisyon hesabı (A-23), sözleşme ve stopaj düzeni | M | Avukat + mali müşavir | 100'den 1.000'e dağıtım; birinci seviye destek bayide | S16–S17 |
 | F2-13 | Windows yazdırma ajanı (Go) | Çok yazıcı yönlendirmesi, WebSocket bağlantısı (KARARLAR §5) | M | F2-07'nin fiş modeli | PC kullanan işletmeler | S16–S17 |
-| F2-14 | İYS uyumlu kampanya modülü | Aktivasyon kapısı, İYS iş ortağı API'si, maliyet önizlemesi, frekans sınırı, ret senkronu, audit; pazarlama izni toplama (M22); izinli müşteriye tek sepeti terk hatırlatması | L | İYS entegrasyonu, avukat görüşü, ETK onay metni | Pro/Zincir değeri. Numara kalitesi için en riskli modül olduğundan sona konur | S18–S19 |
-| F2-15 | Çoklu şube ve Zincir paketi | Şube seçici, merkezi menü ve şube fiyatı, KDS (`kitchen`), PIN ile hızlı kullanıcı değiştirme | L | Şube başına numara kararı ([02](02-whatsapp-entegrasyonu.md) açık konu 13) | Zincir paketi Faz 2'de satışa çıkar (KARARLAR §8) | S18–S19 |
+| F2-14 | İYS uyumlu kampanya modülü (P-44) | Aktivasyon kapısı, İYS iş ortağı API'si, maliyet önizlemesi, frekans sınırı, ret senkronu, audit; pazarlama izni toplama (M22); izinli müşteriye tek sepeti terk hatırlatması | L | İYS entegrasyonu, avukat görüşü, ETK onay metni | Pro/Zincir değeri. Numara kalitesi için en riskli modül olduğundan sona konur | S18–S19 |
+| F2-15 | Çoklu şube ve Zincir paketi | Şubeler (P-45), şube seçici, merkezi menü ve şube fiyatı, mutfak ekranının KDS kısmı (P-41, `kitchen`) | L | Şube başına numara kararı ([02](02-whatsapp-entegrasyonu.md) açık konu 13) | Zincir paketi Faz 2'de satışa çıkar (KARARLAR §8) | S18–S19 |
 | F2-16 | Dikey uyarlamalar | Su bayisi (depozito, tekrarlayan sipariş), pastane (ön sipariş, özel pasta formu) | M | D3'teki su bayisi verisi | Segment 2 (KARARLAR §11) | S18–S19 |
-| F2-17 | Gelişmiş raporlar, "Verilerim" (S-11), kurye gün sonu | P-RPT-05/06, P-CUR-03 | S–M | — | Değer raporu (churn), KVKK self-servis | Aralarda |
-| F2-18 | Pazarlama sitesi v2 | Yardım merkezi, durum sayfası, müşteri hikâyeleri, gerçek müşterisi olan şehir sayfaları, CMS | M | Pilot vakaları, içerik sorumlusu | SEO ve destek yükü | Aralarda |
+| F2-17 | Gelişmiş raporlar, "Verilerim" (S-11), "Siparişlerim" (S-15), kurye gün sonu | P-33'ün Faz 2 kısmı, K-04 | S–M | — | Değer raporu (churn), KVKK self-servis | Aralarda |
+| F2-18 | Pazarlama sitesi v2 ([05](05-admin-paneli-ve-pazarlama-sitesi.md) C.2) | Blog, yardım merkezi, durum sayfası, müşteri hikâyeleri, bayi başvurusu, referans sayfası, CMS (A-24) | M | Pilot vakaları, içerik sorumlusu | SEO ve destek yükü | Aralarda |
 | F2-19 | Güvenilir cihaz, OTP iyileştirmesi, sesli arama (IVR) alarmı değerlendirmesi | — | S | Pilot ölçümü: Akış B'deki kopma > %15 ise öne alınır | R05, dönüşüm | Koşullu |
 
 **Sıralama mantığı:** Önce gelir (F2-01), güvenlik (F2-02) ve güvenilirlik (F2-03) gelir. Ardından edinme maliyeti (F2-04, F2-06) ve takvime bağlı fırsat (F2-05, GloriaFood) sıralanır. Sonra sipariş kaçırma (F2-07) ve tutundurma (F2-08) gelir. Farklılaştırıcılar (F2-09…F2-11) ve dağıtım (F2-12) bunları izler. Hukuki ve kalite riski en yüksek modül (F2-14) ile en büyük kapsam (F2-15) en sona konur.
@@ -841,7 +841,8 @@ Kanonik liste [10](10-riskler-operasyon-ve-metrikler.md) §8.7'deki **pilot baş
 | F3-11 | Yeni dikeyler: market, şarküteri, çiçekçi | M (her biri) | Commerce Policy kontrolü | Segment 3 (KARARLAR §11) |
 | F3-12 | Ölçek altyapısı: senkron standby, okuma replikası, Valkey Sentinel, self-host Photon/OSRM (300+ işletme) | M | Metrik tetikleri ([06](06-teknik-mimari.md) §13.3) | 1.000 işletme |
 | F3-13 | Uyum olgunluğu: ISO 27001, kendi İYS entegratörlüğümüz, VERBİS eşik takibi | L (organizasyon) | — | Zincir satışları |
-| F3-14 | Küçük işler: çok dilli menü, puan sistemi ve doğum günü, MM Lite değerlendirmesi, Star CloudPRNT | S (her biri) | — | Niş talepler |
+| F3-14 | Sektör ve şehir sayfaları (yalnız gerçek müşterisi ve içeriği olan yerler, [05](05-admin-paneli-ve-pazarlama-sitesi.md) C.2) | S–M | Vaka içerikleri | SEO |
+| F3-15 | Küçük işler: çok dilli menü, puan sistemi ve doğum günü, MM Lite değerlendirmesi, Star CloudPRNT | S (her biri) | — | Niş talepler |
 
 ---
 
@@ -916,7 +917,7 @@ R = yapar, A = hesap verir (tek kişi), C = danışılır, I = bilgilendirilir.
 | 4 | Marka tescili (4 sınıf, kelime + logo) | TÜRKPATENT resmi ücretleri + vekil ücreti (tarife teyit edilmeli) | A03 §7.4 | H1 |
 | 5 | Logo, basılı materyal ve site görsel tasarımı | Teklif (serbest tasarımcı) | — | H0–H2 |
 | 6 | Alan adları, kurumsal e-posta | Düşük (teyit edilmeli) | — | H0 |
-| 7 | Altyapı: prod + staging (pilot ölçeği) | ~$40–100/ay ≈ 1.936–4.840 TL/ay → 3 ayda ≈ 5.800–14.500 TL | A04 §12; yurt içi teklifle yukarı yönlü değişebilir | H1'den |
+| 7 | Altyapı: prod + staging (pilot ölçeği) | ~$40–100/ay ≈ 1.936–4.840 TL/ay → 3 ayda ≈ 5.800–14.500 TL. İkinci bağımsız ingress düğümü için ek küçük sunucu: teklif | A04 §12; yurt içi teklifle yukarı yönlü değişebilir | H1'den |
 | 8 | SMS (OTP, alarm, yedek) | 0,16–0,43 TL/SMS; pilotta ~$2/ay | A02 §8, A04 §12 | S5'ten |
 | 9 | Platform WABA mesajları | Pilotta < $1/ay | A04 §12 | S5'ten |
 | 10 | Google Maps, Cloudflare, gözlemlenebilirlik | $0–30/ay (ücretsiz katmanlar) | A04 §12 | H1'den |
@@ -962,17 +963,17 @@ R = yapar, A = hesap verir (tek kişi), C = danışılır, I = bilgilendirilir.
 - [ ] Akış A, B ve E uçtan uca staging'de ve prod smoke testinde (`sandbox` tenant'ı) yeşil.
 - [ ] Kademeli alarm (ses → push → platform WABA → SMS → müşteriye gecikme bilgisi) sahte saatle test edildi. Platform şablonları `APPROVED`.
 - [ ] Panel çevrimdışı dedektörü ve "Siparişleri almaya başla" akışı çalışıyor.
-- [ ] Sentetik canary her pilot tenant'ta çalışıyor ve P1 alarmına bağlı.
-- [ ] `api-hooks` ×2 ve `api` ×2 ile rolling deploy yapılıyor. Ingress p99 < 300 ms.
+- [ ] İki katmanlı sentetik canary çalışıyor: platform canary (ayrı numara, Meta dahil) ve her pilot tenant için tenant canary; P1 alarmına bağlı ([10](10-riskler-operasyon-ve-metrikler.md) §7.3).
+- [ ] Webhook alımı en az iki bağımsız düğümde (ayrı makine, tercihen farklı TR lokasyonu). Rolling deploy'da kayıp yok. Ingress p99 < 300 ms.
 - [ ] PITR iki TR lokasyonunda. Restore tatbikatı #1 başarılı, RTO ≤ 1 sa ölçüldü.
 - [ ] Kaos testleri (DB 5 dk kapalı, Redis kaybı, worker çökmesi) kayıpsız. Yük testi v0 hedefleri karşılandı.
 - [ ] Tenant yalıtım paketi yeşil. ASVS L1 iç kontrol listesi ve ZAP baseline temiz. gitleaks temiz. Token'lar envelope encryption ile saklanıyor.
 - [ ] `owner` ve platform kullanıcılarında TOTP zorunlu. Admin IP kısıtlı.
 - [ ] Sentry'de PII scrub açık, loglarda telefon maskeli.
-- [ ] Coexistence saha testi (+90 numara, 72 saat) geçti. Geçmiş ve kişi senkronu varsayılan kapalı.
+- [ ] D11 Coexistence saha teyidi geçti (C1–C4 ve C7 zorunlu; aksi halde varsayılan yol yeni numara). D12 sonucu Akış A'ya işlendi. Geçmiş ve kişi senkronu varsayılan kapalı.
 - [ ] Kill switch'ler çalışıyor: `bot_global`, `sms_fallback`, `akis_b_wa_verification`, `platform_wa_alerts`.
 - [ ] Rate card konfigürasyonda. Maliyet defteri kayıt tutuyor.
-- [ ] Runbook'lar hazır: webhook kesintisi, Meta kesintisi ve WhatsApp'sız mod, DB geri yükleme, token iptali.
+- [ ] Runbook'lar hazır ([10](10-riskler-operasyon-ve-metrikler.md) §6.6): webhook kesintisi, Meta kesintisi ve WhatsApp'sız mod, DB geri yükleme, token iptali. Her nöbetçi en az bir runbook tatbikatı yaptı.
 
 **Hukuki**
 - [ ] Şirket, vergi levhası ve e-Tebligat tamam. Marka başvurusu yapıldı.
@@ -987,7 +988,8 @@ R = yapar, A = hesap verir (tek kişi), C = danışılır, I = bilgilendirilir.
 - [ ] Pay sahipleri sözleşmesi, fikri hak devirleri ve personel gizlilik taahhütnameleri imzalı. VERBİS muafiyet kaydı hazır.
 
 **Operasyon**
-- [ ] P1 hattı ve nöbet çizelgesi yayında. Alarmlar nöbetçiye gidiyor.
+- [ ] P1 numarası panelde, onboarding kitinde ve kasa etiketinde. Test araması canlı saatlerde 5 dk içinde yanıtlandı. Nöbet çizelgesi en az 2 hafta ileriye dolu. Alarmlar nöbetçiye gidiyor ([10](10-riskler-operasyon-ve-metrikler.md) §5.1, §5.9).
+- [ ] Olay iletişim şablonları (`platform_hizmet_bildirimi_v1`, `platform_hizmet_duzeldi_v1`) onaylı; basit durum sayfası yayında (10 §6.4 önerisi).
 - [ ] Kurulum kiti hazır: ses testi, yazıcı test fişi, basılı materyal, kasiyer kartı.
 - [ ] 3 adet 30 saniyelik eğitim videosu: onay, tükendi, sipariş almayı durdur.
 - [ ] Destek teması etiketleme şablonu (D9) hazır. Pilot metrik panosu admin'de.
@@ -1008,6 +1010,7 @@ R = yapar, A = hesap verir (tek kişi), C = danışılır, I = bilgilendirilir.
 - [ ] ETBİS kaydı yapıldı. Mali müşavirle 2 No'lu KDV ve stopaj düzeni kuruldu.
 - [ ] Yazılı avukat görüşleri alındı: Meta aktarımı, İYS'de platformun rolü, ETAHS sınırı, sipariş notu ve sağlık verisi.
 - [ ] 2–3 izinli pilot vakası (rakamlar ve video) hazır.
+- [ ] İlk KVKK veri ihlali masa başı tatbikatı pilot bitmeden yapıldı ([10](10-riskler-operasyon-ve-metrikler.md) §10, [08](08-mevzuat-kvkk-odeme-fatura.md) §9.2).
 - [ ] Ramazan döneminde (tarih teyit edilmeli) iftar saatleri deploy dondurma penceresine eklendi.
 
 ---
