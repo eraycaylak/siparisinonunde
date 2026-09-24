@@ -447,32 +447,47 @@ Bu şablonlar **yalnız pencere dışında** kullanılır (§4.4). Pencere için
 | `payment_timeout` [Faz 2] | online ödeme süresi içinde tamamlanmadı | Online ödeme |
 | `other` | işletmenin yazdığı not | |
 
-### 5.3 Platform WABA'sı şablonları (işletmeye)
+### 5.3 Platform WABA'sı şablonları (işletmeye ve kuryeye)
 
-**[Faz 1]** Ayrı bir **platform WhatsApp numarasından** (kendi portföyümüzdeki WABA, Cloud API, görünen ad "Siparişin Önünde") işletme sahibi/personelinin kişisel numarasına gider; kademeli alarmın 3. basamağıdır (§10.3). Onboarding'de `owner`'dan açık onay alınır ("Kritik uyarıları WhatsApp'tan almak istiyorum"); ücret bizim WABA'mızdan çıkar. WhatsApp'a ulaşılamazsa (şablon `failed`, onay yok) aynı uyarı e-posta ve SMS ile gider (SMS sağlayıcısı → [06](06-teknik-mimari.md)).
+**[Faz 1]** Ayrı bir **platform WhatsApp numarasından** (kendi portföyümüzdeki WABA, Cloud API, görünen ad "Siparişin Önünde") işletme sahibi/personelinin ve kuryenin kişisel numarasına gider; kademeli alarmın 3. basamağıdır (§10.3). Onboarding'de `owner`'dan açık onay alınır ("Kritik uyarıları WhatsApp'tan almak istiyorum"); `manager` kendi profilinden katılabilir. Kurye için onay, `owner`/`manager` kuryeyi eklerken işaretlenir ("Kurye giriş linkini WhatsApp'tan almayı kabul etti"); yoksa link SMS ile gider. Ücret bizim WABA'mızdan çıkar; gönderimler `notifications` tablosuna (`channel = 'platform_wa'`) yazılır. WhatsApp'a ulaşılamazsa (şablon `failed`, onay yok) aynı uyarı e-posta ve SMS ile gider (SMS sağlayıcısı → [06](06-teknik-mimari.md)). **Meta/WhatsApp genel kesintisinde** platform şablonları kullanılmaz; SMS + e-posta + panel duyuru bandı kullanılır ([10](10-riskler-operasyon-ve-metrikler.md) §6.3). Admin tarafında `platform_wa_alerts` gibi bir acil durdurma anahtarı önerilir ([06](06-teknik-mimari.md)).
 
 | Ad | Kategori | Değişkenler | Buton | Tetik |
 |---|---|---|---|---|
-| `isletme_yeni_siparis_v1` | Utility | 1 işletme adı, 2 sipariş no, 3 bekleme dk, 4 tutar | URL "Siparişi aç" → `panel.siparisinonunde.com/o/{{1}}` | `new` 2 dk onaylanmadı (§10.3 basamak 3; 5. dk'da tekrar) |
+| `isletme_yeni_siparis_v1` | Utility | 1 işletme adı, 2 sipariş no, 3 bekleme dk, 4 tutar | URL "Siparişi aç" → `panel.siparisinonunde.com/o/{{1}}` | `new` 2 dk onaylanmadı (§10.3 basamak 3); bekleyen ret varsa gitmez |
+| `isletme_panel_cevrimdisi_v1` | Utility | 1 şube adı, 2 dakika | URL "Paneli aç" → `panel.siparisinonunde.com` | Panel çevrimdışı dedektörü: şube açıkken sesi açık ve nabız gönderen hiç cihaz yok ([06](06-teknik-mimari.md) §7.7); 30 dk'da en fazla 1, SMS ile birlikte |
+| `kurye_giris_v1` | Utility (risk: Meta authentication sayabilir, teyit edilmeli) | 1 işletme adı | URL "Kurye ekranını aç" → `panel.siparisinonunde.com/kurye/giris?t={{1}}` (tek kullanımlık token) | `owner`/`manager` panelde kurye için "Giriş linki gönder" ([04](04-isletme-paneli.md) P-24); kurye oturumu 12 saat (vardiya, [00](00-kararlar-ve-sozluk.md) §4) |
 | `isletme_baglanti_sorunu_v1` | Utility | 1 işletme adı, 2 sorun özeti | URL "Yeniden bağlan" | Token 190, Coexistence kopması, abonelik iptali |
 | `isletme_meta_odeme_v1` | Utility | 1 işletme adı | URL "Rehberi aç" | 131042 |
 | `isletme_kalite_uyari_v1` | Utility | 1 işletme adı, 2 kalite durumu | URL "Ayrıntılar" | Kalite `YELLOW`/`RED` |
+| `platform_planli_bakim_v1` | Utility (risk: teyit edilmeli) | 1 tarih, 2 başlangıç saati, 3 tahmini süre (dk), 4 siparişlere etkisi | URL "Ayrıntılar" → durum sayfası | Planlı bakım; en az 48 saat önce, yoğun saat dışında ([10](10-riskler-operasyon-ve-metrikler.md) §6.4) |
+| `platform_hizmet_bildirimi_v1` | Utility (risk: teyit edilmeli) | 1 başlangıç saati, 2 sorun, 3 siparişlere etkisi, 4 sonraki bilgi saati | URL "Durumu gör" → durum sayfası | Olay/kesinti ilk duyurusu ve güncellemeleri (SEV1–SEV2, yalnız etkilenen tenant'lar; [10](10-riskler-operasyon-ve-metrikler.md) §6.3) |
+| `platform_hizmet_duzeldi_v1` | Utility (risk: teyit edilmeli) | 1 sorun, 2 çözülme saati, 3 yapılması gereken | URL "Paneli aç" | Olay çözüldü duyurusu |
 | `abonelik_odeme_hatirlatma_v1` | Utility | 1 paket adı, 2 tutar, 3 tarih | URL "Faturalarım" | Yenilemeden 3 gün önce [Faz 2] |
-| `abonelik_odeme_basarisiz_v1` | Utility | 1 paket adı, 2 tutar, 3 son tarih | URL "Ödeme bilgisini güncelle" | Tahsilat başarısız [Faz 2] |
+| `abonelik_odeme_basarisiz_v1` | Utility | 1 paket adı, 2 tutar, 3 son tarih | URL "Ödeme bilgisini güncelle" | Tahsilat başarısız (dunning G, G+3, G+7; [00](00-kararlar-ve-sozluk.md) §9) [Faz 2] |
 | `deneme_bitiyor_v1` | Utility (risk: marketing'e çevrilebilir) | 1 bitiş tarihi, 2 alınan sipariş sayısı | URL "Paketimi seç" | Denemenin 12. günü [Faz 2] |
 
 Metinler:
 - **`isletme_yeni_siparis_v1`** — "Yeni sipariş onay bekliyor. İşletme: {{1}}, sipariş no: {{2}}, bekleme: {{3}} dakika, tutar: {{4}}. Müşteriniz beklemesin, panelden onaylayın ya da reddedin."
+- **`isletme_panel_cevrimdisi_v1`** — "Dikkat: {{1}} şu an sipariş alıyor ama {{2}} dakikadır sesi açık hiçbir panel ekranı yok. Yeni siparişleri kaçırmamak için paneli açıp \"Siparişleri almaya başla\" düğmesine dokunun."
+- **`kurye_giris_v1`** — "Merhaba, {{1}} sizi kurye olarak ekledi. Kurye ekranına girmek için aşağıdaki butona dokunun. Bağlantı tek kullanımlıktır, lütfen kimseyle paylaşmayın."
 - **`isletme_baglanti_sorunu_v1`** — "Dikkat: {{1}} WhatsApp bağlantısında sorun var ({{2}}). Çözülene kadar müşterilerinize mesaj gitmeyebilir. Panelde \"Yeniden bağlan\" adımını tamamlayın."
 - **`isletme_meta_odeme_v1`** — "Dikkat: {{1}} WhatsApp hesabında Meta ödeme yöntemi eksik veya geçersiz. Müşterilerinize giden mesajlar durdu. Meta hesabınıza geçerli bir kart ekleyin; adım adım rehber panelde."
 - **`isletme_kalite_uyari_v1`** — "Bilgilendirme: {{1}} WhatsApp numaranızın kalite durumu {{2}} oldu. Numaranızı korumak için izinsiz toplu mesajdan kaçının; ayrıntılar panelde."
+- **`platform_planli_bakim_v1`** — "Siparişin Önünde planlı bakım bilgilendirmesi: {{1}} tarihinde saat {{2}} itibarıyla yaklaşık {{3}} dakikalık bakım çalışması yapılacak. Siparişlerinize etkisi: {{4}}. Ayrıntıları aşağıdaki bağlantıdan görebilirsiniz."
+- **`platform_hizmet_bildirimi_v1`** — "Siparişin Önünde bilgilendirme: Bugün saat {{1}} itibarıyla {{2}} yaşanıyor. Siparişlerinize etkisi: {{3}}. Ekibimiz sorunu çözmek için çalışıyor; bir sonraki bilgiyi en geç saat {{4}} itibarıyla vereceğiz."
+- **`platform_hizmet_duzeldi_v1`** — "Siparişin Önünde bilgilendirme: {{1}} saat {{2}} itibarıyla giderildi. Sizden ricamız: {{3}}. Yaşattığımız aksaklık için özür dileriz."
 - **`abonelik_odeme_hatirlatma_v1`** — "Siparişin Önünde {{1}} paketinizin {{2}} tutarındaki ödemesi {{3}} tarihinde alınacak. Fatura ve ödeme bilgilerinizi panelden görebilirsiniz."
 - **`abonelik_odeme_basarisiz_v1`** — "Ödemeniz alınamadı. {{1}} paketinizin {{2}} tutarındaki ödemesi başarısız oldu. Hizmetinizin kesintisiz sürmesi için {{3}} tarihine kadar ödeme bilginizi güncelleyin."
 - **`deneme_bitiyor_v1`** — "Deneme süreniz {{1}} tarihinde bitiyor. Bu sürede kendi kanalınızdan {{2}} sipariş aldınız. Kesintisiz devam etmek için panelden paketinizi seçin."
 
+**Notlar:**
+- **Kurye giriş linki:** Meta, giriş/doğrulama amaçlı içeriği authentication kategorisine çevirebilir; authentication şablonları URL butonu taşımaz, yalnız kod gönderir. Şablon reddedilir veya kategori değişirse yedek: kurye ekranında 6 haneli kod girişi ile authentication şablonu (telefona gönderilir) ya da doğrudan SMS (`sms_messages.purpose = 'courier_login'`). Linkin geçerlilik süresi ve tek kullanımlık token kuralı [06](06-teknik-mimari.md) §6.4'tedir.
+- **Olay duyuruları:** Admin panelindeki olay kaydından tetiklenir, yalnız etkilenen tenant'lara ve platform bildirim onayı olan `owner`'lara gider; aynı olay için ilk duyuru + en fazla bir güncelleme + "çözüldü" (spam ve kalite koruması). SEV1'de SMS her durumda ek olarak gider. Paralel olarak panelde duyuru bandı (SSE `announcement` olayı) ve e-posta çıkar. "Durumu gör" butonu `status.siparisinonunde.com` durum sayfasına açılır; sayfa Faz 2'de tam haliyle gelir, pilot öncesi basit sürüm önerisi [10](10-riskler-operasyon-ve-metrikler.md) §6.4'tedir. Tanıtım/sürüm notu duyuruları WhatsApp'tan gönderilmez ([05](05-admin-paneli-ve-pazarlama-sitesi.md)).
+- Duyuru ve bakım şablonları ile kurye şablonu pilot öncesi `APPROVED` olmalıdır; kategori kararı Meta'dadır (Açık konular #16).
+
 ### 5.4 Onay süreci, ret ve kategori değişimi
 
-- Utility çoğunlukla dakikalar içinde, marketing 24 saate kadar onaylanır (A01 §5). `message_template_status_update` → `tenant_template.status` güncellenir (`PENDING`, `APPROVED`, `REJECTED`, `PAUSED`, `DISABLED`; tam değer listesi teyit edilmeli).
+- Utility çoğunlukla dakikalar içinde, marketing 24 saate kadar onaylanır (A01 §5). `message_template_status_update` → `wa_templates.status` güncellenir (`PENDING`, `APPROVED`, `REJECTED`, `PAUSED`, `DISABLED`; tam değer listesi teyit edilmeli).
 
 | Olay | Sistem aksiyonu |
 |---|---|
@@ -481,34 +496,36 @@ Metinler:
 | `PAUSED` / kalite düşüşü (`message_template_quality_update`) | Şablon geçici devre dışı; alternatif sürüm varsa ona geçilir; admin alarmı |
 | `DISABLED` | Yeni sürüm oluşturulana kadar ilgili bildirim yalnız pencere içinde gider |
 
-- **Şablon senkronu:** günlük iş `GET /{waba_id}/message_templates` ile tüm tenant'ların durumunu webhook kaçırmalarına karşı mutabık kılar.
+- **Şablon senkronu:** `cron` kuyruğunda günlük iş, `GET /{waba_id}/message_templates` ile tüm tenant'ların durumunu webhook kaçırmalarına karşı mutabık kılar.
 - 132xxx gönderim hataları (parametre uyuşmazlığı, şablon yok, duraklatılmış) → şablon senkronu tetiklenir + alarm.
 
-**Kabul kriterleri (şablon):** Yeni tenant'ta tüm §5.2 utility şablonları onboarding'den sonra 10 dk içinde Meta'ya gönderilmiş olur; her tenant için şablon durumu admin panelde görünür; kategori değişen bir şablonla hiçbir durum bildirimi gönderilmez (otomatik testle doğrulanır).
+**Kabul kriterleri (şablon):** Yeni tenant'ta tüm §5.2 utility şablonları onboarding'den sonra 10 dk içinde Meta'ya gönderilmiş olur; §5.3'teki Faz 1 platform şablonları (alarm, panel çevrimdışı, kurye girişi, bakım/kesinti/çözüldü) pilot öncesi `APPROVED` durumdadır; her tenant için şablon durumu admin panelde görünür; kategori değişen bir şablonla hiçbir durum bildirimi gönderilmez (otomatik testle doğrulanır).
 
 ## 6. Konuşma motoru
 
-Motor, gelen her mesajı işleyen ve bot yanıtını belirleyen kural katmanıdır. Sipariş durum makinesinden ([00](00-kararlar-ve-sozluk.md) §5) ayrıdır; ona olay gönderir. Yanıt metinleri [03](03-musteri-deneyimi-ve-storefront.md)'te.
+Motor, gelen her mesajı işleyen ve bot yanıtını belirleyen kural katmanıdır. Sipariş durum makinesinden ([00](00-kararlar-ve-sozluk.md) §5) ayrıdır; ona olay gönderir. Yanıt metinleri [03](03-musteri-deneyimi-ve-storefront.md)'te. Motor yalnız WhatsApp kanalında çalışır: WhatsApp'sız modda (SMS OTP) konuşma yoktur, sipariş yaşam döngüsü takip sayfası ve SMS ile yürür (§6.11).
 
 ### 6.1 Durum makinesi
 
 ```mermaid
 stateDiagram-v2
   [*] --> idle
-  idle --> closed_reply: işletme kapalı / meşgul
+  idle --> closed_reply: şube kapalı veya sipariş almayı durdurdu
   closed_reply --> idle: yanıt gönderildi
-  idle --> greeting: ilk mesaj veya soğuma süresi doldu
+  idle --> greeting: ilk mesaj, request_welcome veya soğuma süresi doldu
   greeting --> menu_link_sent: karşılama + "Menüyü aç" CTA (imzalı token)
   menu_link_sent --> order_active: storefront siparişi (wa_link) → new
   menu_link_sent --> idle: token süresi doldu
   idle --> order_linking: Sipariş kodu mesajı (ABC123)
-  order_linking --> order_active: kod geçerli → awaiting_customer→new
+  order_linking --> order_active: kod geçerli → awaiting_customer→new, alındı anında
   order_linking --> greeting: kod yok / süresi dolmuş
   order_active --> idle: delivered / rejected / cancelled
   idle --> ai_ordering: serbest metin sipariş, AI açık (Faz 2)
-  ai_ordering --> awaiting_confirm: özet + Onayla/Değiştir/Menüyü aç
-  awaiting_confirm --> order_active: Onayla
-  awaiting_confirm --> ai_ordering: Değiştir
+  ai_ordering --> awaiting_confirm: özet + Onayla / Düzenle / İptal butonları
+  awaiting_confirm --> order_active: Onayla → awaiting_customer→new
+  awaiting_confirm --> menu_link_sent: Düzenle → sepeti dolu storefront linki
+  awaiting_confirm --> idle: İptal veya 30 dk → cancelled
+  awaiting_confirm --> ai_ordering: serbest metinle değişiklik
   ai_ordering --> human_handoff: düşük güven / 2 başarısız tur
   idle --> human_handoff: "Yetkiliyle görüş" / panelden devralma
   human_handoff --> idle: panelde "Bota devret" veya 60 dk hareketsizlik
@@ -518,7 +535,7 @@ stateDiagram-v2
   opted_out --> idle: "BAŞLAT"
 ```
 
-`human_handoff`, `bot_muted` ve `opted_out` pratikte konuşma üzerindeki **bayraklardır** (`conversation.mode`, `bot_muted_until`, `customer.opt_out_all`); her bot yanıtından önce kontrol edilir. Konuşma FSM'i sipariş FSM'inden ayrı, `packages/core`'da tablo güdümlü ve %100 birim testlidir.
+`human_handoff`, `bot_muted` ve `opted_out` pratikte konuşma üzerindeki **bayraklardır** (`conversations.mode`, `conversations.bot_muted_until`, `customers.opt_out_all`); her bot yanıtından önce kontrol edilir. `closed_reply` kalıcı durum değil, tek seferlik etkidir. Kalıcı durum `conversations.state` alanındadır ([07](07-veri-modeli-ve-api.md) §4.2). Konuşma FSM'i sipariş FSM'inden ayrı, `packages/core`'da tablo güdümlü ve %100 birim testlidir.
 
 ### 6.2 Gelen mesaj işleme sırası
 
@@ -530,14 +547,14 @@ async function onInbound(m: InboundMessage) {
   await inbox.push(conv, m);                                                  // her mesaj panele düşer (canlı)
   if (isOptOut(m)) return handleOptOut(conv, m);                              // "DUR", "STOP", "MESAJ ATMAYIN"…
   if (isOptIn(m)) return handleOptIn(conv, m);                                // "BAŞLAT"
-  const code = matchOrderCode(m);  if (code) return linkOrder(conv, code);    // Akış B
-  if (m.buttonId) return routeButton(conv, m.buttonId);                       // "handoff", "order:<id>:confirm"…
+  const code = matchOrderCode(m);  if (code) return linkOrder(conv, code);    // Akış B: "alındı" anında, debounce yok (§6.4)
+  if (m.buttonId) return routeButton(conv, m.buttonId);                       // "handoff", "order:<id>:confirm|edit|cancel", gecikme mesajındaki "Beklerim"/"İptal"…
   if (isHandoffRequest(m)) return startHandoff(conv);                         // "yetkili", "insan", "operatör"
   if (conv.mode === 'human' || conv.botMutedUntil > now() || !tenant.botEnabled) return; // bot susar
   if (!tenant.isOpenNow(conv.branchId)) return replyOnce(conv, 'closed', 6 * HOUR);
   if (conv.activeOrderId) return replyOnce(conv, 'order_status_with_link', 15 * MIN);
   if (isMediaOrUnsupported(m)) return handleMedia(conv, m);
-  if (tenant.aiEnabled && looksLikeOrder(m)) return aiOrdering(conv, m);      // Faz 2
+  if (tenant.aiEnabled && flags.llm_parsing && looksLikeOrder(m)) return aiOrdering(conv, m); // Faz 2; kill-switch llm_parsing
   return replyOnce(conv, 'greeting_with_menu_cta', 30 * MIN);                 // konu dışı dahil
 }
 ```
@@ -557,11 +574,12 @@ const signMenuToken = (p: MenuToken, key: Buffer) => {
 }; // doğrulama: timingSafeEqual + exp + tenant slug eşleşmesi; ömür 2 saat (konfigürasyon); kid ile 2 anahtar paralel geçerli
 ```
 
-- Token geçerliyse storefront siparişi `channel = wa_link` ile doğrudan `new` olur ve müşteriye bağlanır. Token süresi dolmuşsa storefront çalışmaya devam eder ama siparişi **Akış B** gibi işler ("WhatsApp ile onayla").
+- Token GET isteğinde tüketilmez (link önizleme/prefetch yakmasın): storefront ilk açılışta token'ı oturum çerezine çevirir, URL'yi temizler ve "Ben değilim" kaçışı sunar ([00](00-kararlar-ve-sozluk.md) §7; kayıt `storefront_link_tokens`).
+- Token geçerliyse storefront siparişi `channel = wa_link`, `verification_method = wa_link` ile doğrudan `new` olur ve müşteriye bağlanır. "Alındı" mesajı 60 sn debounce ile gider (§4.3). Token süresi dolmuşsa veya "Ben değilim" seçildiyse storefront çalışmaya devam eder ama siparişi **Akış B** gibi işler ("WhatsApp ile onayla").
 
 ### 6.4 Sipariş bağlama — Akış B ("Sipariş kodu") **[Faz 1]**
 
-- Storefront'ta doğrudan verilen sipariş `awaiting_customer` olur ve 6 karakterli kod üretilir (alfabe: karışan karakterler hariç `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`; en az 1 rakam, böylece "BURADA" gibi kelimeler kod sanılmaz). Kod tenant içinde, açık siparişler arasında benzersizdir; 30 dk sonra `cancelled` (`customer_timeout`).
+- Storefront'ta doğrudan verilen sipariş (`channel = web`) `awaiting_customer` olur ve 6 karakterli kod üretilir (`order_verification_codes`) (alfabe: karışan karakterler hariç `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`; en az 1 rakam, böylece "BURADA" gibi kelimeler kod sanılmaz). Kod tenant içinde, açık siparişler arasında benzersizdir; 30 dk sonra `cancelled` (`customer_timeout`).
 - Buton: `https://wa.me/<işletme numarası>?text=Sipariş%20kodu%3A%20ABC123`.
 - Eşleme:
 
@@ -574,22 +592,28 @@ function matchOrderCode(m: InboundMessage): string | null {
 }
 ```
 
-- Kod geçerliyse (aynı tenant, `awaiting_customer`, süresi dolmamış): siparişe `customer_id` bağlanır, `awaiting_customer → new`, sesli uyarı, müşteriye "alındı + takip linki" (pencereyi müşteri açtığı için service mesajı).
+- Kod geçerliyse (aynı tenant, `awaiting_customer`, süresi dolmamış): siparişe `customer_id` bağlanır, `verification_method = wa_code`, `awaiting_customer → new`, sesli uyarı ve kademeli alarm başlar; müşteriye "Siparişiniz alındı" + takip linki **anında** gider (debounce yok; pencereyi müşteri açtığı için service mesajı). Kod zaten kullanılmışsa "Bu sipariş zaten onaylandı" + takip linki; süresi dolmuşsa "kodun süresi doldu, sipariş iptal edildi" + "Menüyü aç" ([03](03-musteri-deneyimi-ve-storefront.md) M17c/M17d).
 - Kod bulunamazsa: "Bu kodla bekleyen sipariş bulamadık" + "Menüyü aç" CTA. BSUID başına 10 dk'da en fazla 5 hatalı deneme (kaba kuvvete karşı), sonrası sessiz + panele not.
 - Storefront formundaki "teslimat telefonu" siparişte kalır; müşteri kimliğini değiştirmez (§8.3).
+- WhatsApp'ı olmayan müşteri aynı ekranda "SMS ile doğrula" seçeneğini kullanır; işletmenin numarası `live` değilse veya gönderimi duraklatılmışsa storefront doğrudan SMS doğrulamasını gösterir (§6.11).
 
 ### 6.5 AI modu ve insana devir
 
-- **[Faz 2] Akış C:** serbest metin ("2 lahmacun 1 ayran") → LLM ile menü adaylarına eşleme (yapılandırılmış çıktı; model ve token bütçesi [06](06-teknik-mimari.md)) → sunucu doğrulaması; **fiyat ve toplamı sunucu hesaplar, LLM asla** → sipariş `awaiting_customer` (`channel = wa_ai`) → mesafeli satış onay özeti → onay → `new`. Belirsizlikte (düşük güven, menüde olmayan ürün, 2 başarısız tur) panelde "insan onayı" ve sohbet devralma.
-  - **Onay özeti (reply buttons mesajı):** kalemler (adet, seçenekler, satır tutarı), teslimat ücreti, **KDV dahil toplam**, ödeme yöntemi, adres özeti, cayma hakkı istisnası notu (çabuk bozulan gıda), ön bilgilendirme formu linki (storefront'ta, sipariş token'lı) ve son satır: "*Siparişi onayla*'ya dokunduğunuzda ödeme yükümlülüğü doğar." Butonlar: **[Siparişi onayla] [Değiştir] [Menüyü aç]**. Storefront checkout'la aynı içerik ([03](03-musteri-deneyimi-ve-storefront.md), hukuk metni [08](08-mevzuat-kvkk-odeme-fatura.md)). Gövde sınırı (~1.024 karakter, teyit edilmeli) aşılırsa ilk kalemler + "ve N ürün daha" + tam özet linki. Onay anı, özet metni ve sürümü `audit_log`'a yazılır.
+- **[Faz 2] Akış C:** serbest metin ("2 lahmacun 1 ayran") → LLM ile menü adaylarına eşleme (yapılandırılmış çıktı; model ve token bütçesi [06](06-teknik-mimari.md); `llm` kuyruğu; kill-switch `llm_parsing`) → sunucu doğrulaması; **fiyat ve toplamı sunucu hesaplar, LLM asla** → sipariş `awaiting_customer` (`channel = wa_ai`) → mesafeli satış onay özeti → [Onayla] → `new`. Hangi paketlerde ve kotayla sunulacağı açık karardır ([00](00-kararlar-ve-sozluk.md) §13 madde 8; varsayılan: Pro ve üstü, adil kullanım kotası). Belirsizlikte (düşük güven, menüde olmayan ürün, 2 başarısız tur) panelde "insan onayı" ve sohbet devralma.
+  - **Onay özeti (reply buttons mesajı, [03](03-musteri-deneyimi-ve-storefront.md) M18):** gövdede kalemler (adet, seçenekler, satır tutarı), teslimat ücreti, **KDV dahil toplam**, ödeme yöntemi, adres özeti, cayma hakkı istisnası notu (çabuk bozulan gıda), ön bilgilendirme formu linki (storefront'ta, sipariş token'lı) ve son satır: "“Onayla”ya bastığınızda siparişiniz kesinleşir ve ödeme yükümlülüğü doğar." Bu ibare **butonda değil mesaj gövdesindedir** (reply button başlığı ≤ 20 karakter). Kanonik butonlar ([00](00-kararlar-ve-sozluk.md) §7 Akış C): **[Onayla] [Düzenle] [İptal]**; buton kimlikleri `order:{id}:confirm|edit|cancel`.
+    - **[Onayla]** → `awaiting_customer → new`, `confirmation_method = wa_button` (ref = wamid); kademeli alarm başlar, "alındı" gider.
+    - **[Düzenle]** → sepeti dolu storefront linki gönderilir (CTA URL, "Menüyü aç"; `storefront_link_tokens.prefill_cart`); müşteri sepeti storefront'ta düzeltip checkout'ta onaylar. Storefront siparişi yeni kayıt olarak Akış A kuralıyla (`wa_link`) `new` olunca AI taslağı sessizce kapatılır (`cancelled`, `customer_request`, mesaj gönderilmez); checkout yapılmazsa taslak 30 dk sonra `customer_timeout` ile kapanır.
+    - **[İptal]** → `awaiting_customer → cancelled` (`cancelled_by = customer`, `customer_request`), kısa teyit mesajı; 30 dk yanıt gelmezse `cancelled` (`customer_timeout`).
+    - İçerik storefront checkout'la aynıdır (hukuk metni [08](08-mevzuat-kvkk-odeme-fatura.md)). Gövde sınırı (~1.024 karakter, teyit edilmeli) aşılırsa ilk kalemler + "ve N ürün daha" + tam özet linki. Onay anı, özet metni ve sürümü `audit_log`'a ve `legal_acceptances`'a yazılır.
   - **LLM'e giden metinde telefon ve adres maskelenir** (`<TEL>`, `<ADRES>`); adres eşlemesi sunucuda yapılır.
 - İşlem sırasında "yazıyor…" göstergesi ve okundu işareti (`status: "read"` + `typing_indicator`, en fazla 25 sn) (A01 §5).
-- **İnsana devir [Faz 1]:** "yetkili / insan / operatör / müşteri hizmetleri" anahtar kelimeleri veya "Yetkiliyle görüş" butonu → `conversation.mode = 'human'`, panelde sohbet kırmızı rozetle en üste çıkar ve sesli uyarı çalar; müşteriye "Sizi yetkilimize aktardık" yanıtı. İşletme kapalıysa: "Şu an kapalıyız, açıldığımızda dönüş yapılacak." Panelden "Bota devret" veya 60 dk mesajlaşma olmaması → `mode = 'bot'`.
-- İşletme botu tamamen kapatabilir (`tenant.botEnabled = false`): mesajlar yalnız panele düşer, durum bildirimleri devam eder.
+- **İnsana devir [Faz 1]:** "yetkili / insan / operatör / müşteri hizmetleri" anahtar kelimeleri veya "Yetkiliyle görüş" butonu → `conversations.mode = 'human'`, panelde sohbet kırmızı rozetle en üste çıkar ve sesli uyarı çalar; müşteriye "Sizi yetkilimize aktardık" yanıtı. İşletme kapalıysa: "Şu an kapalıyız, açıldığımızda dönüş yapılacak." Panelden "Bota devret" veya 60 dk mesajlaşma olmaması → `mode = 'bot'`.
+- İşletme botu tamamen kapatabilir (`tenant.botEnabled = false`): mesajlar yalnız panele düşer, durum bildirimleri devam eder. Bot kapalıyken de "Sipariş kodu" mesajları Akış B için işlenir (§6.2 sırası) ve "alındı" yanıtı gider.
 
 ### 6.6 İşletme kapalıyken
 
-- Kapalı = şube çalışma saatleri dışı veya panelde "Geçici olarak kapalı/meşgul" anahtarı.
+- Kapalı = şubenin `ordering_state` değeri `closed` (çalışma saati dışı; hesaplanır) veya `paused` (panelde "Sipariş almayı durdur"). `busy` (yoğun) sipariş almaya devam eder; karşılama uzatılmış tahmini süreyi gösterir ([00](00-kararlar-ve-sozluk.md) §7).
+- Abonelik askıdaysa (`suspended`, dunning G+21 veya deneme bitişi) ya da admin tenant için `ordering_enabled` anahtarını kapattıysa bot karşılama yerine "Şu an online sipariş alınamıyor, lütfen arayın: {telefon}" yanıtını verir (6 saatte bir); açık siparişlerin durum bildirimleri sürer ([00](00-kararlar-ve-sozluk.md) §9).
 - Yanıt (6 saatte bir): kapalı olduğu, açılış saati, planlı sipariş açıksa "İleri saate sipariş ver" CTA'sı (storefront `scheduled_for` seçimiyle açılır). Kapalıyken storefront planlı sipariş dışında sipariş kabul etmez ([03](03-musteri-deneyimi-ve-storefront.md)).
 
 ### 6.7 Konu dışı, medya, ses, konum
@@ -605,41 +629,69 @@ function matchOrderCode(m: InboundMessage): string | null {
 
 ### 6.8 REQUEST_CONTACT_INFO
 
-- Kullanım: teslimat siparişinde kuryenin arayacağı telefon yoksa (webhook'ta `wa_id` gelmedi, formda telefon yok — örn. Akış C) müşteriye "Telefon numaranızı paylaşın" butonu gönderilir. Yanıt geldiğinde telefon `customer.phone_e164` alanına `phone_source = 'wa_shared'` ile yazılır.
+- Kullanım: teslimat siparişinde kuryenin arayacağı telefon yoksa (webhook'ta `wa_id` gelmedi, formda telefon yok — örn. Akış C) müşteriye "Telefon numaranızı paylaşın" butonu gönderilir. Yanıt geldiğinde telefon `customers.phone_e164` alanına `phone_source = 'wa_shared'` ile yazılır.
 - Mesaj yükü ve yanıt webhook biçimi resmi dokümandan **teyit edilmeli** (A01 §5 [3P]). Teyit edilene kadar Akış A/B'de storefront "teslimat telefonu" alanı birincil yoldur.
 
 ### 6.9 Opt-out ("DUR")
 
 - Anahtar kelimeler: "DUR", "STOP", "MESAJ ATMAYIN", "ABONELİKTEN ÇIK" (büyük/küçük harf ve Türkçe karakter duyarsız; noktalama atıldıktan sonra **mesajın tamamı** eşleşmeli — "Dur, adresi değiştireyim" opt-out değildir).
 - Aksiyon: `marketing_opt_in = false` (+ İYS ret kaydı [08](08-mevzuat-kvkk-odeme-fatura.md)) ve yanıt: "Kampanya mesajlarını durdurduk. Sipariş durum bildirimlerini de kapatalım mı?" **[Evet, hepsini durdur] [Hayır]**.
-  - "Evet" → `customer.opt_out_all = true` ve açık siparişlerinde `order.wa_notify = false`; karşılama dahil hiçbir otomatik mesaj gitmez.
+  - "Evet" → `customers.opt_out_all = true` ve açık siparişlerinde `orders.wa_notify = false`; karşılama dahil hiçbir otomatik mesaj gitmez.
   - Sipariş bildirimi izni sipariş bazındadır: müşteri siparişi WhatsApp üzerinden kendisi başlattıysa (Akış A/B/C) `wa_notify = true`; Akış E'de kasiyerin onay kutusuna göre. Opt-out olmuş müşteri sonradan kendisi yeni sipariş verirse yalnız o siparişin durumları gider.
 - "BAŞLAT" → bayraklar geri alınır (pazarlama izni geri alınmaz; o açık onay gerektirir). Marketing şablonlarındaki "Kampanyaları durdur" butonu ve 131050 hatası aynı işlemi yapar.
 
 ### 6.10 Coexistence: işletme telefondan yazarsa
 
-- `smb_message_echoes` webhook'u: esnafın telefondaki WhatsApp Business'tan müşteriye yazdığı mesaj. `message` olarak `direction = outbound`, `source = 'business_app'` ile saklanır, panel sohbetinde görünür, maliyeti 0. Aktif siparişi olan sohbet "işletme telefondan yanıt verdi" etiketi alır.
-- **Botun susma kuralı:** echo geldiğinde `conversation.bot_muted_until = now + X`. **X varsayılan 30 dk**, işletme ayarı (10–120 dk). Panelden operatör yazdığında da aynı kural uygulanır (`source = 'panel'`).
+- `smb_message_echoes` webhook'u: esnafın telefondaki WhatsApp Business'tan müşteriye yazdığı mesaj. `messages` tablosuna `direction = outbound`, `source = 'business_app'` ile yazılır, panel sohbetinde görünür, maliyeti 0. Aktif siparişi olan sohbet "işletme telefondan yanıt verdi" etiketi alır.
+- **Botun susma kuralı:** echo geldiğinde `conversations.bot_muted_until = now + X`. **X varsayılan 30 dk**, işletme ayarı (10–120 dk; `tenants.bot_mute_minutes`). Panelden operatör yazdığında da aynı kural uygulanır (`source = 'panel'`).
 - Susma yalnız **konuşma yanıtlarını** (karşılama, kapalı, AI) etkiler; panel aksiyonlarıyla tetiklenen sipariş durum bildirimleri gitmeye devam eder.
 - Uygulamadan gidenlerin `delivered/read` durumları gerçek zamanlı gelmeyebilir (A01 §3.2); panelde bu mesajlar için durum ikonu gösterilmez. `history` webhook'ları (senkron açıksa) bot ve sipariş mantığını tetiklemez.
+
+### 6.11 WhatsApp'sız mod (SMS OTP yedeği) **[Faz 1]**
+
+Amaç: Meta tek nokta arızası olmasın ve işletme Meta adımları bitmeden **ilk gün** web siparişi alabilsin ([00](00-kararlar-ve-sozluk.md) §7 Akış B). Bu mod WhatsApp kanalının dışındadır; burada yalnız konuşma motoru ve şablon mantığıyla sınırı tanımlanır. Ekranlar ve SMS metinleri [03](03-musteri-deneyimi-ve-storefront.md) §3.2.1 ve §9.5'te, tablolar (`otp_verifications`, `sms_messages`) [07](07-veri-modeli-ve-api.md) §3.3'te.
+
+| Tetik | Tespit | Storefront davranışı |
+|---|---|---|
+| Müşterinin WhatsApp'ı yok | Müşteri doğrulama ekranında "SMS ile doğrula"yı seçer | Yalnız o sipariş SMS'e geçer |
+| İşletmenin WhatsApp bağlantısı henüz tamamlanmadı | Şubenin `wa_phone_numbers.connection_status` değeri `live` değil veya numara yok | Akış B doğrudan SMS OTP ile çalışır; Akış A (sohbetten link) yoktur |
+| WhatsApp kanalı arızalı | `wa_accounts.sending_paused_reason` dolu (131042, 190, kopma) veya platform geneli Meta kesintisi (admin olay kaydından toplu açılır, [10](10-riskler-operasyon-ve-metrikler.md) §6.2) | Yeni web siparişleri SMS OTP ile doğrulanır; kanal düzelince WhatsApp doğrulamasına kendiliğinden dönülür |
+
+**Koşullar:** tenant ayarı `tenants.sms_fallback_enabled = true` (varsayılan) ve platform kill-switch'i `sms_fallback` açık. Biri kapalıysa ve WhatsApp doğrulaması da mümkün değilse storefront "Şu an online sipariş alınamıyor, lütfen arayın" gösterir (sipariş Akış E ile telefondan alınır).
+
+**Akış:** sipariş `awaiting_customer` → SMS-01 (6 haneli kod, 5 dk geçerli) → kod doğrulanır → `awaiting_customer → new`, `verification_method = sms_otp`, `orders.status_notify_channel = 'sms'` → panelde ses ve kademeli alarm (WhatsApp siparişiyle aynı, §10.3) → durum bilgisi takip sayfasından → **kritik durumlarda SMS:** onaylandı (SMS-02), ret (SMS-03a; bekleyen ret kesinleşince, 30 sn sonra), iptal (SMS-03b; `tenant_no_response` dahil, özür + işletme telefonu). "Alındı", "yolda", "hazır" ve "teslim edildi" için SMS gitmez; gecikme bilgisi (t=10 dk) yalnız takip sayfasında görünür. Kodun 30 dk içinde girilmemesi `cancelled` (`customer_timeout`) olur, mesaj gitmez.
+
+**Konuşma motoru ve şablon mantığıyla ilişki:**
+- SMS siparişinde `conversation_id` boştur; sipariş servisi bu sipariş için `wa.send` outbox kaydı yazmaz, kritik durumlarda `sms.send` yazar (`notify` kuyruğu). §4.3 bütçe sayacı bu siparişte işlemez; §5.2 şablonları kullanılmaz; sebep metinleri §5.2'deki kısa metinlerle aynıdır.
+- Müşteri daha sonra WhatsApp'tan yazarsa normal konuşma akışı çalışır. SMS ile doğrulanan telefonla oluşan BSUID'siz müşteri kaydı (`phone_source = 'sms_otp'`), webhook'ta `wa_id` gelirse §8.3 kural 2 ile birleşir; açık sipariş sorulursa "durum + takip linki" yanıtı verilir. Açık siparişin bildirim kanalı değişmez (SMS'te kalır, çift bildirim olmaz).
+- WhatsApp kanalı arızalıyken gelen mesajlar yine işlenir ve panele düşer; sipariş kodu mesajı siparişi `new` yapar, ama bot yanıtları ve "alındı" gönderilemez (`planSend` → `skip`, §4.4). Kanal dönünce 24 saatten eski bekleyen yanıtlar atılır (§3.9).
+- Arıza sırasında açık olan Akış A/B siparişlerinin durumu takip sayfasındadır; kritik durum mesajı atlanacaksa ve siparişte teslimat telefonu varsa SMS'e düşer (`sms_fallback` sonucu, §4.4).
+- **Maliyet:** SMS OTP ve kritik durum SMS'leri platform maliyetidir; aboneliğe adil kullanım kotasıyla dahildir (Esnaf 100, Pro 300 SMS/ay). Kota aşımında işletme uyarılır; Faz 2'de ek SMS paketi ([00](00-kararlar-ve-sozluk.md) §4).
+
+**Kabul kriterleri (WhatsApp'sız mod):**
+- WhatsApp bağlantısı olmayan tenant'ta web siparişi SMS koduyla `new` olur ve panelde sesli uyarı çalar.
+- SMS siparişinde hiçbir WhatsApp mesajı üretilmez; müşteriye yalnız SMS-01, SMS-02 ve SMS-03a/03b gider.
+- Tenant gönderimi 131042 ile duraklatıldığında yeni web siparişi SMS doğrulamasına geçer; sağlık kontrolü yeşile dönünce yeni siparişler WhatsApp doğrulamasına döner.
+- `sms_fallback` kill-switch'i kapatıldığında OTP gönderilmez ve storefront telefonla sipariş yönlendirmesini gösterir.
 
 **Kabul kriterleri (konuşma motoru):**
 - İlk mesaja ≤ 3 sn içinde tek karşılama + CTA; aynı müşteri 30 dk içinde tekrar yazarsa ikinci karşılama gitmez.
 - Echo alındıktan sonra X dk boyunca hiçbir otomatik konuşma yanıtı gitmez; durum bildirimleri gider (entegrasyon testi).
-- Geçerli sipariş kodu mesajı siparişi `new` yapar ve panelde sesli uyarı çalar; aynı mesajın tekrar teslimi (duplicate webhook) ikinci işlem üretmez.
+- Geçerli sipariş kodu mesajı siparişi `new` yapar, panelde sesli uyarı çalar ve müşteriye "alındı" yanıtı debounce beklemeden (≤ 3 sn) gider; aynı mesajın tekrar teslimi (duplicate webhook) ikinci işlem üretmez.
+- AI özetinde (Faz 2) butonlar yalnız [Onayla] [Düzenle] [İptal]'dir; "ödeme yükümlülüğü doğar" ibaresi gövdededir; [Düzenle] sepeti dolu storefront linkini açar (sözleşme testi).
 - "DUR" sonrası hiçbir marketing gönderimi planlanamaz; "Evet, hepsini durdur" sonrası karşılama gitmez.
 - "Yetkiliyle görüş" her durumda (kapalı, AI modu, sipariş aktif) çalışır.
 
 ## 7. Teknik mimari **[Faz 1]**
 
-Varsayılan stack: Fastify 5 ingress, BullMQ (`wa-inbound`, `wa-outbound`, `notify`, `llm`), PostgreSQL 18 + RLS, Redis/Valkey; ayrıntı [06](06-teknik-mimari.md). Burada davranış sözleşmesi tanımlanır.
+Varsayılan stack: Fastify 5 ingress, BullMQ, PostgreSQL 18 + RLS, Redis/Valkey; ayrıntı [06](06-teknik-mimari.md). Burada davranış sözleşmesi tanımlanır. WhatsApp tarafının kullandığı kanonik kuyruklar ([00](00-kararlar-ve-sozluk.md) §5): `wa-inbound` (webhook bölme, mesaj, status, şablon/hesap olayları), `wa-outbound` (Graph API gönderimi, onboarding devamı), `wa-media` (medya indirme), `notify` (kademeli alarm, platform WABA, SMS, Web Push, e-posta, bekleyen retin kesinleşmesi), `llm` (Faz 2 AI ayrıştırma), `cron` (şablon senkronu, token/sağlık kontrolü, tenant sessizliği, saklama/silme işleri). Bu listenin dışında kuyruk açılmaz. Panel ↔ API gerçek zamanlı kanalı **SSE** + REST'tir; WebSocket kullanılmaz (yalnız Faz 2 yazdırma ajanında).
 
 ### 7.1 Genel akış
 
 ```mermaid
 flowchart LR
   Meta[("Meta Cloud API<br/>tüm tenant WABA'ları")] -- webhook POST --> ING["wa-ingress<br/>hooks.siparisinonunde.com/wa<br/>imza + ham kayıt + 200"]
-  ING --> RAW[(wa_webhook_event<br/>ham olay)]
+  ING --> RAW[(wa_webhook_events<br/>ham olay)]
   ING --> Q1[["BullMQ: wa-inbound<br/>jobId = olay hash'i"]]
   RAW -. süpürücü, 1 dk .-> Q1
   Q1 --> WK[wa-worker<br/>advisory lock, yönlendirme,<br/>dedupe, kimlik, status, maliyet]
@@ -653,9 +705,9 @@ flowchart LR
   Q2 --> SND[wa-sender<br/>pencere kararı, şablon,<br/>numara + pair limiter,<br/>retry/backoff]
   SND -- Graph API, tenant token --> Meta
   SND --> DLQ[[DLQ]]
-  WK --> MED[medya indirme] --> OBJ[(nesne deposu, TR)]
-  ORD -- "branch_events + SSE" --> PANEL[İşletme paneli<br/>sesli uyarı]
-  ORD --> NTF[["BullMQ: notify<br/>kademeli alarm §10.3"]]
+  WK --> Q3[["BullMQ: wa-media"]] --> MED[medya indirme] --> OBJ[(nesne deposu, TR)]
+  ORD -- "branch_events + SSE (REST aksiyonlar)" --> PANEL[İşletme paneli<br/>sesli uyarı]
+  DSP --> NTF[["BullMQ: notify<br/>alarm §10.3, SMS, platform WABA,<br/>bekleyen ret 30 sn"]]
 ```
 
 ### 7.2 Ingress ve imza doğrulama
@@ -688,14 +740,14 @@ app.post('/wa', async (req, reply) => {
 ### 7.3 Worker: bölme, yönlendirme, dedupe
 
 1. Ham olay `entry[] → changes[] → value.messages[] / value.statuses[] / diğer alanlar` olarak tek tek işlere bölünür; her işin BullMQ `jobId`'si olay hash'idir (örn. `sha256(field + wamid + status)`, hex), tekrar teslim kuyruğa ikinci iş sokmaz.
-2. Yönlendirme: `value.metadata.phone_number_id` → `wa_phone_number` → `branch_id`, `tenant_id` (`entry[].id` = WABA ID çapraz kontrol). Bilinmeyen numara → `orphan` kaydı + admin alarmı (bağlantısı silinmiş tenant olabilir).
+2. Yönlendirme: `value.metadata.phone_number_id` → `wa_phone_numbers` → `branch_id`, `tenant_id` (`entry[].id` = WABA ID çapraz kontrol). Bilinmeyen numara → `wa_webhook_events.status = 'orphan'` + admin alarmı (bağlantısı silinmiş tenant olabilir).
 3. Tenant bağlamı transaction'a `set_config('app.tenant_id', …, true)` ile verilir (RLS).
 4. Konuşma başına sıralı işleme **Postgres advisory lock** ile: `SELECT pg_advisory_xact_lock(hashtextextended(tenant_id || ':' || wa_bsuid, 0))`. Aynı konuşmanın iki olayı paralel worker'larda işlenmez; kilit transaction sonunda bırakılır. Status işleri kilit almaz (monoton güncelleme, §7.4).
 5. **wamid dedupe:**
 
 ```sql
-INSERT INTO message (tenant_id, conversation_id, wamid, direction, source, type, payload, wa_timestamp)
-VALUES ($1, $2, $3, 'inbound', 'customer', $4, $5, to_timestamp($6))
+INSERT INTO messages (tenant_id, conversation_id, customer_id, wa_phone_number_id, wamid, direction, source, type, payload, wa_timestamp)
+VALUES ($1, $2, $3, $4, $5, 'inbound', 'customer', $6, $7, to_timestamp($8))
 ON CONFLICT (wamid) DO NOTHING
 RETURNING id;   -- satır dönmezse: tekrar teslim → işlem yapılmaz
 ```
@@ -706,25 +758,25 @@ Status'lar sırasız gelebilir. Sıra: `sent(1) < delivered(2) < read(3)`; `fail
 
 ```sql
 -- status_rank: sent=1, delivered=2, read=3, failed=4
-UPDATE message SET status = $2, status_at = to_timestamp($3), error_code = $4
+UPDATE messages SET status = $2, status_at = to_timestamp($3), error_code = $4
 WHERE wamid = $1
   AND (status IS NULL OR status <> 'failed')
   AND COALESCE(status_rank(status), 0) < status_rank($2)
   AND NOT ($2 = 'failed' AND status IN ('delivered', 'read'));
 ```
 
-- Gönderim yanıtı (wamid) DB'ye yazılmadan status gelebilir: bilinmeyen wamid'li status 10 dk boyunca `pending_status` tablosunda bekletilip yeniden denenir.
+- Gönderim yanıtı (wamid) DB'ye yazılmadan status gelebilir: bilinmeyen wamid'li status 10 dk boyunca `wa_pending_statuses` tablosunda bekletilip yeniden denenir.
 - Gönderimde `biz_opaque_callback_data` alanına outbox kaydı ID'si konur; status webhook'unda geri gelirse eşleme wamid olmadan da yapılır (alanın varlığı ve davranışı teyit edilmeli).
 - `recipient_user_id` (BSUID) her status'ta gelir → telefona gönderilen mesajlarda müşteriye BSUID bağlanır (§8.3).
 
 ### 7.5 Outbox ve gönderim
 
-- Sipariş durumu değişikliği ile outbox kaydı **aynı DB transaction'ında** yazılır: `dedupe_key = order:{id}:{event}` UNIQUE. Konuşma motoru yanıtları `conv:{id}:{inbound_wamid}:{kind}` anahtarıyla.
+- Sipariş durumu değişikliği ile outbox kaydı **aynı DB transaction'ında** yazılır (`topic = 'wa.send'`, `dedupe_key = order:{id}:{event}` UNIQUE). Konuşma motoru yanıtları `conv:{id}:{inbound_wamid}:{kind}` anahtarıyla. İleri tarihli kayıtlar `available_at` ile: Akış A'daki 60 sn "alındı" debounce'u ve bekleyen retin 30 sn sonra kesinleşmesi (`order.finalize_rejection`, `notify` kuyruğu; "Geri al" bu kaydı iptal eder). WhatsApp'sız moddaki siparişler `sms.send` yazar (§6.11).
 - Dağıtıcı kayıtları `wa-outbound` kuyruğuna alır; `wa-sender`:
   1. `planSend` (§4.4) → serbest mesaj / şablon / atla.
   2. Yerine geçme kontrolü (aynı sipariş için daha yeni durum varsa bu kaydı `superseded` yap).
   3. Rate limiter'lardan izin (§7.6).
-  4. `POST /{phone_number_id}/messages` (tenant token; alıcı: WhatsApp kaynaklı telefon varsa telefon, yoksa BSUID, §8.2); yanıttaki `wamid` outbox ve `message` kaydına yazılır.
+  4. `POST /{phone_number_id}/messages` (tenant token; alıcı: WhatsApp kaynaklı telefon varsa telefon, yoksa BSUID, §8.2); yanıttaki `wamid` outbox ve `messages` kaydına yazılır.
 - **Belirsiz sonuç (zaman aşımı):** Graph API'de idempotency anahtarı doğrulanamadı (A01 §9.3). Körlemesine yeniden gönderilmez: kayıt `unknown` olur; 2 dk içinde `biz_opaque_callback_data` veya aynı alıcıya giden status ile eşleşme aranır; bulunamazsa **bir kez** yeniden gönderilir.
 
 ### 7.6 Rate limit
@@ -741,12 +793,12 @@ WHERE wamid = $1
 - **Tazelik kuralı:** 30 dk'dan eski durum mesajı gönderilmez (`stale`), sipariş ilerlemişse atılır.
 - **Yeniden denenmeyecek:** 131047 (→ şablona düş), 131026, 131042, 190, 131049, 131050, 131051, 131048, 132xxx → §10.1 aksiyonları.
 - **DLQ:** tükenen denemeler DLQ'ya; panelde siparişte "Mesaj gönderilemedi" rozeti (operatör elle arayabilir), admin panelde DLQ listesi ve "yeniden gönder" (idempotent) aksiyonu.
-- **Medya indirme (`wa-inbound` kuyruğunda `media.download` işi):** `GET /{media_id}` → **5 dk geçerli** URL → aynı token ile `Authorization` başlığıyla indir → tenant önekli, şifreli, **Türkiye'de barındırılan** nesne deposuna yaz. Meta medyayı 30 gün tutar; sınırlar: görsel 5 MB, ses/video 16 MB, belge 100 MB (A01 §9.5). Konum ve medya kısa sürede silinir; otomatik silme işi Faz 1, süreler [08](08-mevzuat-kvkk-odeme-fatura.md)'de. Giden medya (menü/ürün görselleri) CDN linkiyle gönderilir.
+- **Medya indirme (`wa-media` kuyruğunda `download` işi; outbox konusu `wa.media_download`, `dedupe_key = media:{meta_media_id}`; kayıt `wa_media`):** `GET /{media_id}` → **5 dk geçerli** URL → aynı token ile `Authorization` başlığıyla indir → tenant önekli, şifreli, **Türkiye'de barındırılan** nesne deposuna yaz. Meta medyayı 30 gün tutar; sınırlar: görsel 5 MB, ses/video 16 MB, belge 100 MB (A01 §9.5). Konum ve medya kısa sürede silinir; otomatik silme işi Faz 1, süreler [08](08-mevzuat-kvkk-odeme-fatura.md)'de. Giden medya (menü/ürün görselleri) CDN linkiyle gönderilir.
 
 ### 7.8 Token yenileme ve sağlık
 
-- Günlük iş: her tenant token'ı için `debug_token` → `is_valid`, `expires_at`, kapsamlar. Süreli token'da bitişe 7 gün kala `owner`'a "Yeniden bağlan" hatırlatması (panel + e-posta + §5.3 şablonu). Ölçekte tenant token'ı yerine kendi System User token'ımız (hibrit) → Açık konular #6.
-- 190 hatası anında: tenant `sendingPaused = 'token_invalid'`, gelen webhook'lar işlenmeye devam eder (siparişler panele düşer), giden bildirimler 24 saat kuyrukta bekler.
+- Günlük iş (`cron` kuyruğu): her tenant token'ı için `debug_token` → `is_valid`, `expires_at`, kapsamlar. Süreli token'da bitişe 7 gün kala `owner`'a "Yeniden bağlan" hatırlatması (panel + e-posta + §5.3 şablonu). Ölçekte tenant token'ı yerine kendi System User token'ımız (hibrit) → Açık konular #6.
+- 190 hatası anında: `wa_accounts.sending_paused_reason = 'token_invalid'`, gelen webhook'lar işlenmeye devam eder (siparişler panele düşer), giden bildirimler 24 saat kuyrukta bekler; yeni web siparişleri WhatsApp'sız moda geçer (§6.11).
 
 ### 7.9 Abone olunacak webhook alanları
 
@@ -760,7 +812,7 @@ Tam alan listesi App Dashboard'dan teyit edilir (A01 §2.4).
 
 ### 7.10 Taşıyıcı soyutlaması (Plan B için)
 
-Graph API çağrıları doğrudan değil, `WaTransport` arayüzü (`sendMessage`, `createTemplate`, `downloadMedia`, `registerNumber`) üzerinden yapılır. Uygulamalar: `meta_direct` (graph.facebook.com + tenant token) ve `partner_<ad>` (Solution Partner'ın Cloud API uyumlu uç noktası + partner anahtarı; pilot Plan B veya Faz 3 MPS). `wa_account.transport` alanı tenant bazında seçimi belirler; partner webhook biçimi farklıysa ingress'e dönüştürücü eklenir.
+Graph API çağrıları doğrudan değil, `WaTransport` arayüzü (`sendMessage`, `createTemplate`, `downloadMedia`, `registerNumber`) üzerinden yapılır. Uygulamalar: `meta_direct` (graph.facebook.com + tenant token) ve `partner_<ad>` (Solution Partner'ın Cloud API uyumlu uç noktası + partner anahtarı; pilot Plan B veya Faz 3 MPS). `wa_accounts.transport` alanı tenant bazında seçimi belirler; partner webhook biçimi farklıysa ingress'e dönüştürücü eklenir.
 
 **Kabul kriterleri (mimari):**
 - Ingress p99 < 300 ms; geçersiz imzalı istek 401 alır ve işlenmez.

@@ -25,7 +25,7 @@
 | **[T]** | Bizim yorumumuz veya ürün önerimiz. |
 | **[K01] / [K02] / [K04]** | Kardeş araştırma raporundan (arastirma/01, 02, 04) alınan bulgu; kaynak URL orada. |
 
-- **Atıf biçimi:** `A03 §2.7` = arastirma/03 bölüm 2.7 (birincil kaynak adresleri A03 §14'te). Yalnız `§2.7` = bu dokümanın bölümü. Fiyatlar KDV hariçtir (KDV %20); kur varsayımı 1 USD ≈ 48,4 TL.
+- **Atıf biçimi:** `A03 §2.7` = arastirma/03 bölüm 2.7 (birincil kaynak adresleri A03 §14'te). `00 §9` = [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) bölüm 9 (bağlayıcı; çelişkide 00 geçerlidir). Yalnız `§2.7` = bu dokümanın bölümü. Fiyatlar KDV hariçtir (KDV %20); kur varsayımı 1 USD ≈ 48,4 TL.
 - Süreler (saklama, dunning) aksi yazılmadıkça **[T]** varsayılanıdır. Sözleşmeye ve politikaya girmeden önce avukatla netleşir.
 
 ### 1.2 En kritik 10 madde
@@ -101,7 +101,7 @@ Dayanak: m.10 ve Aydınlatma Tebliği (RG 10.03.2018) [Y]. Zorunlu içerik: VS k
 |---|---|---|---|
 | A. Kurumsal aydınlatma metni + gizlilik politikası (ziyaretçi, demo talebi, işletme yetkilisi, abonelik) | Biz | `siparisinonunde.com` altbilgisi, kayıt formu, panel. **Meta App için gizlilik politikası URL'si de bu sayfadır** (A01 §1.3) | Faz 0 |
 | B. Son müşteri aydınlatma metni **şablonu**. İşletme unvanı, adresi ve iletişim bilgisi otomatik dolar; sürümlüdür | İşletme (VS) | Storefront altbilgisi ve checkout, takip sayfası, WhatsApp karşılama mesajındaki kısa satır + link, SMS OTP kod ekranındaki (WhatsApp'sız mod) kısa satır + link | Faz 1 |
-| C. Panel kullanıcıları (personel, kurye) için kısa bilgilendirme | Hesap güvenliği için biz, personel yönetimi için işletme | Panel girişi, kurye magic link ekranı | Faz 1 |
+| C. Panel kullanıcıları (personel, kurye) için kısa bilgilendirme. Web Push aboneliği (tarayıcı push servisleri FCM/APNs/Mozilla, yurt dışı) ile SMS ve platform WhatsApp alarmlarında işlenen iletişim verisi dahil | Hesap güvenliği için biz, personel yönetimi için işletme | Panel girişi, kurye magic link ekranı | Faz 1 |
 
 **Son müşteri şablonunun iskeleti (avukat metni yazar) [T]:**
 1. **Veri sorumlusu** {işletme unvanı, adres, telefon, e-posta, varsa MERSİS}; **işlenen veriler**: ad, WhatsApp kullanıcı kimliği/telefon, SMS doğrulaması için cep telefonu numarası ve doğrulama kaydı, teslimat adresi ve konum, sipariş ve ödeme yöntemi, sipariş notu, WhatsApp yazışmaları, işlem güvenliği (IP, cihaz); **amaçlar ve hukuki sebepler** (m.5/2-c, ç, f; siparişin doğrulanması ve sahte siparişin önlenmesi dahil); **toplama yöntemi** (WhatsApp, web vitrini, SMS doğrulaması, telefon).
@@ -137,7 +137,7 @@ Açık rıza, ETK onayı (§3.4), mesafeli satış onayı (§4.4) ve sözleşme 
 
 - 7499 ile değişen m.6'daki işleme şartları: açık rıza, kanunda öngörülme, fiili imkânsızlıkta hayati koruma, alenileştirme, hakkın tesisi, kamu sağlığı, istihdam/sosyal güvenlik, vakıf/dernek [O]. **Sözleşmenin ifası bu listede yoktur** [Y/O]. "Fıstık alerjim var" veya "çölyak hastasıyım" notu **sağlık verisidir** [Y]. Aşağıdaki yaklaşım yine de gri alandır; avukata sorulur (§11.1).
 
-**Ürün kuralları [Faz 1] (KARARLAR §9):**
+**Ürün kuralları [Faz 1] ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9):**
 1. Müşteri profilinde yapılandırılmış **alerji/sağlık alanı yoktur**. Serbest sipariş notu yalnız o siparişte kullanılır: sipariş kartında ve mutfak fişinde görünür, müşteri profiline ve raporlara taşınmaz, **30 gün** sonra silinir (§2.8).
 2. Not alanının yardım metni sağlık bilgisi istemez ("zili çalmayın, soğansız" gibi örnekler verir). Aydınlatma metni notun kısa saklandığını söyler.
 3. Alerjen bilgisi **menü ürün özelliği** olarak gösterilir ("içinde fıstık var", 14 ana alerjen etiketi). Bu kişisel veri değildir ve gıda mevzuatı açısından da faydalıdır (§4.6).
@@ -235,7 +235,7 @@ Yurt dışından **uzaktan erişim** de aktarım sayılır [O]. Bu yüzden üret
 | **Cloudflare** | DNS, CDN, WAF, TLS sonlandırma; R2'de yalnız ürün görselleri | Geçen HTTP trafiği (form verisi dahil), IP adresi | Global edge | KVKK standart sözleşmesi modülü var mı [D?] (teyit edilmeli). TLS sonlandırmanın yurt dışında olması aktarımdır [K04] | R2'de kişisel veri yok (müşteri medyası TR'de). Alternatif: kişisel veri taşıyan uç noktaları TR origin'e doğrudan yönlendirme ([06](06-teknik-mimari.md)'da değerlendirilir) | 1 |
 | **Sentry** (SaaS) | Hata izleme | PII scrub sonrası teknik veri | Sağlayıcı bölgesi [D?] (teyit edilmeli) | Standart sözleşme, ya da TR'de self-host (Sentry/GlitchTip) ile aktarım yok | PII scrub zorunlu, IP maskeleme, request body gönderilmez | 1 |
 | **E-posta sağlayıcısı** (fatura, şifre sıfırlama, uyarı, opsiyonel sözleşme PDF'i) | İşlemsel e-posta | Yetkili e-postası ve adı; son müşteri e-postası (varsa) | Seçilecek; **yurt içi tercih edilir** (A03 §2.11) | Yurt dışıysa standart sözleşme + bildirim | Gövdede sipariş ayrıntısı yerine link | 1 |
-| **Google Maps Platform** | Storefront'ta adres otomatik tamamlama, geocoding ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10) | Adres metni, koordinat, istek IP'si | **Yurt dışı** (ABD) | Standart sözleşme sorgusu; yoksa yazılı risk değerlendirmesi. Son müşteri aydınlatma şablonunda yurt dışı alıcı olarak adıyla yazılır (§2.4) | Ad ve telefon gönderilmez; kayıtlı adres ve poligon kullanımıyla çağrı azaltılır; 300+ işletmede self-host Photon (KARARLAR §10) | 1 |
+| **Google Maps Platform** | Storefront'ta adres otomatik tamamlama, geocoding ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10) | Adres metni, koordinat, istek IP'si | **Yurt dışı** (ABD) | Standart sözleşme sorgusu; yoksa yazılı risk değerlendirmesi. Son müşteri aydınlatma şablonunda yurt dışı alıcı olarak adıyla yazılır (§2.4) | Ad ve telefon gönderilmez; kayıtlı adres ve poligon kullanımıyla çağrı azaltılır; 300+ işletmede self-host Photon ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10) | 1 |
 | **Web Push servisleri**: Google FCM (Chrome, Edge, Android), Apple APNs (Safari, iOS'ta ana ekrana eklenmiş PWA), Mozilla Push Service (Firefox) | Personele "yeni sipariş" bildirimi (alarm zinciri t=0) | Müşteri verisi yok (yalnız sipariş no). Personel cihazının push uç noktası ve IP'si servis tarafından görülür | **Yurt dışı** (ABD / servis bölgesi [D?] (teyit edilmeli)) | Payload Web Push şifrelemesiyle uçtan uca şifrelidir [O]; müşteri verisi gönderilmediği için son müşteri açısından aktarım yok sayılır [T]. Personelin teknik verisi tarayıcı üreticisinin şartlarıyla işlenir; panel kullanıcı bilgilendirmesinde (§2.4-C) belirtilir | Payload'da müşteri adı, telefonu ve adresi yok; bildirim metni "Yeni sipariş #1234" düzeyinde | 1 |
 | **SMS sağlayıcısı** (Netgsm, İleti Merkezi, Verimor) | **Müşteri SMS OTP doğrulaması ve WhatsApp'sız modda kritik durum SMS'i (onaylandı/iptal) [Faz 1]**; işletmeye alarm SMS'i (t=5 dk); kurye giriş linki; panel girişi OTP | Telefon; mesaj metni (kod, işletme adı, takip linki) | TR | Aktarım yok. DPA'da alt işleyen olarak yer alır; son müşteri aydınlatma şablonunda adıyla yazılır (§2.4) | Mesajda adres ve sipariş ayrıntısı yok, yalnız takip linki; ileti türü "bilgilendirme" olarak işaretlenir (§3.1); maliyeti platform öder (§8.6); gönderim kayıtları 90 gün sonra maskelenir (§2.8 satır 19) | 1 |
 | **İş araçları** (kurumsal e-posta ve ofis paketi, CRM, destek/yardım masası, toplantı aracı) | Satış ve destek | İşletme yetkilisi ve aday verisi (biz VS) | Değişken; çoğu **yurt dışı** | Yurt dışıysa VS→Vİ standart sözleşme + 5 iş günü bildirim; yurt içi alternatif varsa tercih edilir (e-posta sağlayıcısında olduğu gibi) | Destek aracına son müşteri verisi aktarılmaz; ekran görüntüsünde telefon/adres maskelenir | 1 |
@@ -247,7 +247,7 @@ Yurt dışından **uzaktan erişim** de aktarım sayılır [O]. Bu yüzden üret
 ### 2.12 Barındırma kararı
 
 - KVKK genel bir yerelleştirme zorunluluğu getirmez [Y]. Yerelleştirme sektöreldir (bankacılık, ödeme kuruluşları, e-belge entegratörleri) ve biz bu sektörlerde değiliz [O/T].
-- **Karar (KARARLAR §10):** Kişisel veri (PostgreSQL, yedekler, müşteri medyası) **Türkiye'de** barındırılır; ikinci yedek başka bir Türkiye lokasyonunda tutulur; ürün görselleri kişisel veri olmadığı için Cloudflare R2'de olabilir. Teklif alınacaklar: Turkcell Bulut, Türk Telekom, Huawei Cloud İstanbul, Radore, Bulutistan [D?] (özellik ve fiyatlar teyit edilmeli). Sağlayıcı seçimi proje sahibi kararıdır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13.4; varsayılan: yurt içi yerli bulut). Sağlayıcıdan veri merkezi konumu, ISO 27001, yedek lokasyonu, SLA ve KVKK DPA'sı istenir.
+- **Karar ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10):** Kişisel veri (PostgreSQL, yedekler, müşteri medyası) **Türkiye'de** barındırılır; ikinci yedek başka bir Türkiye lokasyonunda tutulur; ürün görselleri kişisel veri olmadığı için Cloudflare R2'de olabilir. Teklif alınacaklar: Turkcell Bulut, Türk Telekom, Huawei Cloud İstanbul, Radore, Bulutistan [D?] (özellik ve fiyatlar teyit edilmeli). Sağlayıcı seçimi proje sahibi kararıdır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13.4; varsayılan: yurt içi yerli bulut). Sağlayıcıdan veri merkezi konumu, ISO 27001, yedek lokasyonu, SLA ve KVKK DPA'sı istenir.
 - **Gerekçe:** Kendi altyapımız için m.9 yükü kalkar; esnafa "verileriniz Türkiye'de" güven mesajı verilir. Karşılığında yönetilen servis azdır ve DevOps yükü artar (A03 §2.12).
 
 ### 2.13 Çerezler
@@ -288,10 +288,10 @@ Kanundaki tanım, araçları "gibi" diyerek açık uçlu sayar. Anlık mesajlaş
 | Müşteri SMS OTP'si (Akış B yedeği, "WhatsApp'sız mod") | "Doğrulama kodunuz: 482913. {İşletme}" | Bilgilendirme (sözleşmenin kurulması, müşterinin talebi) | **Hayır** [O/T] | Sağlayıcıda "bilgilendirme" türüyle gönderilir; promosyon içermez; maliyeti platformda | 1 |
 | WhatsApp'sız modda kritik durum SMS'i | "Siparişiniz onaylandı, tahmini 35 dk. Takip: {link}" / iptal bilgisi | Bilgilendirme (sözleşmenin ifası) | **Hayır** [O/T] | Yalnız onaylandı ve ret/iptal; adres ve telefon tekrarlanmaz; promosyon linting'i (§3.2.1) | 1 |
 | İşletmeye alarm (platform WhatsApp numarası t=2 dk, SMS t=5 dk) ve kurye giriş linki | "Onay bekleyen siparişiniz var" | Bilgilendirme (abonelik hizmetinin ifası) | Hayır | Utility şablonu / bilgilendirme SMS'i | 1 |
-| Değerlendirme isteği (teslim mesajındaki "Değerlendir" butonu, teşviksiz) | `siparis_teslim_v1` | **Gri alan**; bilgilendirme lehine yorumlanabilir [T] | KARARLAR gereği teslim mesajında kalır | İndirim, hediye veya "tekrar sipariş ver" çağrısı içeremez; ayrı mesaj olarak gönderilmez; işletme kapatabilir. Avukata sorulur (§11.1) | 1 |
+| Değerlendirme isteği (teslim mesajındaki "Değerlendir" butonu, teşviksiz) | `siparis_teslim_v1` | **Gri alan**; bilgilendirme lehine yorumlanabilir [T] | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 gereği teslim mesajında kalır | İndirim, hediye veya "tekrar sipariş ver" çağrısı içeremez; ayrı mesaj olarak gönderilmez; işletme kapatabilir. Avukata sorulur (§11.1) | 1 |
 | Değerlendirme + teşvik | "Yorum yapana %10 indirim" | Ticari ileti | **Evet** | Yalnız kampanya modülünden | 2 |
 | Teslim + indirim kodu | "Bir sonraki siparişe KOD10" | Ticari ileti [O/T] | **Evet** | Utility şablonunda engellenir | — |
-| Sepet hatırlatma | "Sepetinde ürün kaldı" | Ticari ileti | **Evet** | Yalnız onaylı müşteriye, marketing şablonuyla | 2+ |
+| Sepet hatırlatma | "Sepetinde ürün kaldı" | Ticari ileti | **Evet** | Yalnız onaylı müşteriye, marketing şablonuyla | 2–3 |
 | Geri kazanma | "Seni özledik" | Ticari ileti | **Evet** | Aynı | 2 |
 | Kampanya, yeni menü, şube açılışı | "Ramazan menümüz çıktı" | Ticari ileti | **Evet** | Kampanya modülü | 2 |
 | Doğum günü mesajı | "Doğum gününe özel tatlı bizden" | Ticari ileti | **Evet** + doğum tarihi için açık rıza (öneri, §2.5) | Sadakat modülüyle | 2 |
@@ -306,7 +306,7 @@ Kanundaki tanım, araçları "gibi" diyerek açık uçlu sayar. Anlık mesajlaş
 
 #### 3.2.1 Şablon promosyon kontrolü [Faz 1]
 
-KARARLAR §9 gereği şablon editörü ve serbest durum mesajları promosyon içeremez. Kurallar [T]:
+[00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9 gereği şablon editörü ve serbest durum mesajları promosyon içeremez. Kurallar [T]:
 - Utility şablonunda, SMS şablonlarında (OTP, durum, alarm) ve durum mesajı düzenleyicisinde "indirim", "%", "kampanya", "kod", "fırsat", "bedava", "hediye", "kupon" türü kelimeler ve kupon kodu kalıpları engellenir. Kullanıcıya uyarı gösterilir.
 - İşletme, platformun ana şablon setini ([02](02-whatsapp-entegrasyonu.md) §5.2) değiştiremez; yalnız izinli değişkenleri doldurur.
 - **Kabul kriterleri:** Promosyon kelimesi içeren utility gövdesi kaydedilemez (birim test). Meta'nın utility → marketing kategori değişimi gelirse şablon durum bildiriminde kullanılmaz ([02](02-whatsapp-entegrasyonu.md) §5.4).
@@ -356,7 +356,7 @@ flowchart LR
 **Minimum kontrol seti (modül açılmadan önce):**
 1. **Aktivasyon kapısı:** İşletme İYS'ye kayıtlı olduğunu beyan eder, İYS numarasını ve marka kodunu girer, bize yetki verir. Eksikse modül kilitlidir.
 2. **Onay toplama ve iletim:** §3.4'teki kanıtla saklanır. İşletmenin İYS hesabına iş ortağı API'siyle iletilir [O/D?] (teyit edilmeli).
-3. **Gönderim öncesi kontrol (yazılımda zorunlu, KARARLAR §9):** Her alıcı için İYS sorgusu yapılır ya da en fazla 24 saatlik senkron kopya kullanılır [T]. **Onayı olmayana gönderilmez.**
+3. **Gönderim öncesi kontrol (yazılımda zorunlu, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9):** Her alıcı için İYS sorgusu yapılır ya da en fazla 24 saatlik senkron kopya kullanılır [T]. **Onayı olmayana gönderilmez.**
 4. **Ret senkronizasyonu:** İYS'deki izin değişiklikleri düzenli çekilir [D?, API davranışı] (teyit edilmeli).
 5. **Otomatik şablon ekleri:** İşletme kimliği ve ret satırı her kampanya şablonuna otomatik eklenir, silinemez.
 6. **Sınırlar:** Müşteri başına haftada en fazla 1 kampanya, işletme başına günde en fazla 1 gönderim ([02](02-whatsapp-entegrasyonu.md) §9.4), sessiz saatler. Bunlar yasal değil, kalite puanı ve itibar korumasıdır [T]. Mevzuatta saat sınırı olup olmadığı [D?] (teyit edilmeli).
@@ -404,7 +404,7 @@ Net işlem hacmi 10 milyar TL'yi aşan ETAHS'ler için lisans ve kademeli yükü
 | 2 | Keşif/dizin sayfası (MVP'de) | Aracılık unsuru tartışmaya açılır [K02] | Sonra yapılacaksa avukat görüşüyle, Senaryo B sınırında: yalnız yönlendirme, ücretsiz sıralama, kişisel veri toplamama |
 | 3 | Birden çok işletmeden ortak sepet | Pazaryeri | Tek işletmeli sepet |
 | 4 | Müşteri parasını toplama, işletmeye dağıtma | 6493 lisans riski (§5.1) | Para doğrudan işletmenin hesabına |
-| 5 | Pazaryeri / alt üye işyeri ödeme modeli | ETAHS görünümü, "komisyonsuz" çelişkisi | Yalnız strateji "platform payı"na dönerse ve hukuki görüşle (KARARLAR §9) |
+| 5 | Pazaryeri / alt üye işyeri ödeme modeli | ETAHS görünümü, "komisyonsuz" çelişkisi | Yalnız strateji "platform payı"na dönerse ve hukuki görüşle ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9) |
 | 6 | Sipariş başı ücret, ciro yüzdesi, ödemeden pay | ETAHS sinyali; konumlandırma | Sabit abonelik |
 | 7 | Ücretli öne çıkarma, sıralama, görünürlük ücreti | ETAHS; Nisan 2026 kuralları | — |
 | 8 | Checkout'ta veya ekstrede bizim adımızın satıcı gibi görünmesi; son müşteri şikâyetini satıcı gibi karşılamak | Satıcı algısı | İşletme unvanı ve işletmenin PSP'si; teknik destek bizden, sipariş şikâyeti işletmeye yönlendirilir |
@@ -426,7 +426,7 @@ Dayanak: 6502 sayılı Kanun, Mesafeli Sözleşmeler Yönetmeliği (RG 27.11.201
 - **Cayma hakkı istisnası (m.15) [O]:** çabuk bozulabilen mallar ve belirli bir tarihte veya dönemde yapılması gereken yiyecek-içecek tedariki. Yemek siparişinde cayma hakkı yoktur, ama bu ön bilgilendirmede **belirtilir**.
 - **Ön bilgilendirme içeriği (m.5) [O]:** satıcının kimliği ve iletişim bilgileri, malın temel nitelikleri, vergiler dahil toplam fiyat, teslimat masrafları, ödeme ve teslimat bilgisi, cayma hakkının bulunmadığı bilgisi, şikâyet ve başvuru yolları. Vitrin bu belgeyi işletme verisinden **otomatik üretir** [Faz 1]. **Teyit [O]:** tüketici ön bilgilendirmeyi teyit etmeden sözleşme kurulmaz; sipariş butonu **ödeme yükümlülüğü doğurduğunu** açıkça belirtir; sözleşme kalıcı veri saklayıcısıyla iletilir.
 
-**Onay adımı (KARARLAR §9, her siparişte aynı içerik):**
+**Onay adımı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9, her siparişte aynı içerik):**
 
 | Unsur | Storefront checkout (Akış A, B) [Faz 1] | WhatsApp özeti (Akış C, AI) [Faz 2] |
 |---|---|---|
@@ -465,7 +465,7 @@ Dayanak: 6502 sayılı Kanun, Mesafeli Sözleşmeler Yönetmeliği (RG 27.11.201
 | Alkollü içki | İnternetten satış yasak (4250'de 2013 değişikliği) [O] | `wa_restricted` bayrağı ([02](02-whatsapp-entegrasyonu.md) §9.2): bayraklı ürün storefront'ta satılamaz, WhatsApp'ta gösterilmez | 1 |
 | Tütün, nargile | İnternetten satış yasak [O]; Meta Commerce Policy [K01] | Aynı | 1 |
 | İlaç | Eczane dışında yasak [Y] | Aynı; eczane hedeflenmez | 1 |
-| Tüp gaz (LPG) | EPDK lisans kuralları [D?] (teyit edilmeli); Meta'da "tehlikeli madde" riski [K01] | Tüp bayi hedeflenmez (KARARLAR §6.10) | — |
+| Tüp gaz (LPG) | EPDK lisans kuralları [D?] (teyit edilmeli); Meta'da "tehlikeli madde" riski [K01] | Tüp bayi hedeflenmez ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.10) | — |
 | **Taksit** | Gıda ve yemek harcamalarında kredi kartıyla taksit yapılamaz (BDDK) [O] | Online ödemede tek çekim; taksit parametresi hiç gönderilmez | 2 |
 | Gıda işletmesi kaydı | 5996 sayılı Kanun'a göre kayıt/onay belgesi [O]; online satışta kayıt numarası gösterme zorunluluğu [D?] (teyit edilmeli) | Onboarding'de "İşletme kayıt no" alanı (opsiyonel, önerilir); vitrinde gösterim | 1 |
 | Alerjen bilgisi | Gıda Etiketleme Yönetmeliği (2017): uzaktan satışta zorunlu bilgilerin satın alma öncesinde sunulması [O/D?] (teyit edilmeli) | 14 ana alerjen etiketi ürün özelliği olarak (§2.7) | 1 |
@@ -496,7 +496,7 @@ Ticaret Bakanlığı 13 Nisan 2026'da yemek sipariş platformları için yeni ku
 
 6493 sayılı Kanun'a (RG 27.06.2013) göre ödeme işleminin gerçekleştirilmesi ve ödeme aracının **kabulü** gibi hizmetler yalnız izinli kuruluşlarca sunulur. Yetkili kurum 01.01.2020'den beri TCMB'dir; izinsiz ödeme hizmeti için hapis ve adli para cezası öngörülür [Y/O]. "Ticari temsilci" gibi istisnalar dar yorumlanır [O/D?] (teyit edilmeli).
 
-**Kural (KARARLAR §9):** Müşteri parası ya doğrudan işletmenin hesabına ya da lisanslı bir kuruluşun yapısına gider. **Bizim hesabımıza hiçbir koşulda girmez.**
+**Kural ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9):** Müşteri parası ya doğrudan işletmenin hesabına ya da lisanslı bir kuruluşun yapısına gider. **Bizim hesabımıza hiçbir koşulda girmez.**
 
 ### 5.2 Model karşılaştırması
 
@@ -513,7 +513,7 @@ Ticaret Bakanlığı 13 Nisan 2026'da yemek sipariş platformları için yeni ku
 |---|---|---|---|
 | **Faz 1** | Kapıda nakit, kapıda kart (işletmenin POS'u), kapıda yemek kartı; gel-alda kasada | `cash_on_delivery`, `card_on_delivery`, `meal_card_on_delivery` (+ marka), `pay_at_counter` | Panel yalnız `payment_status` kaydı tutar (`unpaid` → `paid`, kurye veya kasiyer işaretler) |
 | **Faz 2** | + İşletmenin **kendi PayTR** hesabıyla online kart; ardından iyzico | + `online_card` | Ödeme linki WhatsApp'ta CTA URL ile gider [K01]; iade panelden |
-| **Faz 3** | + **Craftgate** (işletme istediği POS'u bağlar); online yemek kartı (1–2 marka görüşmesinden sonra) | Aynı + marka alanı | Online yemek kartı zamanlaması açık karar (KARARLAR §13.9) |
+| **Faz 3** | + **Craftgate** (işletme istediği POS'u bağlar); online yemek kartı (1–2 marka görüşmesinden sonra) | Aynı + marka alanı | Online yemek kartı zamanlaması açık karar ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13.9) |
 
 ### 5.4 Sağlayıcı karşılaştırması
 
@@ -553,7 +553,7 @@ Ticaret Bakanlığı 13 Nisan 2026'da yemek sipariş platformları için yeni ku
 
 **Ürünün vaadi [T]:**
 - Pazarlamada "fiş/fatura derdi yok" gibi bir vaat **verilmez**. Mali müşavirle esnafa yönelik bir "belge rehberi" hazırlanır ve yardım merkezinde yayınlanır.
-- Panel fişi (80/58 mm) sipariş fişidir; üzerinde **"Mali değeri yoktur"** yazar (KARARLAR §10; ifade mali müşavirce teyit edilir).
+- Panel fişi (80/58 mm) sipariş fişidir; üzerinde **"Mali değeri yoktur"** yazar ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10; ifade mali müşavirce teyit edilir).
 - [Faz 2] SambaPOS/Adisyo entegrasyonuyla sipariş işletmenin POS'una düşer; işletme mali belgeyi kendi sisteminden keser. [Faz 3] İşletme adına e-Arşiv düzenleme (çok kiracılı veya bayi API'si sunan entegratörle [D?] (teyit edilmeli)).
 
 ---
@@ -562,8 +562,8 @@ Ticaret Bakanlığı 13 Nisan 2026'da yemek sipariş platformları için yeni ku
 
 ### 6.1 İlkeler ve fazlar
 
-- **Faz 1 (MVP + pilot):** Pilot işletmeler 3 ay ücretsizdir (KARARLAR §8). Bu dönemde tahsilat motoru gerekmez. **Pilot bitip Faz 2 motoru hazır değilse** ilk ücretli işletmeden önce manuel akış kurulur: havale/EFT + Paraşüt web arayüzünden (veya GİB e-Arşiv Portalı'ndan) fatura.
-- **Faz 2 (ticari lansman):** Kendi faturalama motorumuz (planlar, kıst hesabı, kupon ve kurucu üye indirimi, deneme, fatura durumu) + kart tokenlama ve çekim için **tek PSP** (M1'de hangisi entegre edilirse: PayTR veya iyzico) + yıllık planda havale/EFT + Paraşüt API (KARARLAR §9).
+- **Faz 1 (MVP + pilot):** Pilot işletmeler 3 ay ücretsizdir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8). Bu dönemde tahsilat motoru gerekmez. **Pilot bitip Faz 2 motoru hazır değilse** ilk ücretli işletmeden önce manuel akış kurulur: havale/EFT + Paraşüt web arayüzünden (veya GİB e-Arşiv Portalı'ndan) fatura.
+- **Faz 2 (ticari lansman):** Kendi faturalama motorumuz (planlar, kıst hesabı, kupon ve kurucu üye indirimi, deneme, fatura durumu) + kart tokenlama ve çekim için **tek PSP** (M1'de hangisi entegre edilirse: PayTR veya iyzico) + yıllık planda havale/EFT + Paraşüt API ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9).
 - **3D Secure:** İlk işlemde zorunludur. Sonraki üye işyeri başlatmalı (MIT) çekimler için non-3D yetkisi veya abonelik ürünü gerekebilir [O/D?] (teyit edilmeli). PSP seçiminde **ilk soru** budur. Paddle/Lemon Squeezy gibi Merchant of Record modelleri TL ve e-Fatura düzenine uymaz; Stripe Türkiye'de yoktur [O/T].
 - Fiyatlar KDV hariç ve dahil birlikte gösterilir. Liste fiyatlarının yıllık TÜFE endekslemesi sözleşmede yazılır.
 - **Kurucu üye (ilk 100 işletme, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8):** 12 ay boyunca **sabit %30 indirim oranı** uygulanır. Sabitlenen TL fiyat değil, orandır: liste fiyatı TÜFE ile güncellenirse kurucu üyenin ödediği tutar da yeni liste fiyatının %70'i olur. Faturalama motoru oranı saklar (`discount_bp`, [07](07-veri-modeli-ve-api.md)); abonelik sözleşmesinde ve fatura satırında "Kurucu üye indirimi %30 (bitiş: {tarih})" yazılır. "Biz kuralım" kurulumu kurucu üyede ücretsizdir (normalde 1.990 TL + KDV); bedelsiz hizmetin fatura ve KDV durumu mali müşavire sorulur (§11.2).
@@ -629,13 +629,13 @@ sequenceDiagram
 
 ### 6.4 Havale/EFT
 
-- Yıllık peşin planda (%20 indirimli, KARARLAR §8) havale/EFT sunulur; aylık planda yalnız dunning sırasında seçenek olarak çıkar [T]. Her fatura için benzersiz **ödeme referans kodu** üretilir (örnek `SO-2026-000123`); işletmeden açıklamaya yazması istenir.
+- Yıllık peşin planda (%20 indirimli, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8) havale/EFT sunulur; aylık planda yalnız dunning sırasında seçenek olarak çıkar [T]. Her fatura için benzersiz **ödeme referans kodu** üretilir (örnek `SO-2026-000123`); işletmeden açıklamaya yazması istenir.
 - [Faz 2] eşleştirme admin panelinden `finance` tarafından elle yapılır. Ölçekte banka hesap hareketi API'si veya açık bankacılık ile otomatik eşleştirme yapılır [D?] (teyit edilmeli).
 
 ### 6.5 e-Fatura / e-Arşiv (Paraşüt API) akışı
 
 - **Zorunluluk:** Geçiş eşikleri VUK Genel Tebliğleri (özellikle 509 sıra no'lu) ile belirlenir. İnternet satışı için daha düşük bir eşik olduğu hatırlanıyor [O/D?] (teyit edilmeli). **Gönüllü geçiş** her zaman mümkündür [O]. e-Fatura mükellefine e-Fatura, diğerlerine e-Arşiv düzenlenir [O]. e-Defter tetiklenmesi [D?] (teyit edilmeli). **Başlangıç:** GİB e-Arşiv Portalı ücretsizdir ama API'si yoktur; ilk birkaç müşteri için geçici çözüm olabilir. Resmi olmayan portal otomasyonları **kullanılmaz** [T].
-- **Seçim (KARARLAR §9):** **Paraşüt API** (REST, JSON:API, OAuth2; https://apidocs.parasut.com [O]). Ön muhasebe, fatura ve tahsilat tek yerde; mali müşavir aynı sistemi görür. API'nin hangi pakette olduğu ve istek limitleri [D?] (teyit edilmeli). Ölçekte doğrudan özel entegratöre geçilir: **Nilvera / QNB eSolutions / Uyumsoft** (teklif karşılaştırmasıyla; alternatifler A03 §6.4).
+- **Seçim ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9):** **Paraşüt API** (REST, JSON:API, OAuth2; https://apidocs.parasut.com [O]). Ön muhasebe, fatura ve tahsilat tek yerde; mali müşavir aynı sistemi görür. API'nin hangi pakette olduğu ve istek limitleri [D?] (teyit edilmeli). Ölçekte doğrudan özel entegratöre geçilir: **Nilvera / QNB eSolutions / Uyumsoft** (teklif karşılaştırmasıyla; alternatifler A03 §6.4).
 
 **Akış [Faz 2]:**
 1. PSP webhook'u ödemenin başarılı olduğunu bildirir (veya `finance` havaleyi işaretler). Faturalama motoru faturayı kesinleştirir (plan, dönem, indirim, KDV %20).
@@ -663,7 +663,7 @@ sequenceDiagram
 | Pay devri | Noter onayı, genel kurul, tescil; yatırım turunda hantal [O] | Ciro ve pay defteri; yatırım ve opsiyon için uygun [O] |
 | Maliyet | Düşük | Daha yüksek; belirli sermaye üzerinde sözleşmeli avukat zorunluluğu (eşik [D?] (teyit edilmeli)) |
 
-**Varsayılan (KARARLAR §13.3):** Ltd; yatırım planı netleşince AŞ'ye tür değiştirme [O]. Her iki durumda da kurucular arası pay sahipleri sözleşmesi (vesting, ayrılan kurucu, rekabet yasağı) ve kurucu ile dış geliştiricilerden **yazılı fikri hak devri** yapılır. FSEK'e göre çalışanın eserindeki mali haklar işverene geçer, ancak kurucu ve serbest çalışan için yazılı devir gerekir [O].
+**Varsayılan ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13.3):** Ltd; yatırım planı netleşince AŞ'ye tür değiştirme [O]. Her iki durumda da kurucular arası pay sahipleri sözleşmesi (vesting, ayrılan kurucu, rekabet yasağı) ve kurucu ile dış geliştiricilerden **yazılı fikri hak devri** yapılır. FSEK'e göre çalışanın eserindeki mali haklar işverene geçer, ancak kurucu ve serbest çalışan için yazılı devir gerekir [O].
 
 ### 7.2 Kuruluş ve operasyon belgeleri
 
@@ -676,7 +676,7 @@ sequenceDiagram
 
 Dayanak: 6769 sayılı Sınai Mülkiyet Kanunu [Y]. Adımlar (A03 §7.4):
 1. TÜRKPATENT araştırması ve EPATS: "Siparişin Önünde", "Sipariş Önde", "Siparişönünde" ve ş/s, ü/u varyantları.
-2. **Sınıflar (KARARLAR §9):** 9 (yazılım), 35 (işletme yönetimi, reklam), 38 (telekomünikasyon/mesajlaşma), 42 (SaaS). Kurye hizmeti eklenirse 39. Sınıf 43 bize ait değildir.
+2. **Sınıflar ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9):** 9 (yazılım), 35 (işletme yönetimi, reklam), 38 (telekomünikasyon/mesajlaşma), 42 (SaaS). Kurye hizmeti eklenirse 39. Sınıf 43 bize ait değildir.
 3. "Sipariş" kelimesi bu sınıflarda tanımlayıcı olduğu için **kelime + ayırt edici logo** ile başvurulur; marka vekilinden tescil edilebilirlik görüşü alınır [T].
 4. Başvuru, **isim kamuya duyurulmadan önce** yapılır. Bültende yayından sonra **2 ay itiraz süresi** işler [O]; toplam süre ve resmi ücret [D?] (teyit edilmeli).
 5. Yan kontroller: .com ve .com.tr alan adları (TRABİS ile belgesiz [O]), sosyal medya adları, WhatsApp görünen adı, ticaret unvanı çakışması (MERSİS), WIPO Global Brand Database.
@@ -706,7 +706,7 @@ Dayanak: 6769 sayılı Sınai Mülkiyet Kanunu [Y]. Adımlar (A03 §7.4):
 | 19 | **Kampanya modülü ek koşulları** (İYS beyanı ve yetkilendirme) | §3.6 aktivasyon kapısı | Biz ↔ İşletme | Avukat | Faz 2 | Click-wrap (modül açılırken) |
 | 20 | **Bayi / referans sözleşmesi** | Komisyon, stopaj, müşteri sahipliği, KVKK | Biz ↔ Bayi | Avukat + mali müşavir | Faz 2 | İmzalı veya click-wrap |
 
-KARARLAR §9'daki **MVP öncesi zorunlu set** 1–6, 8, 10 ve 11 numaralı belgelerdir. 7, 9, 13 ve 14 bu dokümanın (araştırmaya dayanan) eklemesidir ve aynı pakete alınır. Hepsi avukatla **sabit ücretli uyum paketi** olarak hazırlanır.
+[00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9'daki **MVP öncesi zorunlu set** 1–6, 8, 10 ve 11 numaralı belgelerdir. 7, 9, 13 ve 14 bu dokümanın (araştırmaya dayanan) eklemesidir ve aynı pakete alınır. Hepsi avukatla **sabit ücretli uyum paketi** olarak hazırlanır.
 
 ### 7.5 Click-wrap ve sürümleme kuralları
 
@@ -725,7 +725,7 @@ KARARLAR §9'daki **MVP öncesi zorunlu set** 1–6, 8, 10 ve 11 numaralı belge
 
 - Genel oran **%20** (10.07.2023'ten beri) [O]. SaaS aboneliğimiz %20 KDV'ye tabidir [Y/O]; Teknokent istisnası uygulanırsa durum değişir (§8.5).
 - Restoran/yemek hizmeti %10'dur [K02/O]; bu işletmenin konusudur.
-- KDV mükellefi işletme faturamızdaki KDV'yi indirebilir. **Basit usul esnaf KDV indiremez** ve gideri kazançtan da düşemez; onun için gerçek maliyet KDV dahil fiyattır [O]. Bu yüzden fiyat sayfası KDV hariç ve dahil tutarı birlikte gösterir (KARARLAR §9).
+- KDV mükellefi işletme faturamızdaki KDV'yi indirebilir. **Basit usul esnaf KDV indiremez** ve gideri kazançtan da düşemez; onun için gerçek maliyet KDV dahil fiyattır [O]. Bu yüzden fiyat sayfası KDV hariç ve dahil tutarı birlikte gösterir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9).
 
 ### 8.2 Yurt dışı hizmetlerde sorumlu sıfatıyla KDV
 
@@ -753,13 +753,13 @@ Belirli parayı içeren imzalı sözleşmelerde oran **binde 9,48**'dir; e-imzal
 | Kalem | Para birimi | Vergi / muhasebe etkisi | Not |
 |---|---|---|---|
 | TR barındırma ve yerli araçlar | TL | Normal KDV (indirilebilir) | Yerli seçim 2 No'lu KDV yükünü azaltır |
-| Yurt dışı bulut ve araçlar (Cloudflare, Sentry, GitHub, Google Maps, Anthropic) | USD | 2 No'lu KDV (≈1 ay nakit etkisi), olası stopaj, kur farkı ve banka yurt dışı işlem masrafı | Aylık rapor; LLM en büyük değişken (KARARLAR §10) |
+| Yurt dışı bulut ve araçlar (Cloudflare, Sentry, GitHub, Google Maps, Anthropic) | USD | 2 No'lu KDV (≈1 ay nakit etkisi), olası stopaj, kur farkı ve banka yurt dışı işlem masrafı | Aylık rapor; LLM en büyük değişken ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10) |
 | SMS (müşteri SMS OTP, WhatsApp'sız mod durum SMS'i, işletme alarmı t=5 dk, kurye giriş linki) [Faz 1] | TL, **platform öder** | Yurt içi sağlayıcı; normal KDV (indirilebilir) | Aboneliğe adil kullanım kotasıyla dahil: Esnaf 100, Pro 300 SMS/ay; kota aşımında işletme uyarılır, Faz 2'de ek SMS paketi ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4). İYS açısından bilgilendirme niteliğinde (§3.1) |
 | Meta WhatsApp ücretleri (Tech Provider) | USD, **işletme öder** | İşletmenin KDV durumu [D?] (teyit edilmeli) | Bizim maliyetimiz değil ([01](01-vizyon-pazar-is-modeli.md) §6.5) |
 | Meta ücretleri (MPS ile biz ödersek, Faz 3) | USD | 2 No'lu KDV; yeniden satışta %20 KDV | Kur riski, endeksleme |
 | PSP komisyonu (kendi tahsilatımız) | TL | Kuruluşun faturası; BSMV/KDV ayrımı faturada [D?] (teyit edilmeli) | Tek çekim bandı §5.4; yazılı teklif |
 | e-Fatura/ön muhasebe (Paraşüt; ölçekte entegratör) | TL | Normal KDV | Paket veya kontör [D?] (teyit edilmeli) |
-| Avukat uyum paketi (belge seti + 4 görüş konusu) | TL | Serbest meslek makbuzu/fatura, stopaj olabilir | Sabit ücretli tek seferlik teklif (KARARLAR §9) |
+| Avukat uyum paketi (belge seti + 4 görüş konusu) | TL | Serbest meslek makbuzu/fatura, stopaj olabilir | Sabit ücretli tek seferlik teklif ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9) |
 | Mali müşavir | TL | Aylık sözleşme | MVP bütçesine konur |
 | Marka başvurusu (4 sınıf) + marka vekili | TL | Resmi ücret + vekil ücreti | TÜRKPATENT tarifesi [D?] (teyit edilmeli) |
 | e-İmza, KEP, e-Tebligat | TL | Normal KDV | Faz 0 |
@@ -813,10 +813,10 @@ Belirli parayı içeren imzalı sözleşmelerde oran **binde 9,48**'dir; e-imzal
 
 ### 9.3 Faz 2–3
 
-- [ ] **[Faz 2]** Abonelik tahsilatı: faturalama motoru, PSP tokenı, dunning takvimi sözleşme ekinde, Paraşüt API — *Teknik lider, Finans* — §6
+- [ ] **[Faz 2]** Abonelik tahsilatı: faturalama motoru, PSP tokenı, dunning takvimi (G+10 / G+21 / G+75) ve deneme bitişi kuralı sözleşme ekinde, kurucu üye indirim oranı, Paraşüt API — *Teknik lider, Finans* — §6
 - [ ] **[Faz 2]** Kampanya modülü: aktivasyon kapısı, onay kanıtı, İYS iş ortağı API'si, ret senkronu, frekans sınırı, audit log — *Teknik lider, Avukat* — §3.4–3.6
 - [ ] **[Faz 2]** Online ödeme M1: önce PayTR, sonra iyzico; taksit kapalı; ek protokol — *Teknik lider, Avukat* — §5.5
-- [ ] **[Faz 2]** AI akışında WhatsApp onay adımı ve LLM maskeleme; Anthropic için m.9 dayanağı — *Teknik lider, Avukat* — §4.4, §2.11
+- [ ] **[Faz 2]** AI akışında WhatsApp onay adımı ([Onayla] [Düzenle] [İptal], ibare gövdede) ve LLM maskeleme; Anthropic için m.9 dayanağı — *Teknik lider, Avukat* — §4.4, §2.11
 - [ ] **[Faz 2]** Profilleme/doğum günü açık rıza metinleri; storefront KVKK başvuru formu — *Avukat, Ürün* — §2.5, §2.10
 - [ ] **[Faz 2]** Bayi sözleşmesi ve komisyon stopaj düzeni — *Avukat, Mali müşavir* — §8.5
 - [ ] **[Faz 3]** Craftgate orkestrasyonu; online yemek kartı (marka görüşmeleri sonrası); işletme adına e-Arşiv; MPS modelinde KDV ve kur düzeni — *Teknik lider, Mali müşavir* — §5.3, §5.7, §8.2
@@ -832,7 +832,7 @@ Belirli parayı içeren imzalı sözleşmelerde oran **binde 9,48**'dir; e-imzal
 | 1 | Meta/WhatsApp üzerinden yurt dışına aktarım (m.9) | **Yüksek** | Düzenli aktarım standart sözleşme ister; Meta'nın imzaladığı doğrulanamadı; arızi yol uygun değil | TR barındırma, minimizasyon, web alternatifi, Meta'ya yazılı soru, avukat görüşü (§2.11) |
 | 2 | Kampanya mesajlarında İYS ve platformun sorumluluğu | **Yüksek** | WhatsApp operatör filtresinden geçmez; toplu onaysız gönderimde ceza 10 katına kadar | MVP'de modül yok; Faz 2'de yazılımda zorunlu kontrol (§3.6) |
 | 3 | İşlemsel mesaja promosyon karışması | Orta-Yüksek | Tek satır bile ticari ileti yapar; Meta kategori değiştirir | Şablon kontrolü; promosyon ayrı şablonda (§3.2.1) |
-| 4 | Teslim mesajındaki değerlendirme isteği | Orta | Araştırma gri alan diyor; KARARLAR bilgilendirme sayıyor | Teşviksiz, ayrı mesaj değil, işletme kapatabilir; avukat görüşü (§3.2) |
+| 4 | Teslim mesajındaki değerlendirme isteği | Orta | Araştırma gri alan diyor; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 teslim mesajına dahil ediyor | Teşviksiz, ayrı mesaj değil, işletme kapatabilir; avukat görüşü (§3.2) |
 | 5 | Keşif/dizin sayfası ile ETAHS sınırı | Orta-Yüksek | Pazaryeri yükümlülükleri, Nisan 2026 kuralları, VS rolü | MVP'de yok; sonra Senaryo B sınırında (§4.2) |
 | 6 | Sipariş notunda sağlık (alerji) verisi | Orta | m.6'da sözleşmenin ifası dayanak değil | Yapılandırılmış alan yok, 30 gün, avukat görüşü (§2.7) |
 | 7 | AI akışında LLM'e sağlık ifadesi gitmesi | Orta | Özel nitelikli veri + yurt dışı aktarım | Maskeleme, belirsizde insan onayı (§2.7) |
@@ -864,7 +864,8 @@ Belirli parayı içeren imzalı sözleşmelerde oran **binde 9,48**'dir; e-imzal
 6. WhatsApp sohbetindeki özet + link + takip sayfası "kalıcı veri saklayıcı" şartını karşılar mı? Telefonla alınan siparişte (Akış E) ön bilgilendirme nasıl yapılır? Tek seferlik restoran siparişi "düzenli teslimat" istisnasına girer mi? Onay kanıtı ne kadar saklanmalı?
 7. Dunning takvimi ve askı sırasında vitrinin kapatılması işletmeye karşı sorumluluk doğurur mu? Sözleşmede nasıl yazılmalı?
 8. Rakip platform adlarıyla komisyon karşılaştırması yayınlamanın sınırları nelerdir?
-9. §2.8'deki saklama süreleri (24 ay hareketsizlik, 6 ay mesaj, kabul kayıtları 10 yıl) uygun mu?
+9. §2.8'deki saklama süreleri (24 ay hareketsizlik, 6 ay mesaj, kabul kayıtları 10 yıl, takip linki teslimden 7 gün) uygun mu? Deneme bitişinde 90 gün, dunning'de G+75 sonunda silme DPA ve sözleşme açısından yeterli mi?
+10. Müşteri SMS OTP'si, WhatsApp'sız modda onay/iptal SMS'i ve işletmeye alarm SMS'i İYS açısından bilgilendirme sayılır mı? SMS'i platformun hesabından ve gönderici başlığıyla (işletme adı gövdede) göndermek rol dağılımını (VS/Vİ) veya ETK sorumluluğunu değiştirir mi?
 
 ### 11.2 Mali müşavire
 
@@ -884,38 +885,41 @@ Belirli parayı içeren imzalı sözleşmelerde oran **binde 9,48**'dir; e-imzal
 2. **Paraşüt, Nilvera, QNB eSolutions, Uyumsoft:** API hangi pakette? Fatura başı/kontör maliyeti? İstek limitleri? İşletme adına e-Arşiv için çok kiracılı veya bayi API'si var mı?
 3. **Meta ve Türk Solution Partner'lar:** KVKK standart sözleşmesi, veri merkezi konumu, TL fatura ve kredi hattı.
 4. **Yerli barındırma:** yönetilen Postgres, nesne depolama, yedek lokasyonu, SLA, fiyat, ISO 27001, KVKK DPA.
-5. **Cloudflare, Sentry, Google Maps, Anthropic, e-posta sağlayıcısı:** Türk standart sözleşmesini imzalıyorlar mı? Veri bölgesi seçimi var mı?
+5. **Cloudflare, Sentry, Google Maps, Anthropic, e-posta sağlayıcısı, iş araçları:** Türk standart sözleşmesini imzalıyorlar mı? Veri bölgesi seçimi var mı? (Web Push servisleri ve GitHub müşteri verisi görmediği için sorgu dışıdır, envanterde kalır.)
 6. **İYS ve İYS iş ortakları:** entegratör/iş ortağı şartları, API dokümanı (onay yükleme, ret çekme), ücret tarifesi, WhatsApp'ın kanal karşılığı.
 7. **Yemek kartı markaları:** online ödeme API'si, küçük işletme için online üye işyeri şartları, komisyon.
+8. **SMS sağlayıcıları (Netgsm, İleti Merkezi, Verimor):** SMS başına fiyat, OTP ve "bilgilendirme" ileti türü işaretleme, gönderici başlığı kuralları, teslim raporu webhook'u, veri merkezi konumu ve KVKK DPA'sı, İYS iş ortaklığı (Faz 2 kampanya için).
 
 ---
 
 ## 12. Açık konular
 
-**KARARLAR ile çelişkiler ve uygulanan tercih**
+**Karara bağlananlar ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) son sürümüyle kapandı)**
 
-1. **Onay butonu metni:** KARARLAR §9 butonu "Siparişi onayla (ödeme yükümlülüğü doğar)" diye tanımlıyor. WhatsApp reply button başlıkları kısa (≈20 karakter [D?] (teyit edilmeli)). Uygulanan: storefront'ta tam metin; WhatsApp'ta buton "Siparişi onayla", "ödeme yükümlülüğü doğar" cümlesi gövdede butonun hemen üstünde. Avukat onayı gerekli.
-2. **AI akışı buton seti:** KARARLAR §7 Akış C'de [Onayla][Değiştir][Menüyü aç], §10'da [Onayla][Düzenle][İptal] yazıyor. Onay adımı içeriği her iki durumda da §4.4'teki gibidir; buton seti tekilleştirilmeli ([03](03-musteri-deneyimi-ve-storefront.md)).
-3. **Değerlendirme isteği:** Araştırma bunu gri alan sayıp "onaylılara gönder" diyor (A03 §3.2). KARARLAR §5 teslim mesajına dahil ediyor. KARARLAR uygulandı, güvenceler eklendi (§3.2); avukat görüşüne bağlı.
-4. **Dunning süreleri:** Araştırma G+10 kısıtlı mod, G+14 askı öneriyor (A03 §6.2). KARARLAR'daki "sipariş alma hemen kesilmez" ilkesiyle G+10 salt-okunur, **G+21 askı**, G+45 fesih, G+75 silme önerildi. Onay ve sözleşme ekine yazım gerekli.
-5. **Yedek konumu:** arastirma/04 (§12 maliyet tablosu) PITR yedeklerini R2'de öngörüyor. KARARLAR §10 yedeklerin Türkiye'de olmasını şart koşuyor. Bu doküman KARARLAR'ı uyguladı; [06](06-teknik-mimari.md) de yedekleri iki TR lokasyonunda ve 35 gün saklamayla tanımlıyor (uyumlu).
+1. **Onay butonu metni.** Karara bağlandı (00 §9): storefront'ta "Siparişi onayla" butonu ve hemen altında "ödeme yükümlülüğü doğar" ibaresi; WhatsApp özetinde [Onayla] butonu ve gövdede aynı ibare (§4.4). Metnin mevzuata yeterliliği için avukat teyidi yine alınır (§11.1-6).
+2. **AI akışı buton seti.** Karara bağlandı (00 §7 Akış C, §10): **[Onayla] [Düzenle] [İptal]**; ibare ve ön bilgilendirme linki mesaj gövdesinde (§4.4).
+3. **Dunning süreleri.** Karara bağlandı (00 §9): G+1/G+3/G+7 yeniden deneme, **G+10 salt-okunur, G+21 askı, G+75 hesap kapanışı ve veri silme**. §6.3 birebir bu takvimi uygular; G−3, G+14 ve G+45 yalnız hatırlatmadır (G+45 = 30 günlük dışa aktarma penceresinin başlangıcı). Sözleşme ekine yazım avukatla yapılır (§11.1-7).
+4. **Deneme bitişi.** Karara bağlandı (00 §9): 14 gün → 3 gün uyarı bandı → askı (sipariş alma durur) → 90 gün içinde plan seçilirse veri aynen döner, sonra silinir. §6.2 ve §2.8 satır 12 buna göre düzeltildi; eski öneri (D+3 salt-okunur, D+7 askı, D+60 silme) kaldırıldı.
+5. **Kurucu üye fiyatı.** Karara bağlandı (00 §8): 12 ay sabit **%30 indirim oranı**; liste fiyatı TÜFE ile güncellenebilir (§6.1).
+6. **MPS / kredi hattı fazı.** Karara bağlandı (00 §6.2, §11): **Faz 3**; Solution Partner görüşmeleri Faz 1'de başlar. KDV ve faturalama etkisi §8.2 ve §8.6'da Faz 3 varsayımıyla yazıldı.
+7. **Müşteri SMS OTP yedeği.** Karara bağlandı (00 §7 Akış B): **Faz 1** ("WhatsApp'sız mod"). SMS maliyeti platformdadır, aboneliğe adil kullanım kotasıyla dahildir (00 §4). SMS sağlayıcısı alt işleyen envanterine ve aydınlatma şablonuna eklendi (§2.4, §2.11); İYS sınıflandırması §3.1–§3.2'de.
+8. **Değerlendirme isteği ve pazarlama izni sorusu.** Karara bağlandı (00 §7): değerlendirme isteği "teslim edildi" mesajının içinde; pazarlama izni sorusu [Faz 2] değerlendirme cevabının içinde, ayrı mesaj değil (§3.2, §3.4). Değerlendirme isteğinin İYS açısından niteliği için avukat görüşü yine alınır (§11.1-3).
+9. **Saklama süreleri.** Karara bağlandı (00 §9): §2.8 tablosu kanoniktir, her satır bir `retention.*` işine bağlıdır; alan eşlemesi [07](07-veri-modeli-ve-api.md) §9'da. Sürelerin avukat teyidi §11.1-9'da.
+10. **Yedek konumu.** Karara bağlandı (00 §10): yedekler Türkiye'de, ikinci yedek başka bir Türkiye lokasyonunda; [06](06-teknik-mimari.md) ile uyumlu (§2.12).
+11. **KVKK talepleri yetkisi.** Karara bağlandı (00 §4): müşteri verisi dışa aktarma/silme `owner` ve `manager` (§2.10).
 
-**KARARLAR'da eksik görülenler**
+**00'a eklenmesi önerilenler**
 
-6. **Aktarım envanteri:** KARARLAR §10 yurt dışı alt işleyenleri "Meta, Anthropic, Cloudflare, Sentry, e-posta sağlayıcısı" olarak sayıyor. **Google Maps** (KARARLAR §10'da geocoding için seçili), tarayıcı **Web Push** servisleri, iş araçları ve GitHub listede yok; envantere eklendi (§2.11).
-7. **E-posta sağlayıcısı:** KARARLAR yurt dışı sayıyor, araştırma yurt içi öneriyor. Seçim yapılmalı (varsayılan öneri: yurt içi).
-8. **Deneme bitişi davranışı** KARARLAR'da yok; §6.2'de öneri verildi ([01](01-vizyon-pazar-is-modeli.md) §6.4 bu dokümana atıf yapıyor). [04](04-isletme-paneli.md) ve [05](05-admin-paneli-ve-pazarlama-sitesi.md) ile hizalanmalı.
-9. **Pazarlama onayı sorusu (WhatsApp) [Faz 2]:** Sipariş başına ≤4 durum mesajı bütçesinin dışında ek bir mesajdır (müşteri başına bir kez). Onaylanmalı.
-10. **Saklama süreleri** (§2.8) KARARLAR'da yalnız "kısa süre" olarak geçiyor. Varsayılanlar (not/medya/konum 30 gün, mesaj 6 ay, müşteri 24 ay, yedek 35 gün) onaylanmalı ve [07](07-veri-modeli-ve-api.md)'deki alanlarla eşlenmeli.
-11. **Faz 1'de ücretli müşteri:** KARARLAR abonelik tahsilatını ve e-faturayı Faz 2'ye koyuyor, pilot ücretsiz. Pilot, Faz 2 motorundan önce biterse manuel fatura akışı (§6.1) devreye girer. Tarih [09](09-yol-haritasi-ve-sprint-plani.md) ile teyit edilmeli.
+12. **Aktarım envanteri.** 00 §10 yurt dışı alt işleyenleri "Meta, Anthropic, Cloudflare, Sentry, e-posta sağlayıcısı" olarak sayıyor. Bu doküman **Google Maps** (00 §10'da geocoding için seçili), **Web Push servisleri (FCM, APNs, Mozilla)**, **GitHub** ve **iş araçlarını** envantere ekledi (§2.11). 00 §10'daki listenin de genişletilmesi önerilir.
+13. **E-posta sağlayıcısı.** 00 §10 yurt dışı alt işleyen olarak sayıyor; araştırma (A03 §2.11) yurt içi öneriyor. Uygulanan: **yurt içi tercih edilir**; yurt dışı seçilirse standart sözleşme + 5 iş günü bildirim ve envanter kaydı (§2.11). Seçim teknik lider ve kurucu tarafından ilk ücretli işletmeden önce yapılır.
 
 **Karar bekleyenler**
 
-12. Yıllık planda kıst iade politikası (iade var mı, hangi sürede?). İşletmenin vitrine Meta Pixel/Google Ads etiketi ekleyebilmesi sunulacak mı, hangi fazda (CMP zorunlu olur)?
-13. Sentry SaaS mı, TR'de self-host mu? Cloudflare'de kişisel veri taşıyan uç noktaların TR origin'e doğrudan yönlendirilmesi değerlendirilecek mi ([06](06-teknik-mimari.md))?
-14. MPS/kredi hattı fazı (KARARLAR §6.2 "Faz 2", §11 "Faz 3"). KDV ve faturalama akışını değiştirir (§8.2); bu doküman Faz 3 varsaydı.
-15. Şirket türü (varsayılan Ltd) ve Teknokent başvurusu (KARARLAR §13.3).
+14. Yıllık planda kıst iade politikası (iade var mı, hangi sürede?). İşletmenin vitrine Meta Pixel/Google Ads etiketi ekleyebilmesi sunulacak mı, hangi fazda (CMP zorunlu olur)?
+15. Sentry SaaS mı, TR'de self-host mu? Cloudflare'de kişisel veri taşıyan uç noktaların TR origin'e doğrudan yönlendirilmesi değerlendirilecek mi ([06](06-teknik-mimari.md))?
+16. **Proje sahibi kararları (00 §13):** şirket türü ve Teknokent (§13.3; varsayılan Ltd, §7.1, §8.5); barındırma sağlayıcısı (§13.4; §2.12); Meta modeli: Tech Provider mı, baştan Solution Partner mı (§13.5; Meta aktarım rolünü etkiler, §2.11); yemek kartı online tahsilat zamanlaması (§13.9; §5.3, §5.6).
+17. **Pilotların ücretliye geçişi:** Pilotların 3 aylık ücretsiz dönemi Mart 2027'de biter; Faz 2 ticari altyapısı (F2-01) bunun ön koşulu olarak planlandı ([09](09-yol-haritasi-ve-sprint-plani.md)). F2-01 gecikirse §6.1'deki manuel fatura akışı (havale/EFT + Paraşüt web arayüzü) devreye girer.
 
 **Teyit edilecekler (ilk ücretli işletmeden önce)**
 
-16. Tüm [O] ve [D?] maddeler, özellikle: VERBİS bilanço eşiği, 2026 KVKK ve 6563 ceza tutarları, Meta'nın KVKK modülü, İYS ücret tarifesi ve WhatsApp kanal karşılığı, e-belge eşikleri, restoran fiyat düzenlemesinin online menülere etkisi, "30 gün en düşük fiyat" kuralı, 5651 trafik log süresi, Nisan 2026 düzenlemesinin yürürlük tarihi, PSP ve entegratör fiyatları. Birincil kaynak listesi: A03 §14.
+18. Tüm [O] ve [D?] maddeler, özellikle: VERBİS bilanço eşiği, 2026 KVKK ve 6563 ceza tutarları, Meta'nın KVKK modülü, İYS ücret tarifesi ve WhatsApp kanal karşılığı, SMS'te "bilgilendirme" ileti türü işaretleme kuralı, e-belge eşikleri, restoran fiyat düzenlemesinin online menülere etkisi, "30 gün en düşük fiyat" kuralı, 5651 trafik log süresi, Nisan 2026 düzenlemesinin yürürlük tarihi, PSP ve entegratör fiyatları. Birincil kaynak listesi: A03 §14.

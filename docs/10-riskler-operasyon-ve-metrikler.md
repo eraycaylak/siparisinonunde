@@ -6,7 +6,7 @@
 **Kapsam:** Risk kaydı (risk register) ve pre-mortem; "önce doğrula" hipotezleri ve deney tasarımları (Seviye 0 concierge talep deneyi, Hafta 8 go/no-go kapısı, fiyat, onboarding, Coexistence ve `request_welcome` testleri); destek ve onboarding operasyonu; işletme sağlık skoru ve churn önleme; sahte sipariş süreci; Meta eskalasyonu; olay yönetimi (SEV1–SEV4, iletişim şablonları, postmortem, runbook'lar); SLO/SLI ve hata bütçesi; KPI ağacı ve metrik sözlüğü; dashboard'lar ve yönetim ritmi; güvenlik operasyonları takvimi.
 
 **Kapsam dışı (bağlantı verilir):**
-- Alarm zincirinin, metriklerin ve altyapının teknik tasarımı → [06 Teknik mimari](06-teknik-mimari.md) §7, §13, §14, §15. Bu doküman o metrikleri **kullanır**, süreçleri tanımlar.
+- Alarm zincirinin zamanlaması [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10'da kanoniktir (bu dokümanda §7.2'de aynen tekrarlanır). Alarm zincirinin, metriklerin ve altyapının teknik tasarımı → [06 Teknik mimari](06-teknik-mimari.md) §7, §13, §14, §15. Bu doküman o metrikleri **kullanır**, süreçleri tanımlar.
 - WhatsApp hata kodları, sağlık kartı, şablon kataloğu, onboarding teknik akışı → [02 WhatsApp](02-whatsapp-entegrasyonu.md) §3, §5, §10.
 - Veri ihlali hukuki süreci ve süreleri (24 sa / 72 sa), dunning takvimi → [08 Mevzuat](08-mevzuat-kvkk-odeme-fatura.md) §2.9, §6.3.
 - Fiyat, birim ekonomi varsayımları, GTM → [01 İş modeli](01-vizyon-pazar-is-modeli.md) §6–§8. Tablo alanları → [07 Veri modeli](07-veri-modeli-ve-api.md). Ekranlar → [04](04-isletme-paneli.md), [05](05-admin-paneli-ve-pazarlama-sitesi.md). Sprint takvimi ve ekip → [09](09-yol-haritasi-ve-sprint-plani.md).
@@ -70,7 +70,7 @@ Proje başarısız olmuş varsayılır ve en olası beş hikâye yazılır (A06 
 
 **Skor = O × E.** 15–25 **Kritik**, 8–14 **Yüksek**, 4–7 **Orta**, 1–3 **Düşük**.
 
-**Sahip rolleri** (ekip küçükken bir kişi birden fazla rolü taşır; platform rolleri KARARLAR §4):
+**Sahip rolleri** (ekip küçükken bir kişi birden fazla rolü taşır; platform rolleri [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4):
 
 | Sahip rolü | Kim (pilot) | Platform rolü | Sorumluluk |
 |---|---|---|---|
@@ -100,7 +100,7 @@ R01–R36 kimlikleri A06 §9.2 ile aynıdır (diğer dokümanlar bu kimliklere a
 | R03 | Meta | **Onboarding sürtünmesi** (ES, Coexistence, Meta'ya kart, görünen ad) | 4 | 4 | **16** | ES terk > %30; kurulum medyanı > 1 gün; canlı tenant'larda 131042 > 0; görünen ad reddi | Concierge kontrol listesi (§5.5); iki kapılı canlıya geçiş; kart adımı olmadan WhatsApp canlıya geçmez; yeni numara alternatifi | Takılan adıma göre runbook; Plan B (Solution Partner); MPS'i (Faz 3) öne çekme değerlendirmesi | Operasyon lideri | Faz 1 |
 | R04 | Talep/pazar | **Düşük ödeme isteği** / "zaten WhatsApp'tan alıyorum" | 4 | 4 | **16** | Demo→deneme < %30; deneme→ücretli < %40; D6'da < 3 ön ödeme ve < 6 niyet mektubu; pilot sonrası ödemeye geçiş < %60 | Segmentasyon; hesaplayıcı; kaçırma çetelesi; aylık değer raporu; D5/D6 testleri | Mesajı "sipariş kaçmasın / düzen" tarafına kaydır; paket içeriğini yeniden kurgula; Esnaf paketini self-servise çevir | Kurucu-İş | Faz 0 → Faz 2 |
 | R05 | Operasyon | **Sipariş kaçırma** (panel kapalı, ses kilitli, internet, telefondan yanıt) | 4 | 4 | **16** | `new` > 2 dk oranı > %5; `tenant_no_response` iptali ≥ 1; açık saatte panel çevrimdışı dakikası; "siparişim nerede" > %5 | Pilot öncesi zorunlu paket; Android tablet önerisi; vardiya başı "Siparişleri almaya başla"; kasiyer eğitimi | Aynı gün işletme araması, kök neden (cihaz/ses/ağ/davranış), telafi; tekrarında yerinde ziyaret | Operasyon lideri | Faz 1 |
-| R06 | Meta | **Meta uygulamamızın gecikmesi, reddi veya kısıtlanması** (tek hata noktası) | 3 | 5 | **15** | Business Verification > 2 hafta; App Review "daha fazla bilgi"; Hafta 8'de Advanced Access yok; Meta politika uyarı e-postası | Faz 0 hemen; imzalı Solution Partner ön anlaşması; `WaTransport` ([02](02-whatsapp-entegrasyonu.md) §7.10); **WhatsApp'sız mod** (storefront + manuel sipariş + SMS OTP doğrulaması **[Faz 1]**; durum bilgisi takip sayfası ve kritik durum SMS'i, KARARLAR §7) | Hafta 8'de Plan A'/B; kısıtlamada SEV1, tenant bazında partner taşıyıcısına geçiş | Kurucu-İş + Teknik lider | Faz 0 |
+| R06 | Meta | **Meta uygulamamızın gecikmesi, reddi veya kısıtlanması** (tek hata noktası) | 3 | 5 | **15** | Business Verification > 2 hafta; App Review "daha fazla bilgi"; Hafta 8'de Advanced Access yok; Meta politika uyarı e-postası | Faz 0 hemen; imzalı Solution Partner ön anlaşması; `WaTransport` ([02](02-whatsapp-entegrasyonu.md) §7.10); **WhatsApp'sız mod** (storefront + manuel sipariş + SMS OTP doğrulaması **[Faz 1]**; durum bilgisi takip sayfası ve kritik durum SMS'i, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7) | Hafta 8'de Plan A'/B; kısıtlamada SEV1, tenant bazında partner taşıyıcısına geçiş | Kurucu-İş + Teknik lider | Faz 0 |
 | R07 | Operasyon | **Destek yükü** (gece, hafta sonu, telefonla) | 5 | 3 | **15** | Temas/işletme/ay > 3 (ilk ay hariç); 22:00 sonrası temas payı > %20 [T]; haftalık P1 sayısı artıyor | Bilgi bankası (§5.4); uzaktan tanı kartı; etiket→ürün döngüsü; bayi L1 **[Faz 2]** | Destek işe alımını öne çek; ilk 5 nedene "SSS sprinti"; Esnaf paketinde self-servis zorunlu | Operasyon lideri | Pilot → Faz 2 |
 | R08 | Güvenlik | **Kiracılar arası sızıntı / güvenlik ihlali** | 3 | 5 | **15** | IDOR testi kırmızı; pentest yüksek bulgu; takip/storefront uçlarında 404 artışı (tarama); anormal erişim logu | RLS + yalıtım testleri; 128 bit rastgele token; ASVS L2 (kimlik, yalıtım); pentest (§10) | Veri ihlali runbook'u (§6.6), [08](08-mevzuat-kvkk-odeme-fatura.md) §2.9 süreleri | Teknik lider | Faz 1 |
 | R09 | Talep/pazar | **Fiyat savaşı / ücretsiz alternatifler** (`wa.me`, 680 TL'den başlayan rakipler; A02) | 4 | 3 | **12** | "X firması daha ucuz" itirazı > %30; kayıp nedeni #1 fiyat; rakip ücretsiz bot katmanı | Sipariş başı maliyet ve operasyon anlatımı; resmî API güvencesi; yıllık peşin | Ücretsiz "Menü" katmanını (Faz 3) öne çekme değerlendirmesi | Kurucu-İş | Faz 2 |
@@ -108,10 +108,10 @@ R01–R36 kimlikleri A06 §9.2 ile aynıdır (diğer dokümanlar bu kimliklere a
 | R11 | Meta | **İşletme numarasının kısıtlanması/banı** | 3 | 4 | **12** | Kalite YELLOW/RED; 368, 131031, 131064, 131048, 132015; engelleme artışı | Faz 1'de kampanya yok; şablon promosyon denetimi; commerce filtresi; "toplu mesaj atma" eğitimi | Kalite düşüşü runbook'u (§6.6); web + telefon modu; Meta itirazı; yeni numara | Operasyon lideri | Faz 1 |
 | R12 | Meta | **Coexistence kopması / uygulamanın bozulması** | 3 | 4 | **12** | Son echo > 10 gün; tenant sessizliği (P2); `account_update`; esnaf şikâyeti | Bağlanmadan önce sohbet yedeği; ilk 72 saat gözlem; 14 gün hatırlatması; geçmiş senkronu kapalı | "Yeniden bağlan" akışı; yeni numara; Meta eskalasyonu (§5.8) | Operasyon lideri | Faz 1 |
 | R13 | Teknik | **Webhook kaybı, gecikmesi, işleme hatası** | 3 | 4 | **12** | Canary > 60 sn; `wa-inbound` en eski iş > 60 sn; `wa-inbound` DLQ > 0; p95 > 3 sn | Ham olay + hızlı 200; dedupe; outbox; canary; öncelikli kuyruklar | "Webhook durdu" ve "kuyruk birikti" runbook'ları; ham olay yeniden oynatma | Teknik lider | Faz 1 |
-| R14 | Teknik | **Altyapı kesintisi** (tek sunucu, disk, DB) | 3 | 4 | **12** | Aylık erişilebilirlik < %99,9; disk > %85; restore tatbikatı RTO > 1 sa | En az iki ayrı sunucu/VM'de webhook alımı (KARARLAR §11); PITR; rolling deploy; yoğun saat deploy yasağı | DB arızası runbook'u; 3 sunucuya erken geçiş | Teknik lider | Pilot öncesi |
+| R14 | Teknik | **Altyapı kesintisi** (tek sunucu, disk, DB) | 3 | 4 | **12** | Aylık erişilebilirlik < %99,9; disk > %85; restore tatbikatı RTO > 1 sa | En az iki ayrı sunucu/VM'de webhook alımı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11); PITR; rolling deploy; yoğun saat deploy yasağı | DB arızası runbook'u; 3 sunucuya erken geçiş | Teknik lider | Pilot öncesi |
 | R15 | Hukuk | **KVKK** (m.9 aktarım, ihlal, aydınlatma) | 3 | 4 | **12** | Avukat görüşü gecikmesi; ilgili kişi başvurusunda 30 gün sınırına 7 gün kalması; Kurul duyurusu | Yurt içi barındırma; veri minimizasyonu; DPA; m.9 yazılı görüş | İhlal süreci; Cloudflare DNS-only moda geçiş; alt işleyen değişikliği | Kurucu-İş + Avukat | Faz 0 |
 | R16 | Meta | **Meta fiyat/politika değişikliği** (işletmenin Meta faturası artar) | 4 | 3 | **12** | Rate card değişimi; `wa_message_costs` ile sipariş başı Meta maliyeti çeyrekte +%50; changelog duyurusu | Pass-through; rate card konfigürasyonda; sipariş başına ≤ 4 durum mesajı; panelde maliyet görünümü | İşletmelere proaktif bilgi; mesaj bütçesini takip sayfasına kaydır; MPS değerlendirmesi | Kurucu-İş | Sürekli |
-| R17 | Finans | **Enflasyon + kur** (USD giderler, TL gelir) | 4 | 3 | **12** | Brüt marj < %60; döviz bazlı gider / brüt gelir > %15 [T] | Kurucu indirimi sabit **oran** (KARARLAR §8); TÜFE endeksi; yıllık peşin; TL faturalı yurt içi barındırma | Liste fiyatı güncellemesi; LLM kotası; USD araçlarını azalt | Finans | Faz 2 |
+| R17 | Finans | **Enflasyon + kur** (USD giderler, TL gelir) | 4 | 3 | **12** | Brüt marj < %60; döviz bazlı gider / brüt gelir > %15 [T] | Kurucu indirimi sabit **oran** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8); TÜFE endeksi; yıllık peşin; TL faturalı yurt içi barındırma | Liste fiyatı güncellemesi; LLM kotası; USD araçlarını azalt | Finans | Faz 2 |
 | R18 | Talep/pazar | **Churn:** restoran kapanışları, mevsimsellik | 4 | 3 | **12** | Sağlık skoru kırmızı; kanal siparişi 2 haftada −%40; `past_due` | Aylık değer raporu; proaktif arama (§5.6); yıllık plan | Geri kazanım görüşmesi; çıkış görüşmesi; dondurma seçeneği (açık konu) | Operasyon lideri | Faz 2 |
 | R19 | Güvenlik | **Token/sır sızıntısı** (WABA token, App Secret) | 2 | 5 | **10** | gitleaks uyarısı; olağandışı gönderim hacmi; ingress imza hatası > 10/dk | Envelope encryption; SOPS; log maskeleme; ortam başına ayrı Meta App | "Token toplu iptal" runbook'u; KEK ve App Secret rotasyonu | Teknik lider | Faz 1 |
 | R20 | Teknik | **Veri kaybı** | 2 | 5 | **10** | Yedek yaşı > 26 sa; WAL arşiv hatası; restore tatbikatı başarısız | pgBackRest, iki TR repo; haftalık otomatik + aylık elle restore | PITR; etkilenen işletmelere bilgi; olay kaydı | Teknik lider | Faz 1 |
@@ -128,13 +128,13 @@ R01–R36 kimlikleri A06 §9.2 ile aynıdır (diğer dokümanlar bu kimliklere a
 | R31 | Meta | **BSUID / kullanıcı adı: telefon eksik** | 3 | 2 | **6** | Telefonsuz sipariş oranı > %10 [T] | "Teslimat telefonu" alanı; REQUEST_CONTACT_INFO; contact book açık | Kurye akışı düzeltmesi | Teknik lider | Faz 1 |
 | R32 | Hukuk | **Pazaryeri sözleşmesi nedeniyle esnafa yaptırım** | 2 | 3 | **6** | Esnafın uyarı alması | D10 incelemesi; "kendi sözleşmeni kontrol et" uyarısı | Kart dışı yollara geç; hukuki yönlendirme | Kurucu-İş | Faz 0 |
 | R33 | Hukuk | **Kesinti sonrası tazminat talebi** | 2 | 3 | **6** | SEV1/SEV2 sonrası şikâyet | Sorumluluk sınırı; SLA kredisi (§7.5); olay kaydı | Postmortem özetini paylaş; kredi | Kurucu-İş | Faz 1 |
-| R34 | Operasyon | **AI yanlış anlama / politika** (Akış C) | 2 | 3 | **6** | Düzeltme ve insana devir oranı | Kapsam sınırı; [Onayla] [Düzenle] [İptal]; kill switch | `llm_parsing` kill switch'ini kapat (KARARLAR §4) | Teknik lider | Faz 2 |
+| R34 | Operasyon | **AI yanlış anlama / politika** (Akış C) | 2 | 3 | **6** | Düzeltme ve insana devir oranı | Kapsam sınırı; [Onayla] [Düzenle] [İptal]; kill switch | `llm_parsing` kill switch'ini kapat ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4) | Teknik lider | Faz 2 |
 | R35 | Hukuk | **6493 ödeme aracılığına kayma** | 1 | 5 | **5** | Ekipten "tahsil edelim, aktaralım" fikirleri | Müşteri parası bize girmez; ödeme özelliklerinde hukuk kapısı | Özelliği geri çek | Kurucu-İş | Sürekli |
 | R36 | Hukuk | **Marka / alan adı çakışması** | 2 | 2 | **4** | TÜRKPATENT araştırma sonucu | Erken başvuru (9, 35, 38, 42) | Yeniden adlandırma | Kurucu-İş | Faz 0 |
 | R37 | Ekip | **Anahtar kişi bağımlılığı ve nöbet yorgunluğu** | 3 | 4 | **12** | Tek kişinin bildiği sistem sayısı > 0; kişi başı haftalık nöbet > 3 akşam [T]; P1 sonrası dinlenme kuralı ihlali | Runbook'lar; prod erişimi en az 2 kişide ([06](06-teknik-mimari.md) §15.2); nöbet rotasyonu (§5.9) | P1 hattı saatlerini daralt; dış destek; işe alımı öne çek | Kurucu-İş | Pilot |
-| R38 | Teknik | **Yurt içi barındırma kalitesi/fiyatı** (teklifler netleşmedi) | 3 | 3 | **9** | Teklifler [06](06-teknik-mimari.md) §17 aralığının üstünde; sağlayıcı kesintisi; destek yanıt süresi | ≥ 3 teklif; çıkış kolaylığı kriteri; altyapı kod olarak | Sağlayıcı değişimi; ikinci lokasyona DR | Teknik lider | Faz 0–1 |
+| R38 | Teknik | **Yurt içi barındırma kalitesi/fiyatı** (kişisel veri Türkiye'de; teklifler netleşmedi, sağlayıcı seçimi proje sahibi kararı: [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13.4) | 3 | 3 | **9** | Teklifler [06](06-teknik-mimari.md) §17 aralığının üstünde; sağlayıcı kesintisi; destek yanıt süresi | ≥ 3 teklif; çıkış kolaylığı kriteri; altyapı kod olarak | Sağlayıcı değişimi; ikinci lokasyona DR | Teknik lider | Faz 0–1 |
 | R39 | Finans | **Nakit pisti:** pilot 3 ay ücretsiz, tahsilat Faz 2'de başlıyor | 3 | 4 | **12** | Kalan nakit < 6 aylık yakım [T]; pilot sonrası ödemeye geçiş < %60 | D6 niyet mektubu; yıllık peşin; maliyet disiplini | Harcama kesintisi; yatırım/hibe; Teknokent | Kurucu-İş + Finans | Faz 0–2 |
-| R40 | Güvenlik | **İçeriden kötüye kullanım** (impersonation, destek erişimi, paylaşılan tablet) | 2 | 4 | **8** | Gerekçesiz impersonation; mesai dışı admin erişimi; maskesiz telefon görüntüleme sayısı | Salt okunur varsayılanlı, en fazla 30 dk süreli, gerekçeli ve loglu impersonation (KARARLAR §4); aylık log incelemesi; PIN'li cihaz oturumu | Erişimi kapat; ihlal değerlendirmesi | Teknik lider | Faz 1 |
+| R40 | Güvenlik | **İçeriden kötüye kullanım** (impersonation, destek erişimi, paylaşılan tablet) | 2 | 4 | **8** | Gerekçesiz impersonation; mesai dışı admin erişimi; maskesiz telefon görüntüleme sayısı | Salt okunur varsayılanlı, en fazla 30 dk süreli, gerekçeli ve loglu impersonation ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4); aylık log incelemesi; PIN'li cihaz oturumu | Erişimi kapat; ihlal değerlendirmesi | Teknik lider | Faz 1 |
 | R41 | Operasyon | **Ölçüm hatası:** kanal siparişi yanlış atfedilir, kuzey yıldızı güvenilmez olur | 3 | 3 | **9** | `orders.source_meta` boş oranı > %20; `manual` payında açıklanamayan artış; işletme beyanıyla fark > %20 | QR/UTM kodu zorunlu; `manual` ayrı sayılır; pazaryeri sipariş sayısı aylık beyan | Metriği yeniden tanımla, geçmişi düzelt, raporlara not düş | Teknik lider | Faz 1 |
 
 ### 3.4 Risk yönetimi ritmi
@@ -151,7 +151,7 @@ R01–R36 kimlikleri A06 §9.2 ile aynıdır (diğer dokümanlar bu kimliklere a
 
 ### 4.1 İlke ve takvim
 
-En ucuz ve en hızlı öğrenilecek şey **talep ve ödeme isteğidir**. Meta kritik yolu (doğrulama, App Review) uzun sürdüğü için hemen ve paralel başlar. KARARLAR §11 gereği Faz 1 geliştirmesi de Hafta 1'de paralel başlar. Ancak Hafta 1–8 arasında geliştirme önceliği teknik iskelet, webhook altyapısı, ES v4 ve pilot öncesi zorunlu "sipariş kaçmaz" paketinde tutulur [T]. **Hafta 8 kapısında NO-GO çıkarsa pilot başlamaz ve ağır geliştirme durur** (§4.5).
+En ucuz ve en hızlı öğrenilecek şey **talep ve ödeme isteğidir**. Meta kritik yolu (doğrulama, App Review) uzun sürdüğü için hemen ve paralel başlar. [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11 gereği Faz 1 geliştirmesi de Hafta 1'de paralel başlar. Ancak Hafta 1–8 arasında geliştirme önceliği teknik iskelet, webhook altyapısı, ES v4 ve pilot öncesi zorunlu "sipariş kaçmaz" paketinde tutulur [T]. **Hafta 8 kapısında NO-GO çıkarsa pilot başlamaz ve ağır geliştirme durur** (§4.5).
 
 | Hafta (tarih) | Talep ve ödeme | Meta ve platform | Karar |
 |---|---|---|---|
@@ -200,7 +200,7 @@ En ucuz ve en hızlı öğrenilecek şey **talep ve ödeme isteğidir**. Meta kr
 
 **Soru:** Pazaryeri müşterisi, işletmenin kendi WhatsApp kanalına **yazılım olmadan** da geçiyor mu? Geçmiyorsa ürün bunu tek başına değiştiremez; geçiyorsa ürünün işi bu akışı düzenlemek ve ölçeklemektir.
 
-**Katılımcılar (KARARLAR §11: 5–10 işletme; hedef 8):**
+**Katılımcılar ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11: 5–10 işletme; hedef 8):**
 - Pilot ilçelerden, **kendi kuryesi olan**, günde ≥ 10 paket siparişi alan, en az bir pazaryerinde aktif, WhatsApp Business uygulaması kullanan (ya da geçmeye istekli) işletmeler.
 - Karma: 5–6 paket restoranı (döner, pide/lahmacun, kebap, pizza/burger), 2 su bayisi (H12; tüp/LPG satanlar hariç, Commerce Policy). Seviye 0 adayları pilot adaylarıyla aynı havuzdan seçilir.
 
@@ -238,7 +238,7 @@ En ucuz ve en hızlı öğrenilecek şey **talep ve ödeme isteğidir**. Meta kr
 | # | Kriter | GO | KOŞULLU | NO-GO |
 |---|---|---|---|---|
 | G1 | İşletme başı haftalık kendi kanal siparişi (son 4 hafta ortalaması, işletmeler arası medyan) | ≥ 5 | 3–4,9 | < 3 |
-| G2 | Dağıtımdan sonraki ilk 4 haftada ≥ 10 kanal siparişi alan işletme oranı (KARARLAR §12 pilot eşiğinin deneydeki karşılığı) | ≥ %60 | %40–59 | < %40 |
+| G2 | Dağıtımdan sonraki ilk 4 haftada ≥ 10 kanal siparişi alan işletme oranı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12 pilot eşiğinin deneydeki karşılığı) | ≥ %60 | %40–59 | < %40 |
 | G3 | Kart→sipariş dönüşümü (tüm işletmeler) | ≥ %3 | %2–2,9 | < %2 |
 | G4 | Tekrar oranı (21 günde 2. sipariş) | ≥ %30 | %20–29 | < %20 |
 | G5 | Eğilim: Hafta 7–8 kanal siparişi ≥ Hafta 3–4 (düşüş yok) | Evet | %0–20 düşüş | > %20 düşüş |
@@ -256,15 +256,15 @@ En ucuz ve en hızlı öğrenilecek şey **talep ve ödeme isteğidir**. Meta kr
 ### 4.6 Fiyat ve ödeme isteği testi (D5, D6, Van Westendorp)
 
 **D5 — Landing + fiyat testi:**
-- İki değer önerisi varyantı: "Pazaryerine bağımlı kalma, sadık müşterin senin olsun" ve "Sipariş kaçmasın, WhatsApp siparişin düzene girsin". "Yemeksepeti'ni bırak" dili kullanılmaz (KARARLAR §1).
-- Pro fiyatı ziyaretçiye rastgele üç varyanttan biriyle gösterilir: 1.290 / 1.790 / 2.290 TL (KDV hariç, KDV dahil fiyat da yazılır). Kayıt olan herkese gerçek fiyat ve kurucu üye koşulu (12 ay boyunca sabit %30 indirim **oranı**; sabit TL fiyat değildir, liste fiyatı TÜFE ile güncellenebilir, KARARLAR §8) açıkça bildirilir. Düşük varyanttan taahhüt verilmez; test yalnız ilgiyi ölçer.
+- İki değer önerisi varyantı: "Pazaryerine bağımlı kalma, sadık müşterin senin olsun" ve "Sipariş kaçmasın, WhatsApp siparişin düzene girsin". "Yemeksepeti'ni bırak" dili kullanılmaz ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §1).
+- Pro fiyatı ziyaretçiye rastgele üç varyanttan biriyle gösterilir: 1.290 / 1.790 / 2.290 TL (KDV hariç, KDV dahil fiyat da yazılır). Kayıt olan herkese gerçek fiyat ve kurucu üye koşulu (12 ay boyunca sabit %30 indirim **oranı**; sabit TL fiyat değildir, liste fiyatı TÜFE ile güncellenebilir, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8) açıkça bildirilir. Düşük varyanttan taahhüt verilmez; test yalnız ilgiyi ölçer.
 - Trafik: pilot ilçede işletme sahiplerine hedefli reklam (B2B iletişimde ret yolu sağlanır, [08](08-mevzuat-kvkk-odeme-fatura.md) §3.7), saha ziyaretinde bırakılan kartvizit QR'ı, esnaf odası/derneklerin onaylı duyuru kanalları.
 - Metrikler: ziyaretçi → hesaplayıcıyı tamamlama → lead → demo randevusu; varyant başına lead oranı. Örneklem küçük kalırsa sonuç "yön" olarak okunur; G7 KOŞULLU sayılır.
 
 **D1 sonu — Van Westendorp (4 soru):** "Hangi fiyatta bu kadar ucuz olur ki kalitesinden şüphe edersiniz? / ucuz ama makul? / pahalı ama yine de düşünürsünüz? / hiç düşünmeyeceğiniz kadar pahalı?" Yanıtlar paket fiyatlarının (990 / 1.790 TL) kabul aralığında olup olmadığını gösterir; kapıya bilgi olarak girer.
 
 **D6 — Ön satış / niyet mektubu ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8 ile uyumlu):**
-- Pilot 3 ay ücretsizdir (KARARLAR §8). Bu nedenle ödeme isteği sinyali ayrıca toplanır:
+- Pilot 3 ay ücretsizdir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8). Bu nedenle ödeme isteği sinyali ayrıca toplanır:
   - **(b) Niyet mektubu (varsayılan):** "Pilot hedefleri (ilk 14 günde ≥ 10 kanal siparişi, pilotun 8. haftasında (pilot sonu) kanal payı ≥ %10) tutarsa pilot bitiminde kurucu üye aylık planına geçeceğim." İmzalı, bağlayıcı olmayan, tek sayfa.
   - **(a) İsteğe bağlı ön ödeme:** Pilot sonrasında başlayacak 12 aylık kurucu üye Pro ön ödemesi (1.790 TL liste fiyatına %30 indirimle 1.253 × 12 = 15.036 TL + KDV; ön ödemeyle 12 aylık tutar sabitlenir; yıllık peşin indirimiyle birleşmez, [01](01-vizyon-pazar-is-modeli.md) §6.4 açık konusu). Pilot hedefi tutmazsa tam iade. Tahsilat altyapısı Faz 2'de geldiği için havale ile alınır ve elle faturalanır ([08](08-mevzuat-kvkk-odeme-fatura.md)).
 - Başarı: G6.
@@ -290,7 +290,7 @@ En ucuz ve en hızlı öğrenilecek şey **talep ve ödeme isteğidir**. Meta kr
 
 ### 4.8 Coexistence +90 saha teyidi (D11)
 
-**Neden:** Coexistence varsayılan onboarding yoludur (KARARLAR §6.4). Ancak senkronun işletme uygulamasını bozduğu (Chatwoot #12469), iPhone gönderenlerin mesajlarının düştüğü (#13464) ve 24 saat sonra şablon gönderilemediği (#14800) vakalar var (A06 §3.6). Türkiye'de bizzat teyit edilmeden pilotta kullanılmaz ([02](02-whatsapp-entegrasyonu.md) §11: pilot öncesi zorunlu).
+**Neden:** Coexistence varsayılan onboarding yoludur ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.4). Ancak senkronun işletme uygulamasını bozduğu (Chatwoot #12469), iPhone gönderenlerin mesajlarının düştüğü (#13464) ve 24 saat sonra şablon gönderilemediği (#14800) vakalar var (A06 §3.6). Türkiye'de bizzat teyit edilmeden pilotta kullanılmaz ([02](02-whatsapp-entegrasyonu.md) §11: pilot öncesi zorunlu).
 
 **Kurulum:** Ekibe ait 1 ve dost işletmeye ait 1 gerçek +90 WhatsApp Business numarası; bağlanmadan önce uygulamada sohbet yedeği; geçmiş ve kişi senkronu kapalı.
 
@@ -310,7 +310,7 @@ En ucuz ve en hızlı öğrenilecek şey **talep ve ödeme isteğidir**. Meta kr
 
 ### 4.9 `request_welcome` testi (D12)
 
-**Neden:** Olay geliyorsa müşteri sohbeti açtığı anda (yazmadan) karşılama ve "Menüyü aç" linkini görür; QR'ın dönüşümü artar (A05 §11). Türkiye numaralarında davranış teyit edilmedi (KARARLAR §7: Sprint 1'de test edilir).
+**Neden:** Olay geliyorsa müşteri sohbeti açtığı anda (yazmadan) karşılama ve "Menüyü aç" linkini görür; QR'ın dönüşümü artar (A05 §11). Türkiye numaralarında davranış teyit edilmedi ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7: Sprint 1'de test edilir).
 
 | # | Senaryo | Ölçüm |
 |---|---|---|
@@ -437,7 +437,7 @@ flowchart TD
 
 ### 5.5 Onboarding operasyonu: concierge kurulum kontrol listesi **[Faz 1]**
 
-Pilot ve ilk 100 işletmede kurulum ekip tarafından yapılır (KARARLAR §8: "biz kuralım"). Canlıya geçiş **iki kapılıdır**: Kapı 1'de web storefront + panel hemen canlı olur (QR, telefon, manuel sipariş; Akış B doğrulaması WhatsApp bağlanana kadar **SMS OTP** ile, durum bilgisi takip sayfasından ve kritik durumlarda SMS ile; KARARLAR §7); Kapı 2'de WhatsApp devreye girer. Böylece Meta gecikmesi aktivasyonu durdurmaz (A06 §5.7).
+Pilot ve ilk 100 işletmede kurulum ekip tarafından yapılır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8: "biz kuralım"). Canlıya geçiş **iki kapılıdır**: Kapı 1'de web storefront + panel hemen canlı olur (QR, telefon, manuel sipariş; Akış B doğrulaması WhatsApp bağlanana kadar **SMS OTP** ile, durum bilgisi takip sayfasından ve kritik durumlarda SMS ile; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7); Kapı 2'de WhatsApp devreye girer. Böylece Meta gecikmesi aktivasyonu durdurmaz (A06 §5.7).
 
 **A. Ziyaret öncesi (uzaktan, 1–3 gün önce)**
 - [ ] Numara durumu: hangi uygulamada (normal WhatsApp / WhatsApp Business / başka sağlayıcı)? İki adımlı doğrulama PIN'i biliniyor mu?
@@ -455,7 +455,7 @@ Pilot ve ilk 100 işletmede kurulum ekip tarafından yapılır (KARARLAR §8: "b
 - [ ] Kasa cihazı: panel açık, "Siparişleri almaya başla" basıldı, ses testi, Wake Lock, bildirim izni; Android'de ana ekrana ekleme; şarj ve ses seviyesi.
 - [ ] Kasiyer ("Elif") 20 dk eğitim: onayla/reddet, süre ver, fiş, kurye linki, manuel sipariş. İşletme sahibi 10 dk: raporlar, alarm zinciri.
 - [ ] `owner`'dan kritik uyarıların platform WhatsApp numarasından gelmesi için açık onay (`platform_wa_alerts`).
-- [ ] Test siparişi (`test_kind = 'onboarding_test'`; rapor ve faturalamadan hariç, KARARLAR §5): storefront → panelde ses → onay → takip sayfası.
+- [ ] Test siparişi (`test_kind = 'onboarding_test'`; rapor ve faturalamadan hariç, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5): storefront → panelde ses → onay → takip sayfası.
 
 **C. Kurulum günü — Kapı 2 (WhatsApp)**
 - [ ] **Bağlanmadan önce WhatsApp sohbet yedeği** alındı (uygulamanın kendi yedeği).
@@ -514,7 +514,7 @@ Pilot ve ilk 100 işletmede kurulum ekip tarafından yapılır (KARARLAR §8: "b
 1. **Önleme** ([06](06-teknik-mimari.md) §15.5): Akış B WhatsApp doğrulaması, Turnstile, IP başına açık `awaiting_customer` sınırı, aynı BSUID'den 15 dk'da > 3 sipariş için "şüpheli" rozeti, işletme ayarı "ilk sipariş ve tutar > X TL ise telefonla teyit".
 2. **Tespit:** Kurye teslim edemedi (`courier_assignments.failure_reason` = `customer_unreachable` / `address_not_found`); işletmenin siparişi `cancel_reason = suspected_fake` ile iptal etmesi; platform anomali sinyalleri (aynı IP/cihazdan çok işletmeye sipariş, doğrulanmayan web siparişlerinde ani artış).
 3. **İşletme aksiyonu:** Müşteriyi tenant içinde engeller (panelden); gerekirse telefonla teyit kuralını açar.
-4. **Platform aksiyonu:** 24 saatte ≥ 3 işletmede `suspected_fake` görülen IP/ASN kısa süreli kötüye kullanım listesine alınır (platform geneli müşteri profili tutulmaz, KARARLAR §9); Cloudflare kuralı; etkilenen işletmelere bilgi.
+4. **Platform aksiyonu:** 24 saatte ≥ 3 işletmede `suspected_fake` görülen IP/ASN kısa süreli kötüye kullanım listesine alınır (platform geneli müşteri profili tutulmaz, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9); Cloudflare kuralı; etkilenen işletmelere bilgi.
 5. **Ölçüm:** `suspected_fake` iptal oranı (§8.5); > %1 → R21 KRI.
 
 **B. İşletme kaynaklı kötüye kullanım**
@@ -539,7 +539,7 @@ Meta'nın kararları şeffaf değildir ve destek süreleri garanti değildir (A0
 | **E1 İşletmeyle çözüm** | Kart ekleme (131042), uygulamayı açma (14 gün), görünen ad düzeltme, "Yeniden bağlan" | L1 + işletme | Aynı gün |
 | **E2 Meta destek kaydı** | Business Support Home üzerinden kayıt; kısıtlamada (368, 131031) itiraz rehberiyle işletmenin kendi portföyünden itiraz; Tech Provider'lara açık destek kanalı varsa oradan (teyit edilmeli) | Teknik lider | Kayıt ≤ 2 sa; takip günlük |
 | **E3 Solution Partner** | İmzalı ön anlaşma varsa partner'ın Meta ilişkisi üzerinden eskalasyon; gerekirse tenant'ın `WaTransport`'u partner'a alınır ([02](02-whatsapp-entegrasyonu.md) §7.10) | Kurucu-İş | Anlaşmadaki süre |
-| **Paralel kol** | İşletme WhatsApp'sız moda: storefront + telefon + manuel sipariş; Akış B doğrulaması SMS OTP'ye geçer; durum bilgisi takip sayfasından ve kritik durumlarda SMS ile (KARARLAR §7) | L1 + işletme | ≤ 30 dk |
+| **Paralel kol** | İşletme WhatsApp'sız moda: storefront + telefon + manuel sipariş; Akış B doğrulaması SMS OTP'ye geçer; durum bilgisi takip sayfasından ve kritik durumlarda SMS ile ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7) | L1 + işletme | ≤ 30 dk |
 
 - Her Meta vakası `meta` etiketiyle kaydedilir: hata kodu, Meta kayıt no, açılış/yanıt/çözüm zamanları. Çeyrek sonunda Meta yanıt süreleri özetlenir; Plan B kararına veri olur.
 - **Meta değişiklik takibi:** Kurucu-İş her ay Meta geliştirici changelog'unu, fiyat (rate card) duyurularını ve politika sayfalarını kontrol eder; etkileri risk kaydına (R16, R24) ve [02](02-whatsapp-entegrasyonu.md)'ye işler. Bilinen yaklaşan tarihler: 30.09.2026 ödeme yöntemi son günü, 01.10.2026 service mesajlarının ücretli olması, 08.10.2026 ES v2'nin kalkması (A06 §3.3).
@@ -703,12 +703,12 @@ Runbook'ların tam hâli `infra/runbooks/` altında tutulur ve her alarm kendi r
 
 **RB-1 · Webhook durdu** (platform geneli; 11:00–23:00 arasında 5 dk hiç webhook yok, ya da canary başarısız) — varsayılan **SEV1**
 - **0–5 dk:** `hooks` GET doğrulaması ve harici uptime sonucunu kontrol et (her iki ingress sunucusu/VM'i için ayrı); `wa_webhook_events` son `received_at`; ingress 5xx ve imza hatası oranları. Canary sonucu ve Meta'nın durum sayfası (adres teyit edilmeli). Son deploy ve App Secret değişikliği var mı?
-- **5–10 dk:** Ingress sunucularımızdan birinde çökmüşse trafiği ikinci sunucu/VM'deki sağlıklı ingress'e ver (KARARLAR §11: webhook alımı en az iki ayrı sunucu/VM'de) / son sağlam imaja geri dön. İmza hatası patlaması varsa App Secret uyuşmazlığını kontrol et (rotasyon sonrası mı?). Ingress sağlamsa örnek tenant'ta `GET /{waba_id}/subscribed_apps` ile abonelik kontrol et. Sorun Meta tarafındaysa RB-2'ye geç.
-- **10–15 dk:** Etkilenen işletmelere ilk duyuru (§6.3 #1/#4). Meta 200 dışı yanıtlarda 7 güne kadar yeniden dener; olaylar kaybolmaz, gecikir (A01 §9.3). Toparlanınca ham olayların sırayla işlendiğini, `new` siparişlerin alarm zincirine girdiğini (KARARLAR §10) doğrula.
+- **5–10 dk:** Ingress sunucularımızdan birinde çökmüşse trafiği ikinci sunucu/VM'deki sağlıklı ingress'e ver ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11: webhook alımı en az iki ayrı sunucu/VM'de) / son sağlam imaja geri dön. İmza hatası patlaması varsa App Secret uyuşmazlığını kontrol et (rotasyon sonrası mı?). Ingress sağlamsa örnek tenant'ta `GET /{waba_id}/subscribed_apps` ile abonelik kontrol et. Sorun Meta tarafındaysa RB-2'ye geç.
+- **10–15 dk:** Etkilenen işletmelere ilk duyuru (§6.3 #1/#4). Meta 200 dışı yanıtlarda 7 güne kadar yeniden dener; olaylar kaybolmaz, gecikir (A01 §9.3). Toparlanınca ham olayların sırayla işlendiğini, `new` siparişlerin alarm zincirine girdiğini ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10) doğrula.
 
 **RB-2 · Meta / WhatsApp kesintisi** (Graph API 5xx, birden çok tenant'ta gönderim hatası, canary'de Meta adımı başarısız) — varsayılan **SEV2**
 - **0–5 dk:** Kesintinin bizde olmadığını doğrula (ingress, kuyruk, token toplu hatası değil). Meta durum kaynaklarını ve birden çok tenant'ın hata kodlarını karşılaştır.
-- **5–10 dk:** **WhatsApp'sız moda geç (KARARLAR §7; SMS OTP yedeği Faz 1):** Akış B doğrulaması SMS OTP'ye geçer (`sms_fallback` kill switch'i, KARARLAR §4; tabloları `otp_verifications`, `sms_messages`, [07](07-veri-modeli-ve-api.md) §3.3); müşteriye durum bilgisi takip sayfasından, kritik durumlarda (onaylandı/iptal) SMS ile verilir; storefront'ta bilgi bandı; alarm zincirinin t = 2 dk basamağında platform WhatsApp yerine **SMS** gönderilir (platform WABA basamağı `platform_wa_alerts` bayrağıyla kapatılır, [07](07-veri-modeli-ve-api.md) §3.7); giden WhatsApp mesajları outbox'ta bekler.
+- **5–10 dk:** **WhatsApp'sız moda geç ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7; SMS OTP yedeği Faz 1):** Akış B doğrulaması SMS OTP'ye geçer (`sms_fallback` kill switch'i, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4; tabloları `otp_verifications`, `sms_messages`, [07](07-veri-modeli-ve-api.md) §3.3); müşteriye durum bilgisi takip sayfasından, kritik durumlarda (onaylandı/iptal) SMS ile verilir; storefront'ta bilgi bandı; alarm zincirinin t = 2 dk basamağında platform WhatsApp yerine **SMS** gönderilir (platform WABA basamağı `platform_wa_alerts` bayrağıyla kapatılır, [07](07-veri-modeli-ve-api.md) §3.7); giden WhatsApp mesajları outbox'ta bekler.
 - **10–15 dk:** İşletmelere **SMS + e-posta** duyurusu (§6.3 #3). Toparlanınca outbox boşaltılırken artık anlamsız durum mesajları atlanır (ör. teslim edilmiş siparişin "yolda" mesajı); kill switch'ler geri açılır.
 
 **RB-3 · Veritabanı arızası** (`/ready` başarısız, DB bağlantı hatası, disk > %95) — varsayılan **SEV1**
@@ -753,7 +753,7 @@ Runbook'ların tam hâli `infra/runbooks/` altında tutulur ve her alarm kendi r
 
 ### 7.1 SLI ve SLO tablosu
 
-KARARLAR §12 ve §13.10 hedefleri bağlayıcıdır: **aylık uptime ≥ %99,9**, **webhook → panel p95 < 3 sn**, **sipariş kaçırma %0** (§12); **RPO ≤ 5 dk, RTO ≤ 1 saat** (§13.10 varsayılanı). [06](06-teknik-mimari.md) §14.5 ile aynı değerler kullanılır. [T] işaretli eşikler pilotun ilk 4 haftasında gerçek veriyle kalibre edilir.
+[00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12 ve §13.10 hedefleri bağlayıcıdır: **aylık uptime ≥ %99,9**, **webhook → panel p95 < 3 sn**, **sipariş kaçırma %0** (§12); **RPO ≤ 5 dk, RTO ≤ 1 saat** (§13.10 varsayılanı). [06](06-teknik-mimari.md) §14.5 ile aynı değerler kullanılır. [T] işaretli eşikler pilotun ilk 4 haftasında gerçek veriyle kalibre edilir.
 
 | # | SLI (ne ölçülür) | Ölçüm / kaynak | SLO | Alarm |
 |---|---|---|---|---|
@@ -765,29 +765,29 @@ KARARLAR §12 ve §13.10 hedefleri bağlayıcıdır: **aylık uptime ≥ %99,9**
 | S6 | **Tenant canary (her tenant, Meta hariç; `test_kind = 'canary'`)** | `canary_e2e_seconds{branch}` ([07](07-veri-modeli-ve-api.md) §4.1; §7.3) | Açık saatte ≥ %99 başarı [T] | Başarısız + cihaz "çevrimiçi" → işletme alarmı |
 | S7 | **Durum mesajı gönderimi:** outbox → Graph API kabulü | `wa_send` gecikmesi | p95 < 10 sn [T] | Outbox en eski > 60 sn → P2 |
 | S8 | **Durum mesajı teslim oranı:** `delivered` / Graph API'nin kabul ettiği (131026 gibi alıcı kaynaklı kalıcı hatalar hariç), 24 saat içinde | `messages` durumları | ≥ %97 [T]; DLQ'ya düşen durum mesajı < %0,5 ([02](02-whatsapp-entegrasyonu.md) §11) | Günlük oran < %95 → P2 |
-| S9 | **Alarm zinciri zamanlaması:** kanonik basamakların (KARARLAR §10: t = 60 sn, 2 dk, 5 dk, 10 dk) planlanan zamandan ± 15 sn içinde çalışması; en kritik ölçüm t = 2 dk platform WhatsApp basamağı | `alarm_escalations.fired_at − scheduled_at` | ≥ %99 [T] | Gecikme > 60 sn → P2 |
+| S9 | **Alarm zinciri zamanlaması:** kanonik basamakların ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10: t = 60 sn, 2 dk, 5 dk, 10 dk) planlanan zamandan ± 15 sn içinde çalışması; en kritik ölçüm t = 2 dk platform WhatsApp basamağı | `alarm_escalations.fired_at − scheduled_at` | ≥ %99 [T] | Gecikme > 60 sn → P2 |
 | S10 | **Kaçan sipariş (sistem kaynaklı)** (§7.2) | `orders`, `alarm_escalations`, `order_events` | **0** | Herhangi biri → olay (SEV2+) |
 | S11 | **Ingress yanıtı** | `http_request_duration_seconds{route="hooks"}` | p99 < 300 ms | p99 > 1 sn → P2 |
 | S12 | **RPO / RTO** | Aylık elle restore tatbikatı, haftalık otomatik restore | **RPO ≤ 5 dk, RTO ≤ 1 sa** | Tatbikat başarısız → P2 + aksiyon |
 
 ### 7.2 "Kaçan sipariş" tanımı
 
-KARARLAR §12 "sipariş kaçırma oranı %0" hedefini koyar ("yeni sipariş 2 dk içinde onaylanmazsa alarm"). Aşağıdaki tanım KARARLAR §5 ve §10'daki kanonik zincire dayanır ve kanoniktir; [06](06-teknik-mimari.md) §14.5 ve [09](09-yol-haritasi-ve-sprint-plani.md) §7 buna atıf yapar. "Kapanışta `new` kalmış sipariş" ölçütü kullanılmaz: 15 dk otomatik iptal nedeniyle bu durum oluşmaz.
+[00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12 "sipariş kaçırma oranı %0" hedefini koyar ("yeni sipariş 2 dk içinde onaylanmazsa alarm"). Aşağıdaki tanım [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5 ve §10'daki kanonik zincire dayanır ve kanoniktir; [06](06-teknik-mimari.md) §14.5 ve [09](09-yol-haritasi-ve-sprint-plani.md) §7 buna atıf yapar. "Kapanışta `new` kalmış sipariş" ölçütü kullanılmaz: 15 dk otomatik iptal nedeniyle bu durum oluşmaz.
 
-**Kanonik alarm zinciri (`new` durumundaki sipariş; KARARLAR §10, süreler işletme ayarıyla min/maks sınırlı değişebilir):** t = 0 panel sesi + Web Push → t = 60 sn ses tekrarı (yükselen) → t = 2 dk platform WhatsApp numarasından işletme sahibine uyarı şablonu → t = 5 dk SMS → t = 10 dk müşteriye "işletme henüz onaylamadı" bilgisi → t = 15 dk otomatik `cancelled` (`cancelled_by = system`, `cancel_reason = tenant_no_response`) + müşteriye özür ve işletme telefonu. **"Otomatik reddet" yoktur;** yanıtsız sipariş hiçbir koşulda `rejected` olmaz.
+**Kanonik alarm zinciri (`new` durumundaki sipariş; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10, süreler işletme ayarıyla min/maks sınırlı değişebilir):** t = 0 panel sesi + Web Push → t = 60 sn ses tekrarı (yükselen) → t = 2 dk platform WhatsApp numarasından işletme sahibine uyarı şablonu → t = 5 dk SMS → t = 10 dk müşteriye "işletme henüz onaylamadı" bilgisi → t = 15 dk otomatik `cancelled` (`cancelled_by = system`, `cancel_reason = tenant_no_response`) + müşteriye özür ve işletme telefonu. **"Otomatik reddet" yoktur;** yanıtsız sipariş hiçbir koşulda `rejected` olmaz.
 
 Operasyonel tanım iki parçalıdır; ikisi ayrı sahiplere ve ayrı aksiyonlara bağlanır.
 
 | Tür | Tanım | Sahip | Hedef | Aksiyon |
 |---|---|---|---|---|
-| **Sistem kaynaklı** (SLO S10) | Sipariş oluştu ama (a) `new` olduktan sonra 60 sn içinde hiçbir panel cihazına **ve** hiçbir panel dışı kanala (Web Push, platform WhatsApp, SMS) ulaşmadı, **veya** (b) yukarıdaki alarm zinciri planlandığı gibi çalışmadı (basamak atlandı ya da > 60 sn gecikti; 15 dk otomatik iptal çalışmadı), **veya** (c) doğrulanmış sipariş `awaiting_customer` → `new` geçişini sistem hatası yüzünden yapamadı | Teknik lider | 0 | Olay + postmortem |
+| **Sistem kaynaklı** (SLO S10) | Sipariş oluştu ama (a) `new` olduktan sonra 60 sn içinde şubenin hiçbir çevrimiçi panel cihazına (SSE / emniyet sorgusu) ulaşmadı **ve** panel dışı basamaklar (t = 0 Web Push, t = 2 dk platform WhatsApp, t = 5 dk SMS) da teslim edilemedi, **veya** (b) yukarıdaki alarm zinciri planlandığı gibi çalışmadı (basamak atlandı ya da > 60 sn gecikti; 15 dk otomatik iptal çalışmadı), **veya** (c) doğrulanmış sipariş `awaiting_customer` → `new` geçişini sistem hatası yüzünden yapamadı | Teknik lider | 0 | Olay + postmortem |
 | **İşletme kaynaklı** (KPI) | Zincir eksiksiz çalıştı, sipariş işletmeye ulaştı ama 15 dk yanıtsız kaldı ve sistem iptal etti (`cancelled`, `cancelled_by = system`, `cancel_reason = tenant_no_response`) | Operasyon lideri | %0 | Aynı gün arama (§5.6) |
 
 "Geç onay" (sipariş `new` durumunda 2 dk'dan uzun kaldı, yani t = 2 dk basamağı çalıştı) kaçırma değildir, **erken uyarı** sinyalidir (R05 KRI): oranı §8.4'te izlenir. Müşterinin 30 dk içinde doğrulamadığı Akış B siparişi (`awaiting_customer` → `cancelled`, `customer_timeout`) de kaçan sipariş sayılmaz; huni metriğidir (§8.4 Akış B doğrulama oranı).
 
 ### 7.3 Sentetik canary **[Faz 1]** (pilot öncesi zorunlu paket)
 
-KARARLAR §11'deki "sentetik canary sipariş (her tenant için periyodik uçtan uca test)" tanımının uygulamasıdır. Canary siparişi `orders.test_kind = 'canary'` ile işaretlenir (KARARLAR §5; [07](07-veri-modeli-ve-api.md) §4.1). İki katmanlıdır. Chatwoot vakasındaki gibi "webhook 200 dönüyor ama mesaj arayüzde yok" durumunu (A06 §6.1) yalnız uçtan uca kontrol yakalar.
+[00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11'deki "sentetik canary sipariş (her tenant için periyodik uçtan uca test)" tanımının uygulamasıdır. Canary siparişi `orders.test_kind = 'canary'` ile işaretlenir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5; [07](07-veri-modeli-ve-api.md) §4.1). İki katmanlıdır. Chatwoot vakasındaki gibi "webhook 200 dönüyor ama mesaj arayüzde yok" durumunu (A06 §6.1) yalnız uçtan uca kontrol yakalar.
 
 | Katman | Ne yapar | Sıklık | Ölçer |
 |---|---|---|---|
@@ -796,7 +796,7 @@ KARARLAR §11'deki "sentetik canary sipariş (her tenant için periyodik uçtan 
 | **Tenant WhatsApp sağlığı** | `debug_token`, `subscribed_apps`, numara ve kalite durumu | Günlük ([02](02-whatsapp-entegrasyonu.md) §7.8) + tenant sessizliği alarmı | Token/abonelik/kalite |
 
 - Canary numaraları arasındaki otomatik mesajlaşmanın Meta politikalarına uygunluğu ve aylık maliyeti (service mesajları, numara başına ilk 1.000 ücretsiz) teyit edilmeli; beklenen maliyet ayda birkaç dolardır [T].
-- Canary siparişleri (`test_kind = 'canary'`) tüm raporlardan, faturalamadan, kullanım metriklerinden ve kuzey yıldızından hariçtir (KARARLAR §5).
+- Canary siparişleri (`test_kind = 'canary'`) tüm raporlardan, faturalamadan, kullanım metriklerinden ve kuzey yıldızından hariçtir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5).
 
 **Kabul kriterleri:** Webhook ingress durdurulduğunda platform canary ≤ 10 dk içinde P1 üretir; SSE katmanı bozulup ingress sağlamken de P1 üretir; tenant canary, bir şubenin paneli "açık" görünürken olayları almıyorsa 30 dk içinde işletme uyarısı üretir; canary kayıtları hiçbir işletme ekranında ve raporunda görünmez.
 
@@ -824,13 +824,13 @@ KARARLAR §11'deki "sentetik canary sipariş (her tenant için periyodik uçtan 
 
 ### 8.1 Kuzey yıldızı metriği
 
-**Haftalık kendi kanal siparişi:** Bir hafta içinde (Pazartesi 00:00 – Pazar 23:59, `Europe/Istanbul`) **teslim edilmiş** (`status = delivered`), test siparişi olmayan (`test_kind` `onboarding_test` veya `canary` değil; KARARLAR §5) ve kanalı `wa_link` veya `web` olan siparişlerin sayısı (Faz 2'de `wa_ai`, Faz 3'te `table_qr` ve `wa_flow` eklenir).
+**Haftalık kendi kanal siparişi:** Bir hafta içinde (Pazartesi 00:00 – Pazar 23:59, `Europe/Istanbul`) **teslim edilmiş** (`status = delivered`), test siparişi olmayan (`test_kind` `onboarding_test` veya `canary` değil; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5) ve kanalı `wa_link` veya `web` olan siparişlerin sayısı (Faz 2'de `wa_ai`, Faz 3'te `table_qr` ve `wa_flow` eklenir).
 
 - **Neden bu metrik:** Ürünün tek vaadi olan "işletmenin kendi kanalından komisyonsuz sipariş" doğrudan sayılır; R01'i (en büyük risk) ölçer; işletmenin gördüğü değerle (tasarruf) ve churn'le doğrudan ilişkilidir.
 - **Neden haftalık:** Pilot ve deney kararları haftalık ritimle verilir; aylık toplamı [01](01-vizyon-pazar-is-modeli.md) §2.1'deki kuzey yıldızı ifadesidir.
 - **`manual` ayrı izlenir:** Telefon siparişinin panele girilmesi değerlidir ama kanal taşıma değildir.
 - **İki görünüm:** platform toplamı ve **aktif işletme başına medyan** (birkaç büyük işletme ortalamayı yanıltmasın).
-- **Hedef:** Pilotta aktif işletme başına medyan ≥ 5/hafta (KARARLAR §12'deki "14 günde ≥ 10" eşiğiyle uyumlu). Faz 2 büyüme hedefi K4 kapısında pilot verisiyle konur.
+- **Hedef:** Pilotta aktif işletme başına medyan ≥ 5/hafta ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12'deki "14 günde ≥ 10" eşiğiyle uyumlu). Faz 2 büyüme hedefi K4 kapısında pilot verisiyle konur.
 
 ### 8.2 KPI ağacı
 
@@ -859,7 +859,7 @@ Sahip: Kurucu-İş (Finans ile). "Ödeyen işletme" = `subscription.status IN ('
 |---|---|---|---|---|
 | **MRR** | Σ ödeyen aboneliklerin aylık normalize KDV hariç ücreti (yıllık / 12; indirimler düşülmüş) | `subscriptions`, `plans` | Büyüme hedefi K4'te | Aylık (haftalık izleme) |
 | **Net yeni MRR** | Yeni + genişleme − daralma − kayıp MRR | `subscriptions` + `subscription.status_changed` ve plan değişikliği olayları (ayrı abonelik geçmişi tablosu [07](07-veri-modeli-ve-api.md)'de yok; §11 #12) | > 0 | Aylık |
-| **Logo churn (aylık)** | Ay içinde ayrılan ödeyen işletme / ay başındaki ödeyen işletme | `subscriptions` (`status = cancelled`), `tenants.lifecycle_stage = churned` | İlk yıl %5–7, sonra < %3 (KARARLAR §12) | Aylık |
+| **Logo churn (aylık)** | Ay içinde ayrılan ödeyen işletme / ay başındaki ödeyen işletme | `subscriptions` (`status = cancelled`), `tenants.lifecycle_stage = churned` | İlk yıl %5–7, sonra < %3 ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12) | Aylık |
 | **Gelir churn / NRR** | Kayıp + daralma MRR / ay başı MRR; NRR = (ay başı MRR + genişleme − daralma − kayıp) / ay başı MRR | `subscriptions` | Gelir churn ≤ logo churn | Aylık |
 | **Aktivasyon oranı** | Canlıya geçtikten sonraki 14 günde ≥ 10 kanal siparişi alan işletme / dönemde canlıya geçen işletme | `orders` (`channel`, `test_kind`), canlıya geçiş tarihi (`tenants.onboarding_step = live`; WhatsApp için `wa_phone_numbers.live_at`) | Pilot ≥ %70 [T] | Haftalık (kohort) |
 | **Demo → deneme / pilot** | Denemeye veya pilota geçen / demo yapılan | Lead listesi (admin) | ≥ %30 (A06 KRI eşiği) | Aylık |
@@ -869,7 +869,7 @@ Sahip: Kurucu-İş (Finans ile). "Ödeyen işletme" = `subscription.status IN ('
 | **Geri ödeme süresi** | CAC / (ARPA × brüt marj) | Yukarıdakiler | < 4 ay | Aylık |
 | **LTV** | ARPA × brüt marj / aylık logo churn | Yukarıdakiler | LTV/CAC ≥ 3 [T] | Çeyreklik |
 | **Brüt marj** | (Abonelik geliri − COGS) / abonelik geliri; COGS kalemleri [01](01-vizyon-pazar-is-modeli.md) §7.1 | Muhasebe + maliyet metrikleri (§8.6) | ≥ %70 | Aylık |
-| **Kanal payı** | Kanal siparişi / (kanal siparişi + işletmenin beyan ettiği pazaryeri siparişi) | `orders` + aylık pazaryeri sipariş beyanı ([07](07-veri-modeli-ve-api.md)'de alan yok; §11 #12) | Pilotun 8. haftasında (pilot sonu) ≥ %10 (KARARLAR §12) | Aylık; pilotta haftalık |
+| **Kanal payı** | Kanal siparişi / (kanal siparişi + işletmenin beyan ettiği pazaryeri siparişi) | `orders` + aylık pazaryeri sipariş beyanı ([07](07-veri-modeli-ve-api.md)'de alan yok; §11 #12) | Pilotun 8. haftasında (pilot sonu) ≥ %10 ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12) | Aylık; pilotta haftalık |
 
 ### 8.4 Ürün metrikleri
 
@@ -885,7 +885,7 @@ Sahip: Teknik lider (ürün). Hedefler A05 §11'deki hipotez hedefleridir [T]; p
 | **Geç onay oranı** | `new` durumunda > 2 dk kalan (t = 2 dk platform WhatsApp basamağı çalışan) / tüm `new` | `report_daily_branch` (2 dk'yı aşan onaysız sayısı), `alarm_escalations` (`kind = new_order_unacked`, t = 2 dk basamağında `fired_at` dolu) | < %5 [T]; pilot 2. hafta ≥ %80'i 2 dk içinde (H8) | Haftalık |
 | **"Siparişim nerede?" oranı** | Kabul ile teslim arasında "nerede / ne zaman gelir" niyetli gelen mesajı olan sipariş / teslim edilen sipariş | `messages` + konuşma motoru niyet etiketi ([07](07-veri-modeli-ve-api.md)'de alan yok; §11 #12) | < %5 | Haftalık |
 | **Tekrar sipariş oranı** | 30 gün içinde 2. kanal siparişini veren müşteri / ilk kanal siparişini veren müşteri | `orders` (`customer_id`) | ≥ %30 [T] | Aylık (kohort) |
-| **Ret ve iptal oranları** | `rejected` ve `cancelled` / tüm siparişler; sebep kodu kırılımıyla | `orders` (`rejection_reason`, `cancelled_by`, `cancel_reason`; kodlar KARARLAR §5) | İzleme; `too_busy` artışı yoğunluk sinyali, `tenant_no_response` §7.2 | Haftalık |
+| **Ret ve iptal oranları** | `rejected` ve `cancelled` / tüm siparişler; sebep kodu kırılımıyla | `orders` (`rejection_reason`, `cancelled_by`, `cancel_reason`; kodlar [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5) | İzleme; `too_busy` artışı yoğunluk sinyali, `tenant_no_response` §7.2 | Haftalık |
 | **Telefonsuz sipariş oranı** | Teslimat telefonu olmayan teslimat siparişi / teslimat siparişi | `orders` (`delivery_phone_e164`), `customers` | < %10 [T] (R31) | Aylık |
 | **Kanal karışımı** | Kanal bazında sipariş payı (`wa_link`, `web`, `manual`…) ve `source_meta` kaynağı (QR kodu, Google, Instagram) | `orders` | İzleme; boş `source_meta` < %20 (R41) | Haftalık |
 
@@ -915,19 +915,19 @@ Sahip: Finans. Kur: aylık ortalama (`fx_rates`). Meta mesaj ücretleri işletme
 |---|---|---|---|---|
 | **Altyapı / işletme** | Aylık altyapı faturası (sunucu, depolama, Cloudflare, gözlemlenebilirlik) / aktif işletme | Faturalar | ≤ 120 TL/ay ([01](01-vizyon-pazar-is-modeli.md) §7.1 üst sınırı) | Aylık |
 | **LLM / işletme** **[Faz 2]** | `llm_cost_usd_total` × kur / AI kullanan işletme | Prometheus, tenant LLM sayacı | Pakete göre kota; tenant bütçe koruması | Aylık |
-| **SMS / işletme** | SMS sağlayıcı faturası / aktif işletme (OTP, alarm, kritik durum SMS'i; platform maliyeti, KARARLAR §4) | `sms_messages` (`purpose`, `segments`, `est_cost_kurus`), `tenant_usage_daily.sms_count`, fatura | ≤ 80 TL/ay; adil kullanım kotası Esnaf 100 / Pro 300 SMS/ay, aşımda işletme uyarılır | Aylık |
+| **SMS / işletme** | SMS sağlayıcı faturası / aktif işletme (OTP, alarm, kritik durum SMS'i; platform maliyeti, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4) | `sms_messages` (`purpose`, `segments`, `est_cost_kurus`), `tenant_usage_daily.sms_count`, fatura | ≤ 80 TL/ay; adil kullanım kotası Esnaf 100 / Pro 300 SMS/ay, aşımda işletme uyarılır | Aylık |
 | **Platform WhatsApp uyarı maliyeti** | Platform WABA şablon ücretleri | `notifications` (`channel = platform_wa`), `tenant_usage_daily.platform_wa_count` × `wa_rate_cards` | İzleme | Aylık |
 | **Destek maliyeti / işletme** | Destek + onboarding personel maliyeti / aktif işletme | Bordro, zaman kaydı | ≤ 200 TL/ay (≥ %70 marj için, [01](01-vizyon-pazar-is-modeli.md) §7.2) | Aylık |
 | **Döviz bazlı gider / brüt gelir** | USD/EUR faturalı giderler (LLM, SaaS araçları, Cloudflare, platform Meta ücretleri) × kur / abonelik geliri | Muhasebe | **≤ %15** [T] (A06 §7.5) | Aylık |
 | **İşletmenin Meta maliyeti / sipariş** (bilgi) | Tenant'ın aylık tahmini Meta ücreti / teslim edilen sipariş | `wa_message_costs` (`est_try_kurus`) | İzleme; çeyrekte +%50 → R16 KRI | Aylık |
-| **Sipariş başı durum mesajı** | Otomatik durum mesajı / sipariş (gecikme/iptal bilgilendirmesi gibi olağan dışı durum mesajları bütçe dışı; Akış A karşılama + "Menüyü aç" ek 1 mesaj) | `orders.wa_status_msg_count` | ≤ 4 (toplam ≤ 5; KARARLAR §6.5) | Haftalık |
+| **Sipariş başı durum mesajı** | Otomatik durum mesajı / sipariş (gecikme/iptal bilgilendirmesi gibi olağan dışı durum mesajları bütçe dışı; Akış A karşılama + "Menüyü aç" ek 1 mesaj) | `orders.wa_status_msg_count` | ≤ 4 (toplam ≤ 5; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.5) | Haftalık |
 
 ### 8.7 Pilot başarı kartı (K4 kapısı)
 
 | # | Kriter | Kaynak | Eşik |
 |---|---|---|---|
-| P1 | İşletme başına ilk 14 günde kanal siparişi | `orders` | ≥ 10 (KARARLAR §12) |
-| P2 | Pilotun 8. haftasında (pilot sonu) kendi kanal payı | `orders` + pazaryeri beyanı | ≥ %10 (KARARLAR §12) |
+| P1 | İşletme başına ilk 14 günde kanal siparişi | `orders` | ≥ 10 ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12) |
+| P2 | Pilotun 8. haftasında (pilot sonu) kendi kanal payı | `orders` + pazaryeri beyanı | ≥ %10 ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12) |
 | P3 | Panelin günlük aktif kullanımı | `devices` | İşletmelerin açık günlerinin ≥ %90'ında [T] |
 | P4 | Kaçan sipariş (sistem) | §7.2 | 0 |
 | P5 | Webhook → panel p95 | S2 | < 3 sn |
@@ -1025,7 +1025,7 @@ Teknik kontroller [06](06-teknik-mimari.md) §15'tedir; bu bölüm **takvimi ve 
 | **Zafiyet düzeltme süreleri [T]** | Sürekli | Kritik ≤ 72 sa (aktif istismar varsa ≤ 24 sa); yüksek ≤ 7 gün; orta ≤ 30 gün; düşük sonraki çeyrek | Teknik lider | SLA dışı açık bulgu 0 |
 | **OWASP ZAP baseline** | Gecelik (staging) | Storefront, panel, API | Teknik lider | Yeni yüksek bulgu 0 |
 | **Tenant yalıtım paketi** | Her PR (atlanamaz) | [06](06-teknik-mimari.md) §5.6, §16.3 | Teknik lider | %100 yeşil |
-| **Pentest** | Pilot öncesi: ASVS L1 iç kontrol listesi + tenant yalıtımı + webhook imza testleri (ekip); **ticari lansman (Faz 2) öncesi: bağımsız gri kutu pentest** (KARARLAR §11); sonra yılda bir ve büyük mimari değişiklikte | [06](06-teknik-mimari.md) §15.8 | Teknik lider | Yüksek/kritik bulgular lansmandan önce kapalı, yeniden test raporu var |
+| **Pentest** | Pilot öncesi: ASVS L1 iç kontrol listesi + tenant yalıtımı + webhook imza testleri (ekip); **ticari lansman (Faz 2) öncesi: bağımsız gri kutu pentest** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11); sonra yılda bir ve büyük mimari değişiklikte | [06](06-teknik-mimari.md) §15.8 | Teknik lider | Yüksek/kritik bulgular lansmandan önce kapalı, yeniden test raporu var |
 | **Yedek geri yükleme tatbikatı** | Haftalık otomatik (izole sunucuya son yedek + smoke test); **aylık elle** (rastgele zamana PITR); yılda 2 tam DR tatbikatı | [06](06-teknik-mimari.md) §13.5 | Teknik lider | Ölçülen RTO ≤ 1 sa, RPO ≤ 5 dk, satır sayısı ve checksum tutarlı; sonuç `restore-log`'da |
 | **KVKK veri ihlali tatbikatı** | İlki **pilot bitmeden** ([08](08-mevzuat-kvkk-odeme-fatura.md) §9.2), sonra yılda bir | Masa başı senaryo (ör. takip linkinden sızıntı): tespit → sınırlama → tenant bazlı etki raporu → işletme bildirimi (24 sa) → Kurul formu taslağı (72 sa) | Teknik lider + Kurucu-İş + avukat | Etki raporu ≤ 4 sa'te üretilebiliyor; bildirim şablonları güncel |
 | **Olay müdahale tatbikatı (runbook)** | Çeyreklik; her yeni nöbetçi için bir kez | RB-1…RB-8'den biri, staging'de kaos senaryosu ([06](06-teknik-mimari.md) §16.3) | Teknik lider | İlk duyuru ≤ 15 dk; runbook boşlukları kapatıldı |
@@ -1038,23 +1038,24 @@ Teknik kontroller [06](06-teknik-mimari.md) §15'tedir; bu bölüm **takvimi ve 
 
 | # | Konu | Durum / öneri |
 |---|---|---|
-| 1 | **"En az iki düğümlü webhook alımı" (KARARLAR §11) ile [06](06-teknik-mimari.md) §13.3 pilot topolojisi çelişiyor:** 06'da pilot tek sunucu, `api-hooks` ×2 aynı makinede. | Bu doküman KARARLAR'ı uygular: pilot öncesi ingress için en az iki bağımsız düğüm (farklı makine, tercihen farklı TR lokasyonu). 06 §13.3 güncellenmeli; DB tek sunucudayken ikinci düğümün davranışı (kalıcı ara kayıt veya 500 + Meta yeniden denemesi) 06'da tasarlanmalı. |
-| 2 | **Sentetik canary [06](06-teknik-mimari.md)'da tanımlı değil** (pilot öncesi zorunlu paket). | §7.3'teki iki katmanlı tasarım 06 §8.5 (cron işi), §14.1 (`canary_e2e_seconds`, `canary_ack_seconds`) ve [07](07-veri-modeli-ve-api.md) (`orders` canary işareti) dokümanlarına işlenmeli. Canary numaraları arası otomatik mesajlaşmanın Meta politikasına uygunluğu teyit edilmeli. |
-| 3 | **"Kaçan sipariş" tanımı:** [06](06-teknik-mimari.md) §14.5 "kapanışta `new` kalmış sipariş" diyor; KARARLAR §5'teki 15 dk `tenant_no_response` otomatik iptali nedeniyle bu durum artık oluşmaz. Ayrıca 06 §7.6 "N dk'da otomatik reddet (`rejected`)" seçeneği KARARLAR'daki `cancelled` + `tenant_no_response` kuralıyla çelişiyor. | §7.2'deki iki parçalı tanım önerilir; 06 §7.6 ve §14.5 KARARLAR'a göre düzeltilmeli. |
-| 4 | **Alarm zinciri zamanlaması** [02](02-whatsapp-entegrasyonu.md) §10.3 (Web Push T+1 dk) ile [06](06-teknik-mimari.md) §7.6 (Web Push t=0) farklı. | Tekilleştirilmeli; S9 SLI'ı 2. dk basamağını ölçtüğü için bu dokümanı etkilemez. |
+| 1 | **Webhook alımının iki ayrı sunucu/VM'de olması** ve [06](06-teknik-mimari.md) §13.3 pilot topolojisi (06'da pilot tek sunucu, `api-hooks` ×2 aynı makinede). | **Karara bağlandı:** [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11 "en az iki ayrı sunucu/VM üzerinde webhook alımı (pilotta ucuz ikinci VPS yeterli)" diyor; bu doküman bunu uygular (§1, R14, RB-1). Açık kalan: 06 §13.3 güncellenmeli; DB tek sunucudayken ikinci VM'deki ingress'in davranışı (kalıcı ara kayıt veya 500 + Meta yeniden denemesi) 06'da tasarlanmalı. |
+| 2 | **Sentetik canary** (pilot öncesi zorunlu paket) [06](06-teknik-mimari.md)'da tanımlı değil. | **Karara bağlandı:** işaret `test_kind = 'canary'` ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5), [07](07-veri-modeli-ve-api.md) §4.1'de tanımlı (`branch_events.is_canary`, ≤ 10 dk'da silme). Açık kalan: §7.3'teki iki katman 06 §8.5 (cron işi) ve §14.1'e (`canary_e2e_seconds{branch}`, `canary_wa_e2e_seconds`) işlenmeli; canary numaraları arası otomatik mesajlaşmanın Meta politikasına uygunluğu teyit edilmeli. |
+| 3 | **"Kaçan sipariş" tanımı** ve "otomatik reddet". | **Karara bağlandı:** [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5 ve §10: "otomatik reddet" yoktur; 15 dk yanıtsız sipariş `cancelled` / `cancelled_by = system` / `tenant_no_response` olur. Kanonik tanım §7.2'dedir. [06](06-teknik-mimari.md) §7.6, §8.5 (`order-new-watch`) ve §14.5 ("kapanışta `new` kalmış sipariş") buna göre düzeltilmeli. |
+| 4 | **Alarm zinciri zamanlaması** ([02](02-whatsapp-entegrasyonu.md) §10.3 Web Push T+1 dk; [06](06-teknik-mimari.md) §7.6 t+5 dk'da platform WABA tekrarı). | **Karara bağlandı:** [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10 kanonik zamanlama (t = 0 ses + Web Push, 60 sn ses tekrarı, 2 dk platform WhatsApp, 5 dk SMS, 10 dk müşteriye bilgi, 15 dk `cancelled`) §7.2 ve S9'da aynen kullanıldı. 02 ve 06 hizalanmalı. |
 | 5 | **Öncelik adları:** 06 §14.4 ve 02 §10.2 teknik alarmlarda P1–P3 kullanıyor; bu doküman destek için P1–P4 ve olaylar için SEV1–SEV4 tanımlıyor. | Aynı P ölçeği kullanılır (§5.2); eşleme §6.1'de. Diğer dokümanlarda değişiklik gerekmez, 06 §14.4'e bu dokümana bağlantı yeterli. |
-| 6 | **Kurucu üye fiyatı:** [01](01-vizyon-pazar-is-modeli.md) §6.4 "12 ay sabit, TÜFE uygulanmaz" diyor; KARARLAR §8 "12 ay boyunca sabit %30 indirim **oranı**, liste fiyatı TÜFE ile güncellenebilir" diyor. | KARARLAR uygulandı (R17, §4.6); 01 güncellenmeli. |
-| 7 | **Pilot süresi ile 60. gün metriği:** Pilot Hafta 10–18 (56 gün); KARARLAR §12'deki "60. günde kanal payı ≥ %10" pilot bitiminden sonra ölçülebilir. | K4 kapısı Hafta 18–19 olarak yazıldı; işletme bazında 60. gün ölçümü pilot sonrasına sarkar. Karar: K4'ü 1 hafta kaydırmak veya kriteri "56. gün" okumak. |
-| 8 | **Talep deneyi ile geliştirmenin paralelliği:** Araştırma (A06 §10.1) ağır geliştirmenin K2'ye bağlanmasını öneriyor; KARARLAR §11 Faz 1'in Hafta 1'de paralel başlamasını söylüyor. | KARARLAR uygulandı; §4.1'de Hafta 1–8 geliştirme önceliği iskelet + webhook + ES + "sipariş kaçmaz" paketi olarak önerildi ve NO-GO'da durdurma kuralı eklendi. Proje sahibi onayı gerekli. |
+| 6 | **Kurucu üye indirimi.** | **Karara bağlandı:** [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8: ilk 100 işletmeye 12 ay boyunca sabit %30 indirim **oranı** (sabit TL fiyat değil; liste fiyatı TÜFE ile güncellenebilir). Bu dokümanda uygulandı (R17, §4.6). [01](01-vizyon-pazar-is-modeli.md) §6.4 ve [08](08-mevzuat-kvkk-odeme-fatura.md) "sabit fiyat" ifadeleri düzeltilmeli. |
+| 7 | **Pilot süresi ile kanal payı ölçüm anı** (eski "60. gün" ifadesi pilot penceresine sığmıyordu). | **Karara bağlandı:** [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12 ölçüm anını "pilotun 8. haftasında (pilot sonu)" olarak tanımladı; R01, D6, §8.3 ve §8.7 P2 buna göre düzeltildi, K4 Hafta 18–19'da kalır. [09](09-yol-haritasi-ve-sprint-plani.md) §7.6–7.7'deki "60. gün" ifadeleri de düzeltilmeli. |
+| 8 | **Talep deneyi ile geliştirmenin paralelliği:** Araştırma (A06 §10.1) ağır geliştirmenin K2'ye bağlanmasını öneriyor. | **Karara bağlandı:** [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11: Faz 1 Hafta 1'de talep deneyiyle paralel başlar; go/no-go kapısı Hafta 8'dedir. Açık kalan: §4.1'deki Hafta 1–8 geliştirme önceliği ve NO-GO'da ağır geliştirmeyi durdurma kuralı bu dokümanın önerisidir; kurucu onayıyla kesinleşir (00 §13'e eklenmesi önerilir). |
 | 9 | **Pilot 3 ay ücretsiz** ödeme isteği sinyali üretmiyor. | D6 niyet mektubu (varsayılan) + isteğe bağlı iade garantili ön ödeme (§4.6); kurucu indirimi ile yıllık peşin indiriminin birleşip birleşmeyeceği [01](01-vizyon-pazar-is-modeli.md)'de açık. |
 | 10 | **Olay iletişim şablonları:** `platform_hizmet_bildirimi_v1` ve `platform_hizmet_duzeldi_v1` [02](02-whatsapp-entegrasyonu.md) §5.3 kataloğunda yok. | 02'ye eklenmeli ve pilot öncesi onaylatılmalı; kategori (utility) kararı Meta'da (teyit edilmeli). |
 | 11 | **Durum sayfası** [06](06-teknik-mimari.md) §14.3'te Faz 2. | Öneri: basit, ayrı barındırılan sürüm pilot öncesi (§6.4). |
-| 12 | **Veri modeli eksikleri ([07](07-veri-modeli-ve-api.md)):** "siparişim nerede" için mesaj niyet etiketi; kanal payı için aylık pazaryeri sipariş beyanı; canary işareti; sağlık skoru rollup'ı; olay kaydı (incident) ve etkilenen tenant ilişkisi. | 07'ye eklenmeli. Ayrıca 07'deki `tenants.status` değerleri (`onboarding`, `live`, `offboarding`, `closed`) KARARLAR §7 `lifecycle_stage` listesiyle aynı değil; metrikler `lifecycle_stage`'e göre tanımlandı. |
+| 12 | **Veri modeli eksikleri ([07](07-veri-modeli-ve-api.md)):** "siparişim nerede" için mesaj niyet etiketi; kanal payı için aylık pazaryeri sipariş beyanı; sağlık skoru günlük tablosu; olay kaydı (incident) ve etkilenen tenant ilişkisi; net yeni MRR için abonelik/plan değişikliği geçmişi. | 07'ye eklenmeli. Kapananlar: canary işareti (`test_kind`) ve `tenants.lifecycle_stage` artık 07'de var ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7). |
 | 13 | **Aylık değer raporu işi** [06](06-teknik-mimari.md) §8.5 cron listesinde yok (yalnız günlük/haftalık özet var). | `report-monthly-value` işi eklenmeli (§5.6). |
-| 14 | **Hesap dondurma (sezonluk işletme)** A06 §4.6'da öneriliyor, KARARLAR'da yok. | Ürün/fiyat kararı gerekli (R18). |
-| 15 | **Dış SLA ve hizmet kredisi** (§7.5: %99,5 + kredi + sorumluluk sınırı) | Avukat ve [08](08-mevzuat-kvkk-odeme-fatura.md) §7.4 sözleşme setiyle netleşmeli. |
-| 16 | **Döviz bazlı gider tavanı (%15)** ve **nakit pisti** metriği KARARLAR §12'de yok. | Başarı metriklerine koruyucu metrik olarak eklenmesi önerilir. |
+| 14 | **Hesap dondurma (sezonluk işletme)** A06 §4.6'da öneriliyor, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md)'de yok. | Ürün/fiyat kararı gerekli (R18); 00 §13'e eklenmesi önerilir. |
+| 15 | **Dış SLA ve hizmet kredisi** (§7.5: %99,5 + kredi + sorumluluk sınırı). | İç SLO hedefleri [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13.10 varsayılanıdır (aylık %99,9, RPO ≤ 5 dk, RTO ≤ 1 saat); proje sahibi bu varsayılanı değiştirirse §7 güncellenir. Dış SLA oranı ve kredi avukat ve [08](08-mevzuat-kvkk-odeme-fatura.md) §7.4 sözleşme setiyle netleşmeli. |
+| 16 | **Döviz bazlı gider tavanı (%15)** ve **nakit pisti** metriği [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12'de yok. | Başarı metriklerine koruyucu metrik olarak eklenmesi önerilir. |
 | 17 | **P1 hattı saatleri ve kurucu nöbeti** (10:00–02:00 canlı yanıt) kurucuların kabulüne bağlı (A06 açık soru 1). | Pilot başlamadan nöbet çizelgesi imzalanmalı; kabul edilmezse P1 hattı saatleri daraltılır ve bu R37'nin olasılığını yükseltir. |
-| 18 | **Pilotta Coexistence mi, yeni numara mı?** (A06 açık soru 5) | Varsayılan Coexistence (KARARLAR); D11 başarısızsa varsayılan yeni numaraya döner (§4.8) — bu sapma kurucu kararı gerektirir. |
+| 18 | **Pilotta Coexistence mi, yeni numara mı?** (A06 açık soru 5) | **Karara bağlandı:** varsayılan Coexistence ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.4). Açık kalan: D11 başarısızsa varsayılanın yeni numaraya dönmesi (§4.8) 00'dan sapmadır; kurucu kararı ve önce 00 güncellemesi gerekir. Meta modeli (Tech Provider + Plan B) proje sahibi kararıdır: 00 §13.5. |
 | 19 | **Teyit edilmesi gerekenler:** Meta'nın Tech Provider'lara açık destek kanalı ve yanıt süreleri; Meta durum sayfası adresi; Health Status API alanları; `request_welcome`'ın açılış ayarı; WhatsApp Business uygulamasındaki sohbet etiketi özelliğinin adı; SMS'te Türkçe karakter ve segment davranışı; Seviye 0 baskı maliyetleri. | Faz 0–1'de birincil kaynaktan ve testle doğrulanır; ilgili bölümler (§4.4, §4.9, §5.8, §6.3) güncellenir. |
-| 20 | **WhatsApp'sız modda Akış B yedeği:** KARARLAR §7 "SMS OTP doğrulaması **Faz 1**" diyor; [06](06-teknik-mimari.md) §13.6 Meta kesintisinde doğrulamayı "işletme onayına" devrediyor ve SMS OTP'yi Faz 2 yazıyor; [01](01-vizyon-pazar-is-modeli.md) §7.1 de "SMS OTP [Faz 2]" diyor. | KARARLAR uygulandı (§5.5 Kapı 1, §5.8, RB-2): SMS OTP Faz 1. 06 ve 01 düzeltilmeli; SMS maliyeti (§8.6) ve SMS pompalama limitleri ([06](06-teknik-mimari.md) §15.4) buna göre gözden geçirilmeli. |
+| 20 | **WhatsApp'sız modda Akış B yedeği** ([06](06-teknik-mimari.md) §13.6 Meta kesintisinde doğrulamayı "işletme onayına" devrediyor ve SMS OTP'yi Faz 2 yazıyor; [01](01-vizyon-pazar-is-modeli.md) §7.1 de "SMS OTP [Faz 2]" diyor). | **Karara bağlandı:** [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7: SMS OTP yedeği **Faz 1** ("WhatsApp'sız mod"); bu dokümanda uygulandı (§1, R06, R23, §5.5 Kapı 1, §5.8, RB-2). 06 ve 01 düzeltilmeli; SMS adil kullanım kotası (Esnaf 100, Pro 300 SMS/ay, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4) ve SMS pompalama limitleri ([06](06-teknik-mimari.md) §15.4) buna göre gözden geçirilmeli. |
+| 21 | **Kod adı farkları (00 ↔ 06/07):** `test_kind` değerleri 00'da `onboarding_test`, `canary`; 07'de `none`, `test`, `canary`. Kill switch adları 00'da `llm_parsing`, `sms_fallback`…; 06 §16.6 / 07 §3.7'de `ai_ordering`, `akis_b_wa_verification`, `platform_wa_alerts`. | Bu doküman 00'ın adlarını kullanır (§5.5, §7.3, §8.1, R34, RB-2); `platform_wa_alerts` bayrağı 07'deki adıyla anıldı. 07 ve 06 00'a göre hizalanmalı ya da yeni adlar önce 00'a eklenmeli. |

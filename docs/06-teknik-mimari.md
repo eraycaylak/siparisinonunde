@@ -551,21 +551,27 @@ CREATE TABLE outbox (                      -- tam alan listesi: 07 §3.4
 |---|---|---|---|
 | `wa-webhook-sweeper`, `outbox-sweeper` | 1 dk | İşlenmemiş ham olay/outbox kayıtlarını yeniden kuyruğa atar | 1 |
 | `order-awaiting-timeout` | 1 dk | `awaiting_customer` 30 dk → `cancelled` (`cancelled_by = system`, sebep `customer_timeout`); pencere açıksa müşteriye bilgi | 1 |
-| `order-new-watch` | 1 dk | Alarm işi eksik `new` siparişleri yakalar (emniyet); "otomatik reddet" ayarı açık şubelerde süre dolanı reddeder | 1 |
+| `order-new-watch` | 1 dk | Alarm işi eksik `new` siparişleri yakalar (emniyet); `new_order_timeout_min` (varsayılan 15 dk) dolan siparişi `cancelled` yapar (`cancelled_by = system`, `tenant_no_response`) ve müşteriye özür + işletme telefonu mesajını outbox'a yazar (§7.6). Planlı siparişe uygulanmaz | 1 |
 | `scheduled-order-release` | 1 dk | Hazırlık zamanı gelen planlı siparişleri öne çıkarır, alarmı kurar | 1 |
+| `branch-pause-expiry` | 1 dk | `paused_until` dolan şubeyi `open`'a döndürür, `branch.settings_changed` üretir | 1 |
 | `panel-offline-detector` | 1 dk | §7.7 | 1 |
+| `canary-tenant` | 1 dk (zamanlayıcı; şube başına açık saatte 15 dk) | Tenant canary siparişi (§7.10) | 1 |
+| `canary-platform` | 5 dk (gece 15 dk) | Meta dahil uçtan uca platform canary'si (§7.10) | 1 |
 | `wa-tenant-silence` | 5 dk | Mesai saatinde beklenmedik webhook sessizliği ([02](02-whatsapp-entegrasyonu.md) §10.2) | 1 |
-| `partition-maintenance`, `idempotency-cleanup` | Günlük 02:00 / saatlik | `branch_events`, `message`, `audit_log` için gelecek ayın partition'ını açar, süresi dolanı düşürür; süresi dolan idempotency kayıtlarını siler | 1 |
-| `retention-*` (veri silme) | Günlük 03:00 | Aşağıdaki varsayılanlar; tenant başına ayrı transaction, 1.000'lik gruplar, `deletion_log` kaydı | 1 |
+| `partition-maintenance`, `idempotency-cleanup` | Günlük 02:00 / saatlik | `branch_events`, `audit_log` (aylık) ve `wa_webhook_events` (günlük) için gelecek partition'ları açar, süresi dolanı düşürür; süresi dolan `idempotency_keys` kayıtlarını siler | 1 |
+| `retention.*` (veri silme ve anonimleştirme) | Günlük 03:00 (`retention.customer_inactive` haftalık) | [08](08-mevzuat-kvkk-odeme-fatura.md) §2.8 saklama tablosunun her satırı bir iştir: `retention.order_notes`, `retention.media`, `retention.locations`, `retention.wa_messages`, `retention.tracking_pages`, `retention.customer_inactive`, `retention.tenant_offboarding`, `retention.audit`, `retention.access_logs`, `retention.users`, `retention.leads`, `retention.technical` (Faz 1); `retention.consents` (Faz 2); `retention.courier_locations` (Faz 3). Tenant başına ayrı transaction, 1.000'lik gruplar, her koşu `retention_runs` kaydı (imha tutanağı); 48 saattir koşmamış veya başarısız iş admin alarmı ([07](07-veri-modeli-ve-api.md) §9) | 1 |
 | `wa-token-health`, `wa-template-sync` | Günlük 04:00 / 04:30 | [02](02-whatsapp-entegrasyonu.md) §7.8, §5.4 | 1 |
-| `report-daily-rollup` | Günlük 04:15 | Günlük şube özet tablosu (sipariş, ciro, kanal, ortalama onay süresi) | 1 |
+| `report-daily-rollup` | Günlük 04:15 (+ final sipariş olaylarında artımlı) | Rollup tablolarını (`report_daily_branch`, `report_daily_products`; `report_hourly` Faz 2) ve `tenant_usage_daily`'yi günceller; son 3 günü idempotent yeniden hesaplar; yalnız test olmayan siparişler (`test_kind`) sayılır ([07](07-veri-modeli-ve-api.md) §8) | 1 |
+| `tenant-health-score` | Günlük 05:30 | İşletme sağlık skoru ve kırmızı tetikleyiciler (06:00'a kadar hazır; [10](10-riskler-operasyon-ve-metrikler.md) §5.6) | 1 |
 | `report-digest` | Günlük 09:00, Pzt 09:00 | "Dünün/geçen haftanın özeti" (panel + e-posta); WhatsApp özeti **[Faz 2]** | 1 / 2 |
+| `report-monthly-value` | Aylık 1'i 08:00 | **Aylık değer raporu:** kendi kanal sipariş sayısı ve cirosu, tahmini komisyon tasarrufu (`tenants.savings_commission_bp`), tekrar eden müşteri, ortalama onay süresi; panel + e-posta **[Faz 1]**, WhatsApp özeti **[Faz 2]**. Test siparişleri ve `manual` kanalı kanal siparişine katılmaz ([10](10-riskler-operasyon-ve-metrikler.md) §5.6) | 1 / 2 |
 | `backup-check`, `restore-drill-auto` | Günlük 06:00 / haftalık Pzr 05:00 | pgBackRest `check` + yedek yaşı metriği; son yedeği izole sunucuya geri yükleyip smoke test (§13.5) | 1 |
-| `trial-reminders` | Günlük 10:00 | Deneme bitişi hatırlatması: e-posta **[Faz 1]**, `deneme_bitiyor_v1` **[Faz 2]** | 1 / 2 |
-| `subscription-renewal`, `dunning` | Günlük 10:00 | Yenilemeden 3 gün önce hatırlatma; başarısız tahsilat kademeleri (KARARLAR §9) | 2 |
+| `ingress-spool-drain` | 1 dk (her ingress düğümünde) | Yerel spool'daki olayları `wa_webhook_events`'e idempotent aktarır (§13.3) | 1 |
+| `trial-reminders`, `subscription-lifecycle` | Günlük 10:00 | Deneme: 14 gün dolunca 3 gün uyarı bandı → askı → 90 gün içinde plan seçilmezse silme süreci; hatırlatma e-posta **[Faz 1]**, `deneme_bitiyor_v1` **[Faz 2]**. `subscriptions.status` ve `tenants.lifecycle_stage` senkronu | 1 / 2 |
+| `subscription-renewal`, `dunning` | Günlük 10:00 | Yenilemeden 3 gün önce hatırlatma; dunning: G+1/G+3/G+7 yeniden deneme + hatırlatma → G+10 salt-okunur → G+21 askı → G+75 kapanış ve silme süreci ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9) | 2 |
 | `llm-budget-reset` | Aylık 1'i 00:00 | Tenant LLM kotalarını sıfırlar | 2 |
 
-**Otomatik silme işlerinin varsayılanları** (A03 §2.7 önerileri; kesin değerler [08](08-mevzuat-kvkk-odeme-fatura.md)'de): sipariş serbest notu tamamlandıktan 30–90 gün sonra boşaltılır · müşteri konum pini ve kurye konumu ≤ 30 gün (`location = NULL`, bölge kimliği kalır) · gelen medya 30–90 gün · WhatsApp mesaj gövdesi 6–12 ay (meta veri ve sipariş özeti kalır) · ham webhook olayı 30 gün · hareketsiz müşteri son siparişten 24 ay sonra anonimleştirilir (tenant ayarı) · `branch_events` 30 gün, idempotency kaydı 24 sa · yedekler 35 gün rotasyon · imha kaydı (`deletion_log`) ≥ 3 yıl saklanır.
+**Saklama süreleri:** Kanonik tablo [08](08-mevzuat-kvkk-odeme-fatura.md) §2.8'dir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9); iş eşlemesi [07](07-veri-modeli-ve-api.md) §9'dadır. Özet (varsayılanlar): sipariş serbest notu final durumdan 30 gün sonra boşaltılır · gelen konum koordinatı 30 gün (adres metni ve bölge kalır) · WhatsApp medyası 30 gün · WhatsApp mesaj içeriği 6 ay (meta veri ve sipariş özeti kalır) · takip sayfasındaki kişisel alanlar final durumdan 30 gün sonra gizlenir · hareketsiz müşteri 24 ay sonra anonimleştirilir (tenant 6–24 ay arasında kısaltabilir) · ham webhook olayı, `branch_events`, terminal outbox ve `print_jobs` 30 gün, `idempotency_keys` 24 sa · `audit_log` 2 yıl, erişim logları 1 yıl · kurye konumu 30 gün (Faz 3) · yedekler 35 gün rotasyon · imha kaydı (`retention_runs`) ≥ 3 yıl.
 
 ## 9. Yazdırma mimarisi
 ### 9.1 Faz faz
@@ -595,12 +601,12 @@ Tek veri modelinden (`ReceiptDoc`) üç çıktı üretilir: `toHtml()`, `toEscPo
 - **Hızlı metin modu** (opsiyonel): PC857/WPC1254 kod sayfası seçilir. Kod sayfası numaraları üreticiye göre değiştiği için yazıcı profiline bağlıdır (A04 §4.2).
 - Kütüphane: `@point-of-sale/receipt-printer-encoder` 4.0 (kesme, çekmece açma, QR komutları). Yazıcı profilleri (`xprinter-80`, `epson-tm-t20`, `sunmi-v2`…) pilot envanterine göre eklenir.
 
-### 9.4 `print_job` yaşam döngüsü
+### 9.4 `print_jobs` yaşam döngüsü
 `queued → sent → printed | failed | cancelled`. İşler sipariş onayında (veya ayara göre gelişte) outbox üzerinden, yazıcı yönlendirme kurallarına göre (kategori → mutfak/bar yazıcısı) oluşur. 30 sn içinde ack gelmezse iş en çok 3 kez yeniden gönderilir, sonra `failed` olur. Panelde "Yazıcı hatası, tekrar bas" gösterilir. Yeniden baskı yeni `kopya_no` ile yapılır ve "KOPYA" ibaresi taşır.
 
 ### 9.5 Yazıcı ajanı protokolü **[Faz 2]**
-- **Eşleştirme:** Panelde "Yazıcı ajanı ekle" 8 haneli kod üretir (10 dk geçerli). Ajan `POST /agent/pair {code, machine_id}` çağırır ve şubeye bağlı, iptal edilebilir `agent_token` alır. Token Windows DPAPI ile saklanır.
-- **Bağlantı:** Ajan **dışarıya** `wss://api.siparisinonunde.com/agent/ws` bağlantısı açar (`Authorization: Bearer`). NAT/port açma gerekmez. Bloklanırsa HTTP uzun yoklama (`GET /agent/jobs?wait=25`) kullanılır.
+- **Eşleştirme:** Panelde "Yazıcı ajanı ekle" 8 haneli kod üretir (10 dk geçerli). Ajan `POST https://api.siparisinonunde.com/v1/agent/pair {code, machine_id}` çağırır ve şubeye bağlı, iptal edilebilir `agent_token` alır. Token Windows DPAPI ile saklanır.
+- **Bağlantı:** Ajan **dışarıya** `wss://api.siparisinonunde.com/v1/agent/ws` bağlantısı açar (`Authorization: Bearer`). Platformdaki tek WebSocket kullanımı budur ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5). NAT/port açma gerekmez. Bloklanırsa HTTP uzun yoklama (`GET /v1/agent/jobs?wait=25`) kullanılır.
 
 | Yön | Mesaj | Alanlar |
 |---|---|---|
@@ -618,22 +624,22 @@ Tek veri modelinden (`ReceiptDoc`) üç çıktı üretilir: `toHtml()`, `toEscPo
 
 ## 10. Harita ve konum
 ### 10.1 Adres modeli
-Resmi UAVT API'sine bağımlı olunmaz, ticari erişim teyit edilmedi (A04 §6.1). `customer_address` ve siparişteki adres kopyası şu alanlardan oluşur: `il, ilce, mahalle, sokak, bina_no, daire_no, kat, adres_tarifi` (kurye için en değerli alan; zorunlu önerilir), `location geography(Point, 4326)`, `adres_kodu` (opsiyonel), `kaynak` (`wa_pin` / `map_pin` / `autocomplete` / `manual`). Sipariş, adresin o anki kopyasını saklar (snapshot). Kayıtlı adres sonraki siparişte önerilir ("Ev · Caferağa").
+Resmi UAVT API'sine bağımlı olunmaz, ticari erişim teyit edilmedi (A04 §6.1). `customer_addresses` ve siparişteki adres kopyası (`orders.delivery_address` + `orders.delivery_location`) şu alanlardan oluşur ([07](07-veri-modeli-ve-api.md) §3.3): `city` (il), `district` (ilçe), `neighbourhood` (mahalle), `street` (sokak/cadde), `building_no` (bina no), `apartment_no` (daire no), `floor` (kat), `is_detached` (müstakil), `directions` (adres tarifi; kurye için en değerli alan, zorunlu önerilir), `address_text`, `location geography(Point, 4326)`, `uavt_code` (opsiyonel), `location_source` (`wa_pin` / `map_pin` / `autocomplete` / `manual`). Sipariş, adresin o anki kopyasını saklar (snapshot). Kayıtlı adres sonraki siparişte önerilir ("Ev · Caferağa").
 
 ### 10.2 Bölge hesaplama
 ```sql
-CREATE INDEX delivery_zone_area_gix ON delivery_zone USING gist (area);   -- area geography(Polygon, 4326)
+CREATE INDEX delivery_zones_area_gix ON delivery_zones USING gist (area);   -- area geography(MultiPolygon, 4326)
 
 SELECT id, fee_kurus, min_basket_kurus, free_over_kurus, eta_minutes
-FROM delivery_zone
-WHERE tenant_id = $1 AND branch_id = $2 AND active
+FROM delivery_zones
+WHERE tenant_id = $1 AND branch_id = $2 AND is_active AND deleted_at IS NULL
   AND ST_Covers(area, ST_SetSRID(ST_MakePoint($lng, $lat), 4326)::geography)
 ORDER BY priority DESC LIMIT 1;
 ```
 
 - İşletme poligonu panelde MapLibre + Terra Draw ile çizer. Sınır üstündeki nokta `ST_Covers` ile bölgenin içinde sayılır.
 - **Ücret kuralları (sırayla):** (1) bölge sabit ücreti, (2) opsiyonel mesafe bantları (kuş uçuşu `ST_Distance` × yol katsayısı ~1,3 [T]), (3) minimum sepet ve "X TL üstü ücretsiz". Hesap `packages/core/delivery` içindedir, sonuç kuruştur. Aynı fonksiyon storefront önizlemesinde ve sipariş oluşturmada çalışır.
-- **Bölge dışı:** Storefront "Bu adrese teslimat yok, gel-al ister misiniz?" der. Sunucu, istemci ne gönderirse göndersin bölge dışı teslimat siparişini reddeder.
+- **Bölge dışı:** Storefront "Bu adrese teslimat yok, gel-al ister misiniz?" der. Sunucu, istemci ne gönderirse göndersin storefront'tan gelen bölge dışı teslimat siparişini reddeder (`out_of_delivery_area`). **İstisna — manuel (telefon) sipariş (Akış E):** personel uyarıyı görerek bölge dışına sipariş girebilir; istek açık bir override işareti taşır ve işlem `audit_log`'a yazılır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4).
 - Gerçek yol mesafesi (OSRM) **[Faz 3]** ve yalnız ücret/süre isabeti gerektirirse kullanılır.
 
 ### 10.3 Geocoding stratejisi ve maliyet
@@ -649,13 +655,13 @@ ORDER BY priority DESC LIMIT 1;
 - Google'a ad/telefon gönderilmez, yalnız yazılan adres metni gider. Autocomplete müşteri tarayıcısından çağrılır. Bu bir yurt dışı veri akışıdır ve aktarım envanterine girer (§13.1).
 - Geocoding adaptörü (`packages/geo`) sağlayıcı değişimini kod değişikliği olmadan (konfigürasyonla) yapar. Pilotta Google ile Photon kalitesi A/B karşılaştırılır.
 
-**Kabul kriterleri (harita):** Poligonun içindeki, sınırındaki ve dışındaki noktalar için ücret/min sepet sonucu birim testlidir. İstemcinin gönderdiği ücret yok sayılır. Bölge dışı adresle teslimat siparişi 422 döner.
+**Kabul kriterleri (harita):** Poligonun içindeki, sınırındaki ve dışındaki noktalar için ücret/min sepet sonucu birim testlidir. İstemcinin gönderdiği ücret yok sayılır. Storefront'tan bölge dışı adresle teslimat siparişi 422 döner; panelden manuel siparişte override işaretiyle kabul edilir ve audit kaydı oluşur.
 
 ## 11. AI/LLM mimarisi **[Faz 2]**
 ### 11.1 Kapsam ve ilkeler
 - LLM yalnız **serbest metin siparişinde** (Akış C) ve **menü içe aktarmada** kullanılır. Varsayılan akış LLM'siz web sepetidir (Akış A).
 - **Fiyatı asla LLM hesaplamaz.** LLM yalnız aday listesindeki ürün/seçenek kimliklerini ve adetleri döner. Fiyat `packages/core/pricing` ile hesaplanır.
-- **Müşteri onayı olmadan sipariş oluşmaz.** Özet + [Onayla] [Değiştir] [Menüyü aç] butonları gönderilir (KARARLAR §7 Akış C; buton seti farkı → Açık konular #4). Özet aşamasında sipariş `awaiting_customer` durumundadır.
+- **Müşteri onayı olmadan sipariş oluşmaz.** Özet mesajı kanonik 3 butonla gönderilir: **[Onayla] [Düzenle] [İptal]** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 Akış C, §10). Buton kimlikleri `order:{id}:confirm|edit|cancel` ([07](07-veri-modeli-ve-api.md) §4.2); başlıklar ≤ 20 karakter. "Onayla'ya bastığınızda siparişiniz kesinleşir ve ödeme yükümlülüğü doğar" ibaresi ve ön bilgilendirme linki **mesaj gövdesindedir**. [Düzenle] sepeti dolu storefront linkini gönderir (`storefront_link_tokens.prefill_cart`); [İptal] `awaiting_customer → cancelled` (`customer`, `customer_request`) yapar. Özet aşamasında sipariş `awaiting_customer` durumundadır.
 - Bot yalnız menü/sipariş/adres/çalışma saati konularında çalışır. Konu dışı mesaja kibar ret + menü butonu döner, "Yetkiliyle görüş" her zaman açıktır (KARARLAR §6.9, [02](02-whatsapp-entegrasyonu.md) §6.5). Model araç çağırmaz ve yan etki üretmez. Müşteri metni talimat değil **veri** olarak işlenir (prompt injection'a karşı). Çıktı yalnız şemadır.
 
 ### 11.2 Sipariş ayrıştırma boru hattı
@@ -664,20 +670,22 @@ flowchart LR
   IN["Gelen metin<br/>(konuşma motoru, 02 §6.2)"] --> PRE["Kural tabanlı ön filtre<br/>sipariş kodu · buton · 'yetkili' · DUR"]
   PRE -->|siparişe benziyor| NORM["Normalizasyon<br/>tr küçük harf (İ→i, I→ı), sayı sözcükleri, emoji"]
   NORM --> PII["PII maskeleme<br/>[TEL] [ADRES] [TCKN] [IBAN]"]
-  PII --> RET["Aday getirme<br/>pg_trgm + item_alias, stokta olan ~30 ürün"]
+  PII --> RET["Aday getirme<br/>pg_trgm + product_aliases, stokta olan ~30 ürün"]
   RET --> LLM["claude-haiku-4-5<br/>structured output: intent + kalemler"]
   LLM --> VAL["Sunucu doğrulama<br/>Zod + menü kuralları"]
   VAL -->|düşük güven / hata| ESC["claude-sonnet-5<br/>tek yükseltme denemesi"]
   ESC --> VAL
   VAL -->|belirsiz| ASK["Tek netleştirme sorusu<br/>2 başarısız tur → insana devir"]
   VAL -->|geçerli| PRICE["Fiyat + teslimat ücreti<br/>packages/core"]
-  PRICE --> SUM["Özet + Onayla / Değiştir / Menüyü aç"]
+  PRICE --> SUM["Özet + Onayla · Düzenle · İptal<br/>ödeme yükümlülüğü ibaresi gövdede"]
   SUM -->|Onayla| NEW["awaiting_customer → new<br/>channel = wa_ai"]
+  SUM -->|Düzenle| EDIT["Sepeti dolu storefront linki"]
+  SUM -->|İptal| CAN["awaiting_customer → cancelled<br/>customer_request"]
 ```
 
 - **Niyet sınıflandırma** ayrı bir LLM çağrısı değildir. Aynı yapılandırılmış çıktının `intent` alanıdır (`new_order`, `modify_order`, `question`, `other`). Böylece çağrı sayısı ve maliyet yarıya iner. Ucuz kural tabanlı ön filtre konuşma motorundadır.
-- **Aday getirme:** `pg_trgm` benzerliği + `item_alias` (eş anlamlılar: "lamacun", "sarma/dürüm") ile şubede satışta olan en fazla ~30 ürün. Tüm menü prompt'a konmaz: küçük restoranlarda cache çoğunlukla yazma olur, retrieval hem ucuz hem isabetlidir (A04 §9.4).
-- **Sunucu doğrulama:** `menu_item_id` aday kümesinde ve satışta mı, adet 1–50 aralığında mı (structured outputs `minimum/maximum` desteklemediği için Zod'da, A04 §9.5), seçenek bu ürüne mi ait, zorunlu seçenek grupları dolu mu, alkol/tütün bayraklı ürün var mı (varsa reddedilir).
+- **Aday getirme:** `pg_trgm` benzerliği + `product_aliases` (eş anlamlılar: "lamacun", "sarma/dürüm") ile şubede satışta olan en fazla ~30 ürün. Tüm menü prompt'a konmaz: küçük restoranlarda cache çoğunlukla yazma olur, retrieval hem ucuz hem isabetlidir (A04 §9.4).
+- **Sunucu doğrulama:** `product_id` aday kümesinde ve satışta mı, adet 1–50 aralığında mı (structured outputs `minimum/maximum` desteklemediği için Zod'da, A04 §9.5), seçenek bu ürüne mi ait, zorunlu seçenek grupları dolu mu, alkol/tütün bayraklı ürün var mı (varsa reddedilir).
 - **Sonnet 5'e yükseltme:** Doğrulama başarısızsa, ≥ 2 kalem `low` güvendeyse veya `unmatched` doluyken benzer aday varsa mesaj başına en fazla 1 kez yapılır.
 - Panelde siparişte "AI ile ayrıştırıldı" rozeti ve orijinal mesaj gösterilir.
 
@@ -692,7 +700,7 @@ const draft = validateAgainstMenu(res.parsed_output, candidates, branchMenu);   
 const quote = priceCart(draft, branchMenu, deliveryZone);                          // fiyat YALNIZ burada
 ```
 
-Şema A04 §9.5'teki JSON şemasıdır (`intent, items[{menu_item_id, quantity, option_ids, note, confidence}], unmatched, needs_clarification, clarification_question, fulfillment`). Şema dosyası `packages/llm/schemas` içindedir, sürümlüdür ve eval'e bağlıdır.
+Şema A04 §9.5'teki JSON şemasıdır; alan adları 07'deki tablolarla hizalanmıştır (`intent, items[{product_id, quantity, option_ids, note, confidence}], unmatched, needs_clarification, clarification_question, fulfillment`). Şema dosyası `packages/llm/schemas` içindedir, sürümlüdür ve eval'e bağlıdır.
 
 ### 11.4 PII maskeleme ve veri akışı
 - LLM'e **yalnız sipariş metni** gider. Müşteri adı, BSUID, telefon ve kayıtlı adres gönderilmez.
@@ -704,12 +712,14 @@ const quote = priceCart(draft, branchMenu, deliveryZone);                       
 | Kalem | Değer (A04 §9.3–9.4) |
 |---|---|
 | Fiyat (MTok, girdi/çıktı) | Haiku 4.5 $1/$5; Sonnet 5 $2/$10 (Sonnet 5 yeni tokenizer ile aynı metinde ~%30 fazla token) |
-| Sipariş başı | Haiku ≈ $0,005 (≈ 0,25 TL); Sonnet ≈ $0,013 (≈ 0,64 TL) [T] |
+| Sipariş başı | Haiku ≈ $0,005 (≈ 0,24 TL); Sonnet ≈ $0,013 (≈ 0,63 TL) [T] |
 | AI kullanan işletme başı/ay | 900 sipariş × %30 serbest metin × $0,005–0,012 ≈ **$1,35–3,24** (≈ 65–157 TL) [T] |
 
-- **Sayaç:** `llm_usage(tenant_id, gün, model, input_tokens, output_tokens, cost_usd)`. Anlık sayaç Redis'te, günlük özet PostgreSQL'de tutulur. Süper admin tenant bazında görür.
+TL karşılıkları 1 USD ≈ 48,4 TL varsayımıyla yaklaşıktır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8).
+
+- **Sayaç:** `llm_usage(tenant_id, date, model, purpose, input_tokens, output_tokens, cost)` + `llm_calls` ([07](07-veri-modeli-ve-api.md) §3.7). Anlık sayaç Redis'te, günlük özet PostgreSQL'de tutulur. Süper admin tenant bazında görür.
 - **Tenant kotası (adil kullanım):** Paket bazında aylık AI ayrıştırma sayısı sınırlanır (paket kararı KARARLAR §13.8: varsayılan Pro ve üstü). Kota dolunca AI modu kapanır, bot Akış A menü linkine düşer ve `owner` bilgilendirilir.
-- **Global devre kesici:** Günlük platform LLM harcaması eşiği [T] aşılırsa veya hata oranı 5 dk boyunca > %20 olursa AI tüm platformda geçici kapanır (feature flag `ai_ordering`) ve menü linki akışı devreye girer.
+- **Global devre kesici:** Günlük platform LLM harcaması eşiği [T] aşılırsa veya hata oranı 5 dk boyunca > %20 olursa AI tüm platformda geçici kapanır (kill-switch `llm_parsing`, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4) ve menü linki akışı devreye girer.
 - **Konuşma limiti:** 10 dk'da en fazla 3 LLM çağrısı, mesaj başına en fazla 1.000 karakter, zaman aşımı 20 sn. Zaman aşımında menü linki gönderilir.
 
 ### 11.6 Eval seti
@@ -717,19 +727,21 @@ const quote = priceCart(draft, branchMenu, deliveryZone);                       
 - **Metrikler ve eşikler [T]:** şema geçerliliği %100, kalem bazında doğruluk ≥ %95, yanlış ürün ≤ %1, gereksiz netleştirme sorusu ≤ %10, konu dışı doğru ret ≥ %98.
 - `pnpm eval:llm` prompt, şema, model veya aday getirme değişen her PR'da CI'da çalışır. Bir metrikte 2 puandan fazla gerileme birleştirmeyi engeller. Maliyet ve p95 gecikme de raporlanır.
 
-### 11.7 Menü içe aktarma **[Faz 2 — onboarding]**
-1. İşletme panelde menü fotoğraflarını veya PDF'ini yükler. Dosya TR obje depolamaya gider, EXIF temizlenir.
+### 11.7 Menü içe aktarma **[Faz 1 iç araç · Faz 2 self-servis onboarding]**
+Faz 1'de yalnız ekip içi concierge aracıdır: platform ekibi admin panelinden (`/api/v1/admin/menu-imports`) çalıştırır, işletme sonucu onaylar. Self-servis yükleme Faz 2'dedir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11).
+
+1. İşletme (Faz 1'de ekip) menü fotoğraflarını veya PDF'ini yükler. Dosya TR obje depolamaya gider, EXIF temizlenir.
 2. `llm` kuyruğunda `menu_import` işi çalışır: **`claude-sonnet-5` vision** (görseller veya PDF belge bloğu) + structured output → `categories[{name, products[{name, description, price_kurus, option_hints[], confidence, source_page}]}]`.
 3. Sunucu doğrulaması: fiyat pozitif tam sayı mı, kopya ürün adı var mı, alkol/tütün anahtar kelimesi var mı (varsa "WhatsApp'ta gösterme/satma" bayrağı önerilir, KARARLAR §6.10), kategori boş mu.
-4. Sonuç `menu_import_draft` olarak saklanır, yayındaki menüye dokunulmaz.
+4. Sonuç `menu_import_drafts` tablosunda saklanır, yayındaki menüye dokunulmaz.
 5. **İnsan onayı:** Panelde görsel ve tablo yan yana gösterilir, düşük güvenli satırlar sarı olur. İşletme her fiyatı görüp onaylar, düzeltir, sonra "Yayınla" der. Fiyatlar LLM'in *hesabı* değil, basılı menüden *okumasıdır*; bu yüzden onaysız yayınlanmaz.
 6. Maliyet menü başına ≈ $0,05–0,30 [T] (4–10 sayfa varsayımı, doğrulanmadı). Aynı dosya tekrar ayrıştırılmaz (§8.3). Seçenek grupları (porsiyon, ekstralar) yalnız öneri olarak gelir, işletme tamamlar.
 
 **Kabul kriterleri (AI):** Onaysız hiçbir AI siparişi `new` olmaz. LLM çıktısında aday dışı bir kimlik varsa kalem `unmatched`'e düşer. LLM'e giden hiçbir istekte telefon/TCKN/IBAN kalıbı bulunmaz (maskeleme birim testi + üretimde örneklemeli denetim). Kota dolan tenant'ta bot menü linkine düşer. Menü içe aktarmada onaysız ürün yayına çıkmaz.
 
 ## 12. Storefront performansı
-- **Çok host'lu yönlendirme:** `proxy.ts` `Host` başlığını okur, `storefront_host` eşlemesini (Redis, 60 sn) çözer ve `/_s/{tenantSlug}/…` iç yoluna rewrite eder. Ayrılmış alt adlar ve bilinmeyen host'lar 404 döner. Faz 3'te özel alan adları da aynı tablodan çözülür.
-- **Render stratejisi:** Menü sayfası statiktir (ISR) ve menü yayınlanınca `revalidateTag('menu:{branchId}')` ile anında yenilenir. Açık/kapalı durumu, tahmini süre ve stok küçük bir JSON'dan istemcide çekilir (`/api/store/status`, 15 sn cache), böylece sayfa statik kalır. Sepet istemcide (localStorage), checkout dinamiktir. Takip sayfası `/t/{token}` cache'lenmez, `noindex` taşır ve 15 sn'de bir yoklar.
+- **Çok host'lu yönlendirme:** `proxy.ts` `Host` başlığını okur, `storefront_hosts` eşlemesini (Redis, 60 sn) çözer ve `/_s/{tenantSlug}/…` iç yoluna rewrite eder. Ayrılmış alt adlar ve bilinmeyen host'lar 404 döner. Faz 3'te özel alan adları da aynı tablodan çözülür.
+- **Render stratejisi:** Menü sayfası statiktir (ISR) ve menü yayınlanınca `revalidateTag('menu:{branchId}')` ile anında yenilenir. Açık/kapalı durumu, tahmini süre ve stok küçük bir JSON'dan istemcide çekilir (`/api/v1/store/status`, 15 sn cache), böylece sayfa statik kalır. Sepet istemcide (localStorage), checkout dinamiktir. Takip sayfası `/t/{token}` cache'lenmez, `noindex` taşır ve 15 sn'de bir yoklar; WhatsApp'sız modda (SMS OTP ile doğrulanan sipariş) müşterinin durum bilgisini aldığı ana yer burasıdır.
 - **Cache:** HTML `s-maxage=60, stale-while-revalidate=600` [T]. Statik varlıklar değişmez (immutable) hash'li dosyalardır. Ürün görselleri R2 + Cloudflare CDN'den gelir.
 - **Görseller:** Yüklemede `images` kuyruğu EXIF'i temizler ve AVIF/WebP 320/640/1080 px varyantları üretir. `<img srcset>`, `loading="lazy"`, sabit en-boy oranı (CLS) ve düşük çözünürlüklü yer tutucu kullanılır. Cloudflare Images opsiyoneldir (Free'de 5.000 benzersiz dönüşüm/ay, A04 §7.6).
 - **Düşük bant genişliği:** Sistem yazı tipleri kullanılır, üçüncü taraf script yoktur (analitik yalnız çerez rızasıyla). MapLibre yalnız adres adımında tembel yüklenir. `Save-Data` veya yavaş bağlantıda görseller kapalı "hafif menü" gösterilir. HTTP/3 + Brotli Cloudflare'de açıktır.
@@ -756,6 +768,7 @@ KARARLAR §10 bağlayıcıdır: **PostgreSQL, yedekler ve müşteri medyası Tü
 | PostgreSQL, WAL, yedekler | TR sağlayıcı, 2 lokasyon | Hayır | Şifreli yedek |
 | Müşteri medyası, menü içe aktarma dosyaları | TR S3 uyumlu obje depolama | Hayır | Tenant önekli anahtar, şifreli |
 | Redis/Valkey | TR (uygulama sunucusu) | Hayır | Kalıcı sipariş verisi tutmaz |
+| Ingress spool (ham webhook olayları, kesinti anında) | TR (her iki ingress düğümünün yerel diski) | Hayır | Şifreli disk; DB'ye aktarılınca silinir, en çok 7 gün |
 | Ürün görselleri, harita karoları | Cloudflare R2 | Evet (kişisel veri değil) | EXIF temizlenir |
 | TLS trafiği (storefront, panel, webhook) | Cloudflare edge | Evet (geçiş) | Aktarım envanteri. Hukuk olumsuzsa `api`/`hooks`/`panel` DNS-only + origin'de Caddy TLS'e geçilir (mimari değişmez) |
 | WhatsApp mesajları | Meta | Evet | İşletmenin WABA'sı; rol ve sözleşme [08](08-mevzuat-kvkk-odeme-fatura.md) |
@@ -783,13 +796,19 @@ Adaylar: Turkcell Bulut, Türk Telekom, Huawei Cloud İstanbul, Radore, Bulutist
 ### 13.3 Faz faz topoloji
 | Aşama | Ölçek | Topoloji |
 |---|---|---|
-| **Pilot / Faz 1** | ≤ 30 işletme | **Tek sunucu + Docker Compose:** Caddy, `web`, `api` ×2, `api-hooks` ×2, `worker`, PostgreSQL 18 + PostGIS, Valkey (AOF), pgBackRest. WAL ve yedekler 2. TR lokasyonuna gider. Ayrı küçük staging sunucusu |
-| **Faz 2** | 30–300 | **3 sunucu:** (A) uygulama (web/api/hooks/worker, ×2 kopya), (B) PostgreSQL primary, (C) PostgreSQL hot standby (streaming replikasyon) + Valkey replika. Faz 2 başında worker'lar üç sürece ayrılır |
+| **Pilot / Faz 1** | ≤ 30 işletme | **Ana sunucu + Docker Compose:** Caddy, `web`, `api` ×2, `api-hooks` (düğüm 1), `worker`, PostgreSQL 18 + PostGIS, Valkey (AOF), pgBackRest. **İkinci ucuz VPS** (TR, tercihen farklı sağlayıcı veya lokasyon): Caddy + `api-hooks` (düğüm 2) + yerel spool. WAL ve yedekler 2. TR lokasyonuna gider. Ayrı küçük staging sunucusu |
+| **Faz 2** | 30–300 | **3 sunucu + ingress:** (A) uygulama (web/api/hooks/worker, ×2 kopya), (B) PostgreSQL primary, (C) PostgreSQL hot standby (streaming replikasyon) + Valkey replika + `api-hooks` (düğüm 2). Faz 2 başında worker'lar üç sürece ayrılır |
 | **Faz 3** | 300–1.000+ | N uygulama düğümü; PG primary + senkron standby + raporlar için okuma replikası; Valkey Sentinel (3 düğüm); kuyruk türüne göre ayrılmış worker'lar; self-host Photon/OSRM. Orkestrasyon için Kubernetes şart değil (Kamal, Nomad vb.) |
 
 Yük küçüktür: 1.000 işletmede zirvede ~1,7 sipariş/sn ve ~15–20 WhatsApp olayı/sn (A04 §12). Ölçekleme tetikleyicileri metriklerdir: DB CPU > %60 sürekli, p95 webhook→panel > 2 sn, kuyruk en eski iş > 10 sn, SSE bağlantısı > 3.000/düğüm.
 
-**Pilotta sıfır kesintili deploy:** Caddy arkasında `api` ve `api-hooks` ikişer kopyadır ve sırayla yenilenir (rolling). Tek sunucu tek hata noktasıdır. Bu risk RTO tatbikatıyla ölçülür, hedef tutmazsa 3 sunucuya erken geçilir.
+**İki düğümlü webhook alımı [Faz 1, pilot öncesi zorunlu]:** [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11'deki "en az iki ayrı sunucu/VM üzerinde webhook alımı" kuralı aynı makinede iki süreçle karşılanmaz; pilotta ikinci düğüm ucuz bir VPS'tir (~$5–15/ay [T]).
+- **Yönlendirme:** `hooks.siparisinonunde.com` Cloudflare'de iki origin'li, sağlık kontrollü bir havuza bağlanır (Cloudflare Load Balancing; plan ve fiyat teyit edilmeli). Sağlık kontrolü `GET /health` (imza doğrulama anahtarı yüklü + disk yazılabilir). Bir düğüm düşerse trafik 1 dk içinde diğerine geçer; Meta'nın yeniden denemeleri de ([02](02-whatsapp-entegrasyonu.md) §7.2) sağlıklı düğüme düşer.
+- **Yazma yolu:** Her düğüm imzayı doğrular → ham olayı özel ağ/WireGuard üzerinden `wa_webhook_events`'e yazar (`ON CONFLICT DO NOTHING`) → 200. DB 150 ms [T] içinde yanıt vermezse veya erişilemezse olay düğümün **yerel kalıcı spool'una** (fsync'li, şifreli diskte, olay hash'iyle adlandırılmış dosya) yazılır ve yine 200 döner. `ingress-spool-drain` işi DB dönünce spool'u aynı idempotent yazımla boşaltır; süpürücü (§8.5) olayları kuyruğa alır. Spool da yazılamıyorsa 503 döner ve Meta'nın yeniden denemesine güvenilir.
+- **İzleme:** `ingress_spool_pending` ve `ingress_node_up{node}` metrikleri (§14.1); spool'da 5 dk'dan eski olay veya tek düğüme düşülmesi P1'dir.
+- **Kapsam dışı:** İkinci düğüm yalnız alımı güvenceye alır; ana sunucu düşerse panel, storefront ve işleme durur, ama hiçbir webhook kaybolmaz ve sunucu dönünce işlenir (sıralama ve dedupe kuralları [02](02-whatsapp-entegrasyonu.md) §7.3–7.4).
+
+**Pilotta sıfır kesintili deploy:** Caddy arkasında `api` ikişer kopyadır ve sırayla yenilenir (rolling); `api-hooks` düğümleri de birer birer yenilenir, yenilenen düğüm havuzdan çıkarılır. Webhook alımı dışında ana sunucu tek hata noktasıdır. Bu risk RTO tatbikatıyla ölçülür, hedef tutmazsa 3 sunucuya erken geçilir.
 
 ### 13.4 Cloudflare'in rolü
 DNS; wildcard sertifika ve TLS; WAF ve DDoS koruması; rate limiting kuralları (§15.4); statik varlık ve görsel CDN'i; R2 (ürün görselleri, harita karoları); Turnstile (storefront bot koruması); Cloudflare Access (admin paneli önünde kimlik + IP); Faz 3'te Cloudflare for SaaS (özel alan adları). Origin sunucuları yalnız Cloudflare IP'lerinden trafik kabul eder ve authenticated origin pulls (mTLS) açıktır. Cloudflare devre dışı kalırsa DNS-only moda geçiş runbook'u vardır.
@@ -802,12 +821,13 @@ DNS; wildcard sertifika ve TLS; WAF ve DDoS koruması; rate limiting kuralları 
 ### 13.6 Felaket kurtarma senaryoları
 | Senaryo | Etki | Müdahale |
 |---|---|---|
-| Uygulama sunucusu kaybı (pilot) | Tam kesinti | Hazır imajla yeni sunucu kurulur, 2. lokasyondan PITR, DNS/origin güncellenir; Meta webhook'ları 7 güne kadar yeniden dener (A01 §9.3) |
+| Uygulama sunucusu kaybı (pilot) | Panel, storefront ve işleme durur; webhook alımı ikinci düğümde sürer (spool) | Hazır imajla yeni sunucu kurulur, 2. lokasyondan PITR, DNS/origin güncellenir; spool boşaltılır. Meta webhook'ları ayrıca 7 güne kadar yeniden dener (A01 §9.3) |
+| Tek ingress düğümü kaybı | Yok (alım diğer düğümde) | Havuz sağlıksız düğümü çıkarır; düğüm yeniden kurulur, P1 kapatılır |
 | DB bozulması / yanlış silme | Kısmi veri | Olay öncesi zamana PITR, izole ortamda karşılaştırma, seçici geri yükleme |
 | Veri merkezi kaybı | Tam kesinti | 2. TR lokasyonunda altyapı kod olarak kurulur, `repo1`'den geri yükleme |
 | Redis kaybı | Kuyruklar boş | Yeniden başlatma; süpürücüler outbox/ham olaydan doldurur |
 | Cloudflare kesintisi | Erişim yok | DNS-only moda geçiş (origin TLS hazır) |
-| Meta/WhatsApp kesintisi (Anthropic kesintisi → §11.5; anahtar sızıntısı → §15.2) | Mesaj gelmez/gitmez | Storefront ve telefon siparişi (Akış E) açık kalır. Akış B'de WhatsApp doğrulaması kesinti boyunca işletme onayına devredilir (feature flag); SMS OTP **[Faz 2]** |
+| Meta/WhatsApp kesintisi (Anthropic kesintisi → §11.5; anahtar sızıntısı → §15.2) | Mesaj gelmez/gitmez | **"WhatsApp'sız mod" [Faz 1]:** storefront ve telefon siparişi (Akış E) açık kalır; Akış B doğrulaması **SMS OTP**'ye geçer (`otp_verifications`, `verification_method = sms_otp`; `sms_fallback` kill-switch'i ve `tenants.sms_fallback_enabled`). Durum bilgisi takip sayfasından, kritik durumlarda (onaylandı/iptal) SMS ile verilir. Personel ayrıca "Telefonla doğruladım" (`staff`) yolunu kullanabilir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 Akış B) |
 
 ## 14. Gözlemlenebilirlik
 ### 14.1 Metrikler (Prometheus)
@@ -816,6 +836,10 @@ DNS; wildcard sertifika ve TLS; WAF ve DDoS koruması; rate limiting kuralları 
 | `wa_webhook_to_panel_seconds` | Histogram (ingress alım → SSE yazımı) | p95 < 3 sn |
 | `order_created_to_panel_seconds` | Histogram, `channel` | p95 < 2 sn [T] |
 | `order_ack_seconds`, `order_accept_seconds`, `orders_unaccepted_over_2m` | Histogram (`new` → ack / accepted), gauge | KPI [10](10-riskler-operasyon-ve-metrikler.md); onaysız sipariş sayısında platform geneli ani artış → P2 |
+| `orders_tenant_no_response_total` | Counter, `branch` | İşletme kaynaklı kaçan sipariş (§14.5); ≥ 1 → aynı gün işletme araması ([10](10-riskler-operasyon-ve-metrikler.md) §5.6) |
+| `alarm_step_delay_seconds` | Histogram, `step` (`alarm_escalations.fired_at − scheduled_at`) | Gecikme > 60 sn → P2 |
+| `canary_e2e_seconds`, `canary_ack_seconds` | Histogram + başarı sayacı; `layer` (platform/tenant), `branch` | Platform: > 60 sn veya 2 ardışık kayıp → P1; tenant: §7.10 |
+| `ingress_node_up`, `ingress_spool_pending` | Gauge, `node` | Tek düğüme düşme veya spool'da 5 dk'dan eski olay → P1 |
 | `queue_depth`, `queue_oldest_job_age_seconds` | Gauge, `queue` | `wa-inbound`/`notify` en eski iş > 60 sn → P1 |
 | `outbox_oldest_pending_seconds` | Gauge | > 60 sn → P2 |
 | `wa_send_total`, `wa_send_errors_total` | Counter, `code`, `category`, `mode` | 131042/190 → anında tenant alarmı; genel hata oranı > %5 → P2 |
@@ -826,22 +850,22 @@ DNS; wildcard sertifika ve TLS; WAF ve DDoS koruması; rate limiting kuralları 
 | Altyapı | PG (bağlantı, replikasyon gecikmesi, şişkinlik), disk, yedek yaşı | Disk > %85, yedek > 26 sa → P2 |
 
 ### 14.2 Loglama ve PII
-- Pino JSON → Loki. Uygulama logları 30 gün, erişim/güvenlik logları (5651 ve panel güvenliği) 2 yıl tutulur (A03 §2.7).
+- Pino JSON → Loki. Uygulama logları 30 gün, trafik/erişim logları (5651) 1 yıl, panel güvenlik kayıtları ve `audit_log` 2 yıl tutulur ([08](08-mevzuat-kvkk-odeme-fatura.md) §2.8 satır 10, 11, 13).
 - `redact` yolları: `*.phone*`, `*.address*`, `*.text`, `*.body`, `req.headers.authorization`, `req.headers.cookie`, `*.token`. Telefon gerekiyorsa maskeli yazılır (`+90 5** *** ** 12`). WhatsApp mesaj gövdesi ve LLM girdisi loglanmaz.
 - Her satır `request_id`, `trace_id`, `tenant_id`, `branch_id` taşır. Tenant bazlı "hangi kayıtlar etkilendi" raporu (veri ihlali hazırlığı, A03 §2.8) bu alanlarla üretilir.
 
 ### 14.3 İz, hata izleme, uptime
 - **OpenTelemetry:** Trace bağlamı iş yüküne taşınır. Webhook → `wa-inbound` → FSM → outbox → `wa-outbound` → SSE zinciri tek trace'te görünür. Faz 1'de Grafana Tempo (self-host) kullanılır, örnekleme %10 + hata olan tüm trace'ler.
 - **Sentry:** `sendDefaultPii: false`, `beforeSend` ile gövde/çerez/başlık temizleme, kullanıcı yalnız `user_id`, istek gövdesi gönderilmez. Seçenek: Sentry SaaS (AB bölgesi, teyit edilmeli) veya TR'de self-host GlitchTip.
-- **Uptime Kuma** (self-host) + harici ikinci bir ping servisi izler: `hooks` GET doğrulama, storefront örnek tenant, panel `/health`, `api` `/ready` (DB + Redis). Halka açık durum sayfası `status.siparisinonunde.com` **[Faz 2]**.
+- **Uptime Kuma** (self-host) + harici ikinci bir ping servisi izler: `hooks` GET doğrulama (her iki ingress düğümü ayrı ayrı), storefront örnek tenant, panel `/health`, `api` `/ready` (DB + Redis). Uçtan uca doğrulama sentetik canary'dedir (§7.10). Halka açık durum sayfası `status.siparisinonunde.com` **[Faz 2]**.
 
 ### 14.4 Alarmlar
 | Seviye | Örnekler | Kanal ve süre |
 |---|---|---|
-| **P1** | Webhook sessizliği, 5xx > %2, DB erişilemez, `wa-inbound`/`notify` kuyruk yaşı > 60 sn, SSE bağlantılarında ani düşüş | Grafana Alerting → nöbetçiye push + SMS; 11:00–24:00 arası 15 dk içinde müdahale [T] |
-| **P2** | p95 webhook→panel > 3 sn, outbox gecikmesi, yedek yaşı, disk, `wa-inbound` DLQ | Mesai içi 1 sa |
+| **P1** | Webhook sessizliği, platform canary başarısız, tek ingress düğümüne düşme / eski spool, 5xx > %2, DB erişilemez, `wa-inbound`/`notify` kuyruk yaşı > 60 sn, SSE bağlantılarında ani düşüş | Grafana Alerting → nöbetçiye push + SMS; 11:00–24:00 arası 15 dk içinde müdahale [T] |
+| **P2** | p95 webhook→panel > 3 sn, alarm adımı gecikmesi > 60 sn, outbox gecikmesi, yedek yaşı, disk, `wa-inbound` DLQ | Mesai içi 1 sa |
 | **P3** | DLQ > 0 (diğer kuyruklar), LLM hata artışı, yazıcı hataları kümelenmesi | Sonraki iş günü |
-| **İşletme** | `new` onaysız, panel çevrimdışı, 131042/190, kalite düşüşü | Tenant'a (§7.6–7.7, [02](02-whatsapp-entegrasyonu.md) §10.2) |
+| **İşletme** | `new` onaysız (§7.6 zinciri), `tenant_no_response` iptali, panel çevrimdışı, tenant canary başarısız ("bayat panel"), 131042/190, kalite düşüşü | Tenant'a (§7.6, §7.7, §7.10, [02](02-whatsapp-entegrasyonu.md) §10.2) |
 
 Her alarmın runbook bağlantısı vardır (`infra/runbooks/`). Nöbet ve olay yönetimi süreci [10](10-riskler-operasyon-ve-metrikler.md)'dadır.
 
@@ -850,7 +874,8 @@ Her alarmın runbook bağlantısı vardır (`infra/runbooks/`). Nöbet ve olay y
 |---|---|---|
 | Aylık erişilebilirlik (storefront, panel API, webhook ingress) | ≥ %99,9 (≈ 43 dk/ay hata bütçesi) | Harici sentetik kontrol |
 | Webhook → panel | p95 < 3 sn | `wa_webhook_to_panel_seconds` |
-| Kaçırılan sipariş | %0 | Kapanışta `new` kalmış veya alarm zinciri tamamlanmamış sipariş sayısı |
+| Kaçan sipariş — **sistem kaynaklı** | 0 | Sipariş oluştu ama (a) 60 sn içinde hiçbir panel cihazına ve hiçbir panel dışı kanala (push, platform WhatsApp, SMS) ulaşmadı, veya (b) alarm zinciri (§7.6) planlandığı gibi çalışmadı (adım atlandı ya da > 60 sn gecikti), veya (c) `awaiting_customer → new` geçişi sistem hatasıyla yapılamadı ([10](10-riskler-operasyon-ve-metrikler.md) §7.2). Kaynak: `orders`, `alarm_escalations`, `order_events` |
+| Kaçan sipariş — **işletme kaynaklı** (KPI) | %0 | 15 dk yanıtsız kalıp sistemce iptal edilen sipariş: `cancelled`, `cancelled_by = system`, `cancel_reason = tenant_no_response`. Otomatik `rejected` yoktur. Canary ve test siparişleri hariç |
 | Ingress yanıtı | p99 < 300 ms | [02](02-whatsapp-entegrasyonu.md) §7 |
 | Durum mesajı (outbox → Graph API kabulü) | p95 < 10 sn [T] | `wa_send` gecikmesi |
 | RPO / RTO | ≤ 5 dk / ≤ 1 sa | Aylık tatbikat |
@@ -862,9 +887,9 @@ Hata bütçesi ayın %50'sinden fazla tükenirse yeni özellik deploy'u durur, g
 | Tehdit | Örnek senaryo | Kontrol |
 |---|---|---|
 | **S**poofing (kimlik taklidi) | Sahte Meta webhook'u | `X-Hub-Signature-256` HMAC, ham gövde, `timingSafeEqual` ([02](02-whatsapp-entegrasyonu.md) §7.2) |
-| Spoofing | Oturum çalma; sahte sipariş | `__Host-` httpOnly çerez, `owner`/platform için zorunlu TOTP, rate limit; Akış B WhatsApp doğrulaması + Turnstile (§15.5) |
+| Spoofing | Oturum çalma; sahte sipariş | `__Host-` httpOnly çerez, `owner`/platform için zorunlu TOTP, rate limit; Akış B WhatsApp (veya SMS OTP) doğrulaması + Turnstile (§15.5) |
 | **T**ampering (kurcalama) | İstemcide fiyat/ücret değiştirme | Fiyat, ücret ve toplam sunucuda yeniden hesaplanır (ilke 4) |
-| Tampering | Menü/takip token'ı değiştirme | HMAC imzalı, `kid`'li, kısa ömürlü token; takip token'ı rastgele 128 bit |
+| Tampering | Menü/takip token'ı değiştirme | HMAC imzalı, `kid`'li, kısa ömürlü token; takip token'ı tahmin edilemez ~128 bit (HMAC türetimli) |
 | **R**epudiation (inkâr) | "Siparişi ben iptal etmedim" | `audit_log` yalnız INSERT; aktör, cihaz, IP, `request_id` |
 | **I**nformation disclosure (sızıntı) | Tenant'lar arası veri görme (IDOR) | RLS + bileşik FK + otomatik IDOR testleri (§5.6) |
 | Information disclosure | Log/LLM/Sentry/push'ta PII; yedek sızıntısı | Maskeleme ve scrub (§11.4, §14.2); şifreli yedek repo, ayrı kimlik bilgisi, object lock |
@@ -890,22 +915,23 @@ await saveSecret({ tenantId, kind: 'wa_token', ciphertext, iv, tag, wrapped, kek
 | Token | Biçim | Ömür | Not |
 |---|---|---|---|
 | Meta webhook | HMAC-SHA256 (App Secret) | — | Doğrulanmayan istek 401 alır, gövde saklanmaz |
-| Menü linki (`?wa=`) | HMAC imzalı yük, `kid`, telefonsuz ([02](02-whatsapp-entegrasyonu.md) §6.3) | 2 sa | Storefront'ta host'a özel kısa ömürlü çereze çevrilir, URL'den temizlenir |
-| Takip linki `/t/{token}` | 128 bit rastgele (base62), DB'de SHA-256 hash'i | Teslimden 7 gün sonra [T] | Sayfa PII'yi maskeli gösterir (ad baş harfi, mahalle düzeyi adres), `noindex` |
+| Menü linki (`?wa=`) | HMAC imzalı yük, `kid`, `jti` (`storefront_link_tokens.id`), telefonsuz ([02](02-whatsapp-entegrasyonu.md) §6.3) | 2 sa | **GET isteğinde tüketilmez** (link önizleme/prefetch yakmasın): ilk açılışta `POST /api/v1/store/link-session` ile host'a özel HttpOnly çereze (`so_ls`) çevrilir, URL'den temizlenir; "Ben değilim" kaçışı vardır |
+| Takip linki `/t/{token}` | `base62(HMAC-SHA256(tracking_key[kid], order_id))[:22]` (~128 bit), DB'de yalnız SHA-256 hash'i (`orders.tracking_token_hash`) | **Teslimden 7 gün sonra geçersiz** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7) | Sayfa PII'yi maskeli gösterir (ad baş harfi, mahalle düzeyi adres), `noindex` |
 | Sipariş kodu (Akış B) | 6 karakter, karışmayan alfabe | 30 dk | BSUID başına 10 dk'da 5 hatalı deneme sınırı ([02](02-whatsapp-entegrasyonu.md) §6.4) |
+| SMS OTP (Akış B yedeği, WhatsApp'sız mod) **[Faz 1]** | 6 hane; DB'de yalnız HMAC'i (`otp_verifications.code_hash`) | 5 dk; 5 deneme | Telefon başına günde ≤ 5 OTP, 60 sn yeniden gönderim aralığı |
 | Kurye magic link | Tek kullanımlık, hash'li | 15 dk | §6.4 |
 | Cihaz / ajan token'ı | Rastgele 256 bit, hash'li | 90 gün / iptale kadar | Panelden iptal edilir |
 
 ### 15.4 Rate limiting katmanları
 | Katman | Anahtar | Örnek limit [T] |
 |---|---|---|
-| Cloudflare WAF | IP, yol | `POST /api/store/orders` 10/dk/IP; giriş/OTP uç noktaları 20/dk/IP |
+| Cloudflare WAF | IP, yol | `POST /api/v1/store/orders` 10/dk/IP; giriş/OTP uç noktaları 20/dk/IP |
 | Better Auth dahili | Uç nokta | Giriş, OTP, parola sıfırlama için özel kurallar (varsayılan 60 sn/100 istek, A04 §8.2) |
 | Uygulama (`rate-limiter-flexible`, Redis) | IP + kullanıcı + tenant + telefon + BSUID | OTP telefon başına ≤ 5/gün (SMS pompalamaya karşı); tenant başına panel API 50 istek/sn; Akış B kod denemeleri |
 | WhatsApp gönderim | `phone_number_id`, alıcı | 80 veya 20 mesaj/sn; alıcı başı ~6 sn ([02](02-whatsapp-entegrasyonu.md) §7.6) |
 
 ### 15.5 Bot ve sahte sipariş koruması
-1. **Akış B doğrulaması (birincil savunma):** Doğrudan web siparişi, müşteri WhatsApp'tan sipariş kodunu gönderene kadar `awaiting_customer`'da kalır ve panele düşmez.
+1. **Akış B doğrulaması (birincil savunma):** Doğrudan web siparişi, müşteri WhatsApp'tan sipariş kodunu gönderene **veya** SMS OTP'yi doğrulayana kadar (WhatsApp'sız mod **[Faz 1]**: müşterinin WhatsApp'ı yoksa, işletmenin WhatsApp bağlantısı henüz tamamlanmadıysa ya da kanal arızalıysa) `awaiting_customer`'da kalır ve panele düşmez. Böylece işletme Meta adımları bitmeden ilk gün web siparişi alabilir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 Akış B).
 2. **Turnstile (görünmez)** storefront checkout'unda **[Faz 1]** çalışır. Başarısız doğrulamada sipariş reddedilir.
 3. **Hız kuralları:** IP başına en çok 3 açık `awaiting_customer`, aynı BSUID'den 15 dk'da 3'ten fazla sipariş "şüpheli" rozeti alır, honeypot alanı kullanılır.
 4. **İşletme kontrolleri:** Müşteri engelleme (tenant içi), "ilk sipariş ve tutar > X TL" uyarısı (işletme ayarı).

@@ -5,7 +5,7 @@
 > **Kapsam dışı (bağlantı verilir):** paket fiyatları ve hesaplayıcı formüllerinin iş gerekçesi → [01](01-vizyon-pazar-is-modeli.md) · WhatsApp sağlık sinyallerinin teknik kaynağı, şablon metinleri, hata kodları → [02](02-whatsapp-entegrasyonu.md) · storefront ve storefront SEO'su → [03](03-musteri-deneyimi-ve-storefront.md) · işletme paneli ve onboarding sihirbazı ekranları → [04](04-isletme-paneli.md) · kuyruk, gözlemlenebilirlik, kimlik altyapısı → [06](06-teknik-mimari.md) · tablo alanları → [07](07-veri-modeli-ve-api.md) · dunning, fatura, KVKK süreçlerinin hukuki dayanağı → [08](08-mevzuat-kvkk-odeme-fatura.md) · SLO, KPI hedefleri, olay yönetimi → [10](10-riskler-operasyon-ve-metrikler.md).
 > **İlgili dokümanlar:** [00 Kararlar ve sözlük](00-kararlar-ve-sozluk.md) (bağlayıcı) · [01](01-vizyon-pazar-is-modeli.md) · [02](02-whatsapp-entegrasyonu.md) · [04](04-isletme-paneli.md) · [06](06-teknik-mimari.md) · [07](07-veri-modeli-ve-api.md) · [08](08-mevzuat-kvkk-odeme-fatura.md) · [10](10-riskler-operasyon-ve-metrikler.md)
 > **Kaynaklar:** [arastirma/05-urun-ux.md](arastirma/05-urun-ux.md) §5–6 (ana kaynak); [arastirma/02-pazar-rakipler-is-modeli.md](arastirma/02-pazar-rakipler-is-modeli.md) §7, §9, §10.5–10.6; [arastirma/01-whatsapp-platform.md](arastirma/01-whatsapp-platform.md) §9.7, §10; [arastirma/06-riskler-kirmizi-takim.md](arastirma/06-riskler-kirmizi-takim.md) §5.6, §6, §9.3.
-> **Tarih:** 2026-09-24 · **Durum:** Taslak v1
+> **Tarih:** 2026-09-24 · **Durum:** Taslak (düzeltme turu sonrası; 00 ile hizalandı)
 
 **Okuma notları**
 - **Atıf biçimi:** `A05 §5.2` = arastirma/05 bölüm 5.2 (URL'ler orada); `D01 §6.7` = 01 numaralı plan dokümanı; yalnız `§A.4` = bu doküman. Bağlayıcı kararlar [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md)'dedir; çelişkide o geçerlidir. **[T]** bizim önerimiz veya tahminimizdir; **(teyit edilmeli)** doğrulanmamış bilgidir.
@@ -55,8 +55,8 @@ Admin paneli sıradan bir CRUD ekranı değildir. Üç soruya saniyeler içinde 
 | `active` | Aktif | `active` | Tam hizmet |
 | `past_due` | Ödeme gecikti | G0–G+9 (dunning) | Tam hizmet + panel bandı |
 | `read_only` | Salt-okunur | G+10 | Sipariş alma sürer; menü, ayar, personel düzenleme kapalı ([08](08-mevzuat-kvkk-odeme-fatura.md) §6.3) |
-| `suspended` | Askıda | G+21; deneme bitişi + 3 gün uyarı bandı; admin askısı (`policy`, `abuse`, `legal`) | Yeni online sipariş kapalı; storefront ve bot "şu an online sipariş alınmıyor, lütfen arayın". Ödeme veya plan seçimiyle veri aynen geri döner |
-| `churned` | Kayıp | Abonelik `cancelled`: iptal (dönem sonu); dunning G+75 hesap kapatma; deneme bitişinde plan seçilmeden 90 gün | Hizmet kapalı; dışa aktarma hakkı hatırlatılır, ardından veri silme süreci |
+| `suspended` | Askıda | G+21 (`suspension_reason = payment`); deneme bitişi + 3 gün uyarı bandı (`trial_ended`); pilot bitişi + 3 gün, plan yok (`pilot_ended`); admin askısı (`policy`, `abuse`, `legal`) | Yeni online sipariş kapalı; storefront ve bot "şu an online sipariş alınmıyor, lütfen arayın". Ödeme veya plan seçimiyle veri aynen geri döner |
+| `churned` | Kayıp | Abonelik `cancelled`: iptal (dönem sonu); dunning G+75 hesap kapatma; deneme bitişinde plan seçilmeden 90 gün | Hizmet kapalı. Gönüllü iptalde dönem sonundan itibaren 30 günlük dışa aktarma penceresi; dunning ve deneme bitişinde bu pencere askı süresince işlemiştir (dışa aktarma hakkı hatırlatılır). Ardından veri silme (`retention.tenant_offboarding`, [08](08-mevzuat-kvkk-odeme-fatura.md) §2.8) |
 
 **Türetme önceliği:** `churned` > `suspended` > `read_only` > `past_due` > `onboarding` > `pilot` > `trial` > `active`. Örnek: kurulumu bitmemiş pilot işletme `onboarding` görünür.
 
@@ -382,7 +382,7 @@ Kurallar [06](06-teknik-mimari.md) §6.7 ile aynıdır; UI ve süreç burada.
 - **Üç ayda bir erişim gözden geçirmesi [T]:** PO, rollerin hâlâ gerekli olduğunu onaylar; kayıt `audit_log`'a düşer.
 
 ### A-22 AI menü çıkarma kuyruğu (concierge iç aracı) **[Faz 1]**
-- Menü fotoğrafı/PDF yükleme → Sonnet 5 vision ile taslak (kategori, ürün, seçenek grupları, fiyat) → ekip incelemesi → tenant'a **taslak menü** olarak aktarım. Owner panelde "Menüyü yayınla" ile onaylar. **Fiyatlar her zaman insan onayından geçer** (KARARLAR §10).
+- Menü fotoğrafı/PDF yükleme → Sonnet 5 vision ile taslak (kategori, ürün, seçenek grupları, fiyat) → ekip incelemesi → tenant'a **taslak menü** olarak aktarım. Owner panelde "Menüyü yayınla" ile onaylar. **Fiyatlar her zaman insan onayından geçer** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10).
 - Kuyruk: yükleme zamanı, sorumlu, durum, düzeltme sayısı. Hata tipleri Faz 2 self-servis için etiketlenir (A05 §11.12). Menü görselleri kişisel veri değildir; yine de yalnız menü içeren dosya kabul edilir.
 
 ### A-23 Bayiler, komisyonlar ve referanslar **[Faz 2]**
@@ -433,7 +433,7 @@ Her alarmın runbook'u `infra/runbooks/` altındadır ([06](06-teknik-mimari.md)
 | `wa-inbound`/`notify` en eski iş > 60 sn | P1 | A-11 | Worker ölçekle veya yeniden başlat; DLQ'yu incele | Nöbetçi |
 | 5xx > %2 (5 dk) / SSE bağlantılarında ani düşüş | P1 | A-12 | Son deploy'u geri al; yük dengeleyici | Nöbetçi |
 | Canary uçtan uca gecikme > 60 sn | P1 | A-12 | Zinciri izle (ingress → kuyruk → SSE) | Nöbetçi |
-| Tenant 131042 | İşletme | A-06 → A-04 | Gönderim otomatik duraklatıldı; işletmeyi ara, Meta kart rehberi; kart eklenince sağlık kontrolünü yeniden çalıştır | SA |
+| Tenant 131042 | İşletme | A-06 → A-04 | Gönderim otomatik duraklatıldı; storefront doğrulaması WhatsApp'sız moda (SMS OTP) geçti ([03](03-musteri-deneyimi-ve-storefront.md)); işletmeyi ara, Meta kart rehberi; kart eklenince sağlık kontrolünü yeniden çalıştır | SA |
 | Tenant 190 / token bitişine < 7 gün | İşletme | A-06 → A-04 | Owner'a "Yeniden bağlan"; gerekirse salt-okunur impersonation ile doğrula | SA |
 | Coexistence kopması / son echo > 10 gün | İşletme | A-06 | Hatırlatma; kopmuşsa yeniden bağlama | SA |
 | Kalite `YELLOW` / `RED` | İşletme + admin | A-06 → A-16 | Şablon ve gönderim geçmişini incele; `RED`'de kampanya kilidi ve görüşme | PA |
@@ -798,7 +798,7 @@ Geçişten sonra
 1. Ad soyad, cep telefonu (OTP), e-posta.
 2. İşletme adı, türü (Commerce Policy filtresi), il/ilçe; slug önerisi.
 3. Click-wrap: abonelik sözleşmesi + kullanım koşulları + DPA kabulü (sürüm kaydı, [08](08-mevzuat-kvkk-odeme-fatura.md) §7.5); aydınlatma metni bilgilendirmesi; Commerce Policy beyanı ("Alkol, tütün, ilaç ve tüp gazı WhatsApp ve web üzerinden satmayacağım"); işaretsiz kutu: platform WhatsApp kritik uyarı izni ([02](02-whatsapp-entegrasyonu.md) §5.3).
-4. Owner TOTP kurulumu (owner için zorunlu, KARARLAR §10).
+4. Owner TOTP kurulumu (owner için zorunlu, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10).
 5. Durum: **"Başvurun alındı."** Tenant açılır (`onboarding`, `account_created`). SR, 1 iş günü içinde arar. **Onay kontrolü:** sahte işletme, Commerce Policy ve Meta onboarding kotası sırası (10/hafta → 200/hafta). Onay sonrası sihirbaz açılır ([04](04-isletme-paneli.md)); `web_live` için de onay gerekir (A06 R30).
 6. "Biz kuralım" seçeneği her adımda görünür.
 
@@ -834,7 +834,7 @@ Rakip marka adları yalnız bilgi amaçlı blog içeriğinde ve §C.8 kuralları
 1. O ilçede ≥ 3 aktif işletme [T] (sayı gösterilecekse işletmeleri tanımlanabilir kılmayacak biçimde).
 2. En az 1 izinli yerel vaka (isim, rakam, fotoğraf veya video).
 3. Sayfaya özgü içerik: yerel esnaf odası iş birliği, ilçeye özgü sorular ve cevaplar; şablon metin sayfanın küçük bir kısmıdır.
-4. **İşletme listesi veya dizini yoktur.** "İlçedeki restoranlar" gibi keşif listesi KARARLAR §9 gereği yapılmaz (ETAHS/pazaryeri sayılma riski). Vakadan tek işletmenin storefront'una link yalnız yazılı izinle verilir.
+4. **İşletme listesi veya dizini yoktur.** "İlçedeki restoranlar" gibi keşif listesi [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9 gereği yapılmaz (ETAHS/pazaryeri sayılma riski). Vakadan tek işletmenin storefront'una link yalnız yazılı izinle verilir.
 5. Kriterler üç ayda bir yeniden kontrol edilir. Sağlanmazsa sayfa `noindex` olur veya il sayfasına 301 ile yönlenir. Yayın kapısı CMS'te zorunludur (A-24).
 
 ## C.7 Blog: ilk 10 konu ve içerik takvimi **[Faz 2]**
@@ -860,7 +860,7 @@ Rakip marka adları yalnız bilgi amaçlı blog içeriğinde ve §C.8 kuralları
 
 ## C.8 Marka tonu, mesaj ve reklam kuralları
 
-**Ana mesaj:** *"Keşif pazaryerinde, sadakat sende. Komisyonsuz, WhatsApp'tan."* (KARARLAR §1)
+**Ana mesaj:** *"Keşif pazaryerinde, sadakat sende. Komisyonsuz, WhatsApp'tan."* ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §1)
 
 **Ton:** Esnafın yanında duran, rakamla konuşan, abartısız, kısa cümleli. Teknik terim yerine esnafın dili ("Cloud API" değil "resmi WhatsApp altyapısı"; "coexistence" değil "numaran ve uygulaman yerinde kalır").
 
@@ -871,7 +871,7 @@ Rakip marka adları yalnız bilgi amaçlı blog içeriğinde ve §C.8 kuralları
 | "Resmi WhatsApp Business Platform altyapısı." | "Ban riski sıfır", "Meta onaylı" (Tech Provider statüsü alınmadan ve Meta marka kurallarına uyulmadan) |
 | "Verilerin Türkiye'de barındırılır." | "%100 KVKK uyumlu" ([08](08-mevzuat-kvkk-odeme-fatura.md) §2.11) |
 | "WhatsApp mesaj ücretleri Meta'ya ayrıca ödenir." | "Mesajlar dahil", "sınırsız ücretsiz mesaj" (MPS Faz 3'e kadar) |
-| "Bot yalnız menü ve sipariş için; istediğin an sen devralırsın." | "WhatsApp'ta ChatGPT", "yapay zekâ asistanın" (KARARLAR §6.9) |
+| "Bot yalnız menü ve sipariş için; istediğin an sen devralırsın." | "WhatsApp'ta ChatGPT", "yapay zekâ asistanın" ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6 madde 9) |
 | "Ayda ~21 sipariş kendi kanalına geçerse kendini amorti eder (%25 kesintide)." | Koşulsuz "kesin tasarruf", "en ucuz" |
 
 **Karşılaştırmalı reklam kuralları** (Ticari Reklam Yönetmeliği [O]; [08](08-mevzuat-kvkk-odeme-fatura.md) §4.5; A03 §4.8):
@@ -913,31 +913,38 @@ Rakip marka adları yalnız bilgi amaçlı blog içeriğinde ve §C.8 kuralları
 
 ## Açık konular
 
-**KARARLAR ve diğer dokümanlarla çelişkiler (uygulanan tercih)**
-1. **Deneme bitişi:** [08](08-mevzuat-kvkk-odeme-fatura.md) §6.2 "D+3 salt-okunur, D+7 askı, D+30 bildirim, D+60 silme" öneriyor. KARARLAR §9 "3 gün uyarı bandı → askı → 90 gün içinde plan seçilirse veri döner → silme" diyor. **KARARLAR uygulandı**; 08 güncellenmeli.
-2. **Kurucu üye fiyatı:** [01](01-vizyon-pazar-is-modeli.md) §6.4 "12 ay sabit, TÜFE uygulanmaz" diyor. KARARLAR §8 "sabit indirim **oranı**, sabit TL fiyat değil; liste fiyatı TÜFE ile güncellenebilir" diyor. **KARARLAR uygulandı** (fiyat sayfası metni §C.3.3); 01 düzeltilmeli.
-3. **Başa baş yuvarlaması:** [01](01-vizyon-pazar-is-modeli.md) §6.7 tablosu B senaryosunda "≈ 37/ay" yazıyor (1.790 / 48,125 = 37,2). Diğer değerler (59, 42, 21) yukarı yuvarlamayla uyumlu. Burada **yukarı yuvarlama** kanonik kabul edildi (B = 38); 01 tablosu düzeltilmeli.
-4. **Veri modelinde eksikler ([07](07-veri-modeli-ve-api.md)):** `tenants.status` (`onboarding`, `live`, `offboarding`, `closed`) KARARLAR'daki `lifecycle_stage` ile eşlenmemiş. Eklenmesi önerilenler: `tenants.lifecycle_stage` + `tenant_lifecycle_events`, `tenants.onboarding_step` (+ zaman damgaları), `leads` (+ görevler), `tenant_notes` / destek etiketleri, `breach_incidents`, `content_takedowns`, `suspension_reason`, `referrals.reward_status` değerleri.
-5. **Impersonation süresi ve admin oturumu:** [06](06-teknik-mimari.md) §6.7 impersonation için 30 dk, [07](07-veri-modeli-ve-api.md) ≤ 60 dk diyor. Uygulanan: varsayılan 30 dk, bir uzatmayla en fazla 60 dk. Admin oturumu 06'da 8 saat, 07'de 12 saat; 06 (8 saat) uygulandı.
-6. **Bayi alt rolleri:** KARARLAR'da yalnız `reseller` var. "Bayi yöneticisi / teknisyen" ayrımı `reseller_users.is_admin` bayrağıyla önerildi; KARARLAR'a eklenmesi veya reddedilmesi gerekir.
+**00 ile hizalama ve diğer dokümanlarla çelişkiler** (numaralar metindeki atıflar için korunmuştur)
+1. **Deneme bitişi — Karara bağlandı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9):** 14 gün → 3 gün uyarı bandı → askı → 90 gün içinde plan seçilirse veri aynen döner → silme. Salt-okunur ara aşama yoktur (§A.2.1). [08](08-mevzuat-kvkk-odeme-fatura.md) §6.2 buna göre hizalandı.
+2. **Kurucu üye — Karara bağlandı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8):** 12 ay boyunca sabit %30 indirim **oranı**; sabit TL fiyat değil, liste fiyatı TÜFE ile güncellenebilir (fiyat sayfası §C.3.3, hesaplayıcı `U`).
+3. **Başa baş yuvarlaması — Karara bağlandı ([01](01-vizyon-pazar-is-modeli.md) §6.7 kanonik kuralı):** `N*` her zaman yukarı yuvarlanır; test değerleri 59 / 38 / 42 ve kısa referans 21, 01 ile birebir (§C.4.6).
+4. **Veri modeli ([07](07-veri-modeli-ve-api.md)) — büyük ölçüde karşılandı:** `tenants.lifecycle_stage` + `tenant_lifecycle_events`, `onboarding_step` (bu dokümandaki kodlarla) + `tenant_onboarding_steps`, `suspension_reason`, `leads`, `admin_tasks`, `data_breach_incidents`, `content_takedowns`, `ordering_enabled`, `plan_features.sms_monthly_quota` 07'de tanımlı. Açık kalan: `referrals.reward_status` değerlerinin (`pending`, `earned`, `applied`, `void`, §B.6) 07'ye yazılması ve 07'deki admin not tablosu adının tekilleştirilmesi (`admin_notes` / `tenant_admin_notes`).
+5. **Impersonation süresi ve admin oturumu — Karara bağlandı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4):** admin oturumu 8 saat + 30 dk hareketsizlikte kilit; impersonation en fazla 30 dk, uzatma yok, varsayılan salt-okunur, gerekçe zorunlu, işletmeye bildirim (§A.1, A-09).
+6. **Bayi alt rolleri — Karara bağlandı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4):** `reseller_admin` ve `reseller_technician` (§B.1, §B.2). Önceki `reseller_users.is_admin` önerisi kaldırıldı.
 7. **Site fazları:** A05 §6.1 blog'u Faz 1'e, şehir sayfalarını Faz 2'ye, `/sektorler/restoran`'ı Faz 1'e koyuyor. Bu plan görev tanımına ve kapsam riskine (A06 R02) göre blog'u Faz 2'ye, şehir ve sektör sayfalarını Faz 3'e aldı. SEO'nun geç başlaması ödünleşimdir; istenirse 2–3 temel rehber Faz 1 sonunda statik sayfa olarak yayınlanabilir.
-8. **Faz 1 kaydı:** [01](01-vizyon-pazar-is-modeli.md) §6.4 14 günlük denemeyi Faz 2 ticari lansmana bağlıyor. Faz 1 `/kayit` bu yüzden "onaylı kayıt / kurucu üye listesi" olarak tanımlandı. Onaylanmalı.
+8. **Faz 1 kaydı:** [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8 14 gün kartsız denemeyi tanımlıyor; abonelik tahsilatı §11'e göre Faz 2'de geldiği için [01](01-vizyon-pazar-is-modeli.md) §6.4 self-servis denemeyi Faz 2 ticari lansmana bağlıyor. Faz 1 `/kayit` bu yüzden "onaylı kayıt / kurucu üye listesi" olarak tanımlandı. Proje sahibince onaylanmalı.
 9. **"10 dakikada ilk sipariş" iddiası:** A05 §4.5 sihirbaz hedefidir; pilotta ölçülmeden reklam iddiası olarak kullanılmaz.
 10. **Çerezsiz sunucu tarafı analitiğin rıza gerektirip gerektirmediği** avukat tarafından teyit edilmeli (Çerez Rehberi benzeri teknolojileri de kapsıyor olabilir [O]).
 
 **Karar bekleyenler**
 11. **Bayi komisyonu:** %30 × 12 ay mı, tek seferlik 2 aylık ücret mi (ikisi birlikte sunulacak mı)? Bayinin "biz kuralım" kurulum bedelinden pay alıp almayacağı. Tavsiye ortağı (muhasebeci, esnaf odası) ödül modeli.
 12. **Referans ödülünün tetiklenme koşulu** (ilk ödeme + 30 gün aktif) ve yıllık üst sınır (12 ay) önerisi onaylanmalı.
-13. **Kill-switch ekleri** (`signup_open`, `wa_onboarding`, `campaigns_global`) [06](06-teknik-mimari.md) §16.6 listesine eklenmeli.
+13. **Kill-switch listesi — Karara bağlandı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4):** `signup_open`, `wa_onboarding`, `campaigns_global`, `llm_parsing`, `sms_fallback`, tenant bazında `ordering_enabled` (A-13). [06](06-teknik-mimari.md) §16.6, [07](07-veri-modeli-ve-api.md) `feature_flags` ve [09](09-yol-haritasi-ve-sprint-plani.md)'daki eski liste (`ai_ordering`, `bot_global`, `auto_print`, `akis_b_wa_verification`, `platform_wa_alerts`) buna göre güncellenmeli.
 14. **Hesaplayıcı sonucunu WhatsApp'tan gönderme şablonu** (`hesap_sonucu_v1`) Meta'da utility mi marketing mi sınıflanır? Marketing olursa e-posta varsayılan yapılır. [02](02-whatsapp-entegrasyonu.md) §5.3 listesine eklenmeli.
 15. **Faz 2 onaylı destek erişimi** ("her seferinde onayımı iste") ve P1 istisnası DPA'ya nasıl yazılacak?
 16. **Harici CRM ve helpdesk:** Faz 2'de satış ekibi büyürse hangi araç ve hangi m.9 dayanağıyla?
 17. **Sağlık skoru ve takılan adım eşikleri** ([T] 48 saat, %40 düşüş vb.) pilot verisiyle kalibre edilip [10](10-riskler-operasyon-ve-metrikler.md)'a taşınmalı.
 18. **Site hitap dili:** Pazarlama sitesinde "sen", yasal metinlerde "siz" önerildi; panelin hitap dili ([04](04-isletme-paneli.md)) ile birlikte onaylanmalı.
-19. **SMS OTP fazı:** KARARLAR Akış B yedeğini (SMS OTP) Faz 1'de tanımlıyor; [01](01-vizyon-pazar-is-modeli.md) §7.1 ve [06](06-teknik-mimari.md) §13.6 müşteri SMS OTP'sini Faz 2 yazıyor. SSS #7 ve `web_live` kapısı KARARLAR'a (Faz 1) göre yazıldı; 01 ve 06 hizalanmalı.
+19. **SMS OTP fazı ve SMS kotası — Karara bağlandı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4, §7):** müşteri SMS OTP yedeği ("WhatsApp'sız mod") **Faz 1**; SMS platform maliyetidir, aboneliğe adil kullanım kotasıyla dahildir (Esnaf 100, Pro 300 SMS/ay; ek paket Faz 2). SSS #7, fiyat sayfası ve `web_live` kapısı buna göre yazıldı. [06](06-teknik-mimari.md) §13.6'daki "SMS OTP [Faz 2]" ifadesi hizalanmalı.
 
 **Teyit edilecekler**
-20. Meta marka kullanım yönergeleri (WhatsApp adı/logosu), Tech Provider statüsünün sitede nasıl ifade edilebileceği.
+20. Meta marka kullanım yönergeleri (WhatsApp adı/logosu), Tech Provider statüsünün sitede nasıl ifade edilebileceği (Meta modeli açık kararı: [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13 #5).
 21. Künyede zorunlu alanların güncel listesi; Nisan 2026 yemek sipariş düzenlemesinin yürürlük tarihi (1 / 13 Nisan).
 22. Anahtar kelime hacimleri (hiçbiri doğrulanmadı); Türkiye'de Yandex payı; FAQ zengin sonuç politikası.
 23. Ramazan 2027 tarihleri (içerik takvimi çapası).
+
+**Proje sahibi kararları ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13; bu doküman varsayılanla yazıldı)**
+24. **Marka ve alan adı (00 §13 #6):** site, admin ve bayi adresleri `siparisinonunde.com` varsayımıyla yazıldı; marka değişirse §C.2 sayfa haritası, §C.8 metinleri ve künye güncellenir.
+25. **Pilot şehir/ilçeler (00 §13 #2):** demo formundaki "sıcak lead" kuralı (§C.5.1) ve lead dağıtımı (A-20) bu karara bağlıdır.
+26. **Barındırma sağlayıcısı (00 §13 #4):** "Verilerin Türkiye'de barındırılır" iddiası (§C.3.1, SSS #14) sağlayıcı seçimi ve alt işleyen envanteriyle (A-17) teyit edilmeden yayınlanmaz.
+27. **AI siparişin paketi ve kotası (00 §13 #8):** fiyat sayfasında AI sipariş varsayılan olarak Pro'da "yakında" gösterilir.
+28. **SLO hedefleri (00 §13 #10):** A-12 SLO kutuları varsayılan %99,9 aylık erişilebilirlik, RPO ≤ 5 dk, RTO ≤ 1 saat ile kurulur.

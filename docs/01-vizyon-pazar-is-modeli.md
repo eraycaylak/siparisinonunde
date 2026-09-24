@@ -527,41 +527,47 @@ Brüt marj = (Aylık ücret − COGS) / Aylık ücret (1.000 işletme ölçeği,
 
 ### 7.3 CAC hedefleri
 
-**Karma hedef (KARARLAR): CAC ≤ 4.000 TL, geri ödeme süresi < 4 ay.**
+**Karma hedef ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12): CAC ≤ 4.000 TL, geri ödeme süresi < 4 ay.**
 
 | Kanal | Maliyet varsayımı | İşletme başı CAC [T] |
 |---|---|---|
 | Saha satış temsilcisi | ~70.000 TL/ay (maaş, prim, yol); ayda 20 kapanış | ~3.500 + onboarding emeği 1.000 + basılı materyal 500–1.000 → **~5.000** |
 | Bayi (POS teknik servisi, ajans) | Öneri: ilk 12 ay aylık ücretin %30'u (Pro'da ~537 TL/ay) veya tek seferlik 2 aylık ücret | ~3.600–6.400 (zamana yayılır) |
-| Referans programı | Getiren ve gelen işletmeye 1'er ay ücretsiz | ~1.790 (gelir kaybı, nakit değil) |
+| Referans programı | Getiren ve gelen işletmeye 1'er ay ücretsiz | ~1.980–3.580 (iki aylık ücret; gelir kaybı, nakit değil) |
 | İçerik ve organik (Instagram, TikTok, YouTube, SEO) | İçerik üreticisi + küçük reklam bütçesi | Hedef < 2.000 |
 | Esnaf odası, muhasebeci, CTWA reklamı | Protokol indirimi, tavsiye ücreti, reklam bütçesi | Pilot ve Faz 2'de ölçülecek |
 
-**Geri ödeme süresi** = CAC / (aylık ücret × brüt marj). %70 marj varsayımıyla:
+**Geri ödeme süresi** = CAC / (aylık ücret × brüt marj). %70 hedef marj varsayımıyla (§7.2'deki gerçekleşen marj bunun altındaysa süre orantılı uzar):
 - **Pro liste fiyatı:** 4.000 / (1.790 × 0,70) = **3,2 ay** → hedefle uyumlu.
 - **Pro kurucu üye:** 4.000 / (1.253 × 0,70) = 4,6 ay → hedefin üstünde. Kurucu üye dönemi bilinçli bir yatırım olarak kabul edilir; bu dönemde CAC ≤ ~3.500 TL hedeflenir.
 - **Esnaf:** 4.000 / (990 × 0,70) = 5,8 ay → hedefin üstünde. **Esnaf için CAC tavanı ≈ 2.770 TL** (990 × 0,70 × 4). Esnaf müşterisi referans, içerik ve self-servis kanallarından gelmeli; saha satışı Pro'ya odaklanmalı.
 
 ### 7.4 Churn ve LTV
 
-- **Churn beklentisi (KARARLAR):** ilk yıl aylık logo churn **%5–7**, ürün oturunca **< %3**. SMB SaaS için aylık %3–5 tipik; düşük fiyatlı ürünlerde %3–8 ([koji.so](https://www.koji.so/blog/saas-churn-rate-benchmarks-2026)).
+- **Churn beklentisi ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12):** ilk yıl aylık logo churn **%5–7**, ürün oturunca **< %3**. SMB SaaS için aylık %3–5 tipik; düşük fiyatlı ürünlerde %3–8 ([koji.so](https://www.koji.so/blog/saas-churn-rate-benchmarks-2026)).
 - **Restoran kapanışları churn'ü artırır:** TOBB'a göre 2023'te 2.136 lokanta kapandı; 2024'te kurulan şirket sayısı %10,2 azalırken kapanan şirket sayısı %21,4 arttı (arastirma/02 §8).
 
-LTV = ARPU × brüt marj / aylık churn (marj %70 varsayımı). Araştırmadaki LTV (~31.500 TL, %4 churn) mesaj kredisi gelirini içeren 1.940 TL ARPU'ya dayanıyordu; burada ARPU yalnız aboneliktir.
+LTV = ARPU × brüt marj / aylık churn (marj %70 hedef varsayımı; Esnaf'ta §7.2'deki marj bunun altında olduğundan Esnaf LTV'si iyimser üst sınırdır). Araştırmadaki LTV (~31.500 TL, %4 churn) mesaj kredisi gelirini içeren 1.940 TL ARPU'ya dayanıyordu; burada ARPU yalnız aboneliktir.
 
-| Aylık churn | Pro LTV (1.253 TL/ay brüt kâr) | Pro LTV / CAC (4.000) | Esnaf LTV (693 TL/ay brüt kâr) | Esnaf LTV / CAC (4.000) |
+| Aylık churn | Pro LTV (1.790 × %70 = 1.253 TL/ay brüt kâr) | Pro LTV / CAC (4.000) | Esnaf LTV (990 × %70 = 693 TL/ay brüt kâr) | Esnaf LTV / CAC (4.000) |
 |---|---|---|---|---|
 | %7 | ~17.900 TL | 4,5× | ~9.900 TL | 2,5× |
 | %5 | ~25.060 TL | 6,3× | ~13.860 TL | 3,5× |
 | %3 | ~41.770 TL | 10,4× | ~23.100 TL | 5,8× |
 
-- **Churn önleyiciler:** aylık "kendi kanalından X sipariş, Y TL tasarruf" raporu; sipariş hacmi düşen işletme için admin uyarısı; yıllık peşin plan teşviki; "aynısından tekrar" ile kanal alışkanlığı.
+- **Churn önleyiciler:** aylık "kendi kanalından X sipariş, Y TL tasarruf" raporu; sipariş hacmi düşen işletme için admin uyarısı; yıllık peşin plan teşviki; "Son siparişin" kartı (Faz 1) ve sohbet içi tekrar (Faz 2) ile kanal alışkanlığı.
 
 ---
 
 ## 8. Go-to-market
 
-Sıra: **Faz 0** (20+ esnaf görüşmesi, Meta doğrulama) → **Pilot** (ilk 10) → **Faz 2** (ilk 100, kurucu üye) → **Faz 3** (1.000, ikinci şehir).
+Sıra: **Talep doğrulama deneyi** (Seviye 0 concierge, Hafta 0–8) ile paralel **Faz 0** (Hafta 0–4; 20+ esnaf görüşmesi, Meta doğrulama) ve Faz 1 geliştirmesi → **go/no-go kapısı (Hafta 8)** → **Pilot** (ilk 10, Hafta 10–18) → **Faz 2** (ilk 100, kurucu üye) → **Faz 3** (1.000, ikinci şehir).
+
+**İlk adım: talep doğrulama deneyi ve go/no-go kapısı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11)
+- **Neden önce:** En büyük risk talep tarafındadır (R01): pazaryeri müşterisi işletmenin kendi kanalına geçiyor mu? Bu, yazılım bitmeden ölçülür.
+- **Nasıl (Hafta 0–8, geliştirmeyle paralel):** Pilot ilçelerindeki 5–10 işletmede yazılım beklemeden `wa.me` linkli paket içi QR kartı, buzdolabı magneti ve doğrudan kanala özel teşvik dağıtılır. Siparişler işletmenin mevcut WhatsApp'ına düşer; ekip kodlu QR/UTM ile sayar. Resmi olmayan hiçbir WhatsApp aracı kullanılmaz; pazaryeri müşterisinin maskeli numarasına mesaj atılmaz.
+- **Go/no-go kapısı (Hafta 8):** işletme başına haftalık kendi kanal siparişi, kart→sipariş dönüşümü, tekrar oranı ve ödeme niyeti (niyet mektubu / ön ödeme) ölçütleri. NO-GO çıkarsa pilot başlamaz, ağır geliştirme durur ve pivot seçenekleri değerlendirilir. Eşikler ve deney tasarımı [10](10-riskler-operasyon-ve-metrikler.md) §4.4–4.5'te (kanonik), takvim ve sonuç senaryoları [09](09-yol-haritasi-ve-sprint-plani.md) §4'te.
+- **GTM'e katkısı:** Deneyde en iyi çalışan teşvik varyantı pilot kitine, en iyi değer önerisi mesajı satış konuşmasına (§8.6) girer; deneye katılan işletmeler öncelikli pilot adayıdır ve ilk vaka hikâyeleri buradan çıkar.
 
 ### 8.1 Başlangıç şehri ve segment kriterleri
 - **İlke: tek şehir, 2–3 ilçe, yoğunluk.** Saha satışı, referans ağı ve vaka videoları aynı mahallede birbirini besler.
@@ -575,28 +581,29 @@ Sıra: **Faz 0** (20+ esnaf görüşmesi, Meta doğrulama) → **Pilot** (ilk 10
 | Ulaşılabilir esnaf odası / dernek | %15 | Lokantacılar odası, TÜRES şubesi |
 | POS bayisi ve teknik servis varlığı | %10 | Adisyo / SambaPOS bayileri |
 
-- **Aday kümeler (arastirma/02 §9.1):** İstanbul Anadolu yakasında bir ilçe kümesi; İzmir (Bornova/Karşıyaka); Anadolu'da güçlü esnaf kültürü olan bir şehir (Eskişehir, Konya, Kayseri) veya oda protokolü emsali olan Edirne. Karar ekibin konumuna bağlıdır (Açık konular). Şehirlere göre pazaryeri penetrasyonu **(teyit edilmeli)**.
+- **Aday kümeler (arastirma/02 §9.1):** İstanbul Anadolu yakasında bir ilçe kümesi; İzmir (Bornova/Karşıyaka); Anadolu'da güçlü esnaf kültürü olan bir şehir (Eskişehir, Konya, Kayseri) veya oda protokolü emsali olan Edirne. Karar ekibin konumuna bağlıdır (proje sahibi kararı, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13.2; varsayılan: ekibin bulunduğu şehirde 2–3 ilçe). Şehirlere göre pazaryeri penetrasyonu **(teyit edilmeli)**.
 - **Segment:** §3.3'teki Öncelik 1. İlk aşamada zincirlerden ve tamamen platform kuryesine bağlı işletmelerden kaçınılır.
 
 ### 8.2 İlk 10 işletme: Pilot (Hafta 10–18)
-- **Havuz:** Faz 0'daki 20+ esnaf görüşmesi ve pilot ilçelerdeki 30–40 işletmeyle yüz yüze görüşme. Hedef 10 pilot. Teklif §6.4'teki pilot koşullarıdır.
+- **Ön koşul:** Hafta 8 go/no-go kapısı GO veya KOŞULLU GO (KOŞULLU'da pilot 6 işletmeyle sınırlanır; [10](10-riskler-operasyon-ve-metrikler.md) §4.5).
+- **Havuz:** Seviye 0 deneyine katılan işletmeler (öncelikli), Faz 0'daki 20+ esnaf görüşmesi ve pilot ilçelerdeki 30–40 işletmeyle yüz yüze görüşme. Hedef 10 pilot. Teklif §6.4'teki pilot koşullarıdır.
 - **Pilot seçim kriterleri:** Öncelik 1 segmenti; kendi kuryesi var; pazaryerinde aktif; karar vericiye ulaşılabiliyor; menü Commerce Policy'ye uygun. Karma: çoğunluk WhatsApp Business kullanan (Coexistence testi), 1–2 normal WhatsApp veya yeni numara kullanan; POS'u olan ve olmayan; Esnaf ve Pro ölçeğinde.
 - **Biz yaparız:** Menü girişi; Embedded Signup ve Coexistence kurulumu; Meta ödeme yöntemi ekleme desteği; paket içi QR kartı, buzdolabı magneti ve kasa QR standı basımı; Google İşletme Profili ve Instagram bio'suna sipariş linki.
 - **Ritim:** İlk iki hafta her gün kısa ziyaret veya arama; ürün hataları aynı gün düzeltilir.
-- **Başarı ölçütleri (KARARLAR):** işletme başına ilk 14 günde ≥ 10 kanal siparişi; 60. günde siparişlerin ≥ %10'u kendi kanalından; panel günlük aktif.
-- **Meta kısıtı:** Uygulama canlı moda geçmeden Embedded Signup yalnız test kullanıcılarıyla çalışır. App Review gecikirse pilot bir Solution Partner üzerinden başlatılabilir (KARARLAR §6.2).
+- **Başarı ölçütleri ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12):** işletme başına ilk 14 günde ≥ 10 kanal siparişi; pilotun 8. haftasında (pilot sonu) siparişlerin ≥ %10'u kendi kanalından; panel günlük aktif.
+- **Meta kısıtı:** Uygulama canlı moda geçmeden Embedded Signup yalnız test kullanıcılarıyla çalışır. App Review gecikirse pilot bir Solution Partner üzerinden başlatılabilir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.2). Meta bağlantısı tamamlanmayan pilot işletme "WhatsApp'sız mod"la (SMS OTP doğrulamalı web siparişi) sipariş almaya başlar.
 
 ### 8.3 İlk 100 işletme: Faz 2 (Ay 4–9)
 - **Hız:** Ayda 20–25 net yeni işletme [T]; kanallar §8.5'te.
 - **Ticari altyapı:** Abonelik tahsilatı ve e-fatura Faz 2 ile gelir; kurucu üye programı bu dönemde dolar.
 - **Meta limiti:** Varsayılan 7 günde 10 yeni işletme (~40/ay) bu hıza yeter. Ancak Business Verification ve App Review ile **200/hafta**'ya çıkış Faz 1 içinde tamamlanmalıdır.
-- **GloriaFood takvimi:** Kapanış 30 Nisan 2027. Faz 1'in Ekim 2026'da başladığı varsayımıyla bu tarih Faz 2'nin ilk aylarına denk gelir. **SambaPOS entegrasyonunun Mart 2027'ye kadar hazır olması** gerekir ([09](09-yol-haritasi-ve-sprint-plani.md) ile senkron).
+- **GloriaFood takvimi:** Kapanış 30 Nisan 2027. 09 takvimine göre (Faz 1 Eylül sonu 2026'da başlar, Faz 2 Aralık 2026 sonunda) bu tarih Faz 2'nin ilk aylarına denk gelir. **SambaPOS entegrasyonunun Mart 2027'ye kadar hazır olması** gerekir ([09](09-yol-haritasi-ve-sprint-plani.md) §8.1, F2-05 ile senkron).
 
 ### 8.4 100'den 1.000'e: Faz 3 (Ay 9–18)
 - **Hız:** Ayda ~100 net yeni işletme [T]; 200/hafta onboarding limiti şart.
 - **İkinci şehir.** Sertifikalı kurulum ortağı (bayi) programı resmileşir; bayi paneli Faz 2'den hazırdır.
-- **Self-servis onboarding:** menü fotoğrafından AI ile menü çıkarımı, Embedded Signup v4, panel içi rehber. **MPS / kredi hattı** "Meta'ya kart ekleme" sürtünmesini kaldırarak self-servis dönüşümünü artırır.
-- **Genişleme:** ücretsiz "Menü" katmanı değerlendirmesi; dikeyler (su bayi, pastane, market); Zincir segmenti için açık API.
+- **Self-servis onboarding:** Faz 1'den gelen Embedded Signup v4 ve Faz 2'de gelen AI ile menü çıkarımı (menü fotoğrafı/PDF) üzerine panel içi rehber. **MPS / kredi hattı [Faz 3]** "Meta'ya kart ekleme" sürtünmesini kaldırarak self-servis dönüşümünü artırır.
+- **Genişleme:** ücretsiz "Menü" katmanı değerlendirmesi; market, şarküteri ve çiçekçi dikeyleri (su bayi ve pastane Faz 2'de başlar); Zincir segmenti için açık API.
 
 ### 8.5 Kanallar
 
@@ -611,7 +618,7 @@ Sıra: **Faz 0** (20+ esnaf görüşmesi, Meta doğrulama) → **Pilot** (ilk 10
 | **CTWA reklamları** | (a) Bizim satışımız için; (b) işletmenin kendi müşterisini çekmesi için mahalle hedefli reklam rehberi (72 saat ücretsiz pencere; reklam bütçesi işletmenin) | — | Faz 2 | Esnaf |
 | **GloriaFood geçişi** | SambaPOS + GloriaFood kullananlara menü taşıma desteği | "Biz kuralım" ücretsiz, kurucu üye | Faz 2 (30.04.2027'den önce) | Pro |
 | **Ortaklıklar** | Pazaryeri panel ajansları (ör. Sipariş Ustası), ambalaj tedarikçileri (paket içi kart baskısı), yemek kartı şirketleri | Karşılıklı yönlendirme | Faz 2 | — |
-| **Pazarlama sitesi ve SEO** | Hesaplayıcı, vaka sayfaları, "komisyonsuz sipariş" içerikleri ([05](05-admin-paneli-ve-pazarlama-sitesi.md)) | 14 gün deneme | Faz 1 | Tümü |
+| **Pazarlama sitesi ve SEO** | Hesaplayıcı, vaka sayfaları, "komisyonsuz sipariş" içerikleri ([05](05-admin-paneli-ve-pazarlama-sitesi.md)) | Demo talebi (Faz 1); 14 gün deneme (Faz 2) | Faz 1 | Tümü |
 
 ### 8.6 Satış konuşması iskeleti (saha ziyareti, ~15 dakika)
 
@@ -620,7 +627,7 @@ Sıra: **Faz 0** (20+ esnaf görüşmesi, Meta doğrulama) → **Pilot** (ilk 10
 3. **Acıyı sayıya dök (3 dk):** Pazaryeri panelinden son ayın kalem kalem kesinti dökümünü birlikte aç. Hesaplayıcıya gir: aylık kesinti, başa baş sipariş sayısı.
 4. **Canlı demo (4 dk):** Esnafın kendi telefonundan demo işletmeye WhatsApp yaz → menü linki → sepet → tablette sesli uyarı → onay → esnafın telefonuna "Siparişiniz onaylandı" mesajı gelir.
 5. **Güven (2 dk):** Resmi Meta altyapısı; numara ve telefondaki uygulama aynı kalır; taahhüt yok; müşteri listesi senin.
-6. **Teklif (1 dk):** Kurucu üye %30 + ücretsiz kurulum (pilot döneminde: 3 ay ücretsiz). Paket önerisi hesaplayıcıdan gelir.
+6. **Teklif (1 dk):** Kurucu üye (12 ay boyunca sabit %30 indirim oranı) + ücretsiz kurulum (pilot döneminde: 3 ay ücretsiz). Paket önerisi hesaplayıcıdan gelir.
 7. **Kapanış:** "Kurulum için yarın sabah 10'da geleyim mi? Telefonun ve Facebook girişin yanında olsun." (Embedded Signup için Meta/Facebook hesabı gerekir.)
 8. **Takip:** Aynı gün WhatsApp'tan hesaplayıcı özeti ve kurulum hatırlatması.
 
@@ -630,14 +637,14 @@ Sıra: **Faz 0** (20+ esnaf görüşmesi, Meta doğrulama) → **Pilot** (ilk 10
 |---|---|---|
 | **"WhatsApp'tan zaten sipariş alıyorum."** | "Çok iyi, müşterin zaten orada. Şu an sipariş kâğıda yazılıyor, yoğunlukta mesaj kaçıyor, adres soruluyor. Bizde aynı numaraya gelen sipariş panele sesli düşer; ürün, seçenek, adres, ödeme hazırdır. Müşteriye 'onaylandı, yolda' mesajı kendiliğinden gider, 'nerede kaldı' araması azalır. Numaran ve telefondaki uygulaman aynen kalır." | Canlı demo; Coexistence |
 | **"Pazaryeri müşteri getiriyor, siz getirmiyorsunuz."** | "Doğru, biz yeni müşteri getirmiyoruz, pazaryerinden de çıkma demiyoruz. Keşif pazaryerinde kalsın. Ama seni zaten bilen, ikinci üçüncü kez sipariş veren müşteri için neden %25 ödeyesin? Paketine koyduğun kartla o müşteri sana doğrudan yazar. Ayda 21 sipariş taşınsa ücret çıkıyor." | Hesaplayıcı, başa baş; paket içi kart |
-| **"Meta'ya kart eklemek istemiyorum."** | "Kartını biz görmüyoruz; doğrudan WhatsApp'ın sahibi Meta'ya tanımlıyorsun. 1 Ekim 2026'dan beri otomatik mesaj atan her işletmeden bunu istiyorlar, bizim kuralımız değil. Her ay ilk 1.000 mesaj ücretsiz; günde 10 paketlik bir yerde ayda birkaç lira, günde 30 pakette 110–150 lira civarı. Ne kadar tuttuğunu panelde görürsün. İstersen internet alışverişine açık, limitli bir kart tanımla; kurulumda yanında oluruz." | §6.5 tablosu; panelde Meta tahmini. Kartsız seçenek (MPS) **vaat edilmez**. |
+| **"Meta'ya kart eklemek istemiyorum."** | "Kartını biz görmüyoruz; doğrudan WhatsApp'ın sahibi Meta'ya tanımlıyorsun. 1 Ekim 2026'dan beri otomatik mesaj atan her işletmeden bunu istiyorlar, bizim kuralımız değil. Her ay ilk 1.000 mesaj ücretsiz; günde 10 paketlik bir yerde ayda birkaç lira, günde 30 pakette 110–150 lira civarı. Ne kadar tuttuğunu panelde görürsün. İstersen internet alışverişine açık, limitli bir kart tanımla; kurulumda yanında oluruz." | §6.5 tablosu; panelde Meta tahmini. Meta adımları bitene kadar "WhatsApp'sız mod" (SMS OTP doğrulamalı web siparişi, Faz 1) ile sipariş alınabilir. Kartsız seçenek (MPS, Faz 3) **vaat edilmez**. |
 | **"Numaram kapanır mı, ban yer miyim?"** | "QR okutup bağlanan botlar WhatsApp kurallarına aykırı; numara kapanabiliyor. Biz Meta'nın resmi altyapısını kullanıyoruz. Kurulumu da Meta'nın kendi ekranından sen onaylıyorsun." | Resmi Cloud API; Embedded Signup |
 | **"Bir sistem daha, tabletlerle uğraşamam."** | "Ayrı cihaz gerekmez; mevcut tablette veya telefonda açılır. Adisyon kullanıyorsan siparişi oraya da aktaracağız. Tek tuşla onaylarsın." | PWA; SambaPOS/Adisyo entegrasyonu [Faz 2] |
-| **"Pahalı, X firması 680 lira."** | "Farkı sipariş başına hesaplayalım: günde 30 pakette bize sipariş başı ~2 lira ödüyorsun, pazaryerine 350 liralık siparişte 87 lira. Ucuz araçların çoğu siparişi mesaj olarak yollar ya da resmi olmayan bağlantı kullanır. Kurucu üye olursan 12 ay %30 indirimli." | §6.6 kıyas; kurucu üye |
+| **"Pahalı, X firması 680 lira."** | "Farkı sipariş başına hesaplayalım: günde 30 pakette bize sipariş başı ~2 lira ödüyorsun, pazaryerine 350 liralık siparişte 87 lira. Ucuz araçların çoğu siparişi mesaj olarak yollar ya da resmi olmayan bağlantı kullanır. Kurucu üye olursan 12 ay boyunca liste fiyatından %30 indirimli ödersin." | §6.6 kıyas; kurucu üye (indirim oranı sabit, liste fiyatı TÜFE ile güncellenebilir) |
 | **"Müşterim uygulama indirmez."** | "İndirmesine gerek yok. WhatsApp'tan yazar ya da QR'ı okutur, menü tarayıcıda açılır." | Demo |
 | **"Pazaryeri sözleşmem izin vermez, ceza yerim."** | "Haklı bir soru. Paketine kart koymadan önce sözleşmendeki yönlendirme ve fiyat maddelerine birlikte bakalım; gerekirse avukatına danış. Kartsız da başlayabilirsin: Google, Instagram ve telefonla arayan müşterin zaten senin." | §9 sözleşme uyarısı. Hukuki görüş verilmez. |
 | **"Bağlanmak istemiyorum, beğenmezsem?"** | "Aylık plan, taahhüt yok. 14 gün ücretsiz dene; bize kart vermiyorsun. Müşteri listeni istediğin zaman dışa aktarırsın." | Deneme, veri dışa aktarma |
-| **"Bot müşteriyi kızdırır."** | "Bot sadece selam verip menü linkini yollar. Müşteri 'yetkiliyle görüş' dediği an sen devralırsın; istersen botu tamamen kapatırsın." | AI politikası (KARARLAR §6.9) |
+| **"Bot müşteriyi kızdırır."** | "Bot sadece selam verip menü linkini yollar. Müşteri 'yetkiliyle görüş' dediği an sen devralırsın; istersen botu tamamen kapatırsın." | AI politikası ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.9) |
 
 ---
 
@@ -652,7 +659,7 @@ Sıra: **Faz 0** (20+ esnaf görüşmesi, Meta doğrulama) → **Pilot** (ilk 10
 | **Doğrudan kanala özel avantaj** | Ücretsiz ayran/içecek, %5–10 indirim | Faz 1'de menü fiyatı veya ikram ürünüyle; kupon [Faz 2] | Teşvik komisyon oranına göre ayarlanır (§6.7) |
 | **Damga kartı** | "Her 10. siparişe 1 bedava" | Sadakat [Faz 2] | |
 | **Farklı fiyat** | Kendi kanalında pazaryerinden düşük liste fiyatı | Storefront menü fiyatı [Faz 1] | Fiyat paritesi (MFN) maddesi kontrol edilmeli |
-| **Aynısından tekrar** | Önceki siparişi tek dokunuşla tekrarlama; en belirgin buton | Akış D [Faz 2] | Owner.com: uygulamalı müşteri 2 kat sık tekrar sipariş veriyor |
+| **Aynısından tekrar** | Önceki siparişi tek dokunuşla tekrarlama; en belirgin buton | Akış D: storefront'ta "Son siparişin" kartı [Faz 1]; sohbet içi öneri [Faz 2] | Owner.com: uygulamalı müşteri 2 kat sık tekrar sipariş veriyor |
 | **Telefonla arayanı kanala çekme** | Telefon siparişi panele girilince müşteriye "sipariş linkiniz" mesajı; ileride Calling API | Akış E [Faz 1] | İşlemsel mesaj |
 | **Google İşletme Profili, Instagram bio ve hikâye linki** | "Sipariş ver" linki storefront'a gider | Kurulumda biz yaparız [Faz 1] | |
 | **Click-to-WhatsApp reklamı** | Mahalle hedefli reklam | Rehber [Faz 2] | 72 saat ücretsiz pencere; reklam bütçesi işletmenin |
@@ -671,11 +678,11 @@ Sıra: **Faz 0** (20+ esnaf görüşmesi, Meta doğrulama) → **Pilot** (ilk 10
 
 Yazılımın kendisi kopyalanabilir. Savunma aşağıdaki katmanlarda kurulur:
 
-1. **İşletmenin müşteri verisi ve alışkanlığı:** Sipariş geçmişi, adresler, sadakat puanları ve "aynısından tekrar" verisi bizde birikir. Veri dışa aktarılabilir (güven verir), ama birikim ve müşterinin alışkanlığı yine de geçiş maliyeti yaratır.
+1. **İşletmenin müşteri verisi ve alışkanlığı:** Sipariş geçmişi, adresler, sadakat puanları ve "aynısından tekrar" verisi bizde (işletme adına, veri işleyen sıfatıyla) birikir. Veri dışa aktarılabilir (güven verir), ama birikim ve müşterinin alışkanlığı yine de geçiş maliyeti yaratır.
 2. **Dağıtım ağı:** Esnaf odası protokolleri, POS bayileri, muhasebeciler, referans döngüsü ve mahalle yoğunluğu (aynı ilçede onlarca kullanıcı = sosyal kanıt). Kopyalanması yazılımdan çok daha zordur.
 3. **Entegrasyon derinliği:** SambaPOS/Adisyo [Faz 2], yazıcı otomasyonu [Faz 2], kapıda yemek kartı, ödeme kuruluşları [Faz 2], kurye çağırma [Faz 3].
 4. **Resmi WhatsApp altyapısında operasyonel mükemmellik:** Tech Provider statüsü (Business Verification ve App Review rakip için zaman bariyeridir), Coexistence, şablon kütüphanesi, kalite puanı yönetimi, mesaj maliyeti disiplini. Resmi olmayan botlara karşı "numaran güvende" güvencesi.
-5. **Dikey derinlik [Faz 3]:** su bayi (damacana depozitosu, düzenli sipariş), pastane (özel pasta formu), market.
+5. **Dikey derinlik:** su bayi (damacana depozitosu, tekrarlayan sipariş) ve pastane (ön sipariş / özel pasta formu) **[Faz 2]**; market, şarküteri, çiçekçi **[Faz 3]**.
 6. **Veri ürünleri:** tekrar sipariş tahmini ("Ayşe Hanım 10 gündür sipariş vermedi"), en iyi kampanya zamanı, anonim ve toplu ilçe kıyası ("ilçendeki dönercilerin ortalama sepeti"). KVKK uyumlu, toplu veriyle.
 7. **Marka ve güven:** Esnafın yanında duran marka hikâyesi, şeffaf fiyat, taahhütsüzlük, "pazaryerini bırak" demeyen dürüst mesaj.
 8. **Bilinçli olarak pazaryeri olmamak:** Pazaryerleriyle doğrudan rekabete, tüketici tarafında fiyat baskısına ve soğuk başlangıç sorununa girmemek.
@@ -688,31 +695,43 @@ Yazılımın kendisi kopyalanabilir. Savunma aşağıdaki katmanlarda kurulur:
 
 ## 11. Açık konular
 
-**KARARLAR ile çelişkiler ve uygulanan tercih**
-1. **MPS / kredi hattının fazı:** KARARLAR §6.2 "Plan B / Faz 2", §6.6 "Faz 2 MPS'e kadar", §11 ise "Faz 3: MPS/kredi hattı" diyor. Bu dokümanda görev tanımına ve §11'e uyularak **Faz 3** kullanıldı. KARARLAR'da tekilleştirilmeli.
-2. **Mesaj maliyeti ve kredi:** Araştırma (arastirma/02 §7.2, §8) servis/utility mesajlarının "adil kullanımla pakete dahil" olmasını, Pro'da 300, Zincir'de 1.000 pazarlama mesajı kredisini ve kredi satışını öneriyor. KARARLAR (pass-through) uygulandı; bunlar kaldırıldı. Birim ekonomi buna göre düzeltildi.
-3. **Ücretsiz "Menü" katmanı:** Araştırma Faz 2 öneriyor; KARARLAR'a uyularak **Faz 3** yazıldı.
-4. **Sipariş başı mesaj hedefi:** arastirma/02 ≤ 3, arastirma/01 ≤ 5, KARARLAR ≤ 4 diyor. 4 uygulandı. Akış A'daki karşılama + "Menüyü aç" mesajının bu 4'e dahil olup olmadığı netleşmeli; maliyet tablosu 4–5 mesajla hesaplandı.
-5. **İkinci segment:** Araştırma "su/tüp bayileri"ni ikinci segment öneriyor. KARARLAR tüp bayiyi hedef dışı (§6.10), su bayiyi Faz 3 dikeyi (§11) sayıyor. KARARLAR uygulandı.
-6. **Şube indirimi:** Araştırma 2. ve sonraki şubelerde %20 indirim öneriyor; KARARLAR Zincir'i düz 2.990 TL/şube tanımlıyor. İndirim uygulanmadı; karar gerekli.
+**[00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) ile hizalama** (numaralar diğer dokümanlardaki atıflar için korunmuştur)
+1. **MPS / kredi hattının fazı — Karara bağlandı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.2, §6.6, §11):** MPS / kredi hattı **Faz 3**; Türk Solution Partner görüşmeleri Faz 1'de başlar. Bu dokümanda uygulandı (§6.3, §6.5, §7.1, §8.4).
+2. **Mesaj maliyeti ve kredi — Karara bağlandı (00 §6.6):** Araştırmanın (arastirma/02 §7.2, §8) "servis/utility mesajları adil kullanımla pakete dahil", "Pro'da 300, Zincir'de 1.000 pazarlama mesajı kredisi" ve kredi satışı önerileri uygulanmadı; Meta ücreti pass-through. **SMS** ise platform maliyetidir ve aboneliğe adil kullanım kotasıyla dahildir (Esnaf 100, Pro 300 SMS/ay; 00 §4); birim ekonomi buna göre yeniden hesaplandı (§7.1).
+3. **Ücretsiz "Menü" katmanı — Karara bağlandı (00 §8, §11):** Araştırma Faz 2 öneriyordu; **Faz 3**'te değerlendirilir.
+4. **Sipariş başı mesaj hedefi — Karara bağlandı (00 §6.5):** en fazla 4 durum mesajı; Akış A'daki karşılama + "Menüyü aç" mesajı bunlara ek 1 mesajdır (toplam ≤ 5); gecikme/iptal gibi olağan dışı bilgilendirmeler bütçe dışıdır. Maliyet tablosu (§6.5) 4–5 mesajla hesaplandı.
+5. **İkinci segment — Karara bağlandı (00 §11 segment sırası):** tüp/LPG hedef dışı (Commerce Policy); su bayi ve pastane **Faz 2**, market/şarküteri/çiçekçi **Faz 3**. §3.3, §8.4 ve §10 buna göre düzeltildi.
+6. **Şube indirimi (açık):** Araştırma 2. ve sonraki şubelerde %20 indirim öneriyor; 00 §8 Zincir'i düz 2.990 TL/şube tanımlıyor, 5+ şube için özel teklif veriyor. İndirim uygulanmadı. Proje sahibi kararıdır; 00 §13'te yok, eklenmesi önerilir.
 
 **Karar bekleyenler**
-7. **Paket içerik matrisi (§6.3)** KARARLAR'da yok; bu doküman öneri sundu. Onaylanmalı ve [04](04-isletme-paneli.md) ile senkron tutulmalı. Özellikle: kurye görünümü ve temel tasarruf raporunun [Faz 1]'e konması (KARARLAR fazlarında açıkça yazmıyor), Esnaf'ta kurye görünümü olmaması, "en fazla 3 teslimat bölgesi", 2 kullanıcı limiti, POS entegrasyonunun Pro'ya da verilmesi.
-8. **Zincir paketi Faz 1'de satılamaz** (çoklu şube Faz 2). Pilot veya Faz 1'de 2+ şubeli işletmeye ne teklif edileceği (ör. şube başına ayrı Pro) karara bağlanmalı.
+7. **Paket içerik matrisi (§6.3):** 00 §8 dağılımı bu dokümana bırakıyor; özelliklerin fazı 00 §7, §11 ile hizalandı (kurye görünümü, "Son siparişin" kartı, SMS OTP yedeği ve basit rapor Faz 1; AI, kampanya, sohbet içi tekrar ve Zincir Faz 2). AI'nın Pro ve üstünde, kotalı olması 00 §13.8 varsayılanıdır. Onay bekleyen paket kapıları: Esnaf'ta kurye görünümü olmaması, "en fazla 3 teslimat bölgesi", 2 kullanıcı limiti, POS entegrasyonunun Pro'ya da verilmesi, Zincir'in SMS kotası (öneri: şube başına 300; 00 §4 yalnız Esnaf ve Pro'yu tanımlıyor). Matris [04](04-isletme-paneli.md) ile senkron tutulmalı.
+8. **Zincir paketi Faz 1'de satılmaz** (00 §8; çoklu şube Faz 2). Pilot veya Faz 1'de 2+ şubeli işletmeye ne teklif edileceği karara bağlanmalı. Varsayılan: pilota alınmaz ([09](09-yol-haritasi-ve-sprint-plani.md)); hesaplayıcı "Bize ulaş" gösterir; alternatif şube başına ayrı Pro.
 9. **Sipariş kotası:** Paket hedef hacimleri yalnız yönlendirme mi, yoksa limit mi? "Sipariş başı ücret yok" ilkesiyle uyum için kota uygulanmaması önerildi.
-10. **İndirimlerin birleşmesi ve sayaç:** Kurucu üye (%30) ile yıllık peşin (%20) birleşir mi, pilotlar kurucu üye sayacına dahil mi? Öneri: birleşmez; pilotlar dahil.
-11. **Kartsız deneme ve Meta kartı:** 1 Ekim 2026'dan beri Meta'ya ödeme yöntemi eklenmeden service mesajları teslim edilmiyor. Deneme sırasında da Meta'ya kart gerektiği için "kartsız deneme" dönüşümü düşürebilir. Onboarding ve pazarlama metni buna göre tasarlanmalı ([02](02-whatsapp-entegrasyonu.md), [05](05-admin-paneli-ve-pazarlama-sitesi.md)).
+10. **İndirimlerin birleşmesi ve sayaç:** Kurucu üye (12 ay sabit %30 indirim oranı) ile yıllık peşin (%20) birleşir mi, pilotlar kurucu üye sayacına dahil mi? Öneri: birleşmez; pilotlar dahil.
+11. **Kartsız deneme ve Meta kartı — büyük ölçüde karara bağlandı (00 §7, §8):** "Kartsız" yalnız bizim aboneliğimiz içindir; Meta'ya ödeme yöntemi eklemek onboarding sihirbazında zorunlu adımdır. Meta adımları bitene kadar işletme "WhatsApp'sız mod"la (SMS OTP, Faz 1) web siparişi alabilir. Açık kalan: Meta kartı adımının deneme dönüşümüne etkisi pilotta ölçülmeli ([10](10-riskler-operasyon-ve-metrikler.md) D7).
 12. **Bayi gelir paylaşımı** (öneri: ilk 12 ay %30), **referans ödülü** (1'er ay ücretsiz) ve paket bazında **destek seviyeleri** ([10](10-riskler-operasyon-ve-metrikler.md)) onaylanmalı.
-13. **Pilot şehir ve ilçeler:** Ekibin konumuna göre §8.1 ağırlıklarıyla seçilmeli.
-14. **SambaPOS entegrasyonunun zamanlaması:** GloriaFood kapanışı (30.04.2027) nedeniyle Faz 2'nin ilk sprintlerine alınması önerildi ([09](09-yol-haritasi-ve-sprint-plani.md)).
+13. **Pilot şehir ve ilçeler:** proje sahibi kararı, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13.2 (varsayılan: ekibin bulunduğu şehirde 2–3 ilçe); §8.1 ağırlıklarıyla seçilir.
+14. **SambaPOS entegrasyonunun zamanlaması — Karara bağlandı:** [09](09-yol-haritasi-ve-sprint-plani.md) F2-05 ile Faz 2'nin S10–S11 sprintlerine (Mart 2027'ye hazır) alındı; GloriaFood kapanışı 30.04.2027.
 
 **Teyit edilmesi gereken veriler**
 15. Platform bazlı komisyon oranları ve pazar payları (resmi veri yok); Nisan 2026 düzenlemesinin yürürlük tarihi (1 / 13 Nisan çelişkisi).
-16. Türkiye Meta rate card'ı (utility/service $0,0009, marketing $0,0109), Meta'nın resmi CSV'sinden. Kur: arastirma/01 48,4 (TCMB), arastirma/02 48,8; burada 48,4 kullanıldı, konfigürasyonda tek değer tutulmalı.
+16. Türkiye Meta rate card'ı (utility/service $0,0009, marketing $0,0109), Meta'nın resmi CSV'sinden. Kur **karara bağlandı**: 48,4 TL/USD (00 §8); konfigürasyonda tek değer (`fx_rates`) tutulur.
 17. SAM tahmini (40–80 bin işletme), Türkiye'de WhatsApp siparişlerinin payı ve rakiplerin WhatsApp altyapısı (resmi API mi, WhatsApp Web mi).
-18. e-Arşiv/e-Fatura entegratör maliyeti ve AI (LLM) maliyeti; birim ekonomiye eklenmeli ([06](06-teknik-mimari.md), [08](08-mevzuat-kvkk-odeme-fatura.md)).
+18. e-Arşiv/e-Fatura entegratör maliyeti ([08](08-mevzuat-kvkk-odeme-fatura.md)) ve SMS birim fiyatı (0,16–0,43 TL, Türkçe karakter/segment etkisi) teyit edilmeli. AI (LLM) maliyeti [06](06-teknik-mimari.md) §17'den birim ekonomiye eklendi; yurt içi barındırma fiyatları teklifle netleşince §7.1 güncellenir (00 §13.4).
 
 **Takip edilecek gelişmeler**
 19. Uber–Getir taahhütleri; Yemeksepeti–SSW kapanışı ve yeni sahipliğin komisyon politikası; TÜRES'in "kendi sipariş sistemi" girişimi (rakip mi, ortak mı?).
 20. Meta'nın Ekim 2026 sonrası tarife güncellemeleri; Meta Business Agent'ın Türkçe kullanılabilirliği.
 21. Pilot işletmelerin pazaryeri sözleşmelerindeki yönlendirme ve parite maddeleri (pilot öncesi avukat incelemesi).
+
+**Birim ekonomiden doğan yeni konular**
+22. **Esnaf brüt marjı hedefin altında:** 00 §10 altyapı tahmini ve 00 §4 SMS kotasıyla Esnaf marjı %29–67'dir (§7.2); ≥ %70 karma hedefi (00 §12) Pro ağırlıklı müşteri karmasına dayanır. Kabul mü, yoksa Esnaf'ta destek kapsamını daraltma / SMS kotasını düşürme / fiyat güncellemesi mi? Kurucu kararı gerekir.
+23. **Maliyet tavanlarının hizalanması:** [10](10-riskler-operasyon-ve-metrikler.md) §8.6'daki "altyapı / işletme ≤ 120 TL" ve "SMS / işletme ≤ 80 TL" tavanları eski §7.1 değerlerine dayanır; güncel aralıklar altyapı 95–170 TL (1.000 işletme), SMS 8–43 (Esnaf) / 8–129 TL (Pro, kota üst sınırı).
+
+**Proje sahibi kararları ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13; bu doküman varsayılanla yazıldı)**
+24. **Pilot şehir ve ilçeler (00 §13.2):** varsayılan ekibin bulunduğu şehirde 2–3 ilçe (§8.1, konu 13).
+25. **Barındırma sağlayıcısı (00 §13.4):** varsayılan yurt içi yerli bulut; §7.1 altyapı satırı teklifle güncellenir.
+26. **Meta modeli (00 §13.5):** varsayılan Tech Provider + Plan B (pilot Solution Partner); §6.5 pass-through modeli buna dayanır.
+27. **Kurye (00 §13.7):** varsayılan yalnız işletmenin kendi kuryesi; kurye çağırma entegrasyonu Faz 3'te değerlendirilir (§2.4, §6.3).
+28. **AI serbest metin siparişinin paketleri (00 §13.8):** varsayılan Pro ve üstü, adil kullanım kotasıyla (§6.3, §7.1).
+29. **Yemek kartı online tahsilatı (00 §13.9):** varsayılan Faz 1'de yalnız kapıda (§6.3).
