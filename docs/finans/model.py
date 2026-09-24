@@ -38,13 +38,13 @@ VARSAYIMLAR = {
     "ocak_aylari": [4, 16],
 
     # ---------------- Fiyat [00 §8] ----------------
-    "liste_fiyat": {"esnaf": 990, "pro": 1790, "zincir": 2990},  # TL/ay KDV hariç; Zincir şube başına
+    "liste_fiyat": {"esnaf": 990, "pro": 1790, "zincir": 2990},  # TL/ay KDV hariç; Zincir şube başına, şube indirimi yok [00 §13.13]
     "fiyat_carpani": 1.0,               # duyarlılık: liste fiyatı çarpanı
     "zincir_ort_sube": 3,               # [T] Zincir müşterisinin ortalama şube sayısı
     "yillik_indirim": 0.20,             # [00 §8] yıllık peşinde %20
     "kurucu_uye_indirim": 0.30,         # [00 §8] 12 ay sabit %30 indirim ORANI
     "kurucu_uye_ay": 12,                # [00 §8]
-    "kurucu_uye_kota": 100,             # [00 §8] ilk 100 ücretli işletme, pilotlar dahil [01 §6.4]
+    "kurucu_uye_kota": 100,             # [00 §8] ilk 100 ücretli işletme, pilotlar dahil [00 §13.14]
     "kurulum_ucreti": 1990,             # [00 §8] "biz kuralım"; ilk 100'e ücretsiz
     "kurulum_alan_payi": 0.30,          # [T] 100. işletmeden sonra ücretli kurulumu seçen pay
     "fiyat_guncelleme_aylari": [16],    # [T] TÜFE güncellemesi Ocak 2028 (yılda 1). Yılda 2: [10, 16, 22]
@@ -68,7 +68,7 @@ VARSAYIMLAR = {
     "zincir_satis_ay": 10,              # [00 §8] Zincir Faz 2'de; F2-15 Haz 2027 [09 §8.1] → Tem 2027
     "esnaf_talep_carpani": 1.0,         # Esnaf seçenek analizi için
     "esnaf_yalniz_yillik": False,       # Esnaf seçenek C
-    "yillik_odeme_payi": 0.25,          # [T] kurucu üye olmayanlarda; kurucu üye indirimiyle birleşmez [01 §6.4]
+    "yillik_odeme_payi": 0.25,          # [T] kurucu üye olmayanlarda; kurucu üye indirimiyle birleşmez [00 §13.14]
     "deneme_ay": 1,                     # 14 gün deneme → ödeme katılım ayından sonraki ay başlar
     "churn_ilk_yil": 0.05,              # [00 §12] ilk yıl %5–7 (aylık logo churn)
     "churn_sonra": 0.025,               # [00 §12] sonra < %3
@@ -314,13 +314,12 @@ def simule_et(V):
 
         # ---------- 3.1 Yeni işletmeler ----------
         yeni = 0.0
-        yeni_saha = yeni_org = yeni_ref = yeni_bayi = 0.0
+        yeni_saha = yeni_org = 0.0
         kurulum_geliri = 0.0
         basili = 0.0
         if m == V["pilot_ay"]:
             ps = V["pilot_sayisi"]
-            ayrilan = min(kurucu_kalan, ps * V["pilot_donusum"])
-            kurucu_kalan -= ayrilan
+            kurucu_kalan -= min(kurucu_kalan, ps * V["pilot_donusum"])   # dönüşecek pilotlara kurucu üye kotası
             for p, pay in V["pilot_paket"].items():
                 kohort_ekle(m, p, ps * pay, True, False, True, False, m + V["pilot_ucretsiz_ay"])
             basili += ps * V["basili_materyal"] * tufe_endeksi(m)
@@ -337,7 +336,6 @@ def simule_et(V):
             kanal = V["kanal_bayi_sonrasi"] if bayi_acik else V["kanal_bayi_oncesi"]
             b_pay = kanal.get("bayi", 0.0)
             yeni_saha, yeni_org = yeni * kanal.get("saha", 0), yeni * kanal.get("organik", 0)
-            yeni_ref, yeni_bayi = yeni * kanal.get("referans", 0), yeni * b_pay
             k_oran = min(kurucu_kalan, yeni) / yeni if yeni > 0 else 0
             kurucu_kalan -= yeni * k_oran
             odeme_bas = m + V["deneme_ay"]
@@ -392,7 +390,7 @@ def simule_et(V):
         bayi_komisyonu = 0.0
         aktif = odeyen = 0.0
         paket_adet = {p: 0.0 for p in PAKETLER}
-        aktif_esnaf = aktif_pro_sube = 0.0
+        aktif_pro_sube = 0.0
         destek_yuk = 0.0
         sms_adet = 0.0
         for k in kohortlar:
@@ -401,7 +399,6 @@ def simule_et(V):
             p = k["p"]
             paket_adet[p] += n
             if p == "esnaf":
-                aktif_esnaf += n
                 destek_yuk += n * V["esnaf_destek_agirligi"]
             else:
                 aktif_pro_sube += n * subesi(p)

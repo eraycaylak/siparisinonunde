@@ -50,10 +50,10 @@ Anahtar adı `model.py`'deki sözlük anahtarıdır. Değerler GO senaryosunundu
 | Yıllık TÜFE | `tufe_yillik` | %25 | **[T — kurucu güncellemeli]** planlama varsayımıdır, enflasyon tahmini değildir. Vekil veri: 2026 yeniden değerleme oranı %25,49 (arastirma/06 §7.6) |
 | Maaş artışı | `maas_artisi_ocak` | Her Ocak %25 (Oca 2027, Oca 2028) | **[T]**; Ocak 2027 asgari ücret artışı tutarı teyit edilmeli ([09](09-yol-haritasi-ve-sprint-plani.md) §10.1) |
 | TL bazlı diğer giderler | — | TÜFE ile aylık bileşik artar | **[T]** |
-| Liste fiyatı (aylık) | `liste_fiyat` | Esnaf 990, Pro 1.790, Zincir 2.990/şube | [00](00-kararlar-ve-sozluk.md) §8 |
+| Liste fiyatı (aylık) | `liste_fiyat` | Esnaf 990, Pro 1.790, Zincir 2.990/şube (şube indirimi yok) | [00](00-kararlar-ve-sozluk.md) §8; düz şube fiyatı §13.13 varsayılanı |
 | Zincir ortalama şube sayısı | `zincir_ort_sube` | 3 | **[T]** |
 | Yıllık peşin indirimi | `yillik_indirim` | %20 | [00](00-kararlar-ve-sozluk.md) §8 |
-| Kurucu üye | `kurucu_uye_*` | %30 indirim oranı, 12 ay, ilk 100 ücretli işletme (pilotlar dahil), yalnız aylık ödeme | [00](00-kararlar-ve-sozluk.md) §8; "pilotlar dahil" ve "yıllıkla birleşmez" [01](01-vizyon-pazar-is-modeli.md) §6.4 önerisidir |
+| Kurucu üye | `kurucu_uye_*` | %30 indirim oranı, 12 ay, ilk 100 ücretli işletme (pilotlar dahil), yalnız aylık ödeme | [00](00-kararlar-ve-sozluk.md) §8; "pilotlar dahil" ve "yıllık peşinle birleşmez" [00](00-kararlar-ve-sozluk.md) §13.14 varsayılanıdır |
 | "Biz kuralım" kurulum ücreti | `kurulum_ucreti` | 1.990 TL, ilk 100'e ücretsiz | [00](00-kararlar-ve-sozluk.md) §8 |
 | Ücretli kurulumu seçen pay (100. işletmeden sonra) | `kurulum_alan_payi` | %30 | **[T]** |
 | TÜFE fiyat güncellemesi | `fiyat_guncelleme_aylari` | Yılda 1, Ocak 2028 (+%25) | [00](00-kararlar-ve-sozluk.md) §8 "yıllık TÜFE endeksli"; ay seçimi **[T]** (§10) |
@@ -209,7 +209,9 @@ Aylık ayrıntı CSV'lerdedir. Tutarlar **bin TL**. "Aktif" = ödeyen + pilot + 
 **Kural (her ay sağlanır):** kasa ≥ o güne kadarki açığın %20'si + 9 × son 3 ayın ortalama net nakit çıkışı. Buna göre:
 
 > **Gerekli başlangıç sermayesi = max(ay) [ 1,2 × açık(ay) + 9 × yakım₃(ay) ]**
-> açık = max(0, −kümülatif nakit); yakım₃ = son 3 ayın ortalama net nakit çıkışı. Böylece hem %20 tampon hem 9 ay pist ([00](00-kararlar-ve-sozluk.md) §12) her ay korunur. Açık yalnız Ay 1–24 için hesaplanır; Ay 24'te hâlâ yakım varsa 9 aylık pist sonrası dönemi de karşılar.
+>
+> açık = max(0, −kümülatif nakit); yakım₃ = son 3 ayın ortalama net nakit çıkışı. Böylece hem %20 tampon hem 9 ay pist ([00](00-kararlar-ve-sozluk.md) §12) her ay korunur. Hesap Ay 1–24 üzerinden yapılır; Ay 24'te hâlâ yakım varsa pist koşulu Ay 24'ten sonraki 9 ayı da kapsar.
+>
 > **Başa baş:** EBITDA ≥ 0. "Kalıcı" = o aydan sonra negatife dönmeyen ilk ay. 24 ayda oluşmayanlar için model aynı kurallarla **36 aya uzatılır** (Ay 25–36'da son büyüme hızı sürer, Ocak 2029'da fiyat ve maaş güncellenir).
 
 | Senaryo | En düşük kümülatif nakit, Ay 1–24 (ay) | Açık + %20 tampon | Gerekli başlangıç sermayesi (tampon + 9 ay pist) | Bağlayan ay | İlk EBITDA ≥ 0 | Kalıcı başa baş (EBITDA ≥ 0) | En düşük kümülatif nakit, 36 aylık uzatma | Ay 24 aktif işletme | Ay 24 MRR | Ay 24 ARR |
@@ -268,9 +270,9 @@ Her satır tek bir değişkeni değiştirir, diğer varsayımlar bazdadır. Chur
 
 **Okuma**
 - **En güçlü kaldıraçlar CAC ve fiyattır.** GO'da ±%30 CAC sermaye ihtiyacını 29,1–38,9 mn TL, ±%15 fiyat 30,4–38,7 mn TL aralığında oynatır. Fiyat politikası (§10) ve kanal karması (§7) bu yüzden birinci öncelikli kararlardır.
-- **Kurun etkisi sınırlıdır** (±1–1,3 mn TL). Meta ücretinin pass-through olması ve barındırmanın yurt içinde olması döviz riskini zaten azaltır.
+- **Kurun etkisi sınırlıdır** (GO'da 32,5–34,8 mn TL). Meta ücretinin pass-through olması ve barındırmanın yurt içinde olması döviz riskini zaten azaltır.
 - **Churn 24 ayda sermayeyi az, başa başı çok etkiler** (GO'da Ay 25 ile Ay 29 arası). Etkisi ancak kohortlar biriktikçe büyür.
-- **Monoton olmayan küçük farklar** (ör. GO'da churn −2 puan sermayeyi 0,3 mn TL artırır; KOŞULLU'da hız ±%30'un ikisi de açığı azaltır) tam sayı işe alım basamaklarından kaynaklanır. Daha çok işletme, destek ya da saha kadrosunu bir ay erken büyütür ve pist kuralının bağlandığı ayda yakımı artırır. "En büyük açık" sütunu bu etkiden arındırılmış yönü gösterir.
+- **Monoton olmayan küçük farklar** (ör. GO'da churn −2 puan sermayeyi 33,5'ten 33,8 mn TL'ye çıkarır; KOŞULLU'da hız ±%30'un ikisi de açığı azaltır) tam sayı işe alım basamaklarından kaynaklanır. Daha çok işletme, destek ya da saha kadrosunu bir ay erken büyütür ve pist kuralının bağlandığı ayda yakımı artırır. "En büyük açık" sütunu bu etkiden arındırılmış yönü gösterir.
 
 ---
 
@@ -315,7 +317,7 @@ GO senaryosunda tek değişkenli çalıştırmalardır. Talep kaybı oranları *
 | B+: B + Esnaf self-servis destek (destek yükü ×0,5) [T] | %71 | %44 | 32,4 mn TL | Ay 26 (Kas 2028) | 3.501 bin TL | 1.752 |
 | C: Esnaf yalnız yıllık peşin (9.504 TL), Esnaf talebi −%25 [T] | %50 | %6 | 29,6 mn TL | Ay 29 (Şub 2029) | 3.292 bin TL | 1.640 |
 
-- **B (SMS kotasını düşürmek) marjı değiştirmez.** SMS maliyeti Esnaf'ta ~6 TL/ay'dır. Asıl kaldıraç **destek yüküdür** (B+): marj %59'dan %71'e çıkar, başa baş 3 ay öne gelir.
+- **B (SMS kotasını düşürmek) marjı değiştirmez.** SMS maliyeti Esnaf'ta ~6 TL/ay'dır. Asıl kaldıraç **destek yüküdür** (B+): marj %59'dan %71'e çıkar, kalıcı başa baş Ay 29'dan Ay 26'ya gelir.
 - **A** marjı artırır ama sermayeye etkisi sınırlıdır, çünkü Esnaf talebi düşer.
 - **C** marjı düşürür (yıllık fiyat 792 TL/ay), ama sermaye ihtiyacını en çok o azaltır: peşin nakit gelir ve daha az Esnaf edinmek için daha az satış-pazarlama harcanır. Bu da Esnaf'ın bugünkü kanal maliyetiyle edinildiğinde kısa vadede nakit tükettiğini gösterir.
 - **Öneri:** Varsayılan B+ olsun (self-servis kurulum, video rehber, panel içi yardım; "biz kuralım" Esnaf'ta ücretli). Karar K4'te §10.3 ölçütleriyle verilsin.
@@ -450,7 +452,7 @@ Belge seti [08](08-mevzuat-kvkk-odeme-fatura.md) §7.4 satır 14'tedir (Faz 0, a
 | Teknokent (Oca 2027'den; Ar-Ge personeli −%20 [T], kira +20 bin TL/ay [T]) | 30,4 mn TL | Ay 26 / Ay 26 | 31,6 mn TL | yok / yok | −0,6 mn TL |
 | Önlem paketi: lansman öncesi güncelleme + Teknokent + Esnaf self-servis (B+) | 24,4 mn TL | Ay 21 / Ay 21 | 27,0 mn TL | Ay 36 / Ay 36 | 0,0 mn TL |
 
-Hiç güncelleme yapılmazsa GO'nun sermaye ihtiyacı 7 mn TL artar ve 36 ayda kalıcı başa baş oluşmaz. Endeksleme bu yüzden fiyat listesinin ayrılmaz parçasıdır.
+Hiç güncelleme yapılmazsa GO'nun sermaye ihtiyacı 40,5 mn TL'ye çıkar ve 36 ayda kalıcı başa baş oluşmaz. Endeksleme bu yüzden fiyat listesinin ayrılmaz parçasıdır.
 
 ### 10.3 Esnaf paketi kararı: K4 ölçütleri
 
@@ -481,7 +483,7 @@ Hiç güncelleme yapılmazsa GO'nun sermaye ihtiyacı 7 mn TL artar ve 36 ayda k
 
 Pist değerleri, §5'teki gerekli sermaye Ay 1'de tek seferde kasaya girmiş varsayımıyla hesaplanmıştır. Gerçekte sermaye dilimlerle gelir, pist her dilimden önce düşer (§8.2 kuralı).
 
-- **Döviz bazlı gider / gelir ≤ %15** ([00](00-kararlar-ve-sozluk.md) §12; Meta hariç: LLM, yurt dışı faturalı bulut, SaaS araçları, platform WABA): GO'da eşik ancak **Ay 18 civarında** tutar. Öncesinde gelir küçük, araç ve altyapı gideri sabittir. Öneri: oran lansmandan 12 ay sonrasına kadar izlenir ama eşik uygulanmaz. Bu dönemde döviz bazlı gider **mutlak aylık tavanla** yönetilir ([09](09-yol-haritasi-ve-sprint-plani.md) §10.4'teki pilot dönemi yaklaşımının uzatılması; §12). Aşımda sırasıyla LLM kotası ve model seçimi, araç lisansları, yurt içi alternatifler gözden geçirilir.
+- **Döviz bazlı gider / gelir ≤ %15** ([00](00-kararlar-ve-sozluk.md) §12; Meta hariç: LLM, yurt dışı faturalı bulut, SaaS araçları, platform WABA): GO'da eşik ancak **Ay 18 civarında** tutar. Öncesinde gelir küçük, araç ve altyapı gideri sabittir. [00](00-kararlar-ve-sozluk.md) §12 ticari lansmana kadar mutlak tutar izlemeyi öngörür. Öneri: bu yaklaşım lansmandan 12 ay sonrasına kadar uzatılsın; oran izlenir ama eşik uygulanmaz, döviz bazlı gider **mutlak aylık tavanla** yönetilir (§12). Aşımda sırasıyla LLM kotası ve model seçimi, araç lisansları, yurt içi alternatifler gözden geçirilir.
 - **Nakit pisti ≥ 9 ay** (eldeki nakit / son 3 ayın ortalama net nakit çıkışı; [10](10-riskler-operasyon-ve-metrikler.md) §8.6). Eşik altına düşerse sırasıyla: (1) bekleyen işe alım tetikleri ertelenir ([09](09-yol-haritasi-ve-sprint-plani.md) §10.4); (2) reklam, basılı materyal ve etkinlik bütçesi durur; (3) ikinci şehir ertelenir; (4) kurucu maaşları dondurulur; (5) finansman dilimi öne çekilir.
 - **Ek izlenenler:** brüt marj (paket kırılımlı), kanal bazında CAC (nominal ve 2026 TL), geri ödeme, destek uzmanı başına işletme ve model sapması. Sapma = gerçekleşen / model − 1; MRR, yakım ve yeni işletmede ±%15'i aşarsa model güncellenir.
 
@@ -528,15 +530,15 @@ Bu şablon [10](10-riskler-operasyon-ve-metrikler.md) §9.4'teki aylık kurucu r
 1. **Şirket türü (00 §13.3):** Model, durdur kolu dışındaki her senaryoda dış sermaye gerektirir. Tescilden (9 Ekim 2026) önce doğrudan AŞ kuruluşu yeniden değerlendirilmeli (§9.1).
 2. **BiGG uygunluğu ve şirket tescili:** BiGG'nin başvuru anında şirket kurulmuş olmasına ilişkin koşulları teyit edilmeden tescil yapılmamalı (§8.1). Uygunluk kaybı riski varsa tescil sırası kurucu kararıdır.
 3. **Pist kuralının başlangıcı:** 9 ay pist kuralı Ay 1'den uygulanırsa K2'den önce 7,5 mn TL gerekir. Öneri: K2'ye kadar "durdur tutarı" (≈ 2,5 mn TL), K2 GO'dan itibaren 9 ay kuralı (§5.1). 00 §12'ye not düşülmeli.
-4. **Döviz gider oranı eşiği:** ≤ %15, GO'da bile Ay 18'e kadar yapısal olarak aşılır. Öneri: eşik lansman + 12 aydan itibaren; öncesinde mutlak USD tavanı (§11.1). 00 §12 ve 09 §10.4 güncellenmeli.
+4. **Döviz gider oranı eşiği:** ≤ %15, GO'da bile Ay 18'e kadar yapısal olarak aşılır. [00](00-kararlar-ve-sozluk.md) §12 yalnız ticari lansmana kadar mutlak tutar izlemeyi öngörür. Öneri: mutlak USD tavanı lansman + 12 aya (Şubat 2028) kadar sürsün, oran eşiği ondan sonra uygulansın (§11.1). 00 §12 ve 09 §10.4 güncellenmeli.
 5. **Lansman öncesi TÜFE güncellemesi (Ocak 2027):** En büyük tek kaldıraçtır (GO 33,5 → 28,4 mn TL), ama 00 §8'deki lansman fiyatlarını değiştirir. Karar K4 ön-onayında Esnaf kararıyla birlikte (§10.1 madde 6).
 6. **CAC hedefi:** Model CAC'ı 2026 TL ile 5.415 TL; [00](00-kararlar-ve-sozluk.md) §12 hedefi ≤ 4.000 TL. Ya kanal karması (organik/referans payı ↑, bayi komisyon süresi ↓) ya da hedef revize edilmeli (§7).
 7. **Karma brüt marj ≥ %70:** GO'da Ay 24'te %60. Maaş ve kur artışı fiyat güncellemesinden hızlı. Kaldıraçlar: uzman başına ≥ 300 işletme, LLM kotası, güncelleme zamanı (§4.4).
 8. **KOŞULLU senaryonun finansmanı:** Mevcut maliyet yapısıyla 36 ayda başa baş yok. K2 KOŞULLU çıkarsa önlem paketi ve işe alım dondurma aynı hafta kararlaştırılmalı (§5, §10.2).
-9. **Maaş varsayımları [T]:** M = 175.000 TL, kurucu 2 × 75.000 TL, içerik, bayi yöneticisi ve SRE ücretleri kaynaksız. Sermaye ihtiyacının %40'ından fazlası bu kalemlerdir (§8.3). Kurucu kendi rakamlarıyla güncellemeli.
+9. **Maaş varsayımları [T]:** M = 175.000 TL, kurucu 2 × 75.000 TL, içerik, bayi yöneticisi ve SRE ücretleri kaynaksız. Fon kullanımında ürün geliştirme %35, kurucu maaşları %9 paya sahiptir (§8.3). Kurucu kendi rakamlarıyla güncellemeli.
 10. **Yurt içi barındırma teklifleri** (00 §13.4) ve TL/USD fatura para birimi: altyapı eğrisi ve döviz oranı bu tekliflere göre güncellenmeli.
-11. **Kurucu üye + yıllık peşin birleşmez** ([01](01-vizyon-pazar-is-modeli.md) §6.4 açık konusu): model birleşmez varsayar. Birleşirse erken nakit artar, ARPU düşer.
+11. **Kurucu üye + yıllık peşin** ([00](00-kararlar-ve-sozluk.md) §13.14; varsayılan: birleşmez, yüksek olan uygulanır; pilotlar sayaca dahil): model bu varsayılanı kullanır. Birleşirse erken nakit artar, ARPU düşer.
 12. **Vergi ve teşvik etkileri modelde yok:** 2 No'lu KDV nakit etkisi, stopaj ([08](08-mevzuat-kvkk-odeme-fatura.md) §8.2–8.3), bayi komisyonu stopajı, Teknokent KDV istisnası. Mali müşavirle modele eklenmeli.
 13. **Referans programı maliyeti:** "Getiren ve gelen 1'er ay" (2 aylık ücret) CAC'ı yükseltir. Getirene yalnız ödeme yapan işletme için kredi verilmesi değerlendirilmeli.
-14. **Zincir varsayımları [T]:** Ortalama 3 şube, destek ağırlığı şube sayısı kadar. Faz 2'de ilk Zincir müşterileriyle güncellenmeli.
+14. **Zincir varsayımları:** Ortalama 3 şube [T], destek ağırlığı şube sayısı kadar [T], şube indirimi yok ([00](00-kararlar-ve-sozluk.md) §13.13 varsayılanı). İndirim kararı verilirse `liste_fiyat` yerine şube bazlı fiyat eğrisi eklenmeli; Faz 2'de ilk Zincir müşterileriyle güncellenmeli.
 15. **Pilot → ücretli dönüşüm %80 [T]:** K4 eşiği %60. %60'ta GO'nun ilk 100 kurucu üye kotası birkaç hafta geç dolar; etkisi küçüktür, ama K4'te gerçek değerle güncellenmeli.

@@ -154,6 +154,9 @@ Ayrıntı: [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13.
 10. SLO hedefleri.
 11. Esnaf paketinin ekonomisi.
 12. Sezonluk işletmeler için hesap dondurma.
+13. Zincir şube indirimi.
+14. Kurucu üye indirimi ile yıllık indirimin birleşip birleşmeyeceği.
+15. **Finansman:** finansal modelde GO senaryosu ≈ 33,5 mn TL sermaye ister, başa baş Ay 27–29. Bu, örnek ekip/maaş varsayımlarına çok duyarlı ([11](11-finansal-model-ve-finansman.md)).
 
 ## 9. Doküman haritası
 
