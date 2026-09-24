@@ -12,6 +12,8 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Paralel geliştirmede her süreç kendi derleme klasörünü kullanabilir (NEXT_DIST_DIR=.next-s1 vb.).
+  distDir: process.env.NEXT_DIST_DIR ?? '.next',
   poweredByHeader: false,
   transpilePackages: ['@siparis/core'],
   // Görseller API'nin /uploads altından ya da CDN'den gelir; optimizasyonu API'deki images kuyruğu yapar.

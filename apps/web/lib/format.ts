@@ -33,7 +33,7 @@ export type MoneyStyle = 'symbol' | 'text' | 'short';
  * Kuruş (integer) → metin.
  * 'symbol' (varsayılan): "1.250,50 ₺" · 'text': "1.250,50 TL" (mesaj/fiş dili) · 'short': "150 TL" / "123,45 TL".
  */
-export function formatMoney(kurus: number, style: MoneyStyle = 'symbol'): string {
+export function formatMoney(kurus: number, style: MoneyStyle = 'text'): string {
   if (style === 'text') return coreFormatTL(kurus);
   if (style === 'short') return formatTLShort(kurus);
   return formatTRY(kurus);
