@@ -331,7 +331,7 @@ sequenceDiagram
 | K14 | Olası mükerrer sipariş | Aynı müşteri/cihaz, aynı sepet hash'i, 10 dk içinde, önceki açık [T] | "Az önce aynı siparişi verdiniz (#1047). Yine de yeni sipariş verilsin mi?" [Hayır, takibe git] [Evet, yeni sipariş] | Panelde "olası tekrar" rozeti. İşletme `new` iken `duplicate` sebebiyle reddeder (M11); onay sonrası fark edilirse `cancel_reason = duplicate` (M12e) | 1 |
 | K15 | Müşteri doğrulamadı (Akış B, 30 dk) | Zamanlayıcı | S-06B: "Süre doldu, sipariş iptal edildi. [Aynı sepetle yeniden gönder]" | `cancelled` (`customer_timeout`). Pencere olmadığı için WhatsApp mesajı gitmez | 1 |
 | K16 | Müşteri AI özetine yanıt vermedi (30 dk) | Zamanlayıcı | M12c (zaman aşımı) | `cancelled` (`customer_timeout`) | 2 |
-| K17 | İşletme yanıt vermedi | `new` T+10 dk / T+15 dk | T+10: M13 [Beklerim] [Siparişi iptal et] (yalnız pencere açıksa) + takip sayfasında gecikme satırı (§7.3). T+15: M12d (özür + telefon; pencere dışında `siparis_iptal_yanitsiz_v1`, WhatsApp'sız modda SMS-03b). Müşteri M13'e yanıt vermezse ek mesaj gitmez | Kademeli alarm ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10; [D02 §10.3](02-whatsapp-entegrasyonu.md)). T+15'te `cancelled` (`system`, `tenant_no_response`); süreler işletme ayarıdır (min/maks sınırlı). Otomatik ret yoktur | 1 |
+| K17 | İşletme yanıt vermedi | `new` T+10 dk / T+15 dk | T+10: M13 [Beklerim] [Siparişi iptal et] (yalnız pencere açıksa) + takip sayfasında gecikme satırı (§7.3). T+15: M12d (özür + telefon; pencere dışında `siparis_iptal_yanitsiz_v1`, WhatsApp'sız modda SMS-03b). Müşteri M13'e yanıt vermezse ek mesaj gitmez | Kademeli alarm ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10; [D02 §10.3](02-whatsapp-entegrasyonu.md)). T+15'te `cancelled` (`system`, `tenant_no_response`). Otomatik iptal süresi işletme ayarıdır (10–30 dk, varsayılan 15); müşteri bilgisi (M13) varsayılan T+10'da, her durumda iptalden en az 5 dk önce gider (§9.2 M13). Otomatik ret yoktur | 1 |
 | K18 | WhatsApp mesajı teslim edilemedi (131026) | Status webhook | Takip sayfası çalışmaya devam eder | Panelde "WhatsApp'a ulaşılamadı, arayın" rozeti | 1 |
 | K19 | İşletmenin gönderimi duraklatılmış (131042/190) | Tenant durumu | Web siparişinde S-06C (SMS). Akış A'daki açık siparişte takip sayfası | WhatsApp'sız mod | 1 |
 | K20 | Kara listedeki müşteri | Sipariş POST'u, bot | Nötr metin: "Şu an çevrimiçi sipariş alamıyoruz, lütfen işletmeyi arayın." (M33) | Sipariş oluşmaz. Suçlayıcı ifade kullanılmaz | 1 |
@@ -663,7 +663,7 @@ Sunucu, istemciden gelen ücret ve bölge bilgisini yok sayar ve hesabı yeniden
 ### 7.3 Durum çizelgesi, ETA, kurye ve iletişim
 
 - **Adımlar ve etiketler** §3.0'daki tablodur; her adımın yanında saati yazar ("Onaylandı · 20.05"). Gel-alda 4. adım "Hazır · Gelip alabilirsiniz" olur. Pakette `ready` ayrı adım değildir; 2. adımın altına "Hazır, kurye bekleniyor" alt satırı eklenir.
-- **Onay gecikmesi (`new`, kademeli alarmın t=10 dk basamağı):** Sipariş 10 dk içinde onaylanmadıysa adım çubuğunun altında şu satır çıkar: "İşletme siparişinizi henüz onaylamadı. {kalan_dk} dakika içinde onaylanmazsa sipariş otomatik olarak iptal edilecek. [İptal et] [İşletmeyi ara]". WhatsApp'sız modda bu bilgi yalnız burada görünür ([D02 §6.11](02-whatsapp-entegrasyonu.md)); t=15 dk'da sayfa "İptal edildi · İşletme zamanında onaylayamadı" durumuna geçer ve şube telefonu gösterilir.
+- **Onay gecikmesi (`new`, kademeli alarmın t=10 dk basamağı; zamanlama M13 ile aynı, §9.2):** Sipariş varsayılan 10 dk içinde onaylanmadıysa adım çubuğunun altında şu satır çıkar: "İşletme siparişinizi henüz onaylamadı. {kalan_dk} dakika içinde onaylanmazsa sipariş otomatik olarak iptal edilecek. [İptal et] [İşletmeyi ara]". WhatsApp'sız modda bu bilgi yalnız burada görünür ([D02 §6.11](02-whatsapp-entegrasyonu.md)); otomatik iptal anında (varsayılan t=15 dk) sayfa "İptal edildi · İşletme zamanında onaylayamadı" durumuna geçer ve şube telefonu gösterilir.
 - **ETA:** Onaydan önce aralık ("30–40 dk içinde"), sonra kesin saat gösterilir. Tahmini saat 10 dk'dan fazla geçildiyse [T] şu satır çıkar: "Siparişiniz biraz gecikti. Bir sorun olduğunu düşünüyorsanız işletmeyi arayabilirsiniz. [Ara]". **Otomatik WhatsApp mesajı gitmez**; işletme panelde "Gecikme bildir" derse yeni saat takip sayfasına yansır ve M34 gider ([04](04-isletme-paneli.md) §4.10). Canlı kurye konumu yoktur [Faz 3].
 - **Kurye [Faz 1]:** Yalnız ilk adı gösterilir; telefonu **gösterilmez**. İşletme ayarla kurye telefonunu açabilir (varsayılan kapalı, A05 §7.3). **Maskeli arama (sanal numara)** Faz 3'te değerlendirilir; sağlayıcı, maliyet ve KVKK etkisi açık konudur (§12). Kurye müşterinin adresini ve telefonunu yalnız kendine atanan siparişte görür, teslimden sonra göremez (A06 §5.4, [04](04-isletme-paneli.md)).
 - **İletişim:** "İşletmeyi ara" şube telefonunu (`tel:`) arar. "WhatsApp'tan yaz" `https://wa.me/<numara>?text=Sipariş%20%231047%20hakkında` açar; ön dolu metin panelde siparişle eşleştirilir [T]. WhatsApp'sız modda yalnız "İşletmeyi ara" görünür.
@@ -885,7 +885,8 @@ Kapsam: [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5'teki `cancel_re
 > {kalan_dk} dakika içinde onaylanmazsa siparişiniz otomatik olarak iptal edilecek ve size buradan haber vereceğiz.
 > Beklemek ister misiniz? Takip: {takip_link}
 
-- *Siparişi iptal et* müşteri iptalidir (`new` → `cancelled`, `customer`, `customer_request`) ve M12b ile yanıtlanır. *Beklerim* (M13a) süreyi uzatmaz; t=15 dk'da işletme hâlâ yanıt vermediyse M12d gider.
+- **Zamanlama kuralı:** otomatik iptal süresi işletme ayarıdır, **10–30 dk** aralığında seçilir, varsayılan **15 dk**. M13 varsayılan olarak **t=10 dk**'da gider ve her durumda otomatik iptalden **en az 5 dk önce** gider: `M13 zamanı = min(10 dk, iptal süresi − 5 dk)` (ör. iptal 10 dk → M13 t=5 dk; iptal 30 dk → M13 t=10 dk). `{kalan_dk}` = iptal süresi − M13 zamanı.
+- *Siparişi iptal et* müşteri iptalidir (`new` → `cancelled`, `customer`, `customer_request`) ve M12b ile yanıtlanır. *Beklerim* (M13a) süreyi uzatmaz; iptal süresi dolduğunda (varsayılan t=15 dk) işletme hâlâ yanıt vermediyse M12d gider.
 - Pencere kapalıysa veya WhatsApp'sız moddaysa bu bilgi yalnız takip sayfasında görünür (§7.3).
 
 **M18 · AI sipariş özeti** — tetik: Akış C ve sohbet içi tekrar (Akış D) · service, reply · butonlar: *Onayla* · *Düzenle* · *İptal* · [Faz 2]
@@ -902,7 +903,7 @@ Kapsam: [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5'teki `cancel_re
 
 | Kod | Tetik · tür · faz | Metin | Butonlar |
 |---|---|---|---|
-| M01K | 30 dk–12 sa içinde tekrar yazan · CTA URL · F1 | Tekrar merhaba 👋 Sipariş vermek için menümüzü açabilirsiniz. | Menüyü aç |
+| M01K | Son 12 saatte tam karşılama almış, son otomatik yanıttan 30 dk geçmiş (30 dk'da en fazla 1) · CTA URL · F1 | Tekrar merhaba 👋 Sipariş vermek için menümüzü açabilirsiniz. | Menüyü aç |
 | M03 | `closed` (6 saatte 1) · CTA URL · F1 | Merhaba 👋 {isletme} şu an kapalı. {acilis} itibarıyla yeniden sipariş alacağız. ⏎ Bu arada menümüze göz atabilirsiniz. | Menüye göz at (F2, planlı sipariş açıksa: Ön sipariş ver) |
 | M04 | `paused` (12 saatte 1) · CTA URL · F1 | Merhaba 👋 Yoğunluk nedeniyle kısa bir süre yeni sipariş alamıyoruz 🙏 ⏎ {devam_satiri} ⏎ Anlayışınız için teşekkür ederiz. — `{devam_satiri}`: "Tahminen {devam_saati} itibarıyla yeniden sipariş alacağız." ya da "Biraz sonra tekrar deneyebilirsiniz." | Menüye göz at |
 | M07 | `preparing` (varsayılan kapalı) · metin · F1 | 🔥 Siparişiniz hazırlanıyor. Sipariş no: {no} | — |
@@ -911,7 +912,7 @@ Kapsam: [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5'teki `cancel_re
 | M10d | "İdare eder" · metin · F1 | Teşekkür ederiz! Bir dahaki siparişinizde daha iyisini yapmak için çalışacağız 🙏 | — |
 | M10b | "Beğenmedim" · list · F1 | Üzgünüz 😔 Ne ters gitti? Bildiriminiz doğrudan işletme sahibine iletilecek. — Satırlar: Geç geldi · Soğuk geldi · Eksik/yanlış ürün · Lezzet · Kurye · Diğer | Sorunu seç |
 | M10c | Liste seçimi · metin · F1 | Teşekkürler, iletildi. {isletme} size buradan dönüş yapabilir. — "Diğer"de: "Teşekkürler. İsterseniz yaşadığınız sorunu kısaca yazabilirsiniz, doğrudan işletmeye iletilecek." | — |
-| M13a | "Beklerim" · metin · F1 | Teşekkürler, işletmeye hatırlattık. Onaylandığında buradan haber vereceğiz. | — |
+| M13a | "Beklerim" · metin · F1 | Teşekkürler, işletmeye hatırlattık. Onaylandığında buradan haber vereceğiz. — Panelde siparişe "Müşteri bekliyor" notu düşer; otomatik iptal süresi değişmez. | — |
 | M14 | Panelde "ürün tükendi" · reply · F2 | Siparişinizdeki {urun} maalesef tükendi 😔 Nasıl devam edelim? | Onsuz devam et · {alternatif} (örn. "Sütlaç olsun +10TL") · Siparişi iptal et |
 | M15 | Panelden "Konum iste" (F1) · Akış C'de adres yok (F2) · konum isteme | Teslimat için konumunuzu paylaşır mısınız? Ardından bina no, kat ve daireyi yazmanız yeterli. — Konum gelince: "Teşekkürler! Şimdi bina no, kat, daire ve varsa adres tarifini yazar mısınız? Örnek: No 12, Kat 3, Daire 7, eczanenin üstü." | Konum gönder (sabit) |
 | M16 | Kurye telefonu yok: panelden (F1, yük teyit edilince) · Akış C (F2) · kişi bilgisi isteme | Kuryemizin gerekirse size ulaşabilmesi için telefon numaranızı paylaşır mısınız? Numaranız yalnızca siparişiniz için kullanılır. (Yük teyit edilmeli, [D02 §6.8](02-whatsapp-entegrasyonu.md)) | (sabit) |
@@ -922,10 +923,10 @@ Kapsam: [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5'teki `cancel_re
 | M20 | "yetkili" · metin · F1 | Mesai içi: "Sizi yetkilimize aktardık 🙋 Birazdan buradan yanıt verecek." / Mesai dışı: "Şu an ekibimiz yanıt veremiyor. Mesajınızı aldık, {acilis} itibarıyla dönüş yapacağız." | — |
 | M21 | AI, konu dışı · CTA URL · F2 | Ben yalnızca {isletme} menüsü ve siparişlerinizle ilgili yardımcı olabiliyorum 🙂 Sipariş vermek için menümüzü açabilir ya da "yetkili" yazarak ekibimize ulaşabilirsiniz. | Menüyü aç |
 | M22 | M10a içinde · reply · F2 | {isletme} kampanya ve duyurularını WhatsApp'tan almak ister misiniz? İstediğiniz zaman "DUR" yazarak ayrılabilirsiniz. — Kayıt: zaman, kanal, `wamid`, metin sürümü; 3 iş günü içinde İYS ([D08 §3.4](08-mevzuat-kvkk-odeme-fatura.md)). "Hayır" diyene 90 gün sorulmaz [T]. Nihai metin avukattan. | Evet, isterim · Hayır, teşekkürler |
-| M23 | Sepeti terkten 30–60 dk sonra · marketing şablonu · F2+ | Sepetinizde {urun_ozet} bekliyor. Siparişinizi tamamlamak ister misiniz? — Yalnız ETK onaylı ve opt-in'li müşteriye, tek sefer, varsayılan kapalı. İşletmenin kampanya mesajları (M24–M25 ayrılmış) kampanya modülünden `kampanya_genel_v1` ile gider ([04](04-isletme-paneli.md)). | Sepete dön · Kampanyaları durdur |
+| M23 | Sepeti terkten 30–60 dk sonra · marketing şablonu (adı [D02 §5.2](02-whatsapp-entegrasyonu.md)'de henüz tanımlı değil) · F2 | Sepetinizde {urun_ozet} bekliyor. Siparişinizi tamamlamak ister misiniz? — Yalnız ETK onaylı ve opt-in'li müşteriye, tek sefer, varsayılan kapalı. İşletmenin kampanya mesajları (M24–M25 ayrılmış) kampanya modülünden `kampanya_genel_v1` ile gider ([04](04-isletme-paneli.md)). | Sepete dön · Kampanyaları durdur |
 | M26 | Aktif siparişte gelen mesaj (15 dk'da 1) · CTA URL · F1 | {no} numaralı siparişinizin durumu: {durum_etiketi}{eta_ek} ⏎ Mesajınızı işletmeye de ilettik. Bir yetkiliyle görüşmek isterseniz "yetkili" yazın. — Etiket §3.0'dan; `{eta_ek}` = " · Tahmini {saat}" | Siparişi takip et |
 | M27a | "iptal", `awaiting_customer`/`new` · reply · F1 | {no} numaralı siparişinizi iptal etmek istiyor musunuz? | Siparişi iptal et · Vazgeçtim |
-| M27b | "iptal", `accepted` ve sonrası · metin · F1 | Siparişiniz hazırlanmaya başladığı için iptal talebinizi işletmeye ilettik. En kısa sürede size dönüş yapılacak. (Panelde iptal talebi açılır, sohbet insana devredilir.) | — |
+| M27b | "iptal", `accepted` ve sonrası · metin · F1 | Siparişiniz onaylandığı için iptal talebinizi işletmeye ilettik. İşletme onaylarsa siparişiniz iptal edilir ve size buradan haber veririz. (Panelde iptal talebi açılır, sohbet insana devredilir; onayda M12b gider.) | — |
 | M28a | Saat sorusu · CTA URL · F1 | 🕒 Bugün {bugun_acilis}–{kapanis} arası açığız. Tüm çalışma saatlerimiz: {bilgi_link} | Menüyü aç |
 | M28b | Adres sorusu · CTA URL · F1 | 📍 Adresimiz: {sube_adres}. Haritada görmek için: {harita_link} | Menüyü aç |
 | M28c | Bölge/ücret sorusu · CTA URL · F1 | 🛵 Teslimat ücreti {ucret_aralik}, minimum sepet {min_aralik}. Adresinize teslimat yapıp yapmadığımızı menüde adresinizi girerek hemen görebilirsiniz. | Menüyü aç |
@@ -941,7 +942,7 @@ Kapsam: [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5'teki `cancel_re
 
 ### 9.4 Pencere dışı: utility şablonları
 
-Pencere kapalıyken aynı içerik [D02 §5.2](02-whatsapp-entegrasyonu.md)'deki utility şablonlarıyla gider; **gövdeler orada kanoniktir.** Eşleme: M05 → `siparis_alindi_v1`, M06 → `siparis_onaylandi_v1`, M08 → `siparis_hazir_v1`, M09 → `siparis_yolda_v1`, M10 → `siparis_teslim_v1` ("Değerlendir" URL butonu `/t/{token}#degerlendir`'e açılır), M11 → `siparis_reddedildi_v1`, M12 → `siparis_iptal_v1`. Panelden 24 saatten eski sohbete yanıt için `yanit_bekliyor_v1` kullanılır.
+Pencere kapalıyken aynı içerik [D02 §5.2](02-whatsapp-entegrasyonu.md)'deki utility şablonlarıyla gider; **gövdeler orada kanoniktir.** Eşleme: M05 → `siparis_alindi_v1`, M06 → `siparis_onaylandi_v1`, M08 → `siparis_hazir_v1`, M09 → `siparis_yolda_v1`, M10 → `siparis_teslim_v1` ("Değerlendir" URL butonu `/t/{token}#degerlendir`'e açılır), M11 → `siparis_reddedildi_v1`, M12a–c, e–g → `siparis_iptal_v1`, M12d (`tenant_no_response`) → `siparis_iptal_yanitsiz_v1`. Panelden 24 saatten eski sohbete yanıt için `yanit_bekliyor_v1`, kampanya için [Faz 2] `kampanya_genel_v1` kullanılır. Şablon adları D02 §5.2 kataloğuyla birebir aynıdır; M23 (sepeti terk, [Faz 2]) için katalogda henüz şablon yoktur.
 - Müşteri adı bilinmiyorsa `{{1}}` = "değerli müşterimiz". M10a–d, M13, M17, M26–M32 ve M34 pencere dışında **hiç** gönderilmez (şablonları yoktur); M34 gidemezse panel "müşteriyi arayın" önerir.
 - Zamana duyarlı şablonlara kısa TTL verilmesi önerilir (örn. `siparis_yolda_v1` 30 dk), böylece geç teslim edilmezler (A05 §7.4; izin verilen aralık teyit edilmeli).
 
@@ -953,10 +954,14 @@ Pencere kapalıyken aynı içerik [D02 §5.2](02-whatsapp-entegrasyonu.md)'deki 
 | SMS-02 | `accepted` | {isletme}: {no} numaralı siparişiniz onaylandı. Tahmini teslim {saat}. Takip: {takip_link} |
 | SMS-03a | `rejected` | {isletme}: {no} numaralı siparişiniz alınamadı. Sebep: {sebep}. Bilgi: {sube_tel} |
 | SMS-03b | `cancelled` | {isletme}: {no} numaralı siparişiniz iptal edildi. Sebep: {sebep}. Bilgi: {sube_tel} |
+| SMS-03b (`tenant_no_response` varyantı) | `cancelled`, `system`, t=15 dk | {isletme}: {no} numaralı siparişiniz zamanında onaylanamadığı için iptal edildi, özür dileriz. Telefonla sipariş için: {sube_tel} |
 
+- `{sebep}`, [D02 §5.2](02-whatsapp-entegrasyonu.md)'deki kısa sebep metnidir (ret ve iptal kodlarının hepsi için tanımlı).
 - SMS-01'in son satırı tarayıcıların SMS kodunu otomatik doldurabilmesi içindir (WebOTP biçimi, teyit edilmeli).
 - Türkçe karakterler SMS segment sayısını artırabilir. Sağlayıcının Türkçe karakter desteği ve segment hesabı teyit edilmeli; metinler kısa tutulmuştur (§12).
-- SMS'ler işlemseldir, promosyon içermez. Gönderici başlığı ve kimin ödediği açık konudur (§12).
+- SMS'ler işlemseldir, promosyon içermez.
+- **Gönderici başlığı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7):** Faz 1'de platformun onaylı alfanümerik başlığı kullanılır (≤ 11 karakter, ör. "SIPARISNDE" — teyit edilmeli). Müşteri mesajın kimden geldiğini gövdeden anlar: işletme adı her SMS'in başındadır (`{isletme}:` / "{isletme} sipariş doğrulama kodunuz"). İşletmeye özel başlık Faz 3.
+- **Maliyet ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4):** SMS OTP ve kritik durum SMS'leri platform maliyetidir; aboneliğe adil kullanım kotasıyla dahildir (Esnaf 100, Pro 300 SMS/ay). Kota aşımında işletme uyarılır, müşteriye giden SMS kesilmez [T]; Faz 2'de ek SMS paketi. Müşteri SMS için hiçbir ücret ödemez.
 
 ### 9.6 Mesaj bütçesi
 
