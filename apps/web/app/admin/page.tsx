@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
-import { ComingSoon } from '@/components/common/coming-soon';
+import { AdminOverviewScreen } from '@/components/admin/overview';
 
-// Yer tutucu — Dilim #5 (admin): A-02 özet.
+// A-02 kontrol paneli (05 §A.4).
 export const metadata: Metadata = { title: 'Özet' };
 
 export default function Page() {
-  return <ComingSoon title="Özet" description="İşletme sayıları, bugünkü siparişler, açık alarmlar ve başarısız işler." />;
+  return <AdminOverviewScreen />;
 }

@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
-import { ComingSoon } from '@/components/common/coming-soon';
+import { LiveScreen } from '@/components/live/live-screen';
 
-// Yer tutucu — Dilim #2 (sipariş yaşam döngüsü): canlı sipariş ekranı, vardiya başlat, alarm, kanban (14 §9).
+// Canlı sipariş ekranı (P-04, 04 §4) — dilim 2.
 export const metadata: Metadata = { title: 'Canlı siparişler' };
 
 export default function Page() {
-  return <ComingSoon title="Canlı siparişler" description="Yeni siparişler burada sesli uyarıyla görünür." />;
+  return <LiveScreen />;
 }

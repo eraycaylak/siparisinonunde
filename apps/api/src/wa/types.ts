@@ -22,7 +22,8 @@ export interface WaRecipient {
 }
 
 export interface WaInteractiveMessage {
-  kind: 'buttons' | 'cta_url' | 'list';
+  /** location_request: "Konum gönder" isteği (dilim 3 genişletmesi) */
+  kind: 'buttons' | 'cta_url' | 'list' | 'location_request';
   body: string;
   header?: string;
   footer?: string;
@@ -82,6 +83,10 @@ export type NormalizedWaEvent =
       message: NormalizedWaMessage;
       /** Yanıtlanan mesaj */
       contextWamid?: string;
+      /** Click-to-WhatsApp reklam kaynağı (FEP adayı) */
+      referral?: Record<string, unknown>;
+      /** Ham mesaj nesnesi (messages.payload) */
+      raw?: Record<string, unknown>;
     }
   | {
       type: 'status';
@@ -92,7 +97,7 @@ export type NormalizedWaEvent =
       recipient?: WaRecipient;
       errorCode?: string;
       errorTitle?: string;
-      pricing?: { category?: string; billable?: boolean; pricingModel?: string };
+      pricing?: { category?: string; billable?: boolean; pricingModel?: string; type?: string };
     }
   | {
       /** Coexistence: işletme telefonundan yazılan mesajın yankısı */
@@ -102,4 +107,6 @@ export type NormalizedWaEvent =
       to: WaRecipient;
       timestamp: Date;
       text?: string;
+      /** Metin dışı echo türü (image, audio…) */
+      messageType?: string;
     };

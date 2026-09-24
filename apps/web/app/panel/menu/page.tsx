@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
-import { ComingSoon } from '@/components/common/coming-soon';
+import { MenuPage } from '@/components/menu/menu-page';
 
-// Yer tutucu — Dilim #1 (menü + storefront okuma): menü yönetimi; kasiyer/mutfak yalnız tükendi.
+// /panel/menu (04 §6, tablet öncelikli): kategoriler, ürünler, seçenek grupları, toplu fiyat, CSV.
+// Kasiyer ve mutfak yalnız "Bugün tükendi" anahtarını kullanır (düzenleme kontrolleri gizli; yetki API'de).
 export const metadata: Metadata = { title: 'Menü' };
 
 export default function Page() {
-  return <ComingSoon title="Menü" description="Kategoriler, ürünler, seçenekler ve tükenenler." />;
+  return <MenuPage />;
 }

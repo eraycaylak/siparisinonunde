@@ -10,15 +10,14 @@ import { buttonVariants } from '@/components/ui/button';
 import { ConnectionBanner, ConnectionIndicator } from '@/components/ui/connection-banner';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Sheet } from '@/components/ui/sheet';
-import { OrderingStateBadge } from '@/components/ui/status-badge';
 import { cn } from '@/lib/cn';
-import { formatTime } from '@/lib/format';
 import { currentBranchId, currentRole, useLogout, useMe, type Me } from '@/lib/auth';
 import { TENANT_ROLE_LABELS } from '@/lib/labels';
 import { MOBILE_TAB_HREFS, isActive, isPathAllowed, navForRole, settingsForRole, type PanelNavItem } from './nav-config';
 import { PanelBands } from './panel-bands';
 import { PanelStreamProvider, usePanelStream } from './stream-provider';
 import { UserMenu } from './user-menu';
+import { OrderingQuickActions } from '@/components/settings/ordering-quick-actions';
 
 /** Oturum gerektirmeyen panel yolları. */
 export const PANEL_PUBLIC_PATHS = ['/panel/giris', '/panel/kayit'] as const;
@@ -110,27 +109,9 @@ function NoTenant({ me }: { me: Me }) {
   );
 }
 
+/** Üst çubuk sipariş alma durumu + hızlı aksiyonlar (durdur / yoğunum) — components/settings/ordering-quick-actions. */
 function OrderingIndicator() {
-  const stream = usePanelStream();
-  const s = stream?.branchState;
-  if (!s) return null;
-  const detail =
-    s.orderingState === 'busy' && s.busyExtraMinutes > 0
-      ? `+${s.busyExtraMinutes} dk`
-      : s.orderingState === 'paused' && s.pausedUntil
-        ? `${formatTime(s.pausedUntil)}’e kadar`
-        : s.orderingState === 'closed' && s.nextOpenAt
-          ? `${formatTime(s.nextOpenAt)}’de açılır`
-          : null;
-  return (
-    <Link
-      href="/panel/ayarlar/sube"
-      className="hidden min-h-hit items-center rounded-md px-2 hover:bg-accent sm:inline-flex"
-      aria-label="Sipariş alma durumu"
-    >
-      <OrderingStateBadge state={s.orderingState} detail={detail} />
-    </Link>
-  );
+  return <OrderingQuickActions />;
 }
 
 function NavLink({ item, pathname, variant }: { item: PanelNavItem; pathname: string; variant: 'rail' | 'side' | 'tab' | 'sheet' }) {

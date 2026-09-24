@@ -1,9 +1,14 @@
 import type { Metadata } from 'next';
-import { ComingSoon } from '@/components/common/coming-soon';
+import { NotificationsForm } from '@/components/settings/branch-options';
+import { SettingsShell } from '@/components/settings/settings-shell';
 
-// Yer tutucu — Dilim #4: durum mesajları.
+// P-20: müşteri bildirimleri — hangi durum mesajı gitsin (04 §7.8).
 export const metadata: Metadata = { title: 'Müşteri bildirimleri' };
 
 export default function Page() {
-  return <ComingSoon title="Müşteri bildirimleri" description="Hangi durumda müşteriye mesaj gitsin." />;
+  return (
+    <SettingsShell title="Müşteri bildirimleri" description="Sipariş durumu değişince müşteriye hangi mesajların gideceği.">
+      <NotificationsForm />
+    </SettingsShell>
+  );
 }

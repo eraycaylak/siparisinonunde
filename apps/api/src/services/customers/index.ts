@@ -1,0 +1,410 @@
+// Müşteriler / CRM (04 §8) ve KVKK talepleri (08 §2.10): liste (maskeli telefon), profil, not/kara liste,
+// sipariş geçmişi, veri dışa aktarma ve silme/anonimleştirme. Test siparişleri hariç.
+
+import { maskPhone, turkishLower, type FulfillmentType, type PaymentMethod } from '@siparis/core';
+import type { CustomerDetail, CustomerListItem, CustomerOrderItem, CustomerPatch } from '@siparis/core/settings/contracts';
+import {
+  conversations,
+  customerAddresses,
+  customerErasures,
+  customers,
+  messages,
+  orderItemOptions,
+  orderItems,
+  orders,
+  otpVerifications,
+  reviews,
+  storefrontLinkTokens,
+  tenants,
+  type Database,
+} from '@siparis/db';
+import { and, asc, desc, eq, inArray, isNull, sql, type SQLWrapper } from 'drizzle-orm';
+import { conflict, notFound } from '../../lib/errors';
+import { isoOrNull, validationError } from '../settings/common';
+
+type CustomerRow = typeof customers.$inferSelect;
+
+export const ERASED_CUSTOMER_NAME = 'Silinmiş müşteri';
+export const ANONYMOUS_ORDER_NAME = 'Anonim müşteri';
+const OPEN_STATUSES = ['awaiting_customer', 'new', 'accepted', 'preparing', 'ready', 'on_the_way'] as const;
+
+/** Sayfalama imleci: [grup (0 = siparişi olan, 1 = olmayan)] | an (mikrosaniye hassasiyetli UTC metin) | id */
+function encodeCursor(at: string, id: string, group = 0): string {
+  return Buffer.from(`${group}|${at}|${id}`).toString('base64url');
+}
+
+const CURSOR_TS = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/;
+
+function decodeCursor(cursor: string | undefined): { group: number; at: string; id: string } | null {
+  if (!cursor) return null;
+  try {
+    const [g, at, id] = Buffer.from(cursor, 'base64url').toString('utf8').split('|');
+    if (!id || !at || (g !== '0' && g !== '1') || !CURSOR_TS.test(at) || !/^[0-9a-f-]{36}$/i.test(id)) return null;
+    return { group: Number(g), at, id };
+  } catch {
+    return null;
+  }
+}
+
+/** timestamptz → mikrosaniyeli UTC metin (JS Date milisaniyede keser; imleçte kayıp olmasın). */
+const tsText = (col: SQLWrapper | string) =>
+  sql<string>`to_char(${typeof col === 'string' ? sql.raw(col) : col} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
+
+function escapeLike(s: string): string {
+  return s.replace(/[\\%_]/g, (m) => `\\${m}`);
+}
+
+type ListRow = {
+  id: string;
+  name: string | null;
+  phone_e164: string | null;
+  wa_bsuid: string | null;
+  is_blocked: boolean;
+  notes: string | null;
+  order_count: number;
+  last_order_at: Date | string | null;
+  sort_at: string;
+  grp: number | string;
+  total: string | number | null;
+  delivered: string | number | null;
+};
+
+const toDate = (v: Date | string | null): Date | null => (v == null ? null : v instanceof Date ? v : new Date(v));
+
+export async function listCustomers(
+  db: Database,
+  tenantId: string,
+  opts: { q?: string; cursor?: string; limit?: number },
+): Promise<{ items: CustomerListItem[]; nextCursor?: string }> {
+  const limit = opts.limit ?? 30;
+  const conds = [sql`c.tenant_id = ${tenantId}`, sql`not exists (select 1 from customer_erasures e where e.customer_id = c.id)`];
+  const q = opts.q?.trim();
+  if (q) {
+    const digits = q.replace(/\D/g, '');
+    const parts = [sql`c.name ilike ${`%${escapeLike(q)}%`}`, sql`lower(c.name) like ${`%${escapeLike(turkishLower(q))}%`}`];
+    if (digits.length >= 3) {
+      const d = digits.replace(/^0+/, '').replace(/^90(?=5)/, '');
+      parts.push(sql`c.phone_e164 like ${`%${escapeLike(d)}%`}`);
+    }
+    conds.push(sql`(${sql.join(parts, sql` or `)})`);
+  }
+  const cur = decodeCursor(opts.cursor);
+  if (cur) {
+    conds.push(sql`(
+      (case when c.last_order_at is null then 1 else 0 end) > ${cur.group}
+      or ((case when c.last_order_at is null then 1 else 0 end) = ${cur.group}
+          and (coalesce(c.last_order_at, c.created_at), c.id) < (${cur.at}::timestamptz, ${cur.id}::uuid)))`);
+  }
+
+  // Siparişi olanlar son siparişe göre önce, sonra yeni kayıtlar
+  const rows = (await db.execute<ListRow>(sql`
+    select c.id, c.name, c.phone_e164, c.wa_bsuid, c.is_blocked, c.notes, c.order_count, c.last_order_at,
+           (case when c.last_order_at is null then 1 else 0 end) as grp,
+           ${tsText('coalesce(c.last_order_at, c.created_at)')} as sort_at,
+           s.total, s.delivered
+      from customers c
+      left join lateral (
+        select sum(o.total_kurus) as total, count(*) as delivered
+          from orders o
+         where o.tenant_id = c.tenant_id and o.customer_id = c.id and o.status = 'delivered' and o.test_kind is null
+      ) s on true
+     where ${sql.join(conds, sql` and `)}
+     order by grp, sort_at desc, c.id desc
+     limit ${limit + 1}`)) as unknown as ListRow[];
+
+  const page = rows.slice(0, limit);
+  const items = page.map((r) => {
+    const total = Number(r.total ?? 0);
+    const delivered = Number(r.delivered ?? 0);
+    return {
+      id: r.id,
+      name: r.name,
+      phoneMasked: r.phone_e164 ? maskPhone(r.phone_e164) : null,
+      orderCount: Number(r.order_count ?? 0),
+      lastOrderAt: isoOrNull(toDate(r.last_order_at)),
+      totalSpentKurus: total,
+      avgBasketKurus: delivered ? Math.round(total / delivered) : 0,
+      isBlocked: r.is_blocked,
+      hasNotes: Boolean(r.notes),
+      hasWhatsapp: Boolean(r.wa_bsuid),
+    };
+  });
+  const last = page[page.length - 1];
+  return rows.length > limit && last ? { items, nextCursor: encodeCursor(last.sort_at, last.id, Number(last.grp)) } : { items };
+}
+
+/** Tenant kapsamlı müşteri; anonimleştirilmiş ya da başka tenant'ın → 404. */
+export async function findCustomer(db: Database, tenantId: string, id: string): Promise<CustomerRow> {
+  const [row] = await db
+    .select({ c: customers, erased: customerErasures.customerId })
+    .from(customers)
+    .leftJoin(customerErasures, eq(customerErasures.customerId, customers.id))
+    .where(and(eq(customers.id, id), eq(customers.tenantId, tenantId)));
+  if (!row || row.erased) throw notFound('Müşteri bulunamadı.');
+  return row.c;
+}
+
+function mode<T extends string>(values: (T | null)[]): T | null {
+  const counts = new Map<T, number>();
+  for (const v of values) if (v) counts.set(v, (counts.get(v) ?? 0) + 1);
+  let best: T | null = null;
+  let n = 0;
+  for (const [k, c] of counts) if (c > n) [best, n] = [k, c];
+  return best;
+}
+
+export async function customerDetail(db: Database, c: CustomerRow): Promise<CustomerDetail> {
+  const own = and(eq(orders.tenantId, c.tenantId), eq(orders.customerId, c.id), isNull(orders.testKind));
+  const rows = await db
+    .select({ status: orders.status, totalKurus: orders.totalKurus, placedAt: orders.placedAt, fulfillmentType: orders.fulfillmentType, paymentMethod: orders.paymentMethod })
+    .from(orders)
+    .where(own);
+  const delivered = rows.filter((r) => r.status === 'delivered');
+  const total = delivered.reduce((s, r) => s + r.totalKurus, 0);
+  const times = rows.map((r) => r.placedAt.getTime());
+  const top = await db
+    .select({ name: orderItems.name, quantity: sql<number>`sum(${orderItems.quantity})::int` })
+    .from(orderItems)
+    .innerJoin(orders, eq(orders.id, orderItems.orderId))
+    .where(and(own, inArray(orders.status, ['delivered', 'accepted', 'preparing', 'ready', 'on_the_way'])))
+    .groupBy(orderItems.name)
+    .orderBy(desc(sql`sum(${orderItems.quantity})`), asc(orderItems.name))
+    .limit(3);
+  const addresses = await db
+    .select()
+    .from(customerAddresses)
+    .where(and(eq(customerAddresses.tenantId, c.tenantId), eq(customerAddresses.customerId, c.id)))
+    .orderBy(desc(sql`coalesce(${customerAddresses.lastUsedAt}, ${customerAddresses.createdAt})`));
+  return {
+    id: c.id,
+    name: c.name ?? null,
+    phone: c.phoneE164 ?? null,
+    phoneMasked: c.phoneE164 ? maskPhone(c.phoneE164) : null,
+    waUsername: c.waUsername ?? null,
+    hasWhatsapp: Boolean(c.waBsuid),
+    notes: c.notes ?? null,
+    isBlocked: c.isBlocked,
+    orderCount: rows.length ? rows.filter((r) => r.status !== 'awaiting_customer').length : c.orderCount,
+    firstOrderAt: times.length ? new Date(Math.min(...times)).toISOString() : null,
+    lastOrderAt: times.length ? new Date(Math.max(...times)).toISOString() : isoOrNull(c.lastOrderAt),
+    totalSpentKurus: total,
+    avgBasketKurus: delivered.length ? Math.round(total / delivered.length) : 0,
+    preferredFulfillment: mode<FulfillmentType>(delivered.map((r) => r.fulfillmentType)),
+    preferredPaymentMethod: mode<PaymentMethod>(delivered.map((r) => r.paymentMethod)),
+    topProducts: top.map((t) => ({ name: t.name, quantity: Number(t.quantity) })),
+    addresses: addresses.map((a) => ({
+      id: a.id,
+      label: a.label ?? null,
+      neighborhood: a.neighborhood ?? null,
+      addressLine: a.addressLine ?? null,
+      directions: a.directions ?? null,
+      lastUsedAt: isoOrNull(a.lastUsedAt),
+    })),
+    openOrderCount: rows.filter((r) => (OPEN_STATUSES as readonly string[]).includes(r.status)).length,
+    createdAt: c.createdAt.toISOString(),
+  };
+}
+
+export async function patchCustomer(tx: Database, c: CustomerRow, body: CustomerPatch): Promise<{ row: CustomerRow; changes: Record<string, unknown> }> {
+  const patch: Partial<typeof customers.$inferInsert> = {};
+  const changes: Record<string, unknown> = {};
+  if (body.notes !== undefined) {
+    const notes = body.notes ? body.notes : null;
+    if (notes !== c.notes) {
+      patch.notes = notes;
+      changes.notes = true;
+    }
+  }
+  if (body.isBlocked !== undefined && body.isBlocked !== c.isBlocked) {
+    if (body.isBlocked && !body.blockReason) throw validationError('Kara liste sebebini yazın.', 'blockReason');
+    patch.isBlocked = body.isBlocked;
+    changes.isBlocked = body.isBlocked;
+    if (body.blockReason) changes.blockReason = body.blockReason;
+  }
+  if (!Object.keys(patch).length) return { row: c, changes };
+  const [row] = await tx
+    .update(customers)
+    .set({ ...patch, version: c.version + 1 })
+    .where(eq(customers.id, c.id))
+    .returning();
+  return { row: row!, changes };
+}
+
+export async function customerOrders(
+  db: Database,
+  c: CustomerRow,
+  opts: { cursor?: string; limit?: number },
+): Promise<{ items: CustomerOrderItem[]; nextCursor?: string }> {
+  const limit = opts.limit ?? 20;
+  const conds = [eq(orders.tenantId, c.tenantId), eq(orders.customerId, c.id), isNull(orders.testKind)];
+  const cur = decodeCursor(opts.cursor);
+  if (cur) conds.push(sql`(${orders.placedAt}, ${orders.id}) < (${cur.at}::timestamptz, ${cur.id}::uuid)`);
+  const rows = (
+    await db
+      .select({ o: orders, placedAtText: tsText(orders.placedAt) })
+      .from(orders)
+      .where(and(...conds))
+      .orderBy(desc(orders.placedAt), desc(orders.id))
+      .limit(limit + 1)
+  ).map((r) => ({ ...r.o, placedAtText: r.placedAtText }));
+  const page = rows.slice(0, limit);
+  const items = page.length
+    ? await db
+        .select({ orderId: orderItems.orderId, name: orderItems.name, quantity: orderItems.quantity })
+        .from(orderItems)
+        .where(inArray(orderItems.orderId, page.map((o) => o.id)))
+        .orderBy(asc(orderItems.sort))
+    : [];
+  const out = page.map((o) => {
+    const its = items.filter((i) => i.orderId === o.id);
+    return {
+      id: o.id,
+      number: o.number,
+      status: o.status,
+      channel: o.channel,
+      fulfillmentType: o.fulfillmentType,
+      totalKurus: o.totalKurus,
+      itemCount: its.reduce((s, i) => s + i.quantity, 0),
+      placedAt: o.placedAt.toISOString(),
+      items: its.map((i) => ({ name: i.name, quantity: i.quantity })),
+    };
+  });
+  const last = page[page.length - 1];
+  return rows.length > limit && last ? { items: out, nextCursor: encodeCursor(last.placedAtText, last.id) } : { items: out };
+}
+
+/** KVKK dışa aktarma (08 §2.10): kimlik, iletişim, adresler, siparişler, değerlendirmeler, mesajlar. */
+export async function exportCustomer(db: Database, c: CustomerRow) {
+  const [tenant] = await db.select({ name: tenants.name, legalName: tenants.legalName }).from(tenants).where(eq(tenants.id, c.tenantId));
+  const addresses = await db.select().from(customerAddresses).where(and(eq(customerAddresses.tenantId, c.tenantId), eq(customerAddresses.customerId, c.id)));
+  const orderRows = await db
+    .select()
+    .from(orders)
+    .where(and(eq(orders.tenantId, c.tenantId), eq(orders.customerId, c.id), isNull(orders.testKind)))
+    .orderBy(asc(orders.placedAt));
+  const ids = orderRows.map((o) => o.id);
+  const itemRows = ids.length ? await db.select().from(orderItems).where(inArray(orderItems.orderId, ids)).orderBy(asc(orderItems.sort)) : [];
+  const optRows = itemRows.length
+    ? await db.select().from(orderItemOptions).where(inArray(orderItemOptions.orderItemId, itemRows.map((i) => i.id)))
+    : [];
+  const reviewRows = ids.length ? await db.select().from(reviews).where(and(eq(reviews.tenantId, c.tenantId), inArray(reviews.orderId, ids))) : [];
+  const convRows = await db.select().from(conversations).where(and(eq(conversations.tenantId, c.tenantId), eq(conversations.customerId, c.id)));
+  const msgRows = convRows.length
+    ? await db
+        .select({ conversationId: messages.conversationId, direction: messages.direction, kind: messages.kind, body: messages.body, createdAt: messages.createdAt })
+        .from(messages)
+        .where(and(eq(messages.tenantId, c.tenantId), inArray(messages.conversationId, convRows.map((x) => x.id))))
+        .orderBy(asc(messages.createdAt))
+        .limit(5000)
+    : [];
+  const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
+  return {
+    format: 'siparisinonunde.kvkk_export.v1',
+    exportedAt: new Date().toISOString(),
+    controller: { name: tenant?.name ?? null, legalName: tenant?.legalName ?? null },
+    customer: {
+      id: c.id,
+      name: c.name ?? null,
+      phone: c.phoneE164 ?? null,
+      whatsappUsername: c.waUsername ?? null,
+      whatsappLinked: Boolean(c.waBsuid),
+      notes: c.notes ?? null,
+      isBlocked: c.isBlocked,
+      orderCount: c.orderCount,
+      firstSeenAt: c.createdAt.toISOString(),
+      lastOrderAt: iso(c.lastOrderAt),
+    },
+    addresses: addresses.map((a) => ({
+      label: a.label,
+      neighborhood: a.neighborhood,
+      addressLine: a.addressLine,
+      directions: a.directions,
+      lat: a.lat,
+      lng: a.lng,
+      lastUsedAt: iso(a.lastUsedAt),
+    })),
+    orders: orderRows.map((o) => ({
+      number: o.number,
+      status: o.status,
+      channel: o.channel,
+      fulfillmentType: o.fulfillmentType,
+      placedAt: o.placedAt.toISOString(),
+      deliveredAt: iso(o.deliveredAt),
+      customerName: o.customerName,
+      customerPhone: o.customerPhone,
+      neighborhood: o.neighborhood,
+      addressLine: o.addressLine,
+      directions: o.directions,
+      note: o.note,
+      paymentMethod: o.paymentMethod,
+      subtotalKurus: o.subtotalKurus,
+      deliveryFeeKurus: o.deliveryFeeKurus,
+      discountKurus: o.discountKurus,
+      totalKurus: o.totalKurus,
+      items: itemRows
+        .filter((i) => i.orderId === o.id)
+        .map((i) => ({
+          name: i.name,
+          quantity: i.quantity,
+          unitPriceKurus: i.unitPriceKurus,
+          lineTotalKurus: i.lineTotalKurus,
+          note: i.note,
+          options: optRows.filter((x) => x.orderItemId === i.id).map((x) => ({ group: x.groupName, option: x.optionName, priceDeltaKurus: x.priceDeltaKurus })),
+        })),
+    })),
+    reviews: reviewRows.map((r) => ({ orderNumber: orderRows.find((o) => o.id === r.orderId)?.number ?? null, rating: r.rating, comment: r.comment, createdAt: r.createdAt.toISOString() })),
+    messages: msgRows.map((m) => ({ direction: m.direction, kind: m.kind, body: m.body, createdAt: m.createdAt.toISOString() })),
+  };
+}
+
+/**
+ * KVKK silme/anonimleştirme (08 §2.10, §2.8): açık siparişi varsa 409. Müşteri kimlik/iletişim alanları, adresler,
+ * sohbet içerikleri silinir; siparişlerde ad/telefon/adres anonimleşir, tutarlar (mali kayıt) korunur.
+ */
+export async function eraseCustomer(tx: Database, c: CustomerRow, actorUserId: string): Promise<{ orderCount: number; messageCount: number }> {
+  const [open] = await tx
+    .select({ n: sql<number>`count(*)::int` })
+    .from(orders)
+    .where(and(eq(orders.tenantId, c.tenantId), eq(orders.customerId, c.id), inArray(orders.status, [...OPEN_STATUSES])));
+  if (Number(open?.n ?? 0) > 0) {
+    throw conflict('open_orders', 'Müşterinin açık siparişi var. Sipariş tamamlanınca tekrar deneyin.');
+  }
+  await tx
+    .update(customers)
+    .set({ name: ERASED_CUSTOMER_NAME, phoneE164: null, waBsuid: null, waUsername: null, notes: null, isBlocked: false, lastInboundAt: null, version: c.version + 1 })
+    .where(eq(customers.id, c.id));
+  await tx.delete(customerAddresses).where(and(eq(customerAddresses.tenantId, c.tenantId), eq(customerAddresses.customerId, c.id)));
+  const anonymized = await tx
+    .update(orders)
+    .set({
+      customerName: ANONYMOUS_ORDER_NAME,
+      customerPhone: null,
+      addressLine: null,
+      directions: null,
+      lat: null,
+      lng: null,
+      note: null,
+      confirmationIp: null,
+      confirmationUserAgent: null,
+    })
+    .where(and(eq(orders.tenantId, c.tenantId), eq(orders.customerId, c.id)))
+    .returning({ id: orders.id });
+  const orderIds = anonymized.map((o) => o.id);
+  if (orderIds.length) {
+    await tx.update(reviews).set({ comment: null }).where(and(eq(reviews.tenantId, c.tenantId), inArray(reviews.orderId, orderIds)));
+    await tx.delete(otpVerifications).where(and(eq(otpVerifications.tenantId, c.tenantId), inArray(otpVerifications.orderId, orderIds)));
+  }
+  const convs = await tx.select({ id: conversations.id }).from(conversations).where(and(eq(conversations.tenantId, c.tenantId), eq(conversations.customerId, c.id)));
+  let messageCount = 0;
+  if (convs.length) {
+    const cleared = await tx
+      .update(messages)
+      .set({ body: null, payload: null })
+      .where(and(eq(messages.tenantId, c.tenantId), inArray(messages.conversationId, convs.map((x) => x.id))))
+      .returning({ id: messages.id });
+    messageCount = cleared.length;
+  }
+  await tx.delete(storefrontLinkTokens).where(and(eq(storefrontLinkTokens.tenantId, c.tenantId), eq(storefrontLinkTokens.customerId, c.id)));
+  await tx.insert(customerErasures).values({ customerId: c.id, tenantId: c.tenantId, erasedByUserId: actorUserId });
+  return { orderCount: orderIds.length, messageCount };
+}

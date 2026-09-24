@@ -2,16 +2,31 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, type ReactNode } from 'react';
-import { Briefcase, Building2, Flag, Gauge, Inbox, LockKeyhole, MessageCircle, ScrollText, type LucideIcon } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  Briefcase,
+  Building2,
+  Flag,
+  Gauge,
+  Inbox,
+  LockKeyhole,
+  MessageCircle,
+  ScrollText,
+  ShieldAlert,
+  type LucideIcon,
+} from 'lucide-react';
 import { LogoMark } from '@/components/brand/logo';
 import { ScreenError, ScreenLoading } from '@/components/common/screen-state';
 import { UserMenu } from '@/components/panel/user-menu';
+import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import { buttonVariants } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
+import { apiFetch, errorMessage } from '@/lib/api';
 import { cn } from '@/lib/cn';
-import { useMe } from '@/lib/auth';
+import { ME_QUERY_KEY, useMe } from '@/lib/auth';
+import { formatTime } from '@/lib/format';
 
 export interface AdminNavItem {
   href: string;
@@ -47,17 +62,27 @@ export function AdminShell({ children }: { children: ReactNode }) {
 function GuardedAdmin({ pathname, children }: { pathname: string; children: ReactNode }) {
   const router = useRouter();
   const me = useMe();
+  const qc = useQueryClient();
+  const restoreTried = useRef(false);
 
   useEffect(() => {
-    if (me.data === null) {
+    if (me.data !== null) return;
+    const toLogin = () => {
       const next = `${pathname}${window.location.search}`;
       router.replace(`/admin/giris?next=${encodeURIComponent(next)}`);
-    }
-  }, [me.data, pathname, router]);
+    };
+    // Süresi dolmuş destek oturumundan dönüş: saklanan yönetim oturumunu geri yüklemeyi bir kez dene.
+    if (restoreTried.current) return toLogin();
+    restoreTried.current = true;
+    apiFetch<{ restored: boolean }>('/admin/impersonation/end', { method: 'POST', body: {} })
+      .then((r) => (r.restored ? qc.invalidateQueries({ queryKey: ME_QUERY_KEY }) : toLogin()))
+      .catch(toLogin);
+  }, [me.data, pathname, router, qc]);
 
   if (me.isPending) return <ScreenLoading />;
   if (me.isError && me.data === undefined) return <ScreenError error={me.error} onRetry={() => void me.refetch()} />;
   if (!me.data) return <ScreenLoading label="Yönlendiriliyor…" />;
+  if (me.data.impersonating) return <ImpersonationActive expiresAt={me.data.impersonating.expiresAt} />;
   if (!me.data.isPlatformAdmin) {
     return (
       <div className="mx-auto max-w-lg px-4 py-16">
@@ -138,6 +163,52 @@ function GuardedAdmin({ pathname, children }: { pathname: string; children: Reac
           {children}
         </main>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Bu tarayıcının oturumu salt-okunur destek oturumuna çevrilmişken (impersonation) admin ekranları çalışmaz
+ * (API destek oturumunu reddeder). Panele dönme ya da destek oturumunu bitirip yönetim oturumunu geri yükleme.
+ */
+function ImpersonationActive({ expiresAt }: { expiresAt: string }) {
+  const qc = useQueryClient();
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const end = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await apiFetch<{ restored: boolean; redirectTo: string }>('/admin/impersonation/end', { method: 'POST', body: {} });
+      await qc.invalidateQueries({ queryKey: ME_QUERY_KEY });
+      if (!r.restored) router.replace(r.redirectTo || '/admin/giris');
+    } catch (err) {
+      setError(errorMessage(err, 'Destek oturumu bitirilemedi.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="mx-auto flex max-w-lg flex-col gap-4 px-4 py-16">
+      <EmptyState
+        icon={ShieldAlert}
+        title="Destek görünümü açık"
+        description={`Bu tarayıcı şu an bir işletme panelini salt-okunur görüntülüyor (bitiş ${formatTime(expiresAt)}). Yönetim ekranları için önce destek oturumunu bitirin.`}
+        action={
+          <div className="flex flex-wrap justify-center gap-3">
+            <Link href="/panel" className={buttonVariants({ variant: 'secondary' })}>
+              Panele dön
+            </Link>
+            <Button variant="danger" onClick={end} loading={busy}>
+              Destek oturumunu bitir
+            </Button>
+          </div>
+        }
+      />
+      {error ? <Alert variant="danger">{error}</Alert> : null}
     </div>
   );
 }

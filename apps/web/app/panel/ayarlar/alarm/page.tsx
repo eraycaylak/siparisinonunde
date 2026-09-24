@@ -1,9 +1,14 @@
 import type { Metadata } from 'next';
-import { ComingSoon } from '@/components/common/coming-soon';
+import { AlarmForm } from '@/components/settings/branch-options';
+import { SettingsShell } from '@/components/settings/settings-shell';
 
-// Yer tutucu — Dilim #4: alarm politikası (00 §10).
+// P-19: sipariş alarmı — kademeli uyarı zinciri ve otomatik iptal (00 §10, 04 §7.7).
 export const metadata: Metadata = { title: 'Sipariş alarmı' };
 
 export default function Page() {
-  return <ComingSoon title="Sipariş alarmı" description="Uyarı zinciri ve otomatik iptal süresi." />;
+  return (
+    <SettingsShell title="Sipariş alarmı" description="Onaylanmayan siparişte uyarı zinciri, müşteri bilgisi ve otomatik iptal süresi.">
+      <AlarmForm />
+    </SettingsShell>
+  );
 }

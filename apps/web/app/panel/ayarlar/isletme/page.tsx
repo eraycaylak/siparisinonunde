@@ -1,9 +1,14 @@
 import type { Metadata } from 'next';
-import { ComingSoon } from '@/components/common/coming-soon';
+import { BusinessForm } from '@/components/settings/business-form';
+import { SettingsShell } from '@/components/settings/settings-shell';
 
-// Yer tutucu — Dilim #4: P-26.
+// P-26: işletme bilgileri, marka görünümü, künye, mağaza adresi (04 §7.2).
 export const metadata: Metadata = { title: 'İşletme bilgileri' };
 
 export default function Page() {
-  return <ComingSoon title="İşletme bilgileri" description="Ad, künye, marka rengi ve logo." />;
+  return (
+    <SettingsShell title="İşletme bilgileri" description="Ad, iletişim, marka rengi, logo, künye ve mağaza adresi.">
+      <BusinessForm />
+    </SettingsShell>
+  );
 }

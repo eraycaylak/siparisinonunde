@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
-import { ComingSoon } from '@/components/common/coming-soon';
+import { FlagsScreen } from '@/components/admin/flags';
 
-// Yer tutucu — Dilim #5: A-13.
+// A-13 feature flag ve kill-switch (05 §A.4).
 export const metadata: Metadata = { title: 'Bayraklar' };
 
 export default function Page() {
-  return <ComingSoon title="Bayraklar" description="Acil durdurma anahtarları ve özellik bayrakları." />;
+  return <FlagsScreen />;
 }

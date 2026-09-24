@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
-import { ComingSoon } from '@/components/common/coming-soon';
+import { TenantDetailScreen } from '@/components/admin/tenant-detail';
 
-// Yer tutucu — Dilim #5: A-04 işletme detayı (profil, lifecycle, plan, WhatsApp, siparişler, notlar, impersonation).
+// A-04 işletme detayı (05 §A.4): Genel, WhatsApp, Siparişler, Notlar, Üyeler + salt-okunur destek erişimi.
 export const metadata: Metadata = { title: 'İşletme detayı' };
 
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
-  await params;
-  return <ComingSoon title="İşletme detayı" description="Profil, plan, WhatsApp sağlığı, siparişler, notlar ve destek erişimi." />;
+  const { id } = await params;
+  return <TenantDetailScreen id={id} />;
 }
