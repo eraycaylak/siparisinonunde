@@ -491,33 +491,38 @@ Geçişten sonra
 
 ## 7. Birim ekonomi
 
-> Tüm kalemler **[T] tahmindir**. arastirma/02 §8'deki tablo, KARARLAR'a göre düzeltildi: Meta mesaj ücreti ve "mesaj kredisi" geliri/maliyeti çıkarıldı. ARPU yalnız aboneliktir.
+> Tüm kalemler **[T] tahmindir**. arastirma/02 §8'deki tablo, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md)'ye göre düzeltildi: Meta mesaj ücreti ve "mesaj kredisi" geliri/maliyeti çıkarıldı; altyapı maliyeti 00 §10 ve [06](06-teknik-mimari.md) §17 tahminine, SMS maliyeti 00 §4'teki adil kullanım kotasına göre yeniden hesaplandı. ARPU yalnız aboneliktir. Kur 48,4 TL/USD.
 
 ### 7.1 İşletme başına aylık maliyet kalemleri (COGS)
 
+Ölçek varsayımı: **1.000 işletme** (Ay 18, §3.2 SOM hedefi). Daha küçük ölçekte altyapı payı yükselir (aşağıdaki not).
+
 | Kalem | Esnaf (TL/ay) | Pro (TL/ay) | Varsayım |
 |---|---|---|---|
-| Bulut altyapısı (API, veritabanı, WebSocket, depolama, CDN, izleme) | 60–120 | 60–120 | 500 işletmede toplam ~600–1.000 $/ay |
-| AI (LLM) | 0 | [Faz 2]'de hesaplanacak | Sipariş ayrıştırma (Haiku 4.5), menü çıkarma (Sonnet 5); bkz. [06](06-teknik-mimari.md) |
-| SMS (OTP, yedek kanal) | 20–80 | 20–80 | Ayda ~200 SMS × 0,16–0,43 TL; SMS OTP [Faz 2] |
-| Harita, geocoding, adres tamamlama | 0–60 | 0–60 | Google Maps ücretsiz kotası platform genelinde; poligon bölge ve kayıtlı adres çağrıyı azaltır |
+| Bulut altyapısı (yurt içi barındırma; API, veritabanı, SSE, depolama, CDN, izleme) | 95–170 | 95–170 | 00 §10 ve 06 §17: 1.000 işletmede toplam ~$3.500–7.000/ay; LLM, SMS ve platform WABA kalemleri çıkarılınca işletme başı ~$2–3,5. Kişisel veri Türkiye'de barındırılır; yurt içi teklifle yukarı yönlü değişebilir |
+| AI (LLM) | 0 (Esnaf'ta AI yok) | 0 [Faz 1]; 65–157 [Faz 2] | 06 §17: 900 sipariş/ay, %30 serbest metin → işletme başı ~$1,35–3,24. Haiku 4.5, zor vakada Sonnet 5; tenant başına token sayacı ve adil kullanım kotası (00 §13.8 varsayılanı: Pro ve üstü) |
+| SMS (müşteri OTP yedeği, "WhatsApp'sız mod" kritik durum SMS'leri, işletmeye 5. dakika alarm SMS'i) | 8–43 | 8–129 | **Platform öder**; aboneliğe adil kullanım kotasıyla dahil: Esnaf 100, Pro 300 SMS/ay (00 §4). Alt sınır tipik kullanım (06 §17: siparişlerin ~%3'ünde SMS yedeği, ~$0,17/işletme); üst sınır kota tamamen kullanılırsa (100 veya 300 × 0,16–0,43 TL). SMS OTP **[Faz 1]**; aşımda uyarı, ek SMS paketi [Faz 2] |
+| Harita, geocoding, adres tamamlama | 0–60 | 0–60 | Google Maps ücretsiz kotası platform genelinde; poligon bölge ve kayıtlı adres çağrıyı azaltır; 300+ işletmede self-host Photon/OSRM değerlendirilir |
 | Abonelik tahsilatı (kartla, %2–3) | 20–30 | 36–54 | Havale/EFT'de ~0 |
 | e-Arşiv / e-Fatura entegratörü | Düşük **(teyit edilmeli)** | Düşük **(teyit edilmeli)** | Kontör veya abonelik |
 | Destek ve onboarding (amortize) | 200–400 | 200–400 | 1 uzman ~60.000 TL/ay; uzman başına 150–300 işletme |
 | **Meta mesaj ücreti; BSP / Solution Partner ücreti** | **0** | **0** | Meta ücreti işletmenin Meta hesabından (pass-through); doğrudan Tech Provider olduğumuz için BSP ücreti yok. [Faz 3] MPS'te yeniden hesaplanır |
-| **Toplam COGS** | **~300–690** | **~316–714** | |
+| **Toplam COGS** | **~323–703** | **~404–970** (Faz 1'de, AI olmadan: ~339–813) | |
+
+- **Ölçek notu:** 100 işletmede (≈ Faz 2 sonu) altyapı payı işletme başı ~$4,5–8,5 (≈ 215–415 TL) olur, yani 1.000 işletmedekinin ~2 katı. Bu dönemde marj hedefin altında kalır ([09](09-yol-haritasi-ve-sprint-plani.md) §10.3 gelir uyarısı).
+- **SMS riski:** Kotayı tamamen kullanan bir Pro işletme COGS'a ~129 TL ekler (liste fiyatının ~%7'si). Kota ve kullanım admin panelinde tenant bazında izlenir; WhatsApp kanalı arızası gibi platform kaynaklı SMS artışları olay maliyeti olarak ayrıca raporlanır.
 
 ### 7.2 Brüt marj
 
-Brüt marj = (Aylık ücret − COGS) / Aylık ücret
+Brüt marj = (Aylık ücret − COGS) / Aylık ücret (1.000 işletme ölçeği, Pro'da AI dahil)
 
-| | Esnaf (990) | Pro (1.790) | Pro, kurucu üye (1.253) |
+| | Esnaf (990) | Pro (1.790) | Pro, kurucu üye (1.253; Pro COGS'u ile) |
 |---|---|---|---|
-| Brüt kâr (TL/ay) | 300–690 | 1.076–1.474 | 539–937 |
-| **Brüt marj** | **%30–70** | **%60–82** | **%43–75** |
+| Brüt kâr (TL/ay) | 287–667 | 820–1.386 | 283–849 |
+| **Brüt marj** | **%29–67** | **%46–77** | **%23–68** |
 
-- **Hedef ≥ %70** (KARARLAR). En büyük kaldıraç **destek ve onboarding** kalemidir. Hedefe ulaşmak için uzman başına ≥ 300 işletme (≈ 200 TL/işletme) gerekir.
-- **Esnaf paketinin marjı destek yüküne çok duyarlıdır.** Esnaf self-servis ağırlıklı kurgulanır: panel içi yardım, video rehberler, ilk 100 sonrasında ücretli "biz kuralım". "Biz kuralım" ve pilot concierge maliyeti tek seferliktir; COGS'a değil CAC'e yazılır.
+- **Hedef ≥ %70** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12). En büyük kaldıraçlar **destek ve onboarding** kalemi ile ölçektir. Pro'da %70 için COGS ≤ ~537 TL gerekir: uzman başına ≥ 300 işletme (≈ 200 TL/işletme), SMS kotanın altında, AI kotalı ve 1.000 işletme ölçeği.
+- **Esnaf paketi bu varsayımlarla %70'e ulaşamaz** (üst sınır ~%67): altyapı ve destek payı sabit, fiyat düşük. Karma ≥ %70 hedefi Pro ağırlıklı müşteri karmasıyla tutturulur. **Esnaf paketinin marjı destek yüküne çok duyarlıdır.** Esnaf self-servis ağırlıklı kurgulanır: panel içi yardım, video rehberler, ilk 100 sonrasında ücretli "biz kuralım". "Biz kuralım" ve pilot concierge maliyeti tek seferliktir; COGS'a değil CAC'e yazılır.
 - Meta ücreti çıkarıldığı için araştırmadaki "tarife 5 katına çıkarsa COGS 375–770 TL" riski artık bizim marjımızı etkilemez; ancak işletmenin toplam maliyetini ve dolayısıyla churn riskini etkiler ([10](10-riskler-operasyon-ve-metrikler.md)).
 
 ### 7.3 CAC hedefleri

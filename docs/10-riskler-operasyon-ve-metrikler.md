@@ -920,14 +920,14 @@ Sahip: Finans. Kur: aylık ortalama (`fx_rates`). Meta mesaj ücretleri işletme
 | **Destek maliyeti / işletme** | Destek + onboarding personel maliyeti / aktif işletme | Bordro, zaman kaydı | ≤ 200 TL/ay (≥ %70 marj için, [01](01-vizyon-pazar-is-modeli.md) §7.2) | Aylık |
 | **Döviz bazlı gider / brüt gelir** | USD/EUR faturalı giderler (LLM, SaaS araçları, Cloudflare, platform Meta ücretleri) × kur / abonelik geliri | Muhasebe | **≤ %15** [T] (A06 §7.5) | Aylık |
 | **İşletmenin Meta maliyeti / sipariş** (bilgi) | Tenant'ın aylık tahmini Meta ücreti / teslim edilen sipariş | `wa_message_costs` (`est_try_kurus`) | İzleme; çeyrekte +%50 → R16 KRI | Aylık |
-| **Sipariş başı durum mesajı** | Otomatik durum mesajı / sipariş (gecikme, ret ve iptal bilgilendirmesi bütçe dışı; Akış A karşılama + "Menüyü aç" ek 1 mesaj) | `orders.wa_status_msg_count` | ≤ 4 (toplam ≤ 5; KARARLAR §6.5) | Haftalık |
+| **Sipariş başı durum mesajı** | Otomatik durum mesajı / sipariş (gecikme/iptal bilgilendirmesi gibi olağan dışı durum mesajları bütçe dışı; Akış A karşılama + "Menüyü aç" ek 1 mesaj) | `orders.wa_status_msg_count` | ≤ 4 (toplam ≤ 5; KARARLAR §6.5) | Haftalık |
 
 ### 8.7 Pilot başarı kartı (K4 kapısı)
 
 | # | Kriter | Kaynak | Eşik |
 |---|---|---|---|
 | P1 | İşletme başına ilk 14 günde kanal siparişi | `orders` | ≥ 10 (KARARLAR §12) |
-| P2 | 60. günde kendi kanal payı | `orders` + pazaryeri beyanı | ≥ %10 (KARARLAR §12) |
+| P2 | Pilotun 8. haftasında (pilot sonu) kendi kanal payı | `orders` + pazaryeri beyanı | ≥ %10 (KARARLAR §12) |
 | P3 | Panelin günlük aktif kullanımı | `devices` | İşletmelerin açık günlerinin ≥ %90'ında [T] |
 | P4 | Kaçan sipariş (sistem) | §7.2 | 0 |
 | P5 | Webhook → panel p95 | S2 | < 3 sn |

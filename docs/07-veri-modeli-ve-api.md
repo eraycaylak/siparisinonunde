@@ -193,6 +193,7 @@ erDiagram
   orders ||--o{ courier_assignments : ""
   couriers ||--o{ courier_assignments : ""
   orders ||--o| reviews : ""
+  orders ||--o{ cancellation_requests : "müşteri iptal talebi"
   orders ||--o{ order_payments : "Faz 2"
   customers {
     uuid id PK
@@ -236,6 +237,7 @@ erDiagram
     conversation_state state
     conversation_mode mode
     timestamptz last_inbound_at
+    timestamptz last_welcome_at
   }
   messages {
     text wamid UK
@@ -642,7 +644,7 @@ Kullanım: müşterinin WhatsApp'ı yoksa, işletmenin WhatsApp bağlantısı ta
 Limitler: telefon başına günde ≤ 5 OTP, IP başına saatlik sınır (D06 §15.4). Doğrulanınca `awaiting_customer → new`, `verification_method = 'sms_otp'`, `status_notify_channel = 'sms'`; müşteri BSUID'siz kayıt olarak telefonla bulunur veya oluşturulur (`phone_source = 'sms_otp'`), sonradan WhatsApp'tan yazarsa D02 §8.3 kural 2 ile birleşir. Saklama 30 gün.
 
 #### `sms_messages` **[Faz 1]**
-Tüm SMS gönderimlerinin sağlayıcı kaydı: std, `branch_id ✓`, `order_id ✓`, `purpose` (`otp`, `order_status`, `alarm`, `courier_login`, `panel_offline`), `to_phone_e164` (`pii:contact`), `template_key`, `provider`, `provider_message_id ✓`, `status` (`queued`, `sent`, `delivered`, `failed`), `error ✓`, `segments`, `est_cost_kurus`, `counts_toward_quota bool` (`otp` ve `order_status` true; `tenant_usage_monthly`), `sent_at`, `delivered_at`. SMS maliyeti platformundur (KARARLAR §4). Teslim raporu webhook'la gelir (§6.6). Saklama 90 gün, sonra telefon maskelenir.
+Tüm SMS gönderimlerinin sağlayıcı kaydı: std, `branch_id ✓`, `order_id ✓`, `purpose` (`otp`, `order_status`, `alarm`, `courier_login`, `panel_offline`), `to_phone_e164` (`pii:contact`), `template_key`, `provider`, `provider_message_id ✓`, `sender_header` (Faz 1'de platformun onaylı alfanümerik başlığı, ≤ 11 karakter; mesaj gövdesinde işletme adı; işletmeye özel başlık Faz 3, KARARLAR §7), `status` (`queued`, `sent`, `delivered`, `failed`), `error ✓`, `segments`, `est_cost_kurus`, `counts_toward_quota bool` (`otp` ve `order_status` true; `tenant_usage_monthly`), `sent_at`, `delivered_at`. SMS maliyeti platformundur (KARARLAR §4). Teslim raporu webhook'la gelir (§6.6). Saklama 90 gün, sonra telefon maskelenir.
 
 #### `storefront_link_tokens` **[Faz 1]** (Akış A)
 "Menüyü aç" token'ı durumsuz HMAC'tir (D02 §6.3); tablo oturuma çevirme, iptal ve huni analizi içindir. Token gövdesine `j` (jti) eklenir = bu tablonun `id`'si. **GET'te tüketilmez:** storefront ilk açılışta `POST /store/link-session` ile HttpOnly çereze çevirir ve URL'yi temizler (KARARLAR §7). Alanlar: std, `branch_id`, `customer_id NN`, `conversation_id NN`, `issued_wamid ✓`, `expires_at NN` (2 sa), `first_opened_at ✓` (ilk açılış = oturuma çevrilme; D10 §8.4 huni metriği), `open_count`, `disowned_at ✓` ("Ben değilim" → sipariş Akış B'ye düşer), `order_id ✓`, `revoked_at ✓`, `prefill_cart jsonb ✓` (Faz 2 [Düzenle]). Saklama 30 gün.
@@ -652,7 +654,10 @@ Tüm SMS gönderimlerinin sağlayıcı kaydı: std, `branch_id ✓`, `order_id �
 - `courier_assignments`: std, `order_id`, `courier_id`, `branch_id`, `status` (`assigned`, `departed`, `delivered`, `unassigned`, `failed`), `assigned_at`, `assigned_by_user_id`, `departed_at`, `delivered_at`, `unassigned_at`, `failure_reason ✓` (`customer_unreachable`, `address_not_found`, `other`), `collected_payment_method ✓`, `collected_amount_kurus ✓`. `UNIQUE(order_id) WHERE status IN ('assigned','departed')`. Kurye müşteri telefonunu yalnız aktif atamada görür.
 
 #### `reviews` **[Faz 1]**
-Teslim mesajındaki 3 butondan veya takip sayfasından (KARARLAR §7, A05 §3.12): std, `order_id UK`, `customer_id ✓`, `rating` (`great`, `ok`, `bad`), `reasons text[]` (`late`, `cold`, `missing_wrong_item`, `taste`, `courier`, `other`), `source` (`wa_button`, `tracking_page`), `wamid ✓`, `comment ✓` (≤ 280 karakter, takip sayfasında Faz 1 (D03); `pii:content`), `is_public` (Faz 2; isimle yayın açık rıza), `reply_text ✓` (Faz 2). `bad` → panelde anlık uyarı.
+Teslim mesajındaki 3 butondan veya takip sayfasından (KARARLAR §7, A05 §3.12): std, `order_id UK`, `customer_id ✓`, `rating` (`great`, `ok`, `bad`), `reasons text[]` (`late`, `cold`, `missing_wrong_item`, `taste`, `courier`, `other`), `source` (`wa_button`, `tracking_page`), `wamid ✓`, `comment ✓` (opsiyonel kısa yorum, ≤ 280 karakter, Faz 1; `pii:content`), `is_public` (Faz 2; isimle yayın açık rıza), `reply_text ✓` (Faz 2). **Faz 1'de yalnız işletme panelinde görünür** (KARARLAR §7 "Değerlendirme"); herkese açık yayınlama ve işletme yanıtı Faz 2. `bad` → panelde anlık uyarı.
+
+#### `cancellation_requests` **[Faz 1]**
+Müşterinin `accepted` ve sonrasındaki **iptal talebi** (KARARLAR §7 "Müşteri iptali"; `new`'de müşteri doğrudan iptal eder, talep açılmaz). std, `order_id`, `branch_id`, `source` (`tracking_page`, `wa_message`, `wa_button`), `customer_note ✓` (serbest gerekçe, `pii:content`), `order_status_at_request`, `status` (`open`, `approved`, `declined`, `expired`, `withdrawn`), `requested_at`, `decided_at ✓`, `decided_by_user_id ✓`, `decline_reason ✓` (ör. `preparation_started`). `UNIQUE(order_id) WHERE status = 'open'`. Açık talep `orders.cancel_requested_at`'e denormalize edilir (kart rozeti). Onayda aynı transaction'da sipariş `cancelled`, `cancelled_by = customer`, `cancel_reason = customer_request` olur; onaylayan personel `audit_log`'a (`action = order.cancel_request_approved`) yazılır. Sipariş final duruma geçerse açık talep `expired` olur. Saklama: siparişle.
 
 #### `order_payments` **[Faz 2]**
 Online kart, işletmenin kendi PSP hesabıyla: std, `order_id`, `provider_account_id`, `provider` (`paytr`, `iyzico`), `provider_payment_id UK`, `payment_link_url`, `amount_kurus`, `refunded_kurus`, `status` (payment_status), `installment_count` (CHECK = 1), `raw jsonb`, `paid_at`, `expires_at` (ödeme linki süresi; dolarsa sipariş `cancelled`/`system`/`payment_timeout`). Para platform hesabına girmez (KARARLAR §9).
@@ -712,6 +717,7 @@ Gönderim yanıtından önce gelen status'lar (D02 §7.4): `wamid PK`, `tenant_i
 | `active_order_id` | uuid | ✓ | |
 | `last_inbound_at`, `window_expires_at` | timestamptz | ✓ | 24 saat penceresi; ikincisi üretilmiş kolon (+24 sa) |
 | `fep_candidate_at`, `bot_muted_until` | timestamptz | ✓ | CTWA; echo/panel yanıtı sonrası susma |
+| `last_welcome_at`, `last_nudge_at` | timestamptz | ✓ | Karşılama sıklığı (KARARLAR §7): tam karşılama (menü linkli) en fazla 12 saatte bir; arada kısa yanıt + "Menüyü aç" en fazla 30 dk'da bir; açık siparişi olana karşılama yerine sipariş durumu kartı |
 | `handoff_at`, `handoff_by_user_id`, `assigned_user_id` | | ✓ | İnsana devir; atama Faz 2 |
 | `last_message_at`, `last_message_preview`, `unread_count` | | | Gelen kutusu (`pii:content`) |
 

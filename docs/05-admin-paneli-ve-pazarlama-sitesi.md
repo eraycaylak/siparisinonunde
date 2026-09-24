@@ -713,7 +713,7 @@ Formüller [01](01-vizyon-pazar-is-modeli.md) §6.7 ile **birebir aynıdır**; a
 | `t` | Doğrudan kanala teşvik (çipler %0 / %5 / %10) | %10 | %0–30 |
 | `o` | Kartla ödenen sipariş payı (gelişmiş) | %50 | %0–100 |
 | `c` | Kart/POS komisyon oranı (gelişmiş) | %2,5 | %0–5 |
-| `U` | Abonelik (KDV hariç): önerilen paketin liste fiyatı; kullanıcı Esnaf/Pro değiştirebilir, "kurucu üye fiyatı" anahtarı | Pro 1.790 | `plans` konfigürasyonundan |
+| `U` | Abonelik (KDV hariç): önerilen paketin liste fiyatı; kullanıcı Esnaf/Pro değiştirebilir, "kurucu üye indirimi" anahtarı (güncel liste fiyatı × 0,70; oran sabit, TL değil) | Pro 1.790 | `plans` konfigürasyonundan |
 | `M` | Meta'ya aylık tahmini ödeme | Hesaplanır | `max(0, N × m − 1.000) × r × kur`; `m` = sipariş başı mesaj (5: 4 durum + 1 karşılama), `r` = rate card service/utility ($0,0009), kur `fx_rates`'ten |
 | — | "KDV indirebiliyorum" anahtarı | Açık | Kapalıysa (basit usul) kaçınılan komisyon ve abonelik KDV dahil hesaplanır |
 | — | Toplam günlük paket sipariş (pazaryeri + telefon + WhatsApp; gelişmiş) | = `S` | Paket önerisi için |
@@ -767,7 +767,7 @@ Geçişten sonra
 - **Paylaşım linki:** girdiler URL parametresinde (kişisel veri yok); parametreli URL `noindex`, kanonik adres hesaplayıcı sayfası.
 
 ### C.4.6 Kabul kriterleri
-- Birim testleri [01](01-vizyon-pazar-is-modeli.md) §6.7'deki üç senaryonun net kazancını aynen üretir: **3.722,5 / 6.872,5 / 5.972,5 TL**. Başa baş (yukarı yuvarlama): **59 / 38 / 42** sipariş/ay. Kısa referans (`k = %25`, `t = o = K = 0`): **21** sipariş/ay.
+- Birim testleri [01](01-vizyon-pazar-is-modeli.md) §6.7'deki üç senaryonun net kazancını aynen üretir: **3.722,5 / 6.872,5 / 5.972,5 TL**. Başa baş (yukarı yuvarlama): **59 / 38 / 42** sipariş/ay (ham değerler 58,4 / 37,2 / 41,5). Kısa referans (`k = %25`, `t = o = K = 0`): **21** sipariş/ay (ham 20,5). Bu test seti 01 §6.7 kabul kriterleriyle birebir aynıdır; biri değişirse diğeri aynı değişiklikte güncellenir.
 - Varsayılan girdilerle sayfa açıldığında B senaryosu (6.872,5 TL/ay) görünür. JavaScript kapalıyken de varsayılan sonuç sunucuda üretilmiş olarak görünür.
 - Paket fiyatı, KDV oranı, rate card ve kur konfigürasyondan okunur; kodda sabit değildir. Liste fiyatı değişince hesaplayıcı yeniden deploy gerektirmez.
 - Payda ≤ 0 ve negatif net kazanç durumları test edilir ve uyarı gösterir.

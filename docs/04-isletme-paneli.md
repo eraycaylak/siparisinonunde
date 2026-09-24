@@ -1111,9 +1111,9 @@ GTM'in kilit aracı (A02 §9.2).
 | K-01 | Kurye girişi (magic link) | courier | 1 |
 | K-02 | Atanan siparişler | courier | 1 |
 | K-03 | Teslimat detayı ve aksiyonlar | courier | 1 |
-| K-04 | Gün sonu özeti (Faz 2: hesap kapatma) | courier | 1 / 2 |
+| K-04 | Gün sonu özeti ve hesap kapatma | courier | 2 |
 
-Toplam: Faz 1'de 41 panel + 4 kurye ekranı; Faz 2'de 6 yeni panel ekranı.
+Toplam: Faz 1'de 40 panel + 3 kurye ekranı; Faz 2'de 7 yeni panel ekranı (P-14, P-42…P-47) ve 1 kurye ekranı (K-04).
 
 ### 14.2 Panel içi bildirim türleri (P-40)
 
@@ -1130,6 +1130,7 @@ Toplam: Faz 1'de 41 panel + 4 kurye ekranı; Faz 2'de 6 yeni panel ekranı.
 | Ses kapalı / bağlantı yok | Yok | Kırmızı sabit bant | — | O cihaz |
 | Yazıcı hatası [Faz 2] | Kısa | Turuncu | Hayır | Şube |
 | Abonelik / deneme | Yok | Sarı/kırmızı sabit bant | Hayır | owner |
+| SMS kotası %80 / doldu | Yok | Sarı / kırmızı | Hayır (e-posta) | owner (manager bilgi) |
 | KVKK başvuru son tarihi yaklaşıyor | Yok | Sarı | Hayır | owner, manager |
 
 ### 14.3 Mikro metin sözlüğü (panel)
@@ -1145,7 +1146,7 @@ Toplam: Faz 1'de 41 panel + 4 kurye ekranı; Faz 2'de 6 yeni panel ekranı.
 | Onay tostu | "Onaylandı · Müşteriye 20.35 bildirildi" |
 | Ret şeridi | "Reddediliyor · 27 sn · Geri al" → "Reddedildi · Müşteriye bildirildi" / "Geri alındı · Sipariş yeniden Yeni'de" |
 | Geri al şeridi | "Hazır olarak işaretlendi · Geri al" |
-| Ret sebepleri | "Kapalıyız" · "Bölge dışı" · "Ürün kalmadı" · "Çok yoğunuz" · "Diğer (yazın)" |
+| Ret sebepleri | "Kapalıyız" · "Bölge dışı" · "Ürün kalmadı" · "Çok yoğunuz" · "Mükerrer sipariş" · "Şüpheli / sahte" · "Diğer (yazın)" |
 | İptal sebepleri | "Müşteri istedi" · "Ürün kalmadı" · "Kurye sorunu" · "Mükerrer sipariş" · "Sahte / şüpheli" · "Diğer (yazın)" |
 | İptal onay penceresi | "Sipariş #1049 iptal edilsin mi? Müşteriye iptal mesajı gidecek. Bu işlem geri alınamaz. [Vazgeç] [İptal et]" |
 | Çakışma | "Bu siparişi Elif az önce Hazır yaptı." |
@@ -1176,6 +1177,8 @@ Toplam: Faz 1'de 41 panel + 4 kurye ekranı; Faz 2'de 6 yeni panel ekranı.
 | Salt-okunur | "Ödemeniz alınamadı. Siparişleriniz alınmaya devam ediyor; ayarlar kilitli. [Ödeme yap]" |
 | Askı | "Online sipariş alma durdu. Ödeme yapınca dakikalar içinde açılır. [Ödeme yap]" |
 | Deneme bitti | "Deneme süreniz bitti. 3 gün içinde paket seçmezseniz online sipariş alma durur. [Paketimi seç]" |
+| SMS kotası | "Bu ay SMS: {kullanilan} / {kota}" · "SMS kotanızın %80'i kullanıldı. WhatsApp'ı bağlayarak SMS ihtiyacını azaltabilirsiniz." · "Bu ayki SMS kotanız doldu. [Ayrıntılar]" |
+| Kurye oturumu doldu | "Oturum süreniz doldu. İşletmenizden yeni giriş linki isteyin." |
 | Tasarruf kartı | "Bu ay kendi kanalınızdan {X} sipariş aldınız. Net tasarruf: {Y} TL. (Tahmindir)" |
 | Meta maliyeti | "Bu ay Meta'ya tahmini ödeme: ≈ {TL} TL ({USD} $). Kesin tutar Meta faturanızdadır." |
 | Destek erişimi bandı | "Destek ekibi hesabınızı görüntülüyor (Can, 14.05–14.35)" |
