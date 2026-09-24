@@ -119,6 +119,7 @@ erDiagram
   plans ||--o{ plan_features : ""
   plans ||--o{ subscriptions : ""
   subscriptions ||--o{ invoices : "Faz 2"
+  subscriptions ||--o{ subscription_changes : "MRR hareketi"
   invoices ||--o{ payments_subscription : "Faz 2"
   tenants ||--o{ tenant_lifecycle_events : "geçmiş"
   tenants ||--o{ tenant_onboarding_steps : "adımlar"
@@ -491,6 +492,9 @@ PK `(tenant_id, month date)`; `sms_count int NN` (kotaya sayılan: müşteriye g
 
 Kısıt `UNIQUE(tenant_id) WHERE status <> 'cancelled'`. Saklama 10 yıl.
 
+#### `subscription_changes` **[Faz 1 kayıt · Faz 2 otomatik]** (append-only)
+Plan ve tutar değişikliklerinin geçmişi; net yeni MRR'ın yeni / genişleme / daralma / yeniden kazanım / churn kırılımı buradan hesaplanır (D05 §A.5, D10 §8.3): std, `subscription_id`, `kind` (`new`, `upgrade`, `downgrade`, `quantity_change` (Zincir şube sayısı), `interval_change`, `discount_start`, `discount_end`, `price_indexation` (TÜFE), `reactivation`, `churn`), `effective_at`, `from_plan_id ✓` / `to_plan_id ✓`, `from_quantity ✓` / `to_quantity ✓`, `from_mrr_kurus` / `to_mrr_kurus` (aylık normalize, KDV hariç, indirim sonrası), `delta_mrr_kurus` (üretilmiş), `proration_kurus ✓` (kıst fark; düşürmede `account_credits`), `actor_type` (`user`, `admin`, `system`), `actor_user_id ✓` / `actor_platform_user_id ✓`, `reason ✓`. İndeks `(tenant_id, effective_at)`, `(effective_at, kind)`. Pilot ve `is_demo` satırları MRR'a girmez. Saklama 10 yıl.
+
 #### `invoices`, `payments_subscription` **[Faz 2]**
 - `invoices`: `subscription_id`, `number UK` (ödeme referansı `SO-2026-000123`, D08 §6.4), `status` (`draft`, `issued`, `paid`, `void`, `refunded`), `period_start/end`, `lines jsonb`, `subtotal_kurus`, `vat_kurus`, `total_kurus`, `due_at`, `paid_at`, `buyer_snapshot jsonb` (`pii:identity`), `einvoice_type` (`e_fatura`, `e_arsiv`), `einvoice_external_id` (Paraşüt), `einvoice_uuid` (ETTN), `einvoice_status` (`pending`, `sent`, `formalized`, `failed`; D05 A-08), `pdf_storage_key`. Paraşüt idempotency anahtarı = `invoices.id`.
 - `payments_subscription`: `invoice_id`, `method` (`card`, `bank_transfer`), `psp_payment_id UK ✓`, `amount_kurus`, `status` (`pending`, `succeeded`, `failed`, `refunded`), `attempt_no`, `failure_code`, `bank_reference ✓`, `matched_by_platform_user_id ✓`, `raw jsonb` (kart verisi yok). İkisi de 10 yıl. Hesap alacağı defteri `account_credits` Faz 2 (D08 §6.6).
@@ -524,7 +528,7 @@ std, `menu_id`, `name`, `description ✓`, `sort_order`, `is_visible`, `availabi
 İndeks `(tenant_id, category_id, sort_order)`, GIN `name gin_trgm_ops`. Fiyat değişikliği `product_price_history`'ye ve `audit_log`'a yazılır.
 
 #### `product_aliases` **[Faz 1 tablo · Faz 2 AI]**
-std, `product_id`, `alias NN` ("lamacun"), `normalized NN` (Türkçe küçük harf + `unaccent`), `source` (`manual`, `import`, `ai_suggested`). GIN trigram `normalized`; `UNIQUE(tenant_id, product_id, normalized)`. Faz 1'de panel araması, Faz 2'de LLM aday getirme (D06 §11.2'deki `item_alias`).
+std, `product_id`, `alias NN` ("lamacun"), `normalized NN` (Türkçe küçük harf + `unaccent`), `source` (`manual`, `import`, `ai_suggested`). GIN trigram `normalized`; `UNIQUE(tenant_id, product_id, normalized)`. Faz 1'de panel araması, Faz 2'de LLM aday getirme (D06 §11.2).
 
 #### `option_groups`, `options`, `product_option_groups` **[Faz 1]**
 - `option_groups`: std, `menu_id`, `name` ("Porsiyon", "Ekstralar", "Çıkarılacaklar"), `internal_name ✓`, `min_select smallint NN` (0 = opsiyonel), `max_select ✓` (null = sınırsız), `max_per_option NN DEFAULT 1`, `sort_order`, `deleted_at`, `version`. CHECK `max_select IS NULL OR max_select >= min_select`.
@@ -700,9 +704,9 @@ Token kolonları yalnız `wa-outbound` ve onboarding kodunun ayrı Drizzle proje
 Kısıt `UNIQUE(branch_id) WHERE connection_status <> 'disconnected'`. `sys_wa_route()` bu tablodan okur.
 
 #### `wa_templates` **[Faz 1]**
-Tenant WABA'sındaki şablon örneği (D02 §5.4'teki `tenant_template`); ana set kodda sürümlü (`packages/whatsapp`). std, `wa_account_id`, `name`, `language` (`tr`), `category` (`UTILITY`, `MARKETING`, `AUTHENTICATION`), `meta_template_id ✓`, `status` (`PENDING`, `APPROVED`, `REJECTED`, `PAUSED`, `DISABLED`), `rejected_reason ✓`, `quality_score ✓`, `category_changed_at ✓` (utility → marketing olursa durum bildiriminde kullanılmaz), `components jsonb`, `master_key`, `master_version`, `last_synced_at`. `UNIQUE(wa_account_id, name, language)`.
+Tenant WABA'sındaki şablon örneği (D02 §5.4); ana set kodda sürümlü (`packages/whatsapp`). std, `wa_account_id`, `name`, `language` (`tr`), `category` (`UTILITY`, `MARKETING`, `AUTHENTICATION`), `meta_template_id ✓`, `status` (`PENDING`, `APPROVED`, `REJECTED`, `PAUSED`, `DISABLED`), `rejected_reason ✓`, `quality_score ✓`, `category_changed_at ✓` (utility → marketing olursa durum bildiriminde kullanılmaz), `components jsonb`, `master_key`, `master_version`, `last_synced_at`. `UNIQUE(wa_account_id, name, language)`.
 
-#### `wa_webhook_events` **[Faz 1]** (platform; D02/D06'daki `wa_webhook_event`)
+#### `wa_webhook_events` **[Faz 1]** (platform)
 `id text PK` (SHA-256), `received_at NN`, `body jsonb NN`, `waba_id ✓`, `phone_number_ids text[]`, `tenant_id ✓`, `status` (`received`, `queued`, `processed`, `failed`, `orphan`), `attempts`, `last_error ✓`, `processed_at ✓`. İndeks `(status, received_at) WHERE status IN ('received','queued','failed')` (süpürücü). Günlük partition; 30 gün sonra `DROP PARTITION`. Panel erişemez.
 
 #### `wa_pending_statuses` **[Faz 1]**
@@ -783,7 +787,7 @@ PK `(branch_id, seq)`; `tenant_id`, `type` (SSE olay adı, §6.7), `order_id ✓
 - `print_jobs`: std, `branch_id`, `printer_id ✓`, `order_id`, `template`, `payload jsonb` (render snapshot'ı; mutfak fişinde fiyat yok; "Mali değeri yoktur"), `copy_no` (> 1 → "KOPYA"), `status` (§4.5), `attempts`, `sent_to_device_id ✓`, `sent_at`, `printed_at`, `error ✓`, `idempotency_key UK` (`print:{order}:{printer}:{template}:{copy_no}`), `created_by_user_id ✓`. Saklama 30 gün.
 
 #### `notifications`, `alarm_escalations` **[Faz 1]**
-- `notifications`: işletme kullanıcılarına giden her bildirim: std, `branch_id ✓`, `recipient_user_id ✓`, `channel` (`panel`, `web_push`, `platform_wa`, `sms`, `email`), `kind` (`order_unacknowledged`, `panel_offline`, `stale_panel` (tenant canary ack'i 2 kez gelmedi, D06 §7.10), `wa_disconnected`, `wa_payment_missing`, `wa_quality`, `review_negative`, `cancel_requested`, `sms_quota_warning`, `sms_quota_exceeded`, `subscription_payment_failed`, `trial_ending`, `support_access_started` (impersonation bildirimi), `incident_notice`, `monthly_value_report`, `announcement`…), `order_id ✓`, `template_name ✓`, `payload jsonb`, `status`, `provider_ref ✓` (wamid / `sms_messages.id`), `error ✓`, `sent_at`, `read_at`. Saklama 90 gün.
+- `notifications`: işletme kullanıcılarına giden her bildirim: std, `branch_id ✓`, `recipient_user_id ✓`, `channel` (`panel`, `web_push`, `platform_wa`, `sms`, `email`), `kind` (`order_unacknowledged`, `panel_offline`, `stale_panel` (tenant canary ack'i 2 kez gelmedi, D06 §7.10), `wa_disconnected`, `wa_payment_missing`, `wa_quality`, `review_negative`, `cancel_requested`, `sms_quota_warning`, `sms_quota_exceeded`, `subscription_payment_failed`, `trial_ending`, `support_access_started` (impersonation bildirimi), `courier_login` (kurye giriş linki), `incident` (olay duyurusu, D10 §6.3), `maintenance` (planlı bakım), `monthly_value_report`, `announcement`…), `order_id ✓`, `template_name ✓`, `payload jsonb`, `status`, `provider_ref ✓` (wamid / `sms_messages.id`), `error ✓`, `sent_at`, `read_at`. Saklama 90 gün.
 - `alarm_escalations` (D06 §7.6): std, `branch_id`, `order_id ✓`, `kind` (`new_order_unacked`, `panel_offline`, `handoff_waiting`), `step` (1–6; `new_order_unacked` için KARARLAR §10 zinciri: 1 = t0 ses + Web Push, 2 = 60 sn ses tekrarı, 3 = 2 dk platform WhatsApp, 4 = 5 dk yalnız SMS, 5 = 10 dk müşteriye bilgi, 6 = varsayılan 15 dk (10–30) `cancelled`/`tenant_no_response`), `channel`, `scheduled_at`, `fired_at ✓`, `cancelled_at ✓`, `cancel_reason ✓` (`accepted`, `rejected`, `cancelled`, `rejection_scheduled` (bekleyen ret; "Geri al"da zincir kaldığı yerden sürer), `panel_online`), `notification_id ✓`. `UNIQUE(order_id, kind, step)`.
 
 #### `marketplace_declarations` **[Faz 1]** (pazaryeri sipariş beyanı)
@@ -1404,8 +1408,8 @@ Kanonik süreler D08 §2.8'dedir; her satır bir `retention.*` işine bağlanır
 
 | # | Konu | Öneri / durum |
 |---|---|---|
-| 1 | **Ad farkları (02/06 → 07):** `wa_webhook_event` → `wa_webhook_events` (görevdeki `wa_raw_events` ile aynı tablo), `message` → `messages`, `order_ack` → `order_acks`, `idempotency_key` → `idempotency_keys`, `storefront_host` → `storefront_hosts`, `plan_feature` → `plan_features`, `feature_flag` → `feature_flags`, `item_alias` → `product_aliases`, `tenant_template` → `wa_templates`, `pending_status` → `wa_pending_statuses`, `deletion_log` (06) / `retention_run` (08) → `retention_runs`. D06 §4.3 "tablo adları tekil" kuralı ve §5.4'teki `"order"`/`order_item` örnekleri KARARLAR §5'e göre çoğula çevrilmeli; D06 §10.1'deki Türkçe adres alanları İngilizce karşılıklarıyla (`district`, `directions`…) değişmeli. | 02 ve 06 güncellenmeli. |
-| 2 | **API yolları:** D06 örnekleri `/api/panel/…`, `/api/store/…` (sürümsüz); bu doküman `/api/v1/…`. | D06 §7.3–7.5 örneklerine `/v1` eklenmeli. |
+| 1 | **Tablo adları.** | **Karara bağlandı** (KARARLAR §5): çoğul snake_case; 02 ve 06 bu dokümandaki adlara (`wa_webhook_events`, `wa_templates`, `wa_pending_statuses`, `product_aliases`, `retention_runs`…) hizalandı. Adres alanları İngilizce (`district`, `directions`…). |
+| 2 | **API yolları.** | Hizalandı: tüm yollar `/api/v1/…` (panel, storefront, admin) ve `api…/v1/…` (ajan, açık API). |
 | 3 | **Ret geri alma.** | **Karara bağlandı** (KARARLAR §7): 30 sn "bekleyen ret", `orders.rejection_scheduled_at` + iptal edilebilir gecikmeli iş; `rejected → new` yok (§4.1). |
 | 4 | **Debounce ve Akış B.** | **Karara bağlandı** (KARARLAR §7): debounce yalnız Akış A'da; Akış B'de kod mesajına "alındı" anında gider (§4.1). |
 | 5 | **AI buton seti:** KARARLAR [Onayla] [Düzenle] [İptal]; D02 ve D06'da eski setler olabilir. | Kimlikler `order:{id}:confirm\|edit\|cancel` (§4.2); 02 ve 06 kanonik sete hizalanmalı. |
@@ -1420,7 +1424,7 @@ Kanonik süreler D08 §2.8'dedir; her satır bir `retention.*` işine bağlanır
 | 14 | **"Son siparişin" kartı** paylaşılan cihazda başkasının siparişini gösterebilir (`so_dev`). | Kart adres ve telefon göstermez, yalnız kalemleri; KVKK görüşü alınmalı. |
 | 15 | **Teyit edilecekler:** PostgreSQL 18 `uuidv7()`; Better Auth `generateId`, iki ayrı örnek ve telefonla (e-postasız) kurye kullanıcısı; teslimat ücreti KDV oranı; Meta ücretsiz kotasında ay sınırının saat dilimi (`billing_month`); `RateLimit` başlık biçimi; Paraşüt webhook desteği. | Faz 1 ilk sprintinde. |
 | 16 | **Çok şube (Faz 2):** Şube başına tek aktif numara (`UNIQUE(branch_id)`), müşteri tenant seviyesinde; tek numara + şube seçimi ihtiyacı. | D02 Açık konular #13 ile birlikte karar verilmeli. |
-| 17 | **Kurye magic link'inin açılmadan önceki ömrü:** KARARLAR §4 kurye oturumunu 12 saat (vardiya) tanımlıyor; linkin kullanılmadan ne kadar geçerli kalacağını söylemiyor. | Varsayılan: tek kullanımlık link 15 dk içinde açılmazsa düşer; açılınca 12 saatlik oturum. D04 §7.11/§9.1 ve D06 §6.2/§6.4'teki "oturum 7 gün" ifadeleri 12 saate çevrilmeli. |
+| 17 | **Kurye girişi.** | **Karara bağlandı** (KARARLAR §4): magic link tek kullanımlık ve 15 dk içinde açılmalı; açılınca oturum 12 saat (vardiya). D04 §7.11/§9.1'deki "oturum 7 gün" ifadeleri 12 saate çevrilmeli. |
 | 18 | **SMS kotasına sayılan SMS'ler ve Zincir kotası:** KARARLAR §4 "SMS OTP ve kritik durum SMS'leri" diyor. | Varsayılan: müşteriye giden `otp` + `order_status` sayılır; işletmeye giden alarm/panel çevrimdışı/kurye girişi SMS'leri sayılmaz ve hiçbir koşulda kesilmez. Zincir kotası **karara bağlandı**: şube başına 300 SMS/ay (KARARLAR §4). |
 | 19 | **Sağlık skoru modeli:** D05 A-03 kural tabanlı kırmızı/sarı/yeşil, D10 §5.6 0–100 ağırlıklı skor + kırmızı tetikleyiciler tanımlıyor. | `tenant_health_scores` D10 modelini esas aldı; D05 kuralları `red_triggers` olarak girer. D05 A-03 D10'a atıfla sadeleştirilmeli; ağırlık ve eşikler [T] pilotla kalibre edilir. |
 | 20 | **Destek kaydı ve etiket sözlüğü:** D05 A-10 "harici helpdesk yok, not + etiket + temas" ve İngilizce etiketler (`wa_connect`, `printer`…); D10 §5.1/§5.3 "Faz 1'de harici basit araç" ve Türkçe kodlar (`siparis_dusmuyor`, `p1_hat`…). | Bu doküman D05'i uyguladı (`admin_notes`, Faz 2 `support_tickets`). Tek sözlük `packages/core/support-tags.ts`, değerler İngilizce snake_case (KARARLAR §5 adlandırma); D10 §5.3 kodları buna çevrilmeli. |
