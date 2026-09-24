@@ -147,6 +147,16 @@ VARSAYIMLAR = {
     # ---------------- Sermaye kuralı [00 §12] ----------------
     "tampon": 0.20,                     # açığa %20 tampon
     "pist_ay": 9,                       # nakit pisti ≥ 9 ay
+    "hedef_geri_odeme_ay": 4,           # [00 §12] geri ödeme < 4 ay
+    # Finansman kilometre taşları (ay no → ad) [09 §1.1]
+    "kilometre_taslari": {2: "K2 go/no-go", 3: "Pilot başlar", 5: "K4 + ticari lansman",
+                          9: "≈100 işletme (Faz 2 sonu)", 12: "Faz 3 ilk çeyreği", 18: "≈1.000 işletme hedefi",
+                          24: "Model sonu"},
+
+    # ---------------- Hisse yapısı örneği [T] (08 §7.1) ----------------
+    "hisse_kurulus": {"Kurucu 1 (KUR)": 0.45, "Kurucu 2 (OPS)": 0.30,
+                      "Teknik lider (kurucu ortak olarak katılırsa)": 0.10, "Opsiyon havuzu (ayrılmış)": 0.15},
+    "pre_seed_seyrelme": 0.15,          # [T] örnek; tur büyüklüğü ve değerleme piyasaya bağlı
 }
 
 # Senaryolar: yalnız değişen anahtarlar. K2 = Hafta 8 go/no-go, K4 = ticari lansman kapısı [09 §4.6, §7.7]
@@ -679,7 +689,7 @@ def ceyreklik_tablo(satirlar):
         cogs = sum(x["cogs_toplam"] for x in g)
         opex = sum(x["opex_toplam"] for x in g)
         brut = gelir - cogs
-        marj = f" ({yuzde(brut / gelir)})" if gelir > 0 else ""
+        marj = f" ({yuzde(brut / gelir)})" if gelir > 0 and brut / gelir >= -1 else ""   # −%100 altı gösterilmez
         satir_listesi.append(
             f"| {ceyrek_etiketi(g[0]['ay_no'])} | {tr(son['aktif_isletme'])} ({tr(son['odeyen_isletme'])}) "
             f"| {tr(son['mrr'] / 1e3)} | {tr(gelir / 1e3)} | {tr(cogs / 1e3)} | {tr(brut / 1e3)}{marj} "
@@ -814,6 +824,13 @@ def main():
         yaz(f"| {etiket} | {tr(cac)} | {tr(kar)} | {tr(cac / kar, 1)} ay | {tr(kar / 0.05)} | {tr(kar / 0.05 / cac, 1)}× "
             f"| {tr(kar / 0.025)} | {tr(kar / 0.025 / cac, 1)}× |")
 
+    yaz()
+    yaz(f"{VARSAYIMLAR['hedef_geri_odeme_ay']} aylık geri ödeme için CAC tavanı (1.000 işletme ölçeği, modelin brüt "
+        f"marjıyla): " + "; ".join(
+            f"{p.capitalize()} liste {tr((be[p]['liste']['arpu'] - be[p]['liste']['cogs']) * VARSAYIMLAR['hedef_geri_odeme_ay'])} TL, "
+            f"kurucu üye {tr((be[p]['kurucu']['arpu'] - be[p]['kurucu']['cogs']) * VARSAYIMLAR['hedef_geri_odeme_ay'])} TL"
+            for p in PAKETLER) + ".")
+
     # --- Esnaf seçenekleri ---
     secenekler = [
         ("Baz: düşük marjı kabul (giriş paketi)", {}),
@@ -864,6 +881,30 @@ def main():
             f"| {mn(k['uzun'][-1]['ebitda'])} |")
         ozet_csv.append(["varyant", ad, "go", round(g["gerekli"]), g["basa_bas_kalici"] or ""])
         ozet_csv.append(["varyant", ad, "kosullu", round(k["gerekli"]), k["basa_bas_kalici"] or ""])
+
+    # --- Kilometre taşı bazında sermaye ---
+    yaz()
+    yaz("### Kilometre taşlarında kümülatif nakit ve o tarihe kadar gereken sermaye (tampon + 9 ay pist kuralıyla)")
+    yaz("| Kilometre taşı | Ay | GO: kümülatif nakit | GO: gereken sermaye (o tarihe kadar) "
+        "| KOŞULLU: kümülatif nakit | KOŞULLU: gereken sermaye |")
+    yaz("|---|---|---|---|---|---|")
+    for m, ad in VARSAYIMLAR["kilometre_taslari"].items():
+        hucreler = []
+        for s in ("go", "kosullu"):
+            st = sonuclar[s]["satirlar"][:m]
+            hucreler += [mn(st[-1]["kumulatif_nakit"]), mn(sermaye_ihtiyaci(st, sonuclar[s]["V"])["gerekli"])]
+        yaz(f"| {ad} | Ay {m} ({ay_etiketi(m)}) | " + " | ".join(hucreler) + " |")
+
+    # --- Hisse örneği ---
+    yaz()
+    yaz("### Hisse yapısı örneği [T]")
+    yaz(f"| Pay sahibi | Kuruluş | Pre-seed sonrası (örnek %{tr(100 * VARSAYIMLAR['pre_seed_seyrelme'])} seyrelme) |")
+    yaz("|---|---|---|")
+    ss = VARSAYIMLAR["pre_seed_seyrelme"]
+    for ad, pay in VARSAYIMLAR["hisse_kurulus"].items():
+        yaz(f"| {ad} | {yuzde(pay, 1)} | {yuzde(pay * (1 - ss), 2)} |")
+    yaz(f"| Pre-seed yatırımcı(lar)ı | — | {yuzde(ss, 1)} |")
+    yaz("| **Toplam** | %100 | %100 |")
 
     # --- Fon kullanımı ---
     for s in ("go", "kosullu"):
