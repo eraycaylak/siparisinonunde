@@ -310,17 +310,17 @@ export function withTenant<T>(ctx: { tenantId: string; branchId?: string; actor:
 ### 6.2 Oturum türleri
 | Oturum | Kim | Giriş | Süre | 2FA | Kapsam |
 |---|---|---|---|---|---|
-| Panel kullanıcısı | `owner`, `manager`, `cashier` | E-posta + parola | **30 gün (kayıtlı cihaz)**; kayıtsız cihazda tarayıcı oturumu | `owner` **zorunlu TOTP**; `manager` önerilir | Tenant; şube üyeliği |
-| Cihaz (PIN) **[Faz 1]** | Paylaşılan mutfak/kasa tableti; `kitchen`, `cashier` | Eşleştirme kodu → cihaz token'ı; personel PIN'i | Cihaz 90 gün; PIN oturumu vardiya boyu (en çok 12 sa) | — | Tek şube, rolü cihaz belirler |
+| Panel kullanıcısı (kişisel oturum) | `owner`, `manager`, `cashier` | E-posta + parola | **Kişisel kullanıcı oturumu 30 gün** (kayıtlı cihaz); kayıtsız cihazda tarayıcı oturumu | `owner` **zorunlu TOTP**; `manager` önerilir | Tenant; şube üyeliği |
+| Paylaşımlı cihaz (PIN) **[Faz 1]** | Paylaşımlı kasa/mutfak tableti; `kitchen`, `cashier` | Eşleştirme kodu → **cihaz kaydı** (cihaz token'ı); personel o cihazda PIN ile girer | **Cihaz kaydı 90 gün** (kişisel oturum değildir; iptal edilebilir); PIN oturumu vardiya boyu (en çok 12 sa) | — | Tek şube, rolü cihaz belirler |
 | Kurye **[Faz 1]** | `courier` | Magic link (platform WABA veya SMS) | Link tek kullanımlık (15 dk içinde açılmalı); oturum **12 saat (vardiya)** | — | Yalnız kendine atanan siparişler |
 | Bayi **[Faz 2]** | `reseller_admin`, `reseller_technician` | E-posta + parola | 7 gün | Zorunlu | Yalnız getirdiği işletmeler: `reseller_admin` özet + komisyon raporu; `reseller_technician` yalnız atandığı işletmelerin kurulum kontrol listesi |
 | Platform | `platform_owner`, `platform_admin`, `support_agent`, `finance`, `sales_rep` | E-posta + parola + TOTP; Cloudflare Access + IP izin listesi | **8 sa**; 30 dk hareketsizlikte kilit | **Zorunlu** | Platform |
 
-Süreler [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4 "Oturum süreleri"ndeki kanonik değerlerdir (bayi oturumu 00'da tanımlı değildir, varsayılan 7 gün).
+Süreler [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4 "Oturum süreleri"ndeki kanonik değerlerdir (bayi oturumu 00'da tanımlı değildir, varsayılan 7 gün). **Ayrım:** 90 günlük süre yalnız paylaşımlı kasa/mutfak tabletinin **cihaz kaydına** aittir; o cihazda işlem yapan personel kimliğini PIN ile verir. Bir kişinin kendi e-posta + parolasıyla açtığı **kişisel kullanıcı oturumu** 30 gündür.
 
 ### 6.3 Cihaz / PIN oturumu
 1. `owner` veya `manager` panelde "Cihaz ekle" der ve rolü (mutfak/kasa) seçer. 8 haneli kod veya QR 10 dk geçerli olur.
-2. Tablet kodu girer ve `device` kaydı oluşur. Uzun ömürlü cihaz token'ı httpOnly çerezde tutulur, DB'de hash'i saklanır.
+2. Tablet kodu girer ve `devices` kaydı (cihaz kaydı) oluşur. Cihaz token'ı 90 gün geçerlidir, httpOnly çerezde tutulur, DB'de hash'i saklanır. Bu bir kişisel oturum değildir; kişisel kullanıcı oturumu (30 gün) ayrıdır (§6.2).
 3. Personel 4–6 haneli PIN ile hızlı giriş yapar ve kullanıcı değiştirir (argon2id hash; 5 hatalı denemede 5 dk kilit). PIN, kimin işlem yaptığını audit'e yazmak içindir. Ekran kilitlense bile **sipariş alarmı ve liste görünür kalır**, yalnız aksiyonlar (onay, iptal) PIN ister.
 4. Cihazlar panelde listelenir (son görülme, ses durumu, sürüm) ve tek tıkla iptal edilir.
 
@@ -469,7 +469,7 @@ Kaynak: MDN BCD üzerinden A04 §3.4–3.6. Wake Lock sayfa gizlenince düşer v
 - SSE bağlantısı 10 dk koparılıp geri verildiğinde arada oluşan tüm olaylar sırayla ve tekrarsız uygulanır (e2e testi).
 - NOTIFY dinleyicisi zorla öldürüldüğünde sipariş en geç 60 sn içinde emniyet sorgusuyla panelde görünür.
 - `new` sipariş 2 dk onaylanmazsa platform WABA uyarısı 2 dk ± 15 sn içinde gönderilir. Onaylanmış, reddedilmiş veya bekleyen retteki siparişe hiçbir eskalasyon gitmez (sahte saatle test).
-- 15 dk (varsayılan) yanıtsız kalan sipariş en geç 16. dakikada `cancelled` / `tenant_no_response` olur, müşteriye özür + işletme telefonu gider; hiçbir yolda sistem `rejected` üretmez (sahte saatle test).
+- 5. dakikada yalnız SMS gider, platform WhatsApp uyarısı tekrarlanmaz. 15 dk (varsayılan; ayar 10–30 dk) yanıtsız kalan sipariş en geç 1 dk gecikmeyle `cancelled` / `tenant_no_response` olur, müşteriye özür + işletme telefonu gider; hiçbir yolda sistem `rejected` üretmez (sahte saatle test).
 - Açık saatte tüm cihazlar kapatıldığında `owner` 4 dk içinde uyarı alır.
 - Tenant canary'si (§7.10), paneli "çevrimiçi" görünen ama olay almayan şube için 30 dk içinde işletme uyarısı üretir.
 
@@ -920,7 +920,7 @@ await saveSecret({ tenantId, kind: 'wa_token', ciphertext, iv, tag, wrapped, kek
 | Sipariş kodu (Akış B) | 6 karakter, karışmayan alfabe | 30 dk | BSUID başına 10 dk'da 5 hatalı deneme sınırı ([02](02-whatsapp-entegrasyonu.md) §6.4) |
 | SMS OTP (Akış B yedeği, WhatsApp'sız mod) **[Faz 1]** | 6 hane; DB'de yalnız HMAC'i (`otp_verifications.code_hash`) | 5 dk; 5 deneme | Telefon başına günde ≤ 5 OTP, 60 sn yeniden gönderim aralığı |
 | Kurye magic link | Tek kullanımlık, hash'li | 15 dk | §6.4 |
-| Cihaz / ajan token'ı | Rastgele 256 bit, hash'li | 90 gün / iptale kadar | Panelden iptal edilir |
+| Paylaşımlı cihaz kaydı token'ı / ajan token'ı | Rastgele 256 bit, hash'li | 90 gün / iptale kadar | Panelden iptal edilir; cihazda personel PIN ile girer (§6.3) |
 
 ### 15.4 Rate limiting katmanları
 | Katman | Anahtar | Örnek limit [T] |

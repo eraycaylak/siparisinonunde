@@ -723,7 +723,7 @@ Sunucu, istemciden gelen ücret ve bölge bilgisini yok sayar ve hesabı yeniden
 - Durum değişikliği sayfaya en geç 15 sn'de yansır; ekran okuyucu yeni durumu duyurur.
 - `new` durumunda müşteri iptali tek onayla gerçekleşir ve panelde sesli uyarı çalar. `accepted` sonrası yalnız talep oluşturulabilir.
 - Token'ı bilen herkes sayfayı görebilir, ama tam adres ve telefon yalnız siparişi veren oturumda açılır. Teslimden (ret/iptalde final durumdan) 7 gün sonra link geçersizdir: sayfa kişisel alan ve sipariş ayrıntısı göstermez, yalnız "süresi doldu" görünümü ve kalıcı belge bağlantısı kalır (zaman yolculuğu testiyle doğrulanır).
-- `new` durumunda 10. dakikada gecikme satırı görünür; 15. dakikadaki sistem iptali sayfaya en geç 15 sn'de yansır.
+- `new` durumunda gecikme satırı M13 zamanında (varsayılan 10. dk, iptalden en az 5 dk önce) görünür; sistem iptali (varsayılan 15. dk) sayfaya en geç 15 sn'de yansır.
 - Sayfa arama motorlarınca indekslenmez ve harici isteklere `Referer` göndermez.
 
 ---
@@ -967,12 +967,12 @@ Pencere kapalıyken aynı içerik [D02 §5.2](02-whatsapp-entegrasyonu.md)'deki 
 
 **Kurallar (kodla uygulanır; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.5, §7; [D02 §4.3](02-whatsapp-entegrasyonu.md)):**
 1. Sipariş başına en fazla **4 otomatik durum mesajı** gider. Akış A'daki karşılama bunlara ek 1 mesajdır (toplam ≤ 5). Terminal mesaj (M11/M12) her zaman gider.
-2. **60 sn debounce:** M05, `new` anından 60 sn sonra gönderilmek üzere kuyruğa girer. Bu sürede `accepted` gelirse M05 atılır ve M06c gider. Otomatik kabul [Faz 2] açıksa M06c doğrudan gider.
+2. **60 sn debounce — yalnız Akış A** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7): M05, `new` anından 60 sn sonra gönderilmek üzere kuyruğa girer (storefront ekranı zaten "alındı" gösterir). Bu sürede `accepted` gelirse M05 atılır ve M06c gider. Otomatik kabul [Faz 2] açıksa M06c doğrudan gider. **Akış B'de** M05 müşterinin doğrulama kodu mesajına **anında** yanıt olarak gider; Akış E ve WhatsApp'sız modda da debounce yoktur.
 3. **Yerine geçme:** Kuyrukta bekleyen eski durum mesajı, yeni durum gelince atılır (örn. "onaylandı" beklerken "yolda" gelirse yalnız M09 gider).
 4. **M07 "hazırlanıyor"** açık olsa bile yalnız M06c gittiyse (yani bütçede M09 ve M10 için yer varsa) gönderilir; aksi halde atlanır.
 5. Değerlendirme M10'un içindedir. Pazarlama izni sorusu [Faz 2] M10a'nın içindedir.
 6. Adres ve telefon mesajlarda yer almaz.
-7. **Bütçe dışı istisnalar:** M13 (sipariş başına ≤ 1), M34 gecikme bildirimi (≤ 2), M12d (sistem iptali), müşterinin tetiklediği yanıtlar (M10a–d, M13a, M17, M26–M32), operatörün elle yazdığı mesajlar.
+7. **Bütçe dışı istisnalar** (olağan dışı durum mesajları, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.5): M13 (sipariş başına ≤ 1), M34 gecikme bildirimi (≤ 2), M12d (sistem iptali), müşterinin tetiklediği yanıtlar (M10a–d, M13a, M17, M26–M32), operatörün elle yazdığı mesajlar.
 8. Opt-out'lu müşteriye yalnız kendi başlattığı siparişin durum mesajları gider.
 
 **Örnek senaryolar:**
@@ -983,15 +983,15 @@ Pencere kapalıyken aynı içerik [D02 §5.2](02-whatsapp-entegrasyonu.md)'deki 
 | 2 | A, paket, onay 60 sn içinde | M01 → M06c → M09 → M10 | 3 | 4 | service |
 | 3 | A, gel-al | M01 → M05 → M06b → M08 → M10 | 4 | 5 | service |
 | 4 | A, "hazırlanıyor" açık, hızlı onay | M01 → M06c → M07 → M09 → M10 | 4 | 5 | service |
-| 5 | B, paket (pencereyi müşterinin kod mesajı açar) | M05/M06c → (M06a) → M09 → M10 | 3–4 | 3–4 | service |
+| 5 | B, paket (pencereyi müşterinin kod mesajı açar; debounce yok) | M05 (anında) → M06a → M09 → M10 | 4 | 4 | service |
 | 6 | B, WhatsApp'sız mod | SMS-01 → SMS-02 | — | 0 WhatsApp + 2 SMS | SMS |
 | 7 | E, telefon, doğrudan onaylı, pencere kapalı | `siparis_onaylandi_v1` → `siparis_yolda_v1` → `siparis_teslim_v1` | 3 | 3 | utility |
 | 8 | A, ret | M01 → M05 → M11 | 2 | 3 | service |
-| 9 | A, işletme yanıt vermedi | M01 → M05 → M13 → M12d | 2 (+1 istisna) | 4 | service |
+| 9 | A, işletme yanıt vermedi | M01 → M05 → M13 (t=10) → M12d (t=15) | 1 (+2 bütçe dışı: M13, M12d) | 4 | service |
 
 Değerlendirme cevabı (M10a–d) müşteri tetiklidir, +1–2 mesaj ekler. Maliyet referansı: Service mesajı numara başına ayda ilk 1.000'den sonra ≈ $0,0009'dur. 5 mesajlık sipariş ≈ $0,0045 ≈ 0,22 TL eder ([D02 §4.6](02-whatsapp-entegrasyonu.md)).
 
-**Kabul kriterleri (bütçe):** Hiçbir siparişte otomatik durum mesajı sayısı 4'ü geçmez (istisnalar hariç; birim test). Debounce senaryosunda müşteri tek mesaj alır. `wa_msg_skipped` olayı atlanan her mesajı sebebiyle kaydeder (§11).
+**Kabul kriterleri (bütçe):** Hiçbir siparişte otomatik durum mesajı sayısı 4'ü geçmez (istisnalar hariç; birim test). Akış A debounce senaryosunda müşteri tek mesaj alır; Akış B'de kod mesajına M05 debounce beklemeden gider. `wa_msg_skipped` olayı atlanan her mesajı sebebiyle kaydeder (§11).
 
 ---
 
