@@ -323,7 +323,7 @@ export function WhatsappSimulator() {
           {humanActive ? (
             <p className="mt-2 flex items-center gap-2 text-sm text-fg-muted">
               <Hand aria-hidden className="size-4" />
-              Bot {conv?.humanUntil ? `${formatTime(conv.humanUntil)}’e kadar` : 'panelden bota bırakılana kadar'} susuyor.
+              {conv?.humanUntil ? `Bot susuyor (bitiş ${formatTime(conv.humanUntil)}).` : 'Bot, panelden bota bırakılana kadar susuyor.'}
             </p>
           ) : null}
         </TabsContent>

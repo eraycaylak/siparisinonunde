@@ -333,7 +333,7 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
             {zoneMatched ? (
               <p className="flex items-center gap-2 text-sm font-semibold text-status-ready-fg" aria-live="polite">
                 <MapPin aria-hidden className="size-4" />
-                Teslimat bölgesindesiniz · {formatMoney(quote!.zone!.feeKurus)} · Min. {formatMoney(quote!.zone!.minOrderKurus)} · {eta.label}
+                Teslimat bölgesindesiniz · {quote!.zone!.feeKurus ? formatMoney(quote!.zone!.feeKurus) : 'Ücretsiz teslimat'} · Min. {formatMoney(quote!.zone!.minOrderKurus)} · {eta.label}
               </p>
             ) : (neighborhood || zoneId) && deliveryProblems.length ? (
               <Alert variant="warning">
@@ -475,7 +475,7 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
           {fulfillment === 'delivery' ? (
             <>
               <dt className="text-fg-muted">Teslimat ücreti</dt>
-              <dd className="text-end tabular-nums">{quote?.zone ? formatMoney(quote.deliveryFeeKurus) : '—'}</dd>
+              <dd className="text-end tabular-nums">{quote?.zone ? (quote.deliveryFeeKurus ? formatMoney(quote.deliveryFeeKurus) : 'Ücretsiz') : '—'}</dd>
             </>
           ) : null}
           <dt className="text-lg font-bold">Toplam (KDV dahil)</dt>

@@ -136,7 +136,7 @@ export function VerificationScreen({
               href={waLink}
               target="_blank"
               rel="noreferrer"
-              className="inline-flex min-h-hit-primary w-full items-center justify-center gap-2 rounded-md bg-[#1f9d55] px-4 text-lg font-bold text-white hover:opacity-95"
+              className="inline-flex min-h-hit-primary w-full items-center justify-center gap-2 rounded-md bg-success px-4 text-lg font-bold text-success-fg hover:opacity-95"
             >
               <MessageCircle aria-hidden className="size-6" /> WhatsApp ile onayla
             </a>

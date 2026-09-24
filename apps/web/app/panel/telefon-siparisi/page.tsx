@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
-import { ComingSoon } from '@/components/common/coming-soon';
+import { PhoneOrder } from '@/components/orders/phone-order';
 
-// Yer tutucu — Dilim #2: Akış E manuel sipariş (P-06).
+// Telefon siparişi (Akış E, P-06, 04 §4.13) — dilim 2.
 export const metadata: Metadata = { title: 'Telefon siparişi' };
 
 export default function Page() {
-  return <ComingSoon title="Telefon siparişi" description="Telefonla gelen siparişi hızlıca girin." />;
+  return <PhoneOrder />;
 }

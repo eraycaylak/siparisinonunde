@@ -212,7 +212,9 @@ function LiveInner({ businessName, kitchen }: { businessName: string; kitchen: b
     { key: 'ready', title: 'Hazır', cards: byStatus('ready') },
     { key: 'on_the_way', title: 'Yolda', cards: byStatus('on_the_way') },
   ];
-  const first = alarming[0];
+  // Bant, yeni sipariş kaldıkça yerinde durur (susturunca kaybolup düzeni kaydırmaz); "Gördüm" yalnız çalan varken
+  const bandOrders = newOrders.filter((c) => !c.rejectionScheduledAt && c.channel !== 'manual');
+  const first = alarming[0] ?? bandOrders[0];
 
   return (
     <div className="flex flex-col gap-3">
@@ -222,15 +224,17 @@ function LiveInner({ businessName, kitchen }: { businessName: string; kitchen: b
           tone="alarm"
           icon={BellRing}
           action={
-            <Button variant="secondary" size="md" onClick={silenceAll}>
-              <BellOff aria-hidden /> Gördüm
-            </Button>
+            alarming.length ? (
+              <Button variant="secondary" size="md" onClick={silenceAll}>
+                <BellOff aria-hidden /> Gördüm
+              </Button>
+            ) : null
           }
         >
           <a href={`#siparis-${first.id}`} className="underline-offset-4 hover:underline">
             YENİ SİPARİŞ #{first.number}
             {first.totalKurus != null ? ` · ${formatMoney(first.totalKurus)}` : ''}
-            {alarming.length > 1 ? ` · +${alarming.length - 1} sipariş daha` : ''}
+            {bandOrders.length > 1 ? ` · +${bandOrders.length - 1} sipariş daha` : ''}
           </a>
         </Banner>
       ) : null}

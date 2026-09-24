@@ -108,7 +108,7 @@ export function OrderCardView({ card, now, usePreparingStep, alarming, onSeen, a
   return (
     <article
       aria-label={`Sipariş ${card.number}`}
-      onPointerDown={() => alarming && onSeen?.(card.id)}
+      onClickCapture={() => alarming && onSeen?.(card.id)}
       className={cn(
         'flex flex-col gap-3 rounded-lg border-2 bg-surface-raised p-3 shadow-sm',
         card.status === 'new' ? 'border-status-new-fg' : 'border-border',

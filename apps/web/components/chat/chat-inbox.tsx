@@ -124,11 +124,11 @@ export function ChatInbox() {
   return (
     <div
       className={cn(
-        'grid overflow-hidden rounded-lg border border-border bg-surface-raised md:grid-cols-[minmax(260px,340px)_1fr]',
+        'grid grid-cols-[minmax(0,1fr)] overflow-hidden rounded-lg border border-border bg-surface-raised md:grid-cols-[minmax(260px,340px)_minmax(0,1fr)]',
         'h-[calc(100dvh-var(--panel-top,4rem)-7rem)] md:h-[calc(100dvh-var(--panel-top,4rem)-3rem)]',
       )}
     >
-      <div className={cn('min-h-0 border-border md:border-e', selectedId ? 'hidden md:block' : 'block')}>
+      <div className={cn('min-h-0 min-w-0 border-border md:border-e', selectedId ? 'hidden md:block' : 'block')}>
         {list.isError ? (
           <div className="p-3">
             <Alert variant="danger" title="Sohbetler yüklenemedi">
@@ -162,7 +162,7 @@ export function ChatInbox() {
           />
         )}
       </div>
-      <div className={cn('min-h-0', selectedId ? 'block' : 'hidden md:block')}>
+      <div className={cn('min-h-0 min-w-0', selectedId ? 'block' : 'hidden md:block')}>
         {selected ? (
           <MessageThread
             conversation={selected}

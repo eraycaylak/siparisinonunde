@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
-import { ComingSoon } from '@/components/common/coming-soon';
+import { CouriersView } from '@/components/couriers/couriers-view';
 
-// Yer tutucu — Dilim #4: kuryeler (P-24).
+// P-24: kuryeler, giriş bağlantısı (QR + kopyala), aktif atamalar (04 §7.11).
 export const metadata: Metadata = { title: 'Kuryeler' };
 
 export default function Page() {
-  return <ComingSoon title="Kuryeler" description="Kuryeler ve giriş linkleri." />;
+  return <CouriersView />;
 }

@@ -32,7 +32,7 @@ export interface MessageThreadProps {
 function modeText(c: ConversationItem): string {
   if (!c.humanActive) return 'Bot yanıtlıyor';
   if (!c.humanUntil) return 'Personel yanıtlıyor · bot kapalı';
-  return `Personel yanıtlıyor · bot ${formatTime(c.humanUntil)}’e kadar susuyor`;
+  return `Personel yanıtlıyor · bot susuyor (bitiş ${formatTime(c.humanUntil)})`;
 }
 
 /** Sağ bölüm: başlık (müşteri, mod anahtarı), mesaj akışı, yanıt kutusu. */
@@ -112,26 +112,26 @@ export function MessageThread({ conversation: c, messages, loading, error, onBac
 
   return (
     <section className="flex h-full min-h-0 flex-col" aria-label={`${customerLabel(c.customer)} ile sohbet`}>
-      <header className="flex flex-wrap items-center gap-2 border-b border-border bg-surface-raised p-3">
-        {onBack ? (
-          <Button variant="ghost" size="icon" aria-label="Sohbet listesine dön" onClick={onBack} className="md:hidden">
-            <ArrowLeft aria-hidden />
-          </Button>
-        ) : null}
-        <div className="flex min-w-0 flex-1 flex-col">
-          <h2 className="truncate text-lg font-bold">{customerLabel(c.customer)}</h2>
-          <p className="flex flex-wrap items-center gap-x-2 text-sm text-fg-muted">
+      <header className="flex flex-col gap-2 border-b border-border bg-surface-raised p-3">
+        <div className="flex items-center gap-2">
+          {onBack ? (
+            <Button variant="ghost" size="icon" aria-label="Sohbet listesine dön" onClick={onBack} className="shrink-0 md:hidden">
+              <ArrowLeft aria-hidden />
+            </Button>
+          ) : null}
+          <div className="flex min-w-0 flex-1 flex-col">
+            <h2 className="truncate text-lg font-bold">{customerLabel(c.customer)}</h2>
             {c.customer.phoneMasked ? (
-              <span className="inline-flex items-center gap-1">
-                <Phone aria-hidden className="size-3.5" />
+              <p className="flex items-center gap-1 truncate text-sm text-fg-muted">
+                <Phone aria-hidden className="size-3.5 shrink-0" />
                 {c.customer.phoneMasked}
-              </span>
+              </p>
             ) : null}
-            <span>{modeText(c)}</span>
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
+          </div>
           <ModeBadge c={c} />
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="min-w-0 text-sm text-fg-muted">{modeText(c)}</p>
           {c.humanActive ? (
             <Button variant="secondary" size="md" loading={modeBusy} onClick={() => void setMode('bot')}>
               <Bot aria-hidden />

@@ -136,14 +136,18 @@ function CourierCard({ order: o, open, onToggle, onDeliver }: { order: CourierOr
 }
 
 /** Teslim + ödeme alt sayfası: "285 TL nakit alındı" (varsayılan) ya da "Farklı yöntemle ödendi". */
-function DeliverSheet({ order, onClose }: { order: CourierOrder | null; onClose: () => void }) {
+function DeliverSheet({ order: current, onClose }: { order: CourierOrder | null; onClose: () => void }) {
   const qc = useQueryClient();
+  // Sheet hep bağlı kalır (yerel <dialog> açık/kapalı geçişi); kapanırken son sipariş gösterilir
+  const [last, setLast] = useState<CourierOrder | null>(current);
+  if (current && current !== last) setLast(current);
+  const order = current ?? last;
   const [mode, setMode] = useState<'as_ordered' | 'card_on_delivery' | 'cash_on_delivery' | 'meal_card_on_delivery'>('as_ordered');
   const [brand, setBrand] = useState<MealCardBrand | ''>('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  if (!order) return null;
   const submit = async () => {
+    if (!order) return;
     setBusy(true);
     setError(null);
     try {
@@ -161,13 +165,13 @@ function DeliverSheet({ order, onClose }: { order: CourierOrder | null; onClose:
       setBusy(false);
     }
   };
-  const asOrdered = `${formatMoney(order.totalKurus)} ${paymentCourierLabel(order.paymentMethod, order.mealCardBrand).toLocaleLowerCase('tr-TR')} alındı`;
+  const asOrdered = order ? `${formatMoney(order.totalKurus)} ${paymentCourierLabel(order.paymentMethod, order.mealCardBrand).toLocaleLowerCase('tr-TR')} alındı` : '';
   return (
     <Sheet
-      open={Boolean(order)}
+      open={Boolean(current)}
       onOpenChange={(o) => !o && onClose()}
       side="bottom"
-      title={`#${order.number} teslim`}
+      title={order ? `#${order.number} teslim` : 'Teslim'}
       footer={
         <Button size="xl" block variant="success" onClick={submit} loading={busy}>
           Teslim ettim
@@ -178,13 +182,13 @@ function DeliverSheet({ order, onClose }: { order: CourierOrder | null; onClose:
         <RadioGroup
           legend="Ödeme"
           value={mode}
-          onValueChange={setMode}
+          onValueChange={(v) => setMode(v as typeof mode)}
           options={[
             { value: 'as_ordered', label: asOrdered },
             { value: 'cash_on_delivery', label: 'Farklı yöntemle: nakit' },
             { value: 'card_on_delivery', label: 'Farklı yöntemle: kart' },
             { value: 'meal_card_on_delivery', label: 'Farklı yöntemle: yemek kartı' },
-          ].filter((x) => x.value === 'as_ordered' || x.value !== order.paymentMethod)}
+          ].filter((x) => x.value === 'as_ordered' || x.value !== order?.paymentMethod)}
         />
         {mode === 'meal_card_on_delivery' ? (
           <Select

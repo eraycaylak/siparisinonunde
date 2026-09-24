@@ -44,11 +44,11 @@ function Linkified({ text, openLinks }: { text: string; openLinks: boolean }) {
     <>
       {parts.map((p, i) =>
         IS_URL.test(p) && openLinks ? (
-          <a key={i} href={p} target="_blank" rel="noopener noreferrer" className="break-all underline underline-offset-2">
+          <a key={i} href={p} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 [overflow-wrap:anywhere]">
             {p}
           </a>
         ) : (
-          <span key={i} className={IS_URL.test(p) ? 'break-all' : undefined}>
+          <span key={i} className={IS_URL.test(p) ? '[overflow-wrap:anywhere]' : undefined}>
             {p}
           </span>
         ),

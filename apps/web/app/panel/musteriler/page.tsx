@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
-import { ComingSoon } from '@/components/common/coming-soon';
+import { CustomersView } from '@/components/customers/customers-view';
 
-// Yer tutucu — Dilim #4: müşteriler (P-30/P-31).
+// P-30/P-31: müşteri listesi ve profil (04 §8); KVKK dışa aktarma/silme (08 §2.10).
 export const metadata: Metadata = { title: 'Müşteriler' };
 
 export default function Page() {
-  return <ComingSoon title="Müşteriler" description="Müşteri listesi, sipariş geçmişi ve notlar." />;
+  return <CustomersView />;
 }

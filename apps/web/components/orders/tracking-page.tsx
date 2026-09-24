@@ -132,7 +132,7 @@ function TrackingView({ token, data, refetch }: { token: string; data: TrackResp
           {data.business.name} · Sipariş #{o.number}
         </p>
         <h1 className={cn('inline-flex items-center gap-2 self-start rounded-lg border px-3 py-2 text-xl font-bold', statusClasses(o.status as OrderStatus))} aria-live="polite">
-          <Icon aria-hidden className="size-6" /> {o.statusLabel}
+          <Icon aria-hidden className="size-6" /> {o.etaAt ? o.statusLabel.replace(/ · Tahmini \d\d\.\d\d$/, '') : o.statusLabel}
         </h1>
         {o.etaAt && !['delivered', 'rejected', 'cancelled'].includes(o.status) ? (
           <p className="text-3xl font-extrabold tabular-nums">Tahmini {formatTime(o.etaAt)}</p>
