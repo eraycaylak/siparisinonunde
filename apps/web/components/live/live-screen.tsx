@@ -198,10 +198,11 @@ function LiveInner({ businessName, kitchen }: { businessName: string; kitchen: b
 
   if (kitchen) {
     return (
-      <>
+      <div className="flex flex-col gap-3">
         {!audioOn ? <SoundOffBand onEnable={() => void alarmSound.unlock()} /> : null}
+        <h1 className="text-xl font-bold">Mutfak</h1>
         <KitchenBoard data={data} loading={q.isPending} now={now} usePreparingStep={usePreparingStep} />
-      </>
+      </div>
     );
   }
 

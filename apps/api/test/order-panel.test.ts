@@ -347,3 +347,30 @@ describe('detay, liste ve fiş', () => {
     expect(rows.every((j) => j.tenantId === s.tenantId || j.tenantId === other.tenantId)).toBe(true);
   });
 });
+
+describe('SSE açılışında branch.state', () => {
+  it('akış açılınca güncel sipariş alma durumu tek olay olarak gelir (id taşımaz)', async () => {
+    const base = await ctx.app.listen({ port: 0, host: '127.0.0.1' });
+    const controller = new AbortController();
+    const res = await fetch(`${base}/api/v1/panel/stream?branchId=${s.branchId}`, {
+      headers: { cookie: s.ownerCookie, accept: 'text/event-stream' },
+      signal: controller.signal,
+    });
+    expect(res.status).toBe(200);
+    const reader = res.body!.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    const deadline = Date.now() + 3000;
+    while (!buf.includes('branch.state') && Date.now() < deadline) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+    }
+    controller.abort();
+    const frame = buf.split('\n\n').find((f) => f.includes('branch.state'))!;
+    expect(frame).toBeTruthy();
+    expect(frame).not.toMatch(/^id: /m);
+    const data = JSON.parse(frame.replace(/^data: /, ''));
+    expect(data).toMatchObject({ type: 'branch.state', data: { orderingState: 'open', busyExtraMinutes: 0, pausedUntil: null } });
+  });
+});

@@ -38,7 +38,7 @@ export function OrderCardView({ card, now, usePreparingStep, alarming, onSeen, a
   const since = Math.max(0, (now - new Date(elapsedFrom(card)).getTime()) / 1000);
   const late = card.status === 'new' && since >= 120;
   const pendingReject = card.status === 'new' && Boolean(card.rejectionScheduledAt);
-  const rejectLeft = pendingReject ? Math.max(0, Math.ceil((new Date(card.rejectionScheduledAt!).getTime() + 30_000 - now) / 1000)) : null;
+  const rejectLeft = pendingReject ? Math.min(30, Math.max(0, Math.ceil((new Date(card.rejectionScheduledAt!).getTime() + 30_000 - now) / 1000))) : null;
   const overdue =
     card.estimatedReadyAt && ['accepted', 'preparing', 'ready'].includes(card.status) ? Math.floor((now - new Date(card.estimatedReadyAt).getTime()) / 60_000) : null;
   const eta = card.suggestedEtaMinutes ?? 20;
