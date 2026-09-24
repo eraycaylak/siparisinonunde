@@ -610,23 +610,22 @@ sequenceDiagram
 
 ### 6.3 Dunning takvimi (başarısız ödeme)
 
-**İlke (KARARLAR §9):** Askıya alma kademelidir. Önce uyarı ve salt-okunur mod gelir. İşletmenin sipariş alması hemen kesilmez, çünkü askı son müşteriyi ve işletmenin itibarını etkiler. Süreler abonelik sözleşmesinin ekine aynen yazılır. Havale/EFT ile ödeme gelince `finance` "ödendi" işaretler ve hizmet anında normale döner. Kurucu üyelerde aynı takvim uygulanır; pilot süresince tahsilat olmadığı için takvim işlemez.
+**İlke ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9):** Askıya alma kademelidir. Önce uyarı ve salt-okunur mod gelir. İşletmenin sipariş alması hemen kesilmez, çünkü askı son müşteriyi ve işletmenin itibarını etkiler. **Takvim 00 §9'daki kanonik takvimle birebir aynıdır:** G+1/G+3/G+7 yeniden deneme → **G+10 salt-okunur** → **G+21 askı** → **G+75 hesap kapanışı ve veri silme**. Aşağıdaki tablo yalnız iletişim ve ekran ayrıntısını ekler; G−3, G+14 ve G+45 satırları hatırlatmadır, yeniden deneme değildir. Süreler abonelik sözleşmesinin ekine aynen yazılır. Havale/EFT ile ödeme gelince `finance` "ödendi" işaretler ve hizmet anında normale döner. Kurucu üyelerde aynı takvim uygulanır; pilot süresince tahsilat olmadığı için takvim işlemez.
 
-| Gün | Olay | İşletmeye iletişim | Hizmet durumu |
+| Gün | Olay | İşletmeye iletişim | Hizmet durumu (`subscription.status`) |
 |---|---|---|---|
-| G−3 | Yenileme hatırlatması | E-posta + `abonelik_odeme_hatirlatma_v1` ([02](02-whatsapp-entegrasyonu.md) §5.3) | Normal |
-| G0 | Çekim başarısız | E-posta + `abonelik_odeme_basarisiz_v1` + panel bandı "Kartınızı güncelleyin" (kart güncelleme linki) | Normal |
-| G+1 | 1. otomatik yeniden deneme (farklı saatte) | — | Normal |
-| G+3 | 2. yeniden deneme | E-posta | Normal |
-| G+5 | 3. yeniden deneme | E-posta + WhatsApp | Normal |
-| G+7 | Kırmızı bant; "Havale ile öde" seçeneği ve referans kodu; `finance` rolüne arama görevi açılır | E-posta + WhatsApp + telefon | Normal |
-| **G+10** | **Salt-okunur mod başlar** | "Siparişleriniz alınmaya devam ediyor; yönetim işlevleri kısıtlandı" | **Açık:** sipariş alma, onay/ret, durum güncelleme, WhatsApp bildirimleri, sohbet yanıtlama, ürünü "tükendi" işaretleme, fiş yazdırma, KVKK başvurusu için müşteri verisi dışa aktarma. **Kapalı:** menü ve fiyat düzenleme, ayarlar, teslimat bölgesi, personel ekleme, rapor dışa aktarma, kampanya, entegrasyon ayarları |
-| G+14 | 4. ve son otomatik yeniden deneme | E-posta + WhatsApp: "G+21'de online sipariş alma durur" | Salt-okunur |
-| **G+21** | **Askıya alma** | E-posta + WhatsApp + telefon | **Yeni online sipariş kapanır.** Vitrin "Online sipariş geçici olarak alınamıyor. Telefon: {işletme telefonu}" gösterir; bot aynı bilgiyi verir. Açık siparişler tamamlanabilir; panel sohbet kutusu okunur ve yanıtlanır (Coexistence'ta esnaf telefonundan zaten görür). Veri korunur. **Ödeme alınınca dakikalar içinde tam hizmete dönülür** |
-| G+45 | Fesih bildirimi; **30 günlük veri dışa aktarma penceresi** başlar (DPA m.10) | E-posta | Panelde yalnız "öde ve devam et" ile "dışa aktar"; vitrin kapalı |
-| G+75 | Tenant verisi silinir (`retention.tenant_offboarding`); yedeklerden 35 gün içinde düşer; bizim fatura kayıtlarımız 10 yıl kalır | E-posta (silme teyidi) | Silindi |
+| G−3 | Yenileme hatırlatması | E-posta + `abonelik_odeme_hatirlatma_v1` ([02](02-whatsapp-entegrasyonu.md) §5.3) | Normal (`active`) |
+| G0 | Çekim başarısız | E-posta + `abonelik_odeme_basarisiz_v1` + panel bandı "Kartınızı güncelleyin" (kart güncelleme linki) | Normal (`past_due`) |
+| G+1 | 1. otomatik yeniden deneme (farklı saatte) | E-posta | Normal (`past_due`) |
+| G+3 | 2. otomatik yeniden deneme | E-posta + WhatsApp | Normal (`past_due`) |
+| G+7 | 3. ve son otomatik yeniden deneme; kırmızı bant; "Havale ile öde" seçeneği ve referans kodu; `finance` rolüne arama görevi açılır | E-posta + WhatsApp + telefon | Normal (`past_due`) |
+| **G+10** | **Salt-okunur mod başlar** | "Siparişleriniz alınmaya devam ediyor; yönetim işlevleri kısıtlandı" | **`read_only`. Açık:** sipariş alma, onay/ret, durum güncelleme, WhatsApp bildirimleri, sohbet yanıtlama, ürünü "tükendi" işaretleme, fiş yazdırma, KVKK başvurusu için müşteri verisi dışa aktarma. **Kapalı:** menü ve fiyat düzenleme, ayarlar, teslimat bölgesi, personel ekleme, rapor dışa aktarma, kampanya, entegrasyon ayarları |
+| G+14 | Hatırlatma (yeniden deneme yok) | E-posta + WhatsApp: "G+21'de online sipariş alma durur" | `read_only` |
+| **G+21** | **Askıya alma** | E-posta + WhatsApp + telefon | **`suspended`. Yeni online sipariş kapanır.** Storefront ve bot "Şu an online sipariş alınmıyor, lütfen arayın" + işletme telefonu gösterir. Açık siparişler tamamlanabilir; panel sohbet kutusu okunur ve yanıtlanır (Coexistence'ta esnaf telefonundan zaten görür). Veri korunur. **Ödeme alınınca dakikalar içinde tam hizmete dönülür** |
+| G+45 | Kapanış ön bildirimi: "G+75'te hesabınız kapanacak ve verileriniz silinecek." **30 günlük veri dışa aktarma penceresi** başlar (DPA m.10) | E-posta + WhatsApp | `suspended`. Panelde yalnız "Öde ve devam et" ile "Verilerimi dışa aktar"; vitrin askı mesajını göstermeye devam eder |
+| **G+75** | **Hesap kapanışı ve veri silme:** abonelik kapanır, tenant verisi silinir (`retention.tenant_offboarding`, §2.8 satır 12); yedeklerden 35 gün içinde düşer; bizim fatura kayıtlarımız 10 yıl kalır | E-posta (kapanış ve silme teyidi) | `cancelled` (tenant `lifecycle_stage` = `churned`) |
 
-**Kabul kriterleri:** Salt-okunur modda yeni sipariş panelde sesli uyarıyla düşer ve durum mesajları gider (entegrasyon testi). Askıdaki tenant ödeme yapınca ≤ 5 dk içinde vitrin yeniden sipariş alır. Her durum geçişi `audit_log`'a ve işletmeye bildirim kaydına yazılır. Süreler konfigürasyondadır ve sözleşme ekindeki tabloyla aynıdır.
+**Kabul kriterleri:** Salt-okunur modda yeni sipariş panelde sesli uyarıyla düşer ve durum mesajları gider (entegrasyon testi). Askıdaki tenant ödeme yapınca ≤ 5 dk içinde vitrin yeniden sipariş alır. Her durum geçişi `audit_log`'a ve işletmeye bildirim kaydına yazılır. `subscription.status` geçişleri `past_due` (G0) → `read_only` (G+10) → `suspended` (G+21) → `cancelled` (G+75) sırasıyla ve yalnız bu günlerde olur; deneme bitişinde `trialing` → `suspended` (D+3) → `cancelled` (D+90) (sahte saat testi). Süreler konfigürasyondadır ve sözleşme ekindeki tabloyla aynıdır.
 
 ### 6.4 Havale/EFT
 
@@ -686,7 +685,7 @@ Dayanak: 6769 sayılı Sınai Mülkiyet Kanunu [Y]. Adımlar (A03 §7.4):
 
 | # | Belge | Amaç | Taraflar / kim adına | Kim hazırlar | Faz | Kabul ve sürümleme |
 |---|---|---|---|---|---|---|
-| 1 | **İşletme Abonelik Sözleşmesi + Kullanım Koşulları** | Kapsam, paketler, ücret ve TÜFE endeksleme, Meta ücretlerinin dahil olmadığı beyanı ([01](01-vizyon-pazar-is-modeli.md) §6.5), ödeme ve **dunning ekinin tablosu** (§6.3), askı, fesih, veri dışa aktarma, hizmet seviyesi hedefi (taahhüt değil), sorumluluk sınırı, **WhatsApp Business ve Commerce Policy'ye uyum**, içerik sorumluluğu (menü, fiyat, alerjen), ETK/İYS sorumluluğu, üçüncü taraf PSP ilişkisi, yetkili mahkeme | Biz ↔ İşletme | Avukat (uyum paketi) | **Faz 0–1** | Click-wrap; kayıtta ve her yeni sürümde; esaslı değişiklik 30 gün önceden bildirilir [T] |
+| 1 | **İşletme Abonelik Sözleşmesi + Kullanım Koşulları** | Kapsam, paketler, ücret ve liste fiyatının TÜFE endekslemesi, kurucu üye kuralı (12 ay sabit %30 indirim oranı; sabit TL fiyat değil), deneme bitişi kuralı (§6.2), SMS adil kullanım kotası (Esnaf 100, Pro 300 SMS/ay), Meta ücretlerinin dahil olmadığı beyanı ([01](01-vizyon-pazar-is-modeli.md) §6.5), ödeme ve **dunning ekinin tablosu** (§6.3), askı, fesih, veri dışa aktarma, hizmet seviyesi hedefi (taahhüt değil), sorumluluk sınırı, **WhatsApp Business ve Commerce Policy'ye uyum**, içerik sorumluluğu (menü, fiyat, alerjen), ETK/İYS sorumluluğu, üçüncü taraf PSP ilişkisi, yetkili mahkeme | Biz ↔ İşletme | Avukat (uyum paketi) | **Faz 0–1** | Click-wrap; kayıtta ve her yeni sürümde; esaslı değişiklik 30 gün önceden bildirilir [T] |
 | 2 | **DPA + alt işleyen listesi + güvenlik eki** | KVKK m.12/2 (§2.2) | Biz (Vİ) ↔ İşletme (VS) | Avukat; güvenlik ekini teknik lider | **Faz 0–1** | Aboneliğin eki, click-wrap; alt işleyen listesi ayrı kamuya açık sayfada |
 | 3 | **Kurumsal aydınlatma metni + gizlilik politikası** | §2.4-A; Meta App URL'si | Biz (VS) | Avukat | **Faz 0** | Yayın + sürüm; kayıt formunda bilgilendirme (onay değil) |
 | 4 | **Çerez politikası + rıza paneli** | §2.13 | Biz; vitrinde işletme adına | Avukat + geliştirme | **Faz 1** | Rıza kaydı (sürüm, tercih, zaman) |
@@ -711,8 +710,8 @@ KARARLAR §9'daki **MVP öncesi zorunlu set** 1–6, 8, 10 ve 11 numaralı belge
 
 ### 7.5 Click-wrap ve sürümleme kuralları
 
-- Her belge `legal_document` kaydıdır: tür, sürüm, dil, yayın tarihi, içerik hash'i, URL. Yayınlanmış sürüm değiştirilemez; değişiklik yeni sürümdür.
-- Her kabul `legal_acceptance` kaydıdır: kim (kullanıcı ve tenant, ya da sipariş ve son müşteri), hangi sürüm, zaman, IP/cihaz veya `wamid`, kanal, yöntem. Alanlar → [07](07-veri-modeli-ve-api.md).
+- Her belge `legal_documents` tablosunda bir kayıttır: tür, sürüm, dil, yayın tarihi, içerik hash'i, URL. Yayınlanmış sürüm değiştirilemez; değişiklik yeni sürümdür.
+- Her kabul `legal_acceptances` tablosunda bir kayıttır: kim (kullanıcı ve tenant, ya da sipariş ve son müşteri), hangi sürüm, zaman, IP/cihaz veya `wamid`, kanal, yöntem. Alanlar → [07](07-veri-modeli-ve-api.md).
 - B2B'de esaslı değişiklikte kullanıcı bir sonraki girişte yeni sürümü kabul eder. Kabul etmezse mevcut dönem sonunda fesih hakkı doğar [T].
 - Son müşteri belgelerinde sürüm siparişe bağlanır; eski sipariş kendi sürümünü gösterir. Kutucuklar önceden işaretli olmaz; kabul düğmesinin yanında belgelere link bulunur.
 
@@ -755,6 +754,7 @@ Belirli parayı içeren imzalı sözleşmelerde oran **binde 9,48**'dir; e-imzal
 |---|---|---|---|
 | TR barındırma ve yerli araçlar | TL | Normal KDV (indirilebilir) | Yerli seçim 2 No'lu KDV yükünü azaltır |
 | Yurt dışı bulut ve araçlar (Cloudflare, Sentry, GitHub, Google Maps, Anthropic) | USD | 2 No'lu KDV (≈1 ay nakit etkisi), olası stopaj, kur farkı ve banka yurt dışı işlem masrafı | Aylık rapor; LLM en büyük değişken (KARARLAR §10) |
+| SMS (müşteri SMS OTP, WhatsApp'sız mod durum SMS'i, işletme alarmı t=5 dk, kurye giriş linki) [Faz 1] | TL, **platform öder** | Yurt içi sağlayıcı; normal KDV (indirilebilir) | Aboneliğe adil kullanım kotasıyla dahil: Esnaf 100, Pro 300 SMS/ay; kota aşımında işletme uyarılır, Faz 2'de ek SMS paketi ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4). İYS açısından bilgilendirme niteliğinde (§3.1) |
 | Meta WhatsApp ücretleri (Tech Provider) | USD, **işletme öder** | İşletmenin KDV durumu [D?] (teyit edilmeli) | Bizim maliyetimiz değil ([01](01-vizyon-pazar-is-modeli.md) §6.5) |
 | Meta ücretleri (MPS ile biz ödersek, Faz 3) | USD | 2 No'lu KDV; yeniden satışta %20 KDV | Kur riski, endeksleme |
 | PSP komisyonu (kendi tahsilatımız) | TL | Kuruluşun faturası; BSMV/KDV ayrımı faturada [D?] (teyit edilmeli) | Tek çekim bandı §5.4; yazılı teklif |

@@ -869,7 +869,7 @@ Sahip: Kurucu-İş (Finans ile). "Ödeyen işletme" = `subscription.status IN ('
 | **Geri ödeme süresi** | CAC / (ARPA × brüt marj) | Yukarıdakiler | < 4 ay | Aylık |
 | **LTV** | ARPA × brüt marj / aylık logo churn | Yukarıdakiler | LTV/CAC ≥ 3 [T] | Çeyreklik |
 | **Brüt marj** | (Abonelik geliri − COGS) / abonelik geliri; COGS kalemleri [01](01-vizyon-pazar-is-modeli.md) §7.1 | Muhasebe + maliyet metrikleri (§8.6) | ≥ %70 | Aylık |
-| **Kanal payı** | Kanal siparişi / (kanal siparişi + işletmenin beyan ettiği pazaryeri siparişi) | `orders` + aylık beyan (açık konu) | 60. günde ≥ %10 (KARARLAR §12) | Aylık |
+| **Kanal payı** | Kanal siparişi / (kanal siparişi + işletmenin beyan ettiği pazaryeri siparişi) | `orders` + aylık pazaryeri sipariş beyanı ([07](07-veri-modeli-ve-api.md)'de alan yok; §11 #12) | Pilotun 8. haftasında (pilot sonu) ≥ %10 (KARARLAR §12) | Aylık; pilotta haftalık |
 
 ### 8.4 Ürün metrikleri
 
@@ -878,14 +878,14 @@ Sahip: Teknik lider (ürün). Hedefler A05 §11'deki hipotez hedefleridir [T]; p
 | Metrik | Formül | Veri kaynağı | Hedef | Sıklık |
 |---|---|---|---|---|
 | **İşletme başı haftalık kanal siparişi** | Kuzey yıldızı / aktif işletme (medyan) | `orders` | Pilot ≥ 5 | Haftalık |
-| **Karşılama → link açma** | İlk açılışı olan link token'ı / verilen link token'ı | `storefront_link_tokens` (`first_opened_at`) | ≥ %60 | Haftalık |
+| **Karşılama → link açma** | Oturuma çevrilmiş (açılmış) link token'ı / verilen link token'ı | `storefront_link_tokens` (`session_started_at`) | ≥ %60 | Haftalık |
 | **Link → sipariş** | Siparişe bağlanan token / açılan token | `storefront_link_tokens` (`order_id`) | ≥ %35 | Haftalık |
-| **Akış B doğrulama oranı** | `used` doğrulama kodu / oluşturulan kod (`awaiting_customer` → `new`) | `order_verification_codes` | ≥ %85; < %85 ise "güvenilir cihaz" (Faz 2) öne alınır | Haftalık |
-| **Onay süresi** | `accepted_at − placed_at` (medyan, p95; otomatik kabul hariç) | `orders` | Medyan < 60 sn; p95 ≤ 2 dk | Haftalık, şube bazında |
-| **Geç onay oranı** | `new` durumunda > 2 dk kalan / tüm `new` | `orders`, `alarm_escalations` (basamak ≥ 3) | < %5 [T]; pilot 2. hafta ≥ %80'i 2 dk içinde (H8) | Haftalık |
-| **"Siparişim nerede?" oranı** | Kabul ile teslim arasında "nerede / ne zaman gelir" niyetli gelen mesajı olan sipariş / teslim edilen sipariş | `messages` + konuşma motoru niyet etiketi (açık konu) | < %5 | Haftalık |
+| **Akış B doğrulama oranı** | Doğrulanan / oluşturulan Akış B siparişi (`awaiting_customer` → `new`); WhatsApp kodu ve SMS OTP ayrı kırılım | `order_verification_codes` (`status = used`), `otp_verifications` (`status = verified`) | ≥ %85; < %85 ise "güvenilir cihaz" (Faz 2) öne alınır | Haftalık |
+| **Onay süresi** | `accepted_at − placed_at` (medyan, p95; otomatik kabul — Faz 2 — hariç) | `orders` | Medyan < 60 sn; p95 ≤ 2 dk | Haftalık, şube bazında |
+| **Geç onay oranı** | `new` durumunda > 2 dk kalan (t = 2 dk platform WhatsApp basamağı çalışan) / tüm `new` | `report_daily_branch` (2 dk'yı aşan onaysız sayısı), `alarm_escalations` (`kind = new_order_unacked`, t = 2 dk basamağında `fired_at` dolu) | < %5 [T]; pilot 2. hafta ≥ %80'i 2 dk içinde (H8) | Haftalık |
+| **"Siparişim nerede?" oranı** | Kabul ile teslim arasında "nerede / ne zaman gelir" niyetli gelen mesajı olan sipariş / teslim edilen sipariş | `messages` + konuşma motoru niyet etiketi ([07](07-veri-modeli-ve-api.md)'de alan yok; §11 #12) | < %5 | Haftalık |
 | **Tekrar sipariş oranı** | 30 gün içinde 2. kanal siparişini veren müşteri / ilk kanal siparişini veren müşteri | `orders` (`customer_id`) | ≥ %30 [T] | Aylık (kohort) |
-| **Ret ve iptal oranları** | `rejected` ve `cancelled` / tüm siparişler; sebep kodu kırılımıyla | `orders` (`reject_reason`, `cancel_reason`) | İzleme; `too_busy` artışı yoğunluk sinyali | Haftalık |
+| **Ret ve iptal oranları** | `rejected` ve `cancelled` / tüm siparişler; sebep kodu kırılımıyla | `orders` (`rejection_reason`, `cancelled_by`, `cancel_reason`; kodlar KARARLAR §5) | İzleme; `too_busy` artışı yoğunluk sinyali, `tenant_no_response` §7.2 | Haftalık |
 | **Telefonsuz sipariş oranı** | Teslimat telefonu olmayan teslimat siparişi / teslimat siparişi | `orders` (`delivery_phone_e164`), `customers` | < %10 [T] (R31) | Aylık |
 | **Kanal karışımı** | Kanal bazında sipariş payı (`wa_link`, `web`, `manual`…) ve `source_meta` kaynağı (QR kodu, Google, Instagram) | `orders` | İzleme; boş `source_meta` < %20 (R41) | Haftalık |
 
@@ -896,11 +896,11 @@ Sahip: Operasyon lideri (sistem metrikleri için teknik lider).
 | Metrik | Formül | Veri kaynağı | Hedef | Sıklık |
 |---|---|---|---|---|
 | **Kaçan sipariş (sistem / işletme)** | §7.2 | `orders`, `alarm_escalations`, `order_events` | 0 / %0 | Günlük |
-| **Açık saatte panel çevrimdışı dakikası** | Şube açıkken ses açık cihazı olmayan dakika (şube başına) | `devices` nabızları, `notifications` (`panel_offline`) | < 15 dk/hafta [T] | Haftalık |
+| **Açık saatte panel çevrimdışı dakikası** | Şube açıkken ses açık cihazı olmayan dakika (şube başına) | `devices` nabızları (`last_seen_at`, `audio_unlocked`), `notifications` (`kind = panel_offline`) | < 15 dk/hafta [T] | Haftalık |
 | **Destek teması / işletme / ay** | Temas sayısı / aktif işletme (ilk ay hariç ayrı) | Destek aracı → `support_tickets` [Faz 2] | ≤ 3; 2. ayda > 4 → H9 başarısız | Haftalık |
 | **İlk yanıt SLA uyumu** | Öncelik süresinde ilk yanıt verilen temas / temas | Destek aracı | ≥ %90 [T]; P1'de %100 | Haftalık |
 | **P1 ve olay sayısı** | Haftalık P1 temas; SEV1/SEV2 olay sayısı ve süresi | Destek aracı, olay kaydı | Azalan eğilim | Haftalık |
-| **Onboarding süresi** | Kapı 1 ve Kapı 2 tamamlanma süresi (medyan) | `wa_onboarding_sessions`, onboarding adımları | Kapı 1 aynı gün; Kapı 2 ≤ 1 gün | Haftalık |
+| **Onboarding süresi** | Kapı 1 ve Kapı 2 tamamlanma süresi (medyan) | `wa_onboarding_sessions` (`completed_at`), `tenants.onboarding_step` | Kapı 1 aynı gün; Kapı 2 ≤ 1 gün | Haftalık |
 | **ES terk oranı** | `CANCEL`/`ERROR` ile biten ES / başlatılan ES; `current_step` kırılımı | `wa_onboarding_sessions` | < %30 | Haftalık |
 | **Meta ödeme hatası oranı** | 131042 durumundaki canlı tenant / canlı tenant | `wa_accounts` sağlık durumu, `messages` hata kodları | 0 | Günlük |
 | **Kalite uyarısı** | YELLOW/RED numara sayısı | `wa_phone_numbers` | 0 | Günlük |

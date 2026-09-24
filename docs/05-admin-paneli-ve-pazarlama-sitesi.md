@@ -636,7 +636,7 @@ siparisinonunde.com
 2. **Sepetini kendisi yapar.** "Fotoğraflı menüden porsiyonunu, ekstrasını seçer, adresini haritada işaretler, siparişi onaylar. Uygulama indirmez, üye olmaz."
 3. **Sen tek dokunuşla onaylarsın.** "Sipariş panele sesli düşer. 'Onayla · 30 dk'ya basarsın; müşterine 'Onaylandı', kurye çıkınca 'Yolda' mesajı kendiliğinden gider."
 
-Ardından: 60 sn'lik video · **Kurulum 4 adım** (hesabını aç → menünü ekle ya da biz ekleyelim → WhatsApp'ını bağla ve Meta'ya kart ekle → deneme siparişi ver) · **Müşteriyi kendi kanalına taşı** (paket içi kart, magnet, kasa QR'ı, Google ve Instagram linki; "pazaryeri sözleşmeni kontrol et" notu) · **"Siparişim nerede?" araması azalır** (takip linki, kurye butonları) · CTA.
+Ardından: 60 sn'lik video · **Kurulum 4 adım** (hesabını aç → menünü ekle ya da biz ekleyelim → WhatsApp'ını bağla ve Meta'ya kart ekle → deneme siparişi ver) · **Müşteriyi kendi kanalına taşı** (paket içi kart, magnet, kasa QR'ı, Google ve Instagram linki; "pazaryeri sözleşmeni kontrol et" notu) · **"Siparişim nerede?" araması azalır** (takip linki ve kurye butonları; takip linki teslimden 7 gün sonra kendiliğinden geçersizleşir) · CTA.
 
 ### C.3.3 Fiyatlar `/fiyatlar`
 Aylık/yıllık anahtarı. Büyük rakam KDV hariç, hemen altında KDV dahil ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8–§9).
@@ -813,7 +813,7 @@ Geçişten sonra
 - Yapılandırılmış veri [R schema.org, A05 §13]: `Organization`, `WebSite`, `SoftwareApplication` (`offers` içinde fiyatlar TRY; KDV hariç olduğu `priceSpecification.valueAddedTaxIncluded = false` ile belirtilir), `FAQPage` (SSS), `BreadcrumbList`, blogda `Article`. FAQ zengin sonuçlarının Google'da sınırlı gösterildiği bilinir [E]; işaretleme yine de zararsızdır.
 - Core Web Vitals "iyi" eşikleri hedeflenir: LCP < 2,5 sn, INP < 200 ms, CLS < 0,1 [E]. Sistem yazı tipleri, AVIF/WebP görseller, rıza öncesi üçüncü taraf script yok.
 - Google Search Console, Bing Webmaster Tools ve Yandex Webmaster (Türkiye'de Yandex payı nedeniyle [E]) kaydı.
-- Storefront SEO'su (`Restaurant` + `Menu` işaretlemesi, `/t/` ve `/s/` yollarının `noindex` olması, altbilgi marka linki) [03](03-musteri-deneyimi-ve-storefront.md)'tedir. Altbilgi linki tüm storefront'larda şablon olarak tekrarlandığı için `rel="nofollow"` önerilir; toplu link şeması izlenimi verilmez [E] (teyit edilmeli).
+- Storefront SEO'su (`Restaurant` + `Menu` işaretlemesi, `/t/` ve `/s/` yollarının `noindex` olması, altbilgi marka linki; takip linki `/t/{token}` teslimden 7 gün sonra geçersizleşir, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7) [03](03-musteri-deneyimi-ve-storefront.md)'tedir. Altbilgi linki tüm storefront'larda şablon olarak tekrarlandığı için `rel="nofollow"` önerilir; toplu link şeması izlenimi verilmez [E] (teyit edilmeli).
 
 ### C.6.2 Anahtar kelime kümeleri (arama hacimleri doğrulanamadı, A05 §6.4)
 | Küme | Örnek sorgular | Hedef sayfa | Faz |

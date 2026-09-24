@@ -626,7 +626,7 @@ PK `(order_id, device_id)`; `tenant_id`, `user_id ✓`, `acked_at`. İlk kayıt 
 std, `order_id UK`, `branch_id`, `code char(6) NN` (alfabe `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`, ≥ 1 rakam), `status` (`pending`, `used`, `expired`), `expires_at` (+30 dk), `used_at`, `used_by_customer_id`, `used_wamid`. `UNIQUE(tenant_id, code) WHERE status = 'pending'`. BSUID başına hatalı deneme sayacı (10 dk'da 5) Redis'te. Saklama 7 gün.
 
 #### `otp_verifications` **[Faz 1]** (Akış B yedeği, "WhatsApp'sız mod")
-Kullanım: müşterinin WhatsApp'ı yoksa, işletmenin WhatsApp bağlantısı tamamlanmadıysa veya kanal arızalıysa (`sms_fallback` kill switch'i açık, KARARLAR §7).
+Kullanım: müşterinin WhatsApp'ı yoksa, işletmenin WhatsApp bağlantısı tamamlanmadıysa veya kanal arızalıysa (`sms_fallback` kill-switch'i açık, KARARLAR §4, §7). Faz 1 kapsamındadır.
 
 | Alan | Tip | Null | Açıklama |
 |---|---|---|---|
@@ -655,7 +655,7 @@ Tüm SMS gönderimlerinin sağlayıcı kaydı: std, `branch_id ✓`, `order_id �
 Teslim mesajındaki 3 butondan veya takip sayfasından (KARARLAR §7, A05 §3.12): std, `order_id UK`, `customer_id ✓`, `rating` (`great`, `ok`, `bad`), `reasons text[]` (`late`, `cold`, `missing_wrong_item`, `taste`, `courier`, `other`), `source` (`wa_button`, `tracking_page`), `wamid ✓`, `comment ✓` (≤ 280 karakter, takip sayfasında Faz 1 (D03); `pii:content`), `is_public` (Faz 2; isimle yayın açık rıza), `reply_text ✓` (Faz 2). `bad` → panelde anlık uyarı.
 
 #### `order_payments` **[Faz 2]**
-Online kart, işletmenin kendi PSP hesabıyla: std, `order_id`, `provider_account_id`, `provider` (`paytr`, `iyzico`), `provider_payment_id UK`, `payment_link_url`, `amount_kurus`, `refunded_kurus`, `status` (payment_status), `installment_count` (CHECK = 1), `raw jsonb`, `paid_at`. Para platform hesabına girmez (KARARLAR §9).
+Online kart, işletmenin kendi PSP hesabıyla: std, `order_id`, `provider_account_id`, `provider` (`paytr`, `iyzico`), `provider_payment_id UK`, `payment_link_url`, `amount_kurus`, `refunded_kurus`, `status` (payment_status), `installment_count` (CHECK = 1), `raw jsonb`, `paid_at`, `expires_at` (ödeme linki süresi; dolarsa sipariş `cancelled`/`system`/`payment_timeout`). Para platform hesabına girmez (KARARLAR §9).
 
 ### 3.4 WhatsApp ve mesajlaşma
 

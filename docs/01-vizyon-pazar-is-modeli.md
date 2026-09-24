@@ -474,18 +474,18 @@ Geçişten sonra
 | Siparişin Önünde Pro (U) | −1.790 | −1.790 | −1.790 |
 | **Net aylık kazanç** | **+3.722,5** | **+6.872,5** | **+5.972,5** |
 | Yıllık | ~44.670 | ~82.470 | ~71.670 |
-| Başa baş (N*) | 1.790 / (350 × 0,0875) ≈ **59/ay** | 1.790 / (350 × 0,1375) ≈ **37/ay** | 1.790 / (350 × 0,2375 − 40) ≈ **42/ay** |
+| Başa baş (N*, yukarı yuvarlama) | 1.790 / (350 × 0,0875) = 1.790 / 30,625 = 58,4 → **59/ay** | 1.790 / (350 × 0,1375) = 1.790 / 48,125 = 37,2 → **38/ay** | 1.790 / (350 × 0,2375 − 40) = 1.790 / 43,125 = 41,5 → **42/ay** |
 
-**Satış için kısa başa baş referansları** (o = 0, K = 0)
-- k = %25, t = 0 → 1.790 / 87,5 = 20,5 → **ayda ~21 sipariş**, yani günde birden az (KARARLAR başa baş argümanı). t = %10 ile → 1.790 / 52,5 → ayda ~35 sipariş.
-- k = %15, t = %10 → 1.790 / 17,5 → ayda ~103 sipariş. **Sonuç:** Düşük komisyonlu işletmede teşvik küçük tutulmalı (ücretsiz içecek veya %5).
+**Satış için kısa başa baş referansları** (o = 0, K = 0, M = 0; yukarı yuvarlama)
+- k = %25, t = 0 → 1.790 / 87,5 = 20,5 → **ayda 21 sipariş**, yani günde birden az ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8 başa baş argümanı). t = %10 ile → 1.790 / 52,5 = 34,1 → ayda 35 sipariş.
+- k = %15, t = %10 → 1.790 / 17,5 = 102,3 → ayda 103 sipariş. **Sonuç:** Düşük komisyonlu işletmede teşvik küçük tutulmalı (ücretsiz içecek veya %5).
 
 **Kabul kriterleri (hesaplayıcı mantığı)**
-- Girdiler: günlük sipariş, ortalama sepet, komisyon oranı **veya** aylık kesinti kalemleri toplamı, kurye modeli (kendi / platform), teşvik oranı, kartla ödeme payı. Makul varsayılanlar dolu gelir.
-- Çıktılar: aylık ve yıllık kesinti (KDV hariç ve dahil); %10 / %20 / %30 geçişte net kazanç; başa baş sipariş sayısı; önerilen paket (günlük toplam sipariş 5–20 → Esnaf, 20–80 → Pro, 2+ şube → Zincir); Meta tahmini ayrı satırda.
+- Girdiler: günlük sipariş, ortalama sepet, komisyon oranı **veya** aylık kesinti kalemleri toplamı, kurye modeli (kendi / platform), teşvik oranı, kartla ödeme payı. Makul varsayılanlar dolu gelir ve **B senaryosunu** üretir: S = 30, B = 350 TL, g = 30, k = %25, p = %20, t = %10, o = %50, c = %2,5, kendi kuryesi (K = 0; platform kuryesi seçilirse K = 40 TL), U = Pro 1.790.
+- Çıktılar: aylık ve yıllık kesinti (KDV hariç ve dahil); %10 / %20 / %30 geçişte net kazanç; başa baş sipariş sayısı (yukarı yuvarlanmış); önerilen paket (toplam günlük sipariş < 20 → Esnaf, ≥ 20 → Pro, 2+ şube → Zincir (Faz 2; öncesinde "Bize ulaş"), 5+ şube → özel teklif); Meta tahmini ayrı satırda.
 - Net kazanç negatifse dürüstçe negatif gösterilir ve teşviki düşürme önerisi çıkar.
 - Sonuçta "oranlar sözleşmenize göre değişir; bantlar kaynaklıdır" uyarısı yer alır. Paket fiyatı, KDV oranı ve Meta rate card'ı konfigürasyondan okunur, kodda sabit değildir.
-- Birim testleri bu bölümdeki üç senaryonun sonuçlarını (3.722,5 / 6.872,5 / 5.972,5 TL) aynen üretir.
+- Birim testleri bu bölümdeki üç senaryonun sonuçlarını aynen üretir: net kazanç **3.722,5 / 6.872,5 / 5.972,5 TL**; başa baş (yukarı yuvarlama) **59 / 38 / 42** sipariş/ay; kısa referans (k = %25, t = o = K = 0) **21** sipariş/ay. Aynı test senaryoları [05](05-admin-paneli-ve-pazarlama-sitesi.md) §C.4.6'dadır; iki doküman birebir aynı kalmalıdır.
 
 ---
 

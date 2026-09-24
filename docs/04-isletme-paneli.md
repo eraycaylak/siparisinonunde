@@ -742,8 +742,8 @@ Salt-okunur abonelik modunda (G+10) menü, fiyat, ayar, bölge, personel ekranla
 | Onay süre çipleri | 15, 20, 30, 45, 60 | Düzenlenebilir (en çok 6) |
 | "Hazırlanıyor" adımını kullan | Kapalı | — |
 | Web Push (t=0) ve ses tekrarı (60 sn) | Açık | Kapatılamaz |
-| Platform WhatsApp uyarısı (2 dk) | Açık, `owner`; `manager` eklenebilir | 2–5 dk; kapatılabilir, kapatılırsa uyarı metni |
-| SMS uyarısı (5 dk) | Açık | 5–8 dk, platform WhatsApp uyarısından sonra; kapatılabilir |
+| Platform WhatsApp uyarısı (2 dk) | Açık, `owner`; `manager` eklenebilir | Kapatılabilir; kapatılırsa uyarı metni |
+| SMS uyarısı (5 dk) | Açık | Kapatılabilir |
 | Müşteriye gecikme bilgisi | 10 dk | 8–15; otomatik iptalden en az 5 dk önce |
 | Yanıtsız siparişin otomatik iptali (`tenant_no_response`) | 15 dk | 15 / 20 / 30 |
 | "Yetkili istiyor" 5 dk yanıtsız → sahibe bildirim | Açık | — |
@@ -752,7 +752,7 @@ Salt-okunur abonelik modunda (G+10) menü, fiyat, ayar, bölge, personel ekranla
 ### 7.8 Müşteri bildirimleri (P-20)
 | Mesaj | Varsayılan | Not |
 |---|---|---|
-| Alındı + takip linki | Açık (kapatılamaz) | 60 sn içinde onaylanırsa "onaylandı" ile birleşir |
+| Alındı + takip linki | Açık (kapatılamaz) | Yalnız Akış A'da: 60 sn içinde onaylanırsa "onaylandı" ile birleşir. Akış B'de doğrulama koduna anında gider |
 | Onaylandı + süre | Açık (kapatılamaz) | — |
 | Hazırlanıyor | **Kapalı** | Açılırsa 4 mesajlık bütçeyi aşma riski uyarısı (KARARLAR §6.5) |
 | Hazır (gel-al) | Açık | Pakette gönderilmez |
@@ -778,7 +778,7 @@ Salt-okunur abonelik modunda (G+10) menü, fiyat, ayar, bölge, personel ekranla
 - **Kullanıcılar:** davet (telefon veya e-posta), rol (`owner`, `manager`, `cashier`, `kitchen`), aktif/pasif, son giriş. `owner` devri yalnız `owner` tarafından ve taze oturumla. Esnaf paketinde 2 kullanıcı (öneri, [01](01-vizyon-pazar-is-modeli.md) §6.3).
 - **PIN:** 4–6 hane; paylaşılan cihazda hızlı kullanıcı değiştirme; 5 hatalı denemede 5 dk kilit (D06 §6.3).
 - **Cihazlar:** [Cihaz ekle] → rol (Kasa / Mutfak) → 8 haneli kod veya QR (10 dk). Liste: ad, rol, son görülme, 🔊 ses durumu, ekran açık mı, uygulama sürümü, **[İptal et]** (60 sn içinde bağlantı düşer).
-- **Kuryeler (P-24):** ad, telefon, aktif; **[Giriş linki gönder]** (platform WhatsApp şablonu, yoksa SMS; link 15 dk tek kullanım, oturum 7 gün), **[Oturumu kapat]**, bugünkü teslimat sayısı (D06 §6.4).
+- **Kuryeler (P-24):** ad, telefon, aktif; **[Giriş linki gönder]** (platform WhatsApp şablonu, yoksa SMS; link tek kullanımlık ve 15 dk içinde açılmalı, D06 §6.4; kurye oturumu **12 saat**, vardiya, KARARLAR §4), **[Oturumu kapat]**, bugünkü teslimat sayısı.
 
 ### 7.12 WhatsApp bağlantı sağlığı kartı (P-25)
 
@@ -813,17 +813,18 @@ Salt-okunur abonelik modunda (G+10) menü, fiyat, ayar, bölge, personel ekranla
 - `manager` kartı salt okunur görür; aksiyonlar `owner`'dadır. [Bağlantıyı kaldır] onay penceresi ister ve taze oturum gerektirir.
 
 ### 7.13 Abonelik ve faturalar (P-27)
-- **[Faz 1]** Plan adı, durum (Deneme · 9 gün kaldı / Pilot · 3 ay ücretsiz / Kurucu üye · %30 indirim, 12 ay), liste fiyatı KDV hariç ve dahil, "Paket seç" (Faz 1'de havale/EFT veya ekip üzerinden), fatura profili (unvan, VKN/TCKN, vergi dairesi, adres, fatura e-postası).
+- **[Faz 1]** Plan adı, durum (Deneme · 9 gün kaldı / Pilot · 3 ay ücretsiz / Kurucu üye · %30 indirim, 12 ay), liste fiyatı KDV hariç ve dahil, "Paket seç" (Faz 1'de havale/EFT veya ekip üzerinden), fatura profili (unvan, VKN/TCKN, vergi dairesi, adres, fatura e-postası), **SMS kotası göstergesi** ("Bu ay SMS: 64 / 100 · Esnaf"; Esnaf 100, Pro 300 SMS/ay; KARARLAR §4; §3.6).
+- **[Faz 2]** Ek SMS paketi satın alma (kota aşımında).
 - **[Faz 2]** Kartla otomatik ödeme, fatura listesi ve indirme (e-Arşiv/e-Fatura, Paraşüt), plan değişikliği (kıst hesap), ödeme bilgisi güncelleme.
 - **Deneme bitişi** (KARARLAR §9): 14. günden sonra plan seçilmediyse **3 gün uyarı bandı** ("Deneme süreniz bitti. 3 gün içinde paket seçmezseniz online sipariş alma durur.") → ardından askı modu (storefront ve bot "şu an online sipariş alınmıyor, lütfen arayın") → 90 gün içinde plan seçilirse veriler aynen döner, sonra silinir.
-- **Dunning bantları** (KARARLAR §9, [08](08-mevzuat-kvkk-odeme-fatura.md) §6.3): G0 sarı "Kartınızı güncelleyin", G+7 kırmızı + "Havale ile öde" referans kodu, **G+10 salt-okunur**, **G+21 askı** ("Online sipariş alma durdu. Ödeme yapınca dakikalar içinde açılır."), G+45 yalnız "Öde ve devam et" + "Verilerimi dışa aktar".
+- **Dunning bantları** (KARARLAR §9, [08](08-mevzuat-kvkk-odeme-fatura.md) §6.3): G0 sarı "Kartınızı güncelleyin", G+7 kırmızı + "Havale ile öde" referans kodu, **G+10 salt-okunur**, **G+21 askı** ("Online sipariş alma durdu. Ödeme yapınca dakikalar içinde açılır."), G+45 fesih bildirimi: panelde yalnız "Öde ve devam et" + "Verilerimi dışa aktar" (30 günlük dışa aktarma penceresi), **G+75** hesap kapatma ve veri silme süreci.
 
 ### 7.14 Yasal metinler, KVKK ve veri (P-28)
 - **İşletme adına metinler** (otomatik üretilir, işletme bilgileriyle dolar, önizlenir): son müşteri aydınlatma metni, ön bilgilendirme formu, mesafeli satış sözleşmesi şablonu, künye sayfası. Sürüm ve yayın tarihi görünür ([08](08-mevzuat-kvkk-odeme-fatura.md) §7.4).
 - **Bizimle sözleşmeler:** kabul edilen abonelik sözleşmesi, DPA ve alt işleyen listesi, sürüm, kabul tarihi, kabul eden kullanıcı; yeni sürümde click-wrap.
 - **Müşteri verisi saklama süresi:** hareketsiz müşteri anonimleştirme süresi 6–24 ay (varsayılan 24) ([08](08-mevzuat-kvkk-odeme-fatura.md) §2.8 satır 6); değişiklik audit log'a.
 - **KVKK başvuru kutusu:** başvuru kaydı (tarih, kanal, talep türü, müşteri, **son tarih = başvuru + 30 gün**, durum); son tarihe 7 gün kala uyarı; müşteri profilindeki işlemlere bağlantı ([08](08-mevzuat-kvkk-odeme-fatura.md) §2.10). Storefront'tan self-servis başvuru **[Faz 2]**.
-- **İşletme verisini dışa aktar:** menü, müşteriler, siparişler, sohbet meta verisi (JSON + CSV); `owner`, taze oturum. Fesih sonrası 30 günlük pencere bu butonla kullanılır.
+- **İşletme verisini dışa aktar:** menü, müşteriler, siparişler, sohbet meta verisi (JSON + CSV); `owner`, taze oturum. Fesih sonrası 30 günlük pencere bu butonla kullanılır. (Tek müşteriye ait KVKK dışa aktarma/silme talepleri bundan ayrıdır: P-31'de `owner` ve `manager`, KARARLAR §4.)
 - **Destek erişim kayıtları:** "Destek ekibi 14.02–14.20 arası hesabınızı görüntüledi (Can, talep #482)" (D06 §6.7).
 
 ### 7.15 Kabul kriterleri (ayarlar)
@@ -864,7 +865,7 @@ Salt-okunur abonelik modunda (G+10) menü, fiyat, ayar, bölge, personel ekranla
 ## 9. Kurye görünümü **[Faz 1]**
 
 ### 9.1 Giriş (K-01)
-- `owner`/`manager` P-24'ten **[Giriş linki gönder]** der; kurye telefonuna platform WhatsApp şablonu (yoksa SMS) ile `panel.siparisinonunde.com/kurye/giris?t=…` gelir. Link 15 dk geçerli ve tek kullanımlık, oturum 7 gün (D06 §6.4). Şifre yok.
+- `owner`/`manager` P-24'ten **[Giriş linki gönder]** der; kurye telefonuna platform WhatsApp şablonu (yoksa SMS) ile `panel.siparisinonunde.com/kurye/giris?t=…` gelir. Link tek kullanımlıktır ve 15 dk içinde açılmalıdır (D06 §6.4); açılan kurye oturumu **12 saat** (vardiya) sürer (KARARLAR §4). Süre dolunca kurye ekranında "Oturum süreniz doldu. İşletmenizden yeni giriş linki isteyin." yazar. Şifre yok.
 - Kurye görünümü SSE kullanmaz: 30 sn yoklama + atamada Web Push. İlk açılışta "Bildirimlere izin ver" ve "Ana ekrana ekle" rehberi.
 
 ### 9.2 Atanan siparişler (K-02) ve detay (K-03)

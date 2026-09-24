@@ -406,7 +406,8 @@ Bu şablonlar **yalnız pencere dışında** kullanılır (§4.4). Pencere için
 | `siparis_yolda_v1` | Utility | 1 işletme adı, 2 tahmini dakika, 3 sipariş no, 4 ödeme yöntemi | URL "Siparişi takip et" | `on_the_way` |
 | `siparis_teslim_v1` | Utility | 1 işletme adı, 2 sipariş no | URL "Değerlendir" → `/t/{{1}}#degerlendir` | `delivered` |
 | `siparis_reddedildi_v1` | Utility | 1 işletme adı, 2 sebep, 3 sipariş no | — | `rejected` |
-| `siparis_iptal_v1` | Utility | 1 sipariş no, 2 sebep, 3 işletme adı | — | `cancelled` |
+| `siparis_iptal_v1` | Utility | 1 sipariş no, 2 sebep, 3 işletme adı | — | `cancelled` (`tenant_no_response` hariç) |
+| `siparis_iptal_yanitsiz_v1` | Utility | 1 sipariş no, 2 işletme adı, 3 işletme telefonu | — | `new → cancelled`, `cancelled_by = system`, `tenant_no_response` (§10.3 basamak 6) |
 | `yanit_bekliyor_v1` | Utility (risk: marketing'e çevrilebilir) | 1 müşteri adı, 2 işletme adı | Hızlı yanıt "Devam et" | Panelden 24 saatten eski sohbete yanıt |
 | `kampanya_genel_v1` **[Faz 2]** | Marketing | 1 işletme adı, 2 kampanya metni, 3 bitiş tarihi | URL "Menüyü aç", hızlı yanıt "Kampanyaları durdur" | Yalnız kampanya modülünden, opt-in'li müşteriye; otomatik oluşturulmaz |
 
@@ -418,10 +419,33 @@ Bu şablonlar **yalnız pencere dışında** kullanılır (§4.4). Pencere için
 - **`siparis_teslim_v1`** — "Siparişiniz teslim edildi, afiyet olsun! {{1}} olarak bizi tercih ettiğiniz için teşekkür ederiz. Sipariş no: {{2}}. Deneyiminizi aşağıdaki bağlantıdan paylaşabilirsiniz."
 - **`siparis_reddedildi_v1`** — "Üzgünüz, {{1}} siparişinizi şu anda alamıyor. Sebep: {{2}}. Sipariş no: {{3}}. Anlayışınız için teşekkür ederiz."
 - **`siparis_iptal_v1`** — "Siparişiniz iptal edildi. Sipariş no: {{1}}. Sebep: {{2}}. Sorunuz varsa bu mesajı yanıtlayarak {{3}} ile görüşebilirsiniz."
+- **`siparis_iptal_yanitsiz_v1`** — "Üzgünüz, {{1}} numaralı siparişiniz {{2}} tarafından zamanında onaylanamadığı için iptal edildi. Siparişinizi telefonla vermek isterseniz {{3}} numarasını arayabilirsiniz. Sizi beklettiğimiz için özür dileriz."
 - **`yanit_bekliyor_v1`** — "Merhaba {{1}}, {{2}} olarak mesajınızı gördük ve yanıtlamak istiyoruz. Devam etmek için aşağıdaki butona dokunmanız yeterli."
 - **`kampanya_genel_v1`** — "Merhaba, {{1}} size özel bir fırsat hazırladı: {{2}}. Kampanya {{3}} tarihine kadar geçerli. Kampanya mesajı almak istemiyorsanız \"Kampanyaları durdur\"a dokunun."
 
-Sebep değişkeni, [00](00-kararlar-ve-sozluk.md) §5'teki ret sebeplerinin Türkçe karşılıklarıdır: "işletme şu an kapalı", "adresiniz teslimat bölgesi dışında", "ürün tükendi", "diğer: {kısa not}".
+**Sebep değişkeni metinleri.** `{{2}}`, [00](00-kararlar-ve-sozluk.md) §5'teki sebep kodunun kısa Türkçe karşılığıdır; aynı kısa metin WhatsApp'sız moddaki SMS-03a/03b'de de kullanılır. Pencere içinde giden serbest mesajın tam metni (sebebe göre buton dahil) [03](03-musteri-deneyimi-ve-storefront.md) §9.2 M11/M12'dedir; kanonik kısa metin bu tablodur. Değişkende satır sonu olmaz, promosyon filtresinden geçer (§5.1).
+
+| `rejection_reason` (`siparis_reddedildi_v1`) | `{{2}}` metni | Pencere içi mesaj notu |
+|---|---|---|
+| `closed` | işletme şu an kapalı | Açılış saati eklenir (M11) |
+| `out_of_zone` | adresiniz teslimat bölgesi dışında | Gel-al açıksa "Gel-al sipariş ver" butonu |
+| `item_unavailable` | siparişinizdeki bir ürün tükendi | Ürün adı + "Menüyü aç" butonu |
+| `too_busy` | yoğunluk nedeniyle şu an sipariş alınamıyor | "Biraz sonra tekrar deneyebilirsiniz" |
+| `duplicate` | aynı sipariş daha önce alındı, diğer siparişiniz geçerli | Diğer siparişin numarası eklenir |
+| `suspected_fake` | ayrıntı için lütfen işletmeyi arayın | Nötr metin, suçlama yok; şube telefonu eklenir |
+| `other` | işletmenin yazdığı not (zorunlu, en fazla 140 karakter) | Not promosyon filtresinden geçer |
+
+| `cancel_reason` (`siparis_iptal_v1`) | `{{2}}` metni | Not |
+|---|---|---|
+| `customer_request` | isteğiniz üzerine | `awaiting_customer`, `new` veya onay sonrası müşteri iptali |
+| `customer_timeout` | sipariş onayınız süresi içinde gelmedi | Yalnız Akış C [Faz 2]; Akış B'nin 30 dk zaman aşımında mesaj gitmez |
+| `tenant_no_response` | — | Ayrı şablon `siparis_iptal_yanitsiz_v1` (özür + işletme telefonu); pencere içinde [03](03-musteri-deneyimi-ve-storefront.md) M12d; bütçe dışı |
+| `item_unavailable` | siparişinizdeki bir ürün tükendi | |
+| `courier_issue` | teslimat şu an yapılamıyor | |
+| `duplicate` | aynı siparişin tekrarı, diğer siparişiniz geçerli | |
+| `suspected_fake` | ayrıntı için lütfen işletmeyi arayın | Nötr metin |
+| `payment_timeout` [Faz 2] | online ödeme süresi içinde tamamlanmadı | Online ödeme |
+| `other` | işletmenin yazdığı not | |
 
 ### 5.3 Platform WABA'sı şablonları (işletmeye)
 

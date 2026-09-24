@@ -505,34 +505,41 @@ Kuyruk adları [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5'teki kan
 
 ### 8.2 Outbox deseni
 ```sql
-CREATE TABLE outbox (
+CREATE TABLE outbox (                      -- tam alan listesi: 07 §3.4
   id uuid PRIMARY KEY DEFAULT uuidv7(),
   tenant_id uuid NOT NULL,
-  topic text NOT NULL,                      -- 'wa.send' | 'notify.alarm' | 'print.job' | 'llm.parse' ...
+  branch_id uuid,
+  topic text NOT NULL,                      -- 'wa.send' | 'sms.send' | 'notify.alarm' | 'order.finalize_rejection' | 'print.job' ...
   dedupe_key text NOT NULL UNIQUE,          -- 'order:{id}:accepted'
+  aggregate_type text NOT NULL,             -- 'order' | 'conversation' | 'tenant' ...
+  aggregate_id uuid NOT NULL,
   payload jsonb NOT NULL,
-  status text NOT NULL DEFAULT 'pending',   -- pending | dispatched | done | dead
-  available_at timestamptz NOT NULL DEFAULT now(),
-  attempts int NOT NULL DEFAULT 0
+  status text NOT NULL DEFAULT 'pending',   -- pending | dispatched | done | dead | cancelled
+  available_at timestamptz NOT NULL DEFAULT now(),   -- ileri tarih: 60 sn debounce (Akış A), 30 sn bekleyen ret
+  attempts int NOT NULL DEFAULT 0,
+  last_error text
 );
 ```
+
+- **Konu → kuyruk eşlemesi** [07](07-veri-modeli-ve-api.md) §7.2'dedir (`wa.send` → `wa-outbound`; `sms.send`, `notify.*`, `order.finalize_rejection` → `notify`; `print.job` → `print` …).
+- **Ret geri alma (30 sn "bekleyen ret"):** Ret aksiyonu durumu değiştirmez; `orders.rejection_scheduled_at` yazılır, alarm adımları durur ve `available_at = now + 30 sn` ile `order.finalize_rejection` kaydı açılır. "Geri al" bu kaydı `cancelled` yapar. Süre dolunca `notify` işçisi `new → rejected` geçişini ve müşteri mesajını aynı transaction'da yazar. `rejected → new` geçişi yoktur ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7).
 
 - İş olayı ve outbox kaydı **aynı transaction'da** yazılır. Transaction içinden dış servis çağrılmaz.
 - **Dağıtıcı:** Transaction içinde `pg_notify('outbox')` gönderilir. Dağıtıcı bildirimle uyanır, ayrıca her 1 sn'de bir `sys_claim_outbox(100)` çağırır (`FOR UPDATE SKIP LOCKED`, `app_system` sahipli). Kayıtlar BullMQ'ya `jobId = outbox.id` ile eklenir ve `dispatched` olur.
 - **Süpürücü (1 dk):** 30 sn'den eski `pending` kayıtlarla, işi Redis'te kaybolmuş `dispatched` kayıtları yeniden kuyruğa atar. Teslim en az bir kez (at-least-once) yapılır, tüketiciler idempotenttir.
-- Webhook ingress de aynı mantıkla çalışır: ham olay DB'de, kuyruğa eklenemeyenleri süpürücü toplar ([02](02-whatsapp-entegrasyonu.md) §7.1).
+- Webhook ingress de aynı mantıkla çalışır: ham olay `wa_webhook_events`'te, kuyruğa eklenemeyenleri süpürücü toplar ([02](02-whatsapp-entegrasyonu.md) §7.1). DB'ye ulaşılamadığında ingress düğümünün yerel spool'u devreye girer ve DB dönünce aynı idempotent yazımla boşaltılır (§13.3).
 
 ### 8.3 Idempotency anahtarları
 | Nokta | Anahtar | Davranış |
 |---|---|---|
-| Webhook ingress | `sha256(ham gövde)` → `wa_webhook_event.id` | `ON CONFLICT DO NOTHING`; 30 gün saklanır |
-| Gelen mesaj | `message.wamid` UNIQUE | Tekrar → işlem yok |
+| Webhook ingress (iki düğüm + spool) | `sha256(ham gövde)` → `wa_webhook_events.id` | `ON CONFLICT DO NOTHING`; 30 gün saklanır |
+| Gelen mesaj | `messages.wamid` UNIQUE | Tekrar → işlem yok |
 | Kuyruk işi | BullMQ `jobId` (olay hash'i, `outbox.id`, `alarm:{order}:{adım}`) | Aynı iş ikinci kez eklenmez |
-| Storefront sipariş gönderimi | `Idempotency-Key` başlığı (checkout denemesi başına istemci UUID'si) → `idempotency_key(tenant_id, key, request_hash, response)` | 24 sa. Aynı anahtar + aynı gövde → ilk yanıt; farklı gövde → 422 |
-| Panel durum aksiyonları | FSM + `order.version` (iyimser kilit) | Hedef duruma zaten geçilmişse 200 (no-op); eski sürüm → 409 |
+| Storefront sipariş gönderimi, OTP, manuel sipariş, kurye aksiyonları | `Idempotency-Key` başlığı (istemci UUID'si) → `idempotency_keys(tenant_id, scope, key, request_hash, response_body)` | 24 sa. Aynı anahtar + aynı gövde → ilk yanıt; farklı gövde → 422 |
+| Panel durum aksiyonları | FSM + `orders.version` (iyimser kilit, `If-Match`) | Hedef duruma zaten geçilmişse 200 (no-op); eski sürüm → 409 |
 | Giden WhatsApp | `outbox.dedupe_key` (`order:{id}:{event}`, `conv:{id}:{wamid}:{kind}`) | İkinci kayıt oluşmaz; belirsiz sonuçta körlemesine tekrar gönderilmez |
 | Baskı işi | `print:{order}:{printer}:{template}:{kopya_no}` | Ajan tarafında son 500 iş ID'si ile çift baskı engeli |
-| PSP callback **[Faz 2]**, menü içe aktarma **[Faz 2]** | Sağlayıcı işlem no UNIQUE; `(tenant_id, sha256(dosya))` | Tekrar → aynı yanıt / yeniden ayrıştırma yok |
+| PSP callback **[Faz 2]**, menü içe aktarma (**[Faz 1]** iç araç, **[Faz 2]** self-servis) | Sağlayıcı işlem no UNIQUE; `menu_import_drafts (tenant_id, file_sha256)` UNIQUE | Tekrar → aynı yanıt / yeniden ayrıştırma yok |
 
 ### 8.4 Retry, backoff ve DLQ
 - Kalıcı hatalar (şema hatası, bilinmeyen `phone_number_id`, 131047 gibi yeniden denenmeyecek kodlar) **hemen** sonuçlandırılır. Geçici hatalar tablodaki backoff'la denenir.
