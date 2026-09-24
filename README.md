@@ -53,7 +53,7 @@ Ham araştırma raporları ve kaynak bağlantıları: [docs/arastirma/](docs/ara
 - **Takvim:**
   - Talep go/no-go: 20 Kasım 2026.
   - Pilot (10 işletme): Aralık 2026.
-  - Ticari lansman hedefi: 8 Şubat 2027.
+  - Ticari lansman hedefi: 15 Şubat 2027.
 
 ## Geliştirme kuralları
 

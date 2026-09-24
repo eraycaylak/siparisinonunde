@@ -104,8 +104,8 @@ gantt
   Sprint 1–6                           :c1, 2026-09-28, 82d
   Pilot öncesi kapı (P0)               :milestone, 2026-12-04, 0d
   section Pilot ve lansman
-  Pilot 3 dalga (10 işletme)           :d1, 2026-12-07, 60d
-  Ticari lansman (hedef)               :milestone, 2027-02-08, 0d
+  Pilot 3 dalga (10 işletme)           :d1, 2026-12-07, 68d
+  Ticari lansman (hedef)               :milestone, 2027-02-15, 0d
 ```
 
 | Tarih | Kilometre taşı |
@@ -116,8 +116,9 @@ gantt
 | 20 Kasım | **Talep go/no-go kapısı:** işletme başı haftada ≥ 5 kendi kanal siparişi, kart→sipariş ≥ %3, ödeme niyeti. **NO-GO olursa ağır geliştirme durur.** |
 | 4 Aralık | Pilot öncesi kapı ("sipariş kaçmaz" paketi hazır) |
 | 7–21 Aralık | Pilot 3 dalgada canlı (3 + 4 + 3 işletme) |
-| 29 Ocak 2027 | Ticari lansman kapısı |
-| 8 Şubat 2027 | Ticari lansman (hedef), kurucu üye programı açılır |
+| 29 Ocak 2027 | Ticari lansman ön-onay kapısı (ilk dalganın verisiyle) |
+| 12 Şubat 2027 | Ticari lansman kesin kararı (son dalganın 8. haftası) |
+| 15 Şubat 2027 | Ticari lansman (hedef), kurucu üye programı açılır |
 | ≈ Haziran 2027 | Faz 2 sonu, ~100 işletme |
 | ≈ Mart 2028 | Faz 3 sonu, ikinci şehir, 1.000 işletmeye doğru |
 
