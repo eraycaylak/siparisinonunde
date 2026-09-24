@@ -106,8 +106,8 @@ export function OnboardingWizard() {
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
-        <nav aria-label="Kurulum adımları" className="flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-4 lg:grid-cols-[16rem_minmax(0,1fr)]">
+        <nav aria-label="Kurulum adımları" className="relative flex min-w-0 gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible">
           {status.steps.map((s, i) => {
             const Icon = STEP_ICONS[s.code];
             const active = s.code === step.code;

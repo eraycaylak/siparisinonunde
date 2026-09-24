@@ -70,8 +70,8 @@ export function LocationPicker({ value, onChange }: { value: LatLng | null; onCh
   return (
     <div className="flex flex-col gap-3">
       <div className="relative h-72 w-full overflow-hidden rounded-lg border border-border bg-surface sm:h-80">
-        <div ref={ref} className="absolute inset-0" aria-label="Şube konumu haritası" role="application" />
-        {status !== 'ready' ? (
+        <div ref={ref} className="size-full" aria-label="Şube konumu haritası" role="application" />
+        {status === 'loading' || status === 'error' ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center text-sm text-fg-muted">
             {status === 'error' ? (
               <>
@@ -82,6 +82,11 @@ export function LocationPicker({ value, onChange }: { value: LatLng | null; onCh
               'Harita yükleniyor…'
             )}
           </div>
+        ) : null}
+        {status === 'degraded' ? (
+          <p className="pointer-events-none absolute inset-x-2 top-2 rounded-md bg-surface-raised/95 px-3 py-2 text-xs text-fg-muted shadow-sm">
+            Harita altlığı şu an yüklenemedi; işaret ve çizim yine çalışır.
+          </p>
         ) : null}
       </div>
       <p className="text-sm text-fg-muted">Haritaya dokunarak şubenizin yerini işaretleyin; pini sürükleyerek düzeltebilirsiniz.</p>

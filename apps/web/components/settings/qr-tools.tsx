@@ -169,25 +169,27 @@ export function QrTools() {
             <h3 className="text-base font-semibold text-fg">Paket içi kart (85×55 mm)</h3>
             <div
               id="print-card"
-              className="mx-auto grid w-full max-w-[85mm] grid-cols-[1fr_auto] gap-[3cqw] overflow-hidden border border-border bg-white p-[4cqw] text-[#111827] shadow-sm"
+              className="mx-auto w-full max-w-[85mm] overflow-hidden border border-border bg-white text-[#111827] shadow-sm"
               style={{ aspectRatio: '85 / 55', containerType: 'inline-size' }}
             >
-              <div className="flex min-w-0 flex-col gap-[1.5cqw]">
-                <span className="text-[5.5cqw] font-extrabold leading-tight" style={{ color: palette.brandStrong }}>
-                  {t.name}
-                </span>
-                <span className="text-[4.5cqw] font-bold leading-tight">{headline}</span>
-                {subline ? <span className="text-[3.5cqw]">{subline}</span> : null}
-                {e164 ? <span className="text-[4cqw] font-semibold">{formatPhone(e164)}</span> : null}
-                <span className="mt-auto text-[2.4cqw] leading-snug text-[#374151]">{kvkk}</span>
-              </div>
-              <div className="flex w-[30cqw] items-center">
-                {waQr ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={waQr} alt="WhatsApp QR" className="w-full" />
-                ) : (
-                  <span className="text-[3cqw] text-[#6b7280]">Numara girin</span>
-                )}
+              <div className="grid size-full grid-cols-[1fr_auto] gap-[3cqw] p-[5cqw]">
+                <div className="flex min-w-0 flex-col gap-[1.5cqw]">
+                  <span className="text-[6cqw] font-extrabold leading-tight" style={{ color: palette.brandStrong }}>
+                    {t.name}
+                  </span>
+                  <span className="text-[4.8cqw] font-bold leading-tight">{headline}</span>
+                  {subline ? <span className="text-[3.8cqw]">{subline}</span> : null}
+                  {e164 ? <span className="text-[4.2cqw] font-semibold">{formatPhone(e164)}</span> : null}
+                  <span className="mt-auto text-[2.6cqw] leading-snug text-[#374151]">{kvkk}</span>
+                </div>
+                <div className="flex w-[32cqw] items-center">
+                  {waQr ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={waQr} alt="WhatsApp QR" className="w-full" />
+                  ) : (
+                    <span className="text-[3cqw] text-[#6b7280]">Numara girin</span>
+                  )}
+                </div>
               </div>
             </div>
             <Button variant="secondary" onClick={() => setPrintTarget('card')} disabled={!waQr}>

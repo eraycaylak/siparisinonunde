@@ -101,7 +101,7 @@ export function HoursEditor({ onSaved }: { onSaved?: () => void }) {
       <Section title="Haftalık saatler" description="Kapanış açılıştan önceyse ertesi güne sarkar (ör. 18.00–02.00). Kapalı günlerde sipariş alınmaz.">
         <div className="flex flex-wrap gap-2">
           {TEMPLATES.map((t) => (
-            <Button key={t.label} variant="secondary" size="sm" onClick={() => setWeek(t.build())}>
+            <Button key={t.label} variant="secondary" size="sm" className="h-auto whitespace-normal py-2 text-start" onClick={() => setWeek(t.build())}>
               {t.label}
             </Button>
           ))}

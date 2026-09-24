@@ -250,6 +250,8 @@ function SummaryBody({ r, asTable }: { r: SummaryReport; asTable: boolean }) {
             ))}
           </TBody>
         </Table>
+      ) : r.totals.revenueKurus === 0 ? (
+        <p className="rounded-md bg-surface p-4 text-sm text-fg-muted">Bu dönemde teslim edilen sipariş yok; grafik ilk teslimattan sonra dolar.</p>
       ) : (
         <ColumnChart data={data} formatValue={shortTL} ariaLabel="Günlük teslim edilen ciro" />
       )}

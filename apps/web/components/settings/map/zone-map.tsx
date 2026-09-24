@@ -124,8 +124,8 @@ export function ZoneMap({
 
   return (
     <div className="relative h-72 w-full overflow-hidden rounded-lg border border-border bg-surface sm:h-96">
-      <div ref={ref} className="absolute inset-0" role="application" aria-label="Teslimat bölgesi haritası" />
-      {status !== 'ready' ? (
+      <div ref={ref} className="size-full" role="application" aria-label="Teslimat bölgesi haritası" />
+      {status === 'loading' || status === 'error' ? (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-4 text-center text-sm text-fg-muted">
           {status === 'error' ? (
             <>
@@ -136,6 +136,11 @@ export function ZoneMap({
             'Harita yükleniyor…'
           )}
         </div>
+      ) : null}
+      {status === 'degraded' ? (
+        <p className="pointer-events-none absolute inset-x-2 top-2 rounded-md bg-surface-raised/95 px-3 py-2 text-xs text-fg-muted shadow-sm">
+          Harita altlığı şu an yüklenemedi; işaret ve çizim yine çalışır.
+        </p>
       ) : null}
     </div>
   );

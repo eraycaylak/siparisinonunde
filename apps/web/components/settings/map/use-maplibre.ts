@@ -12,7 +12,14 @@ export const MAP_STYLE_URL = 'https://tiles.openfreemap.org/styles/liberty';
 export const DEFAULT_CENTER = { lat: 39.8181, lng: 34.8147 } as const;
 
 export type MaplibreModule = typeof import('maplibre-gl');
-export type MapStatus = 'loading' | 'ready' | 'error';
+export type MapStatus = 'loading' | 'ready' | 'degraded' | 'error';
+
+/** Altlık yüklenemezse (ağ, kota) kullanılan boş stil: işaretler ve çizim yine çalışır. */
+const FALLBACK_STYLE = {
+  version: 8 as const,
+  sources: {},
+  layers: [{ id: 'background', type: 'background' as const, paint: { 'background-color': '#e9edf1' } }],
+};
 
 export function useMaplibre(
   containerRef: RefObject<HTMLDivElement | null>,
@@ -40,18 +47,25 @@ export function useMaplibre(
         });
         map.addControl(new lib.NavigationControl({ showCompass: false }), 'top-right');
         let loaded = false;
-        const timer = window.setTimeout(() => {
-          if (!loaded && !cancelled) setState((s) => (s.status === 'loading' ? { ...s, status: 'error' } : s));
-        }, 12_000);
+        let degraded = false;
+        const fallback = () => {
+          if (loaded || degraded || cancelled || !map) return;
+          degraded = true;
+          try {
+            map.setStyle(FALLBACK_STYLE);
+          } catch {
+            setState({ map: null, lib, status: 'error' });
+          }
+        };
+        const timer = window.setTimeout(fallback, 10_000);
         map.on('load', () => {
           loaded = true;
           window.clearTimeout(timer);
-          if (!cancelled) setState({ map, lib, status: 'ready' });
+          if (!cancelled) setState({ map, lib, status: degraded ? 'degraded' : 'ready' });
         });
-        map.on('error', (e) => {
-          if (!loaded && !cancelled && /style|webgl/i.test(String((e as { error?: Error }).error?.message ?? ''))) {
-            setState({ map: null, lib, status: 'error' });
-          }
+        map.on('error', () => {
+          // Stil/altlık isteği başarısız: boş stile geç (WebGL yoksa Map oluşturulamaz, catch'e düşer)
+          if (!loaded) fallback();
         });
       } catch {
         if (!cancelled) setState({ map: null, lib: null, status: 'error' });
