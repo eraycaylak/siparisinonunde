@@ -153,7 +153,7 @@ Geçişler: `awaiting_customer→new|cancelled`; `new→accepted|rejected|cancel
 - **Altyapı maliyeti (tahmin):** pilot ~$40–100/ay; 100 işletme ~$600–1.200/ay; 1.000 işletme ~$3.500–7.000/ay (en büyük değişken LLM). Yurt içi barındırma fiyatları teklifle netleşir.
 
 ## 11. Fazlar (kanonik isimler)
-- **Talep doğrulama deneyi ("Seviye 0 concierge", Hafta 0–8, geliştirmeyle paralel):** 5–10 işletmede yazılım beklemeden `wa.me` linkli paket içi QR kartı + magnet + doğrudan kanal teşviki; siparişler işletmenin mevcut WhatsApp'ına düşer, ekip sayar (UTM/kod). Soru: pazaryeri müşterisi kendi kanala geçiyor mu? **Go/no-go kapısı** (Hafta 8): işletme başına haftalık kendi kanal siparişi ve ödeme niyeti ölçütleri (10 no'lu dokümanda). En büyük risk talep tarafıdır (R01).
+- **Talep doğrulama deneyi ("Seviye 0 concierge", Hafta 0–8, geliştirmeyle paralel):** 5–10 işletmede yazılım beklemeden `wa.me` linkli paket içi QR kartı + magnet + doğrudan kanal teşviki; siparişler işletmenin mevcut WhatsApp'ına düşer, ekip sayar (UTM/kod). Soru: pazaryeri müşterisi kendi kanala geçiyor mu? **Go/no-go kapısı** (Hafta 8): işletme başına haftalık kendi kanal siparişi ve ödeme niyeti ölçütleri (10 no'lu dokümanda). En büyük risk talep tarafıdır (R01). **NO-GO kuralı:** Hafta 8'de NO-GO çıkarsa Faz 1'in kalan ağır geliştirmesi (Sprint 5–6 kapsamı) durdurulur; ekip pivot seçeneklerini (segment/şehir/teklif değişikliği) 2 hafta içinde değerlendirir; KOŞULLU GO'da pilot yalnız eşikleri karşılayan segmentle sürer.
 - **Faz 0 — Hazırlık (Hafta 0–4):** şirket, marka/alan adı, Meta doğrulama + App Review başvurusu, hukuk metinleri, teknik iskelet, müşteri görüşmeleri (20+ esnaf).
 - **Pilot öncesi zorunlu "sipariş kaçmaz" paketi:** kademeli alarm, sentetik canary sipariş (her tenant için periyodik uçtan uca test), en az iki ayrı sunucu/VM üzerinde webhook alımı (pilotta ucuz ikinci VPS yeterli), PITR yedek, pilot boyunca kurucuların üstlendiği P1 (acil) telefon hattı. Ticari lansmandan önce dış güvenlik incelemesi (pentest).
 - **Faz 1 — MVP (Hafta 1–12, Faz 0 ile paralel başlar):** Akış A, B, E; panel çekirdeği (canlı sipariş ekranı, menü, saatler, teslimat bölgesi, müşteriler, basit rapor, tarayıcıdan fiş yazdırma, personel); **basit kurye görünümü** (kendi kuryesine atama + magic link mobil ekran: yola çıktım/teslim ettim); WhatsApp gelen kutusu (sohbeti görme, yanıtlama, bot/insan modu); storefront + takip sayfası; admin çekirdeği; pazarlama sitesi v1 (hesaplayıcı dahil).
@@ -166,6 +166,7 @@ Geçişler: `awaiting_customer→new|cancelled`; `new→accepted|rejected|cancel
 ## 12. Başarı metrikleri (kanonik)
 - Pilot: işletme başına ilk 14 günde ≥10 kanal siparişi; pilotun 8. haftasında (pilot sonu) siparişlerin ≥%10'u kendi kanalından; panel günlük aktif.
 - Operasyon: sipariş kaçırma oranı %0 hedef (yeni sipariş 2 dk içinde onaylanmazsa alarm); webhook→panel p95 < 3 sn; aylık uptime ≥ %99,9.
+- Koruyucu metrikler: döviz bazlı giderlerin (Meta hariç — işletme öder; LLM, bulut, SaaS araçları) gelire oranı ≤ %15; nakit pisti ≥ 9 ay (altına düşerse harcama gözden geçirilir).
 - İş: CAC ≤ 4.000 TL (Esnaf paketi için ≤ ~2.800 TL), geri ödeme < 4 ay, aylık logo churn ilk yıl %5–7 → sonra < %3, **karma brüt marj ≥ %70 (1.000 işletme ölçeğinde)**; Esnaf giriş paketi bu varsayımlarla %29–67 marjda kalır (bkz. 01 §7 ve açık karar 11).
 
 ## 13. Açık kararlar (proje sahibine sorulacak — dokümanlar varsayılanla yazılır, varsayılan belirtilir)
@@ -179,4 +180,5 @@ Geçişler: `awaiting_customer→new|cancelled`; `new→accepted|rejected|cancel
 8. **AI serbest metin siparişi** hangi paketlerde / kotalı mı? (Varsayılan: Pro ve üstü, adil kullanım kotası.)
 9. **Yemek kartı** online tahsilat ne zaman? (Varsayılan: Faz 1 yalnız kapıda.)
 11. **Esnaf paketi ekonomisi:** Mevcut varsayımlarla Esnaf (990 TL) brüt marjı %29–67; seçenekler: fiyatı artırmak, SMS/AI kotasını düşürmek, Esnaf'ı yalnız yıllık satmak ya da giriş paketi olarak düşük marjı kabul etmek. (Varsayılan: pilot verisiyle Faz 2 fiyat revizyonunda karar.)
+12. **Hesap dondurma (sezonluk işletmeler):** Yazlık/sezonluk işletmeye aylık küçük ücretle dondurma seçeneği sunulsun mu? (Varsayılan: Faz 2'de değerlendirilir; Faz 1'de iptal + 90 gün veri saklama.)
 10. **SLO hedefleri:** aylık erişilebilirlik %99,9 (varsayılan), RPO ≤ 5 dk, RTO ≤ 1 saat.

@@ -544,7 +544,7 @@ D8 (panel dayanıklılık gözlemi) ve D9 (destek yükü) pilotta yapılır (§7
 | S2-07 | E7 Gelen kutusu → Minimal sohbet görünümü ve serbest yanıt (P-08 çekirdeği) | Gelen mesaj panelde görünür. Panelden yazılan yanıt telefona ulaşır (App Review Video 1) | M |
 | S2-08 | E2 → Şablon oluşturma ve durum webhook'u (A-15 çekirdeği) | Panelden utility şablonu gönderilir, durum "İncelemede" → "Onaylandı" olarak güncellenir (Video 2) | M |
 | S2-09 | E2 → Outbox, `wa-outbound` worker, numara ve alıcı limiter'ı | Transaction içinde ağ çağrısı yok. Aynı iş iki kez çalışınca tek mesaj gider | M |
-| S2-10 | E11 → Feature flag ve kill switch (A-13) | `bot_global` kapatılınca hiçbir tenant'ta bot yanıt vermez | S |
+| S2-10 | E11 → Feature flag ve kill switch (A-13) | Kanonik kill switch'ler (KARARLAR §4): `signup_open`, `wa_onboarding`, `sms_fallback`, tenant bazında `ordering_enabled` (Faz 2: `campaigns_global`, `llm_parsing`). Değişiklik tüm süreçlerde ≤ 60 sn'de etkili olur ve audit'e yazılır | S |
 | S2-11 | E4 → Menü önizleme (P-15) | Storefront görünümü panelden açılır | C |
 
 **Teknik işler:** Next.js 16 `proxy.ts`; `images` kuyruğu (EXIF temizleme, varyantlar); R2; App Review videoları için test kullanıcısı ve inceleyici notları (İngilizce).
@@ -566,7 +566,7 @@ D8 (panel dayanıklılık gözlemi) ve D9 (destek yükü) pilotta yapılır (§7
 | S3-07 | E3 → Detay çekmecesi, iptal, durum ilerletme (P-05) | İptal sebebi zorunlu ve `audit_log`'a yazılır | M |
 | S3-08 | E3 → Akış E: telefon siparişi (P-06) | Kanal `manual`. Hızlı ürün ızgarası var. Fiyat sunucuda hesaplanır | M |
 | S3-09 | E5 → Çalışma saatleri ve sipariş alma durumu (P-16, `ordering_state`, S-09) | Kapalıyken checkout kapanır. "Durdur" süresi bitince otomatik açılır. Yoğunluk modunda ETA +15/+30 dk olur | M |
-| S3-10 | E3 → İşletme yanıtsızlığında sistem iptali | 15 dk yanıtsız kalan `new` sipariş `cancelled` olur (`cancelled_by = system`, `tenant_no_response`); sahte saatle test edilir | S |
+| S3-10 | E3 → İşletme yanıtsızlığında sistem iptali (KARARLAR §5, §10) | 15 dk yanıtsız kalan `new` sipariş `cancelled` olur (`cancelled_by = system`, `tenant_no_response`) ve müşteriye özür + telefon bilgisi gider; otomatik ret yoktur; sahte saatle test edilir | M |
 | S3-11 | E3 → Sipariş geçmişi ve arama (P-07) | Sipariş no, isim, telefonun son 4 hanesiyle arama | C |
 
 **Paralel iş:** App Review başvurusu (TL, 27 Ekim). İnceleyiciden soru gelirse aynı gün yanıtlanır. D11 başlar (ES minimal S2'de hazır).
@@ -580,9 +580,9 @@ D8 (panel dayanıklılık gözlemi) ve D9 (destek yükü) pilotta yapılır (§7
 | ID | Epik → hikâye | Kabul kriteri (kısa) | Ö. |
 |---|---|---|---|
 | S4-01 | E2 → Konuşma durum makinesi ve kural tabanlı niyetler | Tablo güdümlü. Konuşma başına sıralı işleme (advisory lock). %100 birim test | M |
-| S4-02 | E2 → Akış A: karşılama, "Menüyü aç" CTA, imzalı token (M01, M01K, M02) | Karşılama D12 sonucuna göre `request_welcome` veya ilk mesajla gider. Token GET'te tüketilmez; oturum çerezine çevrilir, URL temizlenir, "Ben değilim" çalışır. Sipariş doğrudan `new` olur, kanal `wa_link`, müşteri kimliği `(tenant_id, wa_bsuid)` | M |
-| S4-03 | E2 → Durum mesajları (M05, M06, M08, M09, M10 ve M10a–d, M11, M12) + müşteri bildirimleri ayarı (P-20) | Sipariş başına en fazla 4 durum + 1 karşılama mesajı. 60 sn debounce. "Hazırlanıyor" (M07) varsayılan kapalı. Gel-alda "hazır" gider. Pencere dışında utility şablonu kullanılır. Değerlendirme butonları teslim mesajının içinde | M |
-| S4-04 | E1 → Sipariş takip sayfası ve değerlendirme (S-07, S-08) | `/t/{public_token}` tahmin edilemez, `noindex`, 15 sn'de bir yoklanır. Adres ve telefon mesajlarda tekrar edilmez | M |
+| S4-02 | E2 → Akış A: karşılama, "Menüyü aç" CTA, imzalı token (M01, M01K, M02) | Karşılama D12 sonucuna göre `request_welcome` veya ilk mesajla gider. Token GET'te tüketilmez; oturum çerezine çevrilir, URL temizlenir, "Ben değilim" çalışır. Sipariş doğrudan `new` olur, kanal `wa_link`, müşteri kimliği `(tenant_id, wa_bsuid)`. Tam karşılama aynı müşteriye en fazla 12 saatte bir, kısa yanıt en fazla 30 dk'da bir gider; açık siparişi olana durum kartı (M26) gider (KARARLAR §7) | M |
+| S4-03 | E2 → Durum mesajları (M05, M06, M08, M09, M10 ve M10a–d, M11, M12) + müşteri bildirimleri ayarı (P-20) | Sipariş başına en fazla 4 durum + 1 karşılama mesajı. 60 sn debounce yalnız Akış A'da. "Hazırlanıyor" (M07) varsayılan kapalı. Gel-alda "hazır" gider. Pencere dışında utility şablonu kullanılır. Değerlendirme butonları teslim mesajının içinde | M |
+| S4-04 | E1 → Sipariş takip sayfası ve değerlendirme (S-07, S-08) | `/t/{public_token}` tahmin edilemez, `noindex`, 15 sn'de bir yoklanır ve teslimden 7 gün sonra geçersizleşir. Adres ve telefon mesajlarda tekrar edilmez. Değerlendirme Faz 1'de basit: 3 seçenek + isteğe bağlı kısa yorum, yalnız panelde görünür (KARARLAR §7) | M |
 | S4-05 | E10 Onboarding → ES tam akış ve sihirbazın WhatsApp adımı (P-25, P-38 adım 6; [02](02-whatsapp-entegrasyonu.md) §3) | Coexistence varsayılan, yeni numara her zaman görünür. `wa-onboarding-continue` işi idempotent. Görünen ad ve canlı kapısı kontrol edilir. Gerçek +90 numara 15 dk içinde "Canlıya hazır" olur. Aynı `phone_number_id` ikinci bir tenant'a bağlanamaz. Geçmiş ve kişi senkronu varsayılan kapalı | M |
 | S4-06 | E10 → Meta ödeme yöntemi adımı, 131042 uyarısı, bağlantı sağlığı kartı (P-25) | Kart eklenmeden canlıya geçilmez. 131042'de panelde kırmızı kart çıkar ve platform şablonu gider. "Uygulamayı en son ne zaman açtınız" hatırlatması var | M |
 | S4-07 | E7 → Bot/insan modu (Coexistence echo), "Yetkiliyle görüş" kuyruğu, bot ayarı (P-08, P-21, M20) | İşletme telefondan yazınca bot o sohbette 30 dk susar. Panelde "Bot durduruldu · 27 dk" görünür. İnsana devir talebi ayrı sesle uyarır | M |
@@ -601,15 +601,15 @@ D8 (panel dayanıklılık gözlemi) ve D9 (destek yükü) pilotta yapılır (§7
 
 | ID | Epik → hikâye | Kabul kriteri (kısa) | Ö. |
 |---|---|---|---|
-| S5-01 | E2 → Akış B: `awaiting_customer`, sipariş kodu, `wa.me` doğrulaması (M17, M17b–d, S-06B) | Kanal `web`. Müşterinin mesajı gelince BSUID bağlanır ve sipariş `new` olur. 30 dk'da `cancelled` (`customer_timeout`) | M |
-| S5-02 | E2 → SMS OTP yedeği ve "WhatsApp'sız mod" (S-06C) | WhatsApp'ı olmayan müşteri veya bağlantısı tamamlanmamış işletme OTP ile `new` sipariş oluşturur. Durum takip sayfasında görünür; onay ve iptal SMS ile gider. `sms_fallback` kill switch çalışır. Onboarding "Kapı 1" (web + panel) bununla canlıya geçebilir | M |
-| S5-03 | E5 → Teslimat bölgeleri (P-17) | Poligon veya yarıçap çizilir; ücret, min sepet, süre ve öncelik tanımlanır. İlk bölge 2 dakikadan kısa sürede çizilir. Bölge dışı adres checkout'ta yakalanır ve gel-al önerilir (`ST_Covers`) | M |
+| S5-01 | E2 → Akış B: `awaiting_customer`, sipariş kodu, `wa.me` doğrulaması (M17, M17b–d, S-06B) | Kanal `web`, `verification_method = wa_code`. Müşterinin mesajı gelince BSUID bağlanır, sipariş `new` olur ve "Siparişiniz alındı" yanıtı anında gider (debounce yok). 30 dk'da `cancelled` (`customer_timeout`) | M |
+| S5-02 | E2 → SMS OTP yedeği ve "WhatsApp'sız mod" (S-06C) | WhatsApp'ı olmayan müşteri veya bağlantısı tamamlanmamış işletme OTP ile `new` sipariş oluşturur (`verification_method = sms_otp`). Durum takip sayfasında görünür; onay ve iptal SMS ile gider. Platformun onaylı SMS başlığı kullanılır. SMS kota sayacı çalışır (Esnaf 100, Pro 300 SMS/ay; aşımda uyarı; KARARLAR §4). `sms_fallback` kill switch çalışır. Onboarding "Kapı 1" (web + panel) bununla canlıya geçebilir | M |
+| S5-03 | E5 → Teslimat bölgeleri (P-17) | Poligon veya yarıçap çizilir; ücret, min sepet, süre ve öncelik tanımlanır. İlk bölge 2 dakikadan kısa sürede çizilir. Bölge dışı adres checkout'ta yakalanır ve gel-al önerilir (`ST_Covers`). Telefon siparişinde personel uyarıyı görerek bölge dışına sipariş girebilir, kayıt altına alınır (KARARLAR §4) | M |
 | S5-04 | E1 → Adres: harita pini, otomatik tamamlama, WhatsApp konum pini | MapLibre yalnız adres adımında yüklenir. Google kotası izlenir | M |
 | S5-05 | E6 → Tarayıcıdan fiş (P-22) | 58/80 mm mutfak fişi (fiyatsız) ve kasa/kurye fişi. "Mali değeri yoktur" ibaresi. Yeniden basımda "KOPYA". Türkçe karakter testi | M |
 | S5-06 | E3 → Kademeli alarm ([06](06-teknik-mimari.md) §7.6), panel çevrimdışı dedektörü (§7.7), sipariş ve alarm ayarları (P-19), müşteriye gecikme bilgisi (M13, M13a) | Platform WABA uyarısı 2 dk ± 15 sn'de gider; 5. dakikada SMS; 10. dakikada müşteriye M13. Onaylanmış siparişe eskalasyon gitmez | M |
 | S5-07 | E3 → Web Push, PWA, bildirim merkezi (P-40) | Push yükünde PII yok. Ana ekrana ekleme rehberi var | M |
-| S5-08 | E0 → İki katmanlı sentetik canary ([10](10-riskler-operasyon-ve-metrikler.md) §7.3) | Platform canary (ayrı canary numarası, açık saatte 5 dk) ve tenant canary (15 dk, görünmez sentetik sipariş). Ingress durunca en geç 10 dk içinde P1 üretir. Canary kayıtları hiçbir işletme ekranında ve raporunda görünmez | M |
-| S5-09 | E0 → En az iki bağımsız ingress düğümü ve kaos testi | `api-hooks` ayrı makinelerde (tercihen farklı TR lokasyonunda) çalışır (10 açık konu 1). Rolling deploy'da sıfır kayıp. DB 5 dk kapalı, Redis kaybı ve worker çökmesi senaryoları kayıpsız atlatılır | M |
+| S5-08 | E0 → İki katmanlı sentetik canary ([10](10-riskler-operasyon-ve-metrikler.md) §7.3) | Platform canary (ayrı canary numarası, açık saatte 5 dk) ve tenant canary (15 dk, `test_kind = canary` görünmez sentetik sipariş). Ingress durunca en geç 10 dk içinde P1 üretir. Canary kayıtları hiçbir işletme ekranında ve raporunda görünmez | M |
+| S5-09 | E0 → En az iki bağımsız ingress düğümü ve kaos testi | `api-hooks` en az iki ayrı sunucu/VM'de çalışır; pilotta ikinci düğüm ucuz bir VPS olabilir (KARARLAR §11, [06](06-teknik-mimari.md) §13.3). Rolling deploy'da sıfır kayıp. DB 5 dk kapalı, Redis kaybı ve worker çökmesi senaryoları kayıpsız atlatılır | M |
 | S5-10 | E0 → Geri yükleme tatbikatı #1, yük testi v0 | İzole sunucuda PITR, ölçülen RTO ≤ 1 sa. Webhook yük hedefi karşılanır ([06](06-teknik-mimari.md) §16.4) | M |
 | S5-11 | E11 → KVKK talep aracı (A-17) ve manuel prosedür | Dışa aktarma ve anonimleştirme audit'li yapılır. Başvuru 30 gün içinde yanıtlanır | M |
 | S5-12 | E4 → AI menü çıkarma iç aracı (A-22) | Fotoğraf veya PDF'ten taslak tablo çıkar. İnsan onayı olmadan yayına çıkmaz | S |
@@ -617,7 +617,7 @@ D8 (panel dayanıklılık gözlemi) ve D9 (destek yükü) pilotta yapılır (§7
 
 **Paralel iş:** Son müşteri hukuk seti storefront'ta yayında (S-10). Runbook'lar ([10](10-riskler-operasyon-ve-metrikler.md) §6.6) ve her nöbetçi için bir runbook tatbikatı. Pilot Dalga 1 kurulumu (H10, flag kapalı).
 **Demo = P0 kapısı (4 Aralık):** §11.1 kontrol listesi madde madde gözden geçirilir.
-**Riskler:** SMS başlık onayının gecikmesi (başvuru H2'de yapılmış olmalı). İkinci ingress düğümü için ek sunucu gerekir (barındırma sözleşmesine eklenir). Sprint çok yüklü: S5-12 kayabilir, bu durumda Dalga 1 menüleri elle girilir.
+**Riskler:** SMS başlık onayının gecikmesi (başvuru H2'de yapılmış olmalı). İkinci ingress düğümü için ek VPS gerekir (barındırma sözleşmesine eklenir). Sprint çok yüklü: S5-12 kayabilir, bu durumda Dalga 1 menüleri elle girilir.
 
 ### 5.8 S6 — Kurye, gelen kutusu, raporlar, admin, site, güvenlik (H11–H12 · 7–18 Ara)
 
@@ -627,9 +627,9 @@ D8 (panel dayanıklılık gözlemi) ve D9 (destek yükü) pilotta yapılır (§7
 |---|---|---|---|
 | S6-01 | E6 → Kuryeler (P-24) ve kurye görünümü (K-01…K-03) | Kurye şifresiz magic link ile girer, oturum en fazla 12 sa sürer. "Teslim ettim" siparişi `delivered` yapar ve M10'u tetikler. Çevrimdışıyken aksiyon kuyruğa alınır | M (kesilirse Faz 2 başı) |
 | S6-02 | E7 → Tam gelen kutusu (P-08) ve hazır cevaplar (P-21) | Pencere geri sayımı, hazır cevaplar. Pencere dışında serbest yazma kilitli, "Şablonla yaz" var. Sohbetten sipariş oluşturulabilir | M |
-| S6-03 | E8 → Müşteriler ve müşteri profili, KVKK işlemleri (P-30, P-31) | Telefon maskeli. Sağlık verisi için uyarı metni. Dışa aktarma ve silme panelden yapılır | M |
+| S6-03 | E8 → Müşteriler ve müşteri profili, KVKK işlemleri (P-30, P-31) | Telefon maskeli. Sağlık verisi için uyarı metni. Dışa aktarma ve silme panelden yalnız `owner` ve `manager` tarafından yapılır (KARARLAR §4) | M |
 | S6-04 | E9 → Gün sonu kasa (P-32), temel raporlar (P-33), tasarruf ve Meta maliyeti (P-34), değerlendirmeler (P-35) | "Bu ay kendi kanalından X sipariş, tahmini Y TL tasarruf" ve "bu ay Meta'ya tahmini ödeme" kartları | M |
-| S6-05 | E11 → Admin ekranları (A-02…A-05, A-07…A-10, A-12, A-14, A-16, A-18…A-21) | 2FA ve IP kısıtı. Impersonation (A-09) varsayılan salt okunur; yazma modunda sebep ve en fazla 30 dk süre zorunlu; üst bant ve audit kaydı. A-08 Faz 1'de manuel | M |
+| S6-05 | E11 → Admin ekranları (A-02…A-05, A-07…A-10, A-12, A-14, A-16, A-18…A-21) | 2FA ve IP kısıtı; oturum 8 saat, 30 dk hareketsizlikte kilit. Impersonation (A-09) en fazla 30 dk, varsayılan salt okunur, gerekçe zorunlu, işletmeye bildirim ve audit kaydı (KARARLAR §4). A-08 Faz 1'de manuel | M |
 | S6-06 | E10 → QR, afiş ve paket kartı (P-36), link rehberi (P-37), yardım (P-39) | 3 şablon, logo ile 1 dakikada PDF. Her QR `src` taşır | M |
 | S6-07 | E12 → Pazarlama sitesi v1 ([05](05-admin-paneli-ve-pazarlama-sitesi.md) C.2'deki Faz 1 sayfaları; blog Faz 2) | Fiyatlar KDV hariç ve dahil. Hesaplayıcı sonucu e-posta duvarı arkasında değil. Demo formu en fazla 6 alan. Yasal sayfalar ve çerez rıza paneli var | M |
 | S6-08 | E0 → Güvenlik sertleştirme | ASVS L1 iç kontrol listesi tamam. ZAP baseline temiz. Rate limit ve Turnstile, `security.txt`, bağımlılık taraması | M |
@@ -739,7 +739,7 @@ Kanonik liste [10](10-riskler-operasyon-ve-metrikler.md) §5.5'tir: **(A)** ziya
 - [ ] **T–3 gün:** Menü A-22 aracıyla (veya elle) girildi; fiyatları işletme sahibi yazılı olarak onayladı (WhatsApp mesajı yeterli). Künye alanları (P-26) eksiksiz. D4'te kazanan teşvik materyale uygulandı. Meta durumu netleşti: Live mod, Plan A' (tester) veya Plan B (partner).
 - [ ] **T0, Kapı 1'den önce:** Click-wrap kabul: abonelik sözleşmesi, DPA ve pilot katılım koşulları (3 ay ücretsiz + concierge karşılığında haftalık geri bildirim ve vaka izni). Kabuller `legal_acceptances`'a yazıldı.
 - [ ] **T0, Kapı 1:** `cashier` ve `courier` hesapları açıldı, kasa tableti P-02 ile eşleştirildi ve PIN verildi. Yazıcıdan test fişi basıldı (58/80 mm, Türkçe karakterler, kiosk yazdırma ayarı). Kasaya 1 sayfalık "kasiyer kartı" ve P1 hattı etiketi bırakıldı.
-- [ ] **T0, Kapı 2:** Uçtan uca test: sahibin telefonundan Akış A, ardından Akış B ve Akış E. Kurye magic link'i kuryenin telefonunda (S6'dan sonra).
+- [ ] **T0, Kapı 2:** Uçtan uca test (`test_kind = onboarding_test`, raporlara girmez): sahibin telefonundan Akış A, ardından Akış B ve Akış E. Kurye magic link'i kuryenin telefonunda (S6'dan sonra).
 - [ ] **T0, kapanış:** Bot ve storefront "yayında" flag'i açıldı (yalnız P0 geçildiyse). `lifecycle_stage = pilot`. İşletme admin'deki pilot panosuna eklendi.
 
 ### 7.4 İlk 14 günün takip ritmi
@@ -772,7 +772,7 @@ Kanonik liste [10](10-riskler-operasyon-ve-metrikler.md) §8.7'deki **pilot baş
 | # | Kriter | Eşik | Kaynak |
 |---|---|---|---|
 | P1 | İşletme başına ilk 14 günde kanal siparişi | ≥ 10 | KARARLAR §12 |
-| P2 | 60. günde kendi kanal payı | ≥ %10 | KARARLAR §12 |
+| P2 | Pilotun 8. haftasında (pilot sonu) kendi kanal payı | ≥ %10 | KARARLAR §12 |
 | P3 | Panelin günlük aktif kullanımı | Açık günlerin ≥ %90'ında [T] | 10 §8.7 |
 | P4 | Sistem kaynaklı kaçan sipariş (tanım 10 §7.2) | 0 | KARARLAR §12 |
 | P5 | Webhook → panel p95 | < 3 sn | KARARLAR §12 |
@@ -788,7 +788,7 @@ Kanonik liste [10](10-riskler-operasyon-ve-metrikler.md) §8.7'deki **pilot baş
 
 **Geçiş koşulu:** Pilot başarı kartı (§7.6) tutuyor. §11.2'deki ticari lansman kontrol listesi kapandı.
 
-**Takvim ve 60. gün notu:** K4 toplantısı 29 Ocak 2027'dedir (H18). Dalga 1'in 60. günü 5 Şubat 2027 olduğu için P2 o gün kesinleşir (H19) ve lansman kararı 5 Şubat'ta onaylanır. Dalga 2–3'ün 60. gün ölçümleri lansman sonrasında izlenir ([10](10-riskler-operasyon-ve-metrikler.md) açık konu 7).
+**Takvim ve dalga notu:** K4 toplantısı 29 Ocak 2027'dedir (H18). P2 her dalganın kendi 8. haftasında ölçülür: Dalga 1 H18'de, Dalga 2 H19'da, Dalga 3 H20'de (lansman haftası). Bu yüzden lansman kararı 5 Şubat'ta Dalga 1–2 verisiyle kesinleşir; Dalga 3'ün sonucu lansman haftasında eklenir ([10](10-riskler-operasyon-ve-metrikler.md) açık konu 7).
 
 **Geçemezse (10 §4.10):** Ticari lansman ertelenir. En büyük 3 sorun çözülür, pilot 6 hafta uzatılır. Metrikler tuttuğu halde yalnız abonelik tahsilatı hazır değilse lansman havale/EFT ve manuel faturayla yapılır ([08](08-mevzuat-kvkk-odeme-fatura.md) §6.1).
 
@@ -802,7 +802,7 @@ Kanonik liste [10](10-riskler-operasyon-ve-metrikler.md) §8.7'deki **pilot baş
 
 | # | Epik | Kapsam | Efor | Bağımlılık | İş gerekçesi | Dönem |
 |---|---|---|---|---|---|---|
-| F2-01 | **Ticari altyapı** | Paket hakları (`plan_feature`), PSP kart saklama ve tekrarlayan çekim, faturalama motoru, Paraşüt e-Arşiv/e-Fatura, havale/EFT, dunning (G+1/3/7 → G+10 salt-okunur → G+21 askı → G+75), deneme bitişi, kurucu üye sayacı | L | PSP üye işyeri başvurusu (site şartları [08](08-mevzuat-kvkk-odeme-fatura.md) §7.2), Paraşüt API paketi, sözleşmenin dunning eki | Ticari lansmanın ve pilotların Mart 2027'de ücretliye geçişinin ön koşulu | S7–S8 (H14–17) |
+| F2-01 | **Ticari altyapı** | Paket hakları (`plan_feature`), PSP kart saklama ve tekrarlayan çekim, faturalama motoru, Paraşüt e-Arşiv/e-Fatura, havale/EFT, dunning (G+1/3/7 → G+10 salt-okunur → G+21 askı → G+75), deneme bitişi, kurucu üye sayacı, SMS kotası için ek paket | L | PSP üye işyeri başvurusu (site şartları [08](08-mevzuat-kvkk-odeme-fatura.md) §7.2), Paraşüt API paketi, sözleşmenin dunning eki | Ticari lansmanın ve pilotların Mart 2027'de ücretliye geçişinin ön koşulu | S7–S8 (H14–17) |
 | F2-02 | Harici pentest, düzeltmeler, yeniden test | Gri kutu ([06](06-teknik-mimari.md) §15.8) | M | Faz 1 kapsamı sabit; firma teklifi H10'da | KARARLAR: ticari lansmandan önce zorunlu; pre-mortem #5 | H16–H18 |
 | F2-03 | 3 sunucu topolojisi | PG primary + hot standby, Valkey replikası ([06](06-teknik-mimari.md) §13.3) | M | Barındırma sözleşmesi | %99,9 SLO ve RTO; pre-mortem #3 | S8 |
 | F2-04 | Self-servis onboarding v1 | Sihirbazın (P-38) iyileştirilmesi, AI menü çıkarma self-servis (insan onayıyla), Excel içe/dışa aktarmanın tamamı (P-14), Meta kart video rehberi, 14 gün kartsız deneme ile self-servis kayıt | M | A-22 iç aracının pilot hata verisi | CAC ≤ 4.000 TL hedefi ve destek maliyeti (R03) | S9 |
@@ -810,10 +810,10 @@ Kanonik liste [10](10-riskler-operasyon-ve-metrikler.md) §8.7'deki **pilot baş
 | F2-06 | Referans programı | Panelde davet linki, getiren ve gelene 1'er ay ücretsiz ([05](05-admin-paneli-ve-pazarlama-sitesi.md) B.6) | S | F2-01 | En ucuz edinme kanalı ([01](01-vizyon-pazar-is-modeli.md) §7.3) | S10 |
 | F2-07 | Capacitor 8 Android uygulaması | Güvenilir alarm (native bildirim kanalı), otomatik ESC/POS (USB/BT/LAN), Sunmi, raster fiş | L | Pilot cihaz ve yazıcı envanteri | R05 sipariş kaçırma; esnafın fiş ihtiyacı. **D8 PWA alarm sorunu gösterirse S10'a çekilir** | S12–S13 |
 | F2-08 | Tekrar sipariş ve sipariş esnekliği | Akış D sohbet içi "aynısından", otomatik kabul (kurallı, varsayılan kapalı), ileri saatli sipariş, ürün değişikliği onayı (M14), kalem düzenleme | M | Faz 1 FSM | Tekrar sipariş kanal alışkanlığı yaratır; en güçlü churn savunması | S12–S13 |
-| F2-09 | Akış C: AI serbest metin siparişi | Haiku 4.5 + structured outputs + aday getirme + sunucu doğrulaması; özet (M18) + [Onayla][Düzenle][İptal]; AI onay kuyruğu (P-47); pilottan toplanan Türkçe eval seti; tenant token bütçesi; `ai_ordering` kill switch; Pro ve üstü + adil kullanım (varsayılan) | L | Eval seti, Anthropic için m.9 dayanağı (avukat), PII maskeleme | "Yazarak sipariş" alışkanlığı; Pro'yu farklılaştırır | S14–S15 |
+| F2-09 | Akış C: AI serbest metin siparişi | Haiku 4.5 + structured outputs + aday getirme + sunucu doğrulaması; özet (M18) + [Onayla][Düzenle][İptal]; AI onay kuyruğu (P-47); pilottan toplanan Türkçe eval seti; tenant token bütçesi; `llm_parsing` kill switch; Pro ve üstü + adil kullanım (varsayılan) | L | Eval seti, Anthropic için m.9 dayanağı (avukat), PII maskeleme | "Yazarak sipariş" alışkanlığı; Pro'yu farklılaştırır | S14–S15 |
 | F2-10 | Kupon, doğrudan kanal avantajı, damga kartı | P-42, P-43, S-12 | M | F2-01 (paket hakları), D4 sonucu | R01 kanal taşıma teşviki | S14–S15 |
 | F2-11 | Online ödeme M1 | İşletmenin kendi PayTR hesabı (sonra iyzico), ödeme linki (CTA URL), iade, taksit kapalı, ek protokol | M–L | PSP iş ortağı programı, avukatın ek protokolü | Sahte siparişe karşı koruma (R21), Pro değeri | S16–S17 |
-| F2-12 | Bayi paneli ve bayi programı | `reseller` rolü, müşteri atama, komisyon hesabı (A-23), sözleşme ve stopaj düzeni | M | Avukat + mali müşavir | 100'den 1.000'e dağıtım; birinci seviye destek bayide | S16–S17 |
+| F2-12 | Bayi paneli ve bayi programı | `reseller_admin` ve `reseller_technician` rolleri (KARARLAR §4), müşteri atama, komisyon hesabı (A-23), sözleşme ve stopaj düzeni | M | Avukat + mali müşavir | 100'den 1.000'e dağıtım; birinci seviye destek bayide | S16–S17 |
 | F2-13 | Windows yazdırma ajanı (Go) | Çok yazıcı yönlendirmesi, WebSocket bağlantısı (KARARLAR §5) | M | F2-07'nin fiş modeli | PC kullanan işletmeler | S16–S17 |
 | F2-14 | İYS uyumlu kampanya modülü (P-44) | Aktivasyon kapısı, İYS iş ortağı API'si, maliyet önizlemesi, frekans sınırı, ret senkronu, audit; pazarlama izni toplama (M22); izinli müşteriye tek sepeti terk hatırlatması | L | İYS entegrasyonu, avukat görüşü, ETK onay metni | Pro/Zincir değeri. Numara kalitesi için en riskli modül olduğundan sona konur | S18–S19 |
 | F2-15 | Çoklu şube ve Zincir paketi | Şubeler (P-45), şube seçici, merkezi menü ve şube fiyatı, mutfak ekranının KDS kısmı (P-41, `kitchen`) | L | Şube başına numara kararı ([02](02-whatsapp-entegrasyonu.md) açık konu 13) | Zincir paketi Faz 2'de satışa çıkar (KARARLAR §8) | S18–S19 |
@@ -917,8 +917,8 @@ R = yapar, A = hesap verir (tek kişi), C = danışılır, I = bilgilendirilir.
 | 4 | Marka tescili (4 sınıf, kelime + logo) | TÜRKPATENT resmi ücretleri + vekil ücreti (tarife teyit edilmeli) | A03 §7.4 | H1 |
 | 5 | Logo, basılı materyal ve site görsel tasarımı | Teklif (serbest tasarımcı) | — | H0–H2 |
 | 6 | Alan adları, kurumsal e-posta | Düşük (teyit edilmeli) | — | H0 |
-| 7 | Altyapı: prod + staging (pilot ölçeği) | ~$40–100/ay ≈ 1.936–4.840 TL/ay → 3 ayda ≈ 5.800–14.500 TL. İkinci bağımsız ingress düğümü için ek küçük sunucu: teklif | A04 §12; yurt içi teklifle yukarı yönlü değişebilir | H1'den |
-| 8 | SMS (OTP, alarm, yedek) | 0,16–0,43 TL/SMS; pilotta ~$2/ay | A02 §8, A04 §12 | S5'ten |
+| 7 | Altyapı: prod + staging (pilot ölçeği) | ~$40–100/ay ≈ 1.936–4.840 TL/ay → 3 ayda ≈ 5.800–14.500 TL. İkinci webhook düğümü için ucuz VPS ~$5–15/ay [T] ([06](06-teknik-mimari.md) §13.3) | A04 §12; yurt içi teklifle yukarı yönlü değişebilir | H1'den |
+| 8 | SMS (OTP, alarm, yedek) | 0,16–0,43 TL/SMS; pilotta ~$2/ay. Platform maliyetidir, aboneliğe kotayla dahildir (Esnaf 100, Pro 300 SMS/ay; KARARLAR §4) | A02 §8, A04 §12 | S5'ten |
 | 9 | Platform WABA mesajları | Pilotta < $1/ay | A04 §12 | S5'ten |
 | 10 | Google Maps, Cloudflare, gözlemlenebilirlik | $0–30/ay (ücretsiz katmanlar) | A04 §12 | H1'den |
 | 11 | Geliştirme araçları (GitHub, Claude, tasarım araçları) | Teklif / liste fiyatı (teyit edilmeli); yurt dışı → 2 No'lu KDV | A03 §8.2 | H0'dan |
@@ -971,7 +971,7 @@ R = yapar, A = hesap verir (tek kişi), C = danışılır, I = bilgilendirilir.
 - [ ] `owner` ve platform kullanıcılarında TOTP zorunlu. Admin IP kısıtlı.
 - [ ] Sentry'de PII scrub açık, loglarda telefon maskeli.
 - [ ] D11 Coexistence saha teyidi geçti (C1–C4 ve C7 zorunlu; aksi halde varsayılan yol yeni numara). D12 sonucu Akış A'ya işlendi. Geçmiş ve kişi senkronu varsayılan kapalı.
-- [ ] Kill switch'ler çalışıyor: `bot_global`, `sms_fallback`, `akis_b_wa_verification`, `platform_wa_alerts`.
+- [ ] Kill switch'ler çalışıyor (KARARLAR §4): `signup_open`, `wa_onboarding`, `sms_fallback`, tenant bazında `ordering_enabled`.
 - [ ] Rate card konfigürasyonda. Maliyet defteri kayıt tutuyor.
 - [ ] Runbook'lar hazır ([10](10-riskler-operasyon-ve-metrikler.md) §6.6): webhook kesintisi, Meta kesintisi ve WhatsApp'sız mod, DB geri yükleme, token iptali. Her nöbetçi en az bir runbook tatbikatı yaptı.
 

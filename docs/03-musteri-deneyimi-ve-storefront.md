@@ -1069,7 +1069,7 @@ Hedefler [D06 §12](06-teknik-mimari.md)'dedir (mobil, p75): LCP ≤ 2,5 sn (hed
 | `sf_order_error` | İstemci | POST hatası | `code` (`cart_changed`/`branch_closed`/`out_of_zone`/`rate_limited`/`network`) |
 | `order_created` | Sunucu | Sipariş oluştu | `channel`, `status`, `fulfillment_type`, `payment_method`, `src` |
 | `order_verify_wa_tap` / `order_verify_sms_start` | İstemci | S-06B butonu / SMS seçimi | — |
-| `order_verified` / `order_verify_expired` | Sunucu | `awaiting_customer → new` / 30 dk zaman aşımı | `method` (`wa_code`/`sms_otp`/`tenant_phone`), `latency_s` |
+| `order_verified` / `order_verify_expired` | Sunucu | `awaiting_customer → new` / 30 dk zaman aşımı | `method` = `verification_method` (`wa_link`/`wa_code`/`sms_otp`/`staff`; `staff` = panelde "Telefonla doğruladım"; `wa_link` Akış A siparişinde oluşturma anında yazılır), `latency_s` |
 | `order_status_changed` | Sunucu | Her geçiş | `from`, `to`, `latency_s` |
 | `order_cancelled` / `order_rejected` | Sunucu | Terminal | `cancelled_by`, `reason` |
 | `wa_inbound` | Sunucu | Gelen mesaj | `type`, `intent` (§8.2), `has_referral` |
@@ -1095,7 +1095,7 @@ Hedefler [D06 §12](06-teknik-mimari.md)'dedir (mobil, p75): LCP ≤ 2,5 sn (hed
 | Onay süresi medyanı (`new→accepted`) | < 60 sn | A05 [T] |
 | "Siparişim nerede?" mesajı / sipariş (`intent=where_is_my_order`) | < %5 | A05 [T] |
 | Sipariş başına otomatik durum mesajı | ≤ 4 (sert sınır), karşılamayla ≤ 5 | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.5 |
-| Pilot: işletme başına ilk 14 günde kanal siparişi · 60. günde kendi kanal payı · sipariş kaçırma | ≥ 10 · ≥ %10 · %0 | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12 |
+| Pilot: işletme başına ilk 14 günde kanal siparişi · pilotun 8. haftasında (pilot sonu) kendi kanal payı · sipariş kaçırma | ≥ 10 · ≥ %10 · %0 | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12 |
 | Storefront LCP (p75, mobil) | ≤ 2,5 sn | D06 §12 |
 | Bölge dışı sonuç oranı, tekrar sipariş oranı, değerlendirme yanıt oranı | Hedef yok, izlenir | — |
 
