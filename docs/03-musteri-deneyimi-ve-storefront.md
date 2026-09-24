@@ -959,9 +959,9 @@ Faz 1'de AI yoktur. Aşağıdaki anahtar kelime grupları büyük/küçük harf 
 
 ### 9.3 Metinler
 
-**Karşılama ve bilgi**
+Tetik, tür ve butonlar §9.2'dedir; burada yalnız varyanta özgü farklar yazılır. `⏎` satır sonudur.
 
-**M01 · İlk karşılama** — Üst bilgi (isteğe bağlı): işletmenin kapak görseli.
+**M01 · İlk karşılama** (üst bilgi isteğe bağlı: işletmenin kapak görseli)
 > Merhaba {ad} 👋 {isletme} WhatsApp sipariş hattına hoş geldiniz!
 > Menümüzü açıp birkaç dokunuşla sipariş verebilirsiniz. Adresiniz ve ödeme tercihiniz bir sonraki siparişiniz için hatırlanır.
 > 🕒 Bugün açığız · Kapanış {kapanis}
@@ -970,95 +970,38 @@ Faz 1'de AI yoktur. Aşağıdaki anahtar kelime grupları büyük/küçük harf 
 >
 > Kişisel verileriniz siparişinizi almak ve teslim etmek amacıyla {isletme} tarafından işlenir. Ayrıntı: {aydinlatma_link}
 
-- Buton: **Menüyü aç**.
-- Yalnız gel-al yapan işletmede 🛵 satırı şöyle değişir: "🛍️ Gel-al: siparişiniz yaklaşık {dk} dakikada hazır."
-- `busy` durumunda 🛵 satırı: "⏳ Şu an yoğunuz, tahmini teslimat {eta_aralik}."
+- Yalnız gel-al yapan işletmede 🛵 satırı şöyle olur: "🛍️ Gel-al: siparişiniz yaklaşık {dk} dakikada hazır." `busy` durumunda: "⏳ Şu an yoğunuz, tahmini teslimat {eta_aralik}."
 - Aydınlatma satırı yalnız ilk temasta ve metin sürümü değiştiğinde eklenir ([D08 §2.4](08-mevzuat-kvkk-odeme-fatura.md)).
-
-**M01K · Kısa karşılama**
-> Tekrar merhaba 👋 Sipariş vermek için menümüzü açabilirsiniz.
-- Buton: **Menüyü aç**
 
 **M02 · Tekrar gelen müşteri**
 > Tekrar hoş geldiniz {ad} 😊
 > Son siparişiniz ({son_tarih}): {son_kalemler}
 > Aynısını tek dokunuşla tekrarlayabilir ya da menüden yeni seçim yapabilirsiniz.
 > 🕒 Bugün açığız · Kapanış {kapanis} · 🛵 {eta_aralik}
-- Buton [Faz 1]: **Sipariş ver**. Storefront "Son siparişin" kartıyla açılır; kartta güncel tutar görünür. Mesajda eski tutar yazılmaz.
-- [Faz 2]: reply butonlar **Aynısından** · **Menüyü aç** · **Yetkiliyle görüş**.
 
-**M03 · Kapalı**
-> Merhaba 👋 {isletme} şu an kapalı. {acilis} itibarıyla yeniden sipariş alacağız.
-> Bu arada menümüze göz atabilirsiniz.
-- Buton: **Menüye göz at**. [Faz 2] Planlı sipariş açıksa: **Ön sipariş ver**.
-
-**M04 · Sipariş alımı durduruldu**
-> Merhaba 👋 Yoğunluk nedeniyle kısa bir süre yeni sipariş alamıyoruz 🙏
-> {devam_satiri}
-> Anlayışınız için teşekkür ederiz.
-- `{devam_satiri}`: işletme bir devam saati girdiyse "Tahminen {devam_saati} itibarıyla yeniden sipariş alacağız.", girmediyse "Biraz sonra tekrar deneyebilirsiniz."
-- Buton: **Menüye göz at**
-
-**M28 · SSS yanıtları** (Buton hepsinde: **Menüyü aç**)
-- **a) Saat:** "🕒 Bugün {bugun_acilis}–{kapanis} arası açığız. Tüm çalışma saatlerimiz: {bilgi_link}"
-- **b) Adres:** "📍 Adresimiz: {sube_adres}. Haritada görmek için: {harita_link}"
-- **c) Bölge ve ücret:** "🛵 Teslimat ücreti {ucret_aralik}, minimum sepet {min_aralik}. Adresinize teslimat yapıp yapmadığımızı menüde adresinizi girerek hemen görebilirsiniz."
-- **d) Ödeme:** "💳 Kapıda şu yöntemlerle ödeyebilirsiniz: {odeme_listesi}." (örn. "nakit, kredi kartı, yemek kartı (Multinet, Pluxee)")
-
-**Sipariş durumu**
+- Mesajda eski tutar yazılmaz. Storefront "Son siparişin" kartıyla açılır ve kartta güncel tutar görünür.
 
 **M05 · Sipariş alındı**
 > ✅ Siparişiniz alındı! Sipariş no: {no}
 > {kalemler}
 > Toplam: {toplam} · Ödeme: {odeme}
 > {isletme} siparişinizi onayladığında buradan haber vereceğiz.
-- Buton: **Siparişi takip et**
-- 60 sn içinde onaylanırsa bu mesaj gönderilmez, onun yerine M06c gider.
 
-**M06a · Onaylandı (paket)**
-> 👨‍🍳 Siparişiniz onaylandı!
-> Tahmini teslim saati: {saat} (yaklaşık {dk} dk)
-> Sipariş no: {no}
-
-**M06b · Onaylandı (gel-al)**
-> 👨‍🍳 Siparişiniz onaylandı! Tahminen {saat} civarında hazır olacak.
-> Adresimiz: {sube_adres_kisa}
-> Sipariş no: {no}
-
-**M06c · Alındı ve onaylandı (birleşik)**
-> ✅ Siparişiniz alındı ve onaylandı! Sipariş no: {no}
-> {kalemler}
-> Toplam: {toplam} · Ödeme: {odeme}
-> Tahmini teslim saati: {saat} (yaklaşık {dk} dk)
-- M06a/b/c'de buton: **Siparişi takip et**. Gel-alda son satır "Tahminen {saat} civarında hazır olacak." olur.
-
-**M07 · Hazırlanıyor** (varsayılan kapalı)
-> 🔥 Siparişiniz hazırlanıyor. Sipariş no: {no}
-
-**M08 · Hazır (gel-al)**
-> 🛍️ Siparişiniz hazır! Kasada sipariş numaranızı ({no}) söylemeniz yeterli.
-> Ödeme: {odeme}
-> Adresimiz: {sube_adres_kisa}
+**M06 · Onaylandı**
+- **a) Paket:** "👨‍🍳 Siparişiniz onaylandı! ⏎ Tahmini teslim saati: {saat} (yaklaşık {dk} dk) ⏎ Sipariş no: {no}"
+- **b) Gel-al:** "👨‍🍳 Siparişiniz onaylandı! Tahminen {saat} civarında hazır olacak. ⏎ Adresimiz: {sube_adres_kisa} ⏎ Sipariş no: {no}"
+- **c) Birleşik** (alındıktan sonraki 60 sn içinde onaylandıysa, M05'in yerine): "✅ Siparişiniz alındı ve onaylandı! Sipariş no: {no} ⏎ {kalemler} ⏎ Toplam: {toplam} · Ödeme: {odeme} ⏎ Tahmini teslim saati: {saat} (yaklaşık {dk} dk)". Gel-alda son satır "Tahminen {saat} civarında hazır olacak." olur.
 
 **M09 · Yolda**
 > 🛵 Siparişiniz yola çıktı! Kuryemiz {kurye} yaklaşık {dk} dk içinde kapınızda olacak.
 > Ödeme: {odeme_detay}
 > Sipariş no: {no}
-- `{odeme_detay}` değerleri: "Kapıda nakit · 500,00 TL'ye para üstü hazırlandı" / "Kapıda kart, kuryemiz POS cihazı getirecek" / "Kapıda yemek kartı · Multinet" / "Online ödendi" [Faz 2].
-- Kurye atanmamışsa ad yazılmaz: "Kuryemiz yaklaşık {dk} dk içinde…".
-- Buton: **Siparişi takip et**
+
+- `{odeme_detay}` değerleri: "Kapıda nakit · 500,00 TL'ye para üstü hazırlandı" / "Kapıda kart, kuryemiz POS cihazı getirecek" / "Kapıda yemek kartı · Multinet" / "Online ödendi" [Faz 2]. Kurye atanmamışsa ad yazılmaz.
 
 **M10 · Teslim edildi + değerlendirme**
 > Afiyet olsun! 😊 Siparişiniz teslim edildi.
 > Bizi tercih ettiğiniz için teşekkürler. Deneyiminizi nasıl buldunuz?
-- Butonlar: **😋 Harika** · **🙂 İdare eder** · **😕 Beğenmedim**
-
-**M10a · Olumlu yanıt:** "Çok sevindik, teşekkür ederiz! 🙏" — [Faz 2] Müşterinin pazarlama izni yoksa ve son 90 gün içinde "Hayır" dememişse aynı mesaja M22 sorusu ve butonları eklenir.
-**M10d · Nötr yanıt:** "Teşekkür ederiz! Bir dahaki siparişinizde daha iyisini yapmak için çalışacağız 🙏"
-**M10b · Olumsuz yanıt** (list message):
-> Üzgünüz 😔 Ne ters gitti? Bildiriminiz doğrudan işletme sahibine iletilecek.
-- Liste butonu: **Sorunu seç**. Satırlar: Geç geldi · Soğuk geldi · Eksik/yanlış ürün · Lezzet · Kurye · Diğer
-**M10c · Sorun seçildi:** "Teşekkürler, iletildi. {isletme} size buradan dönüş yapabilir." — "Diğer" seçildiyse: "Teşekkürler. İsterseniz yaşadığınız sorunu kısaca yazabilirsiniz, doğrudan işletmeye iletilecek."
 
 **M11 · Reddedildi** (ret anından 30 sn sonra gider; "Geri al" basılırsa hiç gitmez)
 > 😔 Üzgünüz, {no} numaralı siparişinizi şu an alamıyoruz.
@@ -1072,89 +1015,74 @@ Faz 1'de AI yoktur. Aşağıdaki anahtar kelime grupları büyük/küçük harf 
 | `too_busy` | Şu an yoğunluk nedeniyle sipariş alamıyoruz. Biraz sonra tekrar deneyebilirsiniz. | — |
 | `other` | {isletme_notu} (işletmenin yazdığı en fazla 140 karakter, promosyon filtresinden geçer) | — |
 
-- [Faz 2] Online ödemede şu satır eklenir: "Ödemeniz iade edildi; hesabınıza yansıması bankanıza göre birkaç gün sürebilir." (süre PSP'ye göre teyit edilmeli)
+[Faz 2] Online ödemede M11 ve M12'ye şu satır eklenir: "Ödemeniz iade edildi; hesabınıza yansıması bankanıza göre birkaç gün sürebilir." (süre PSP'ye göre teyit edilmeli)
 
 **M12 · İptal**
-- **a) İşletme iptali** (`tenant`): "{no} numaralı siparişiniz {isletme} tarafından iptal edildi. Sebep: {sebep}. Özür dileriz 🙏 Sorunuz varsa buraya yazabilirsiniz." — `{sebep}`: `item_unavailable` "siparişinizdeki bir ürün tükendi", `courier_issue` "teslimat şu an yapılamıyor", `other` işletme notu.
+- **a) İşletme iptali** (`tenant`): "{no} numaralı siparişiniz {isletme} tarafından iptal edildi. Sebep: {sebep}. Özür dileriz 🙏 Sorunuz varsa buraya yazabilirsiniz." `{sebep}`: `item_unavailable` → "siparişinizdeki bir ürün tükendi", `courier_issue` → "teslimat şu an yapılamıyor", `other` → işletme notu.
 - **b) Müşteri iptali** (`customer_request`): "{no} numaralı siparişiniz isteğiniz üzerine iptal edildi."
-- **c) Zaman aşımı** (`customer_timeout`, yalnız Akış C): "Siparişiniz onaylanmadığı için iptal edildi. Yeniden sipariş vermek isterseniz menümüz burada." — Buton: **Menüyü aç**
+- **c) Zaman aşımı** (`customer_timeout`, yalnız Akış C): "Siparişiniz onaylanmadığı için iptal edildi. Yeniden sipariş vermek isterseniz menümüz burada." + **Menüyü aç**
 - **d) İşletme yanıt vermedi** (`system`, `tenant_no_response`): "Üzgünüz 😔 {no} numaralı siparişiniz işletme tarafından zamanında onaylanamadığı için iptal edildi. Sizi beklettiğimiz için özür dileriz. Siparişinizi telefonla vermek isterseniz: {sube_tel}"
 - **e) Mükerrer** (`duplicate`): "{no} numaralı sipariş, aynı siparişin tekrarı olduğu için iptal edildi. Diğer siparişiniz geçerlidir."
-- **f) Şüpheli** (`suspected_fake`), nötr: "{no} numaralı siparişiniz iptal edildi. Bilgi için lütfen işletmeyi arayın: {sube_tel}"
-- [Faz 2] Online ödemede M11'deki iade satırı eklenir.
+- **f) Şüpheli** (`suspected_fake`, nötr metin): "{no} numaralı siparişiniz iptal edildi. Bilgi için lütfen işletmeyi arayın: {sube_tel}"
 
 **M13 · Onay gecikmesi** (T+10 dk, hâlâ `new`; sipariş başına en fazla 1; bütçe dışı; yalnız pencere açıksa)
 > {no} numaralı siparişiniz henüz onaylanmadı, işletme şu an yoğun olabilir. Beklemek ister misiniz?
-- Butonlar: **Beklerim** · **Siparişi iptal et**
-- **M13a** ("Beklerim"): "Teşekkürler, işletmeye hatırlattık. Onaylandığında buradan haber vereceğiz."
-- "Siparişi iptal et" → `cancelled` (`customer_request`) → M12b.
 
-**Konuşma yönetimi**
-
-**M17 · Sipariş kodu yanıtları** (geçerli kodda ayrı mesaj yoktur; M05 veya M06c gider)
-- **b) Bulunamadı:** "Bu kodla bekleyen bir sipariş bulamadık. Kodu kontrol edebilir ya da menüden yeniden sipariş verebilirsiniz." — **Menüyü aç**
-- **c) Süresi dolmuş:** "Bu sipariş kodunun süresi dolmuş ve sipariş iptal edildi. Yeniden sipariş vermek için menüyü açabilirsiniz." — **Menüyü aç**
-- **d) Zaten onaylı:** "Bu sipariş zaten onaylandı 👍 Durumunu buradan takip edebilirsiniz." — **Siparişi takip et**
-- Aynı konuşmada 10 dk içinde 5 hatalı denemeden sonra yanıt verilmez, panele not düşülür ([D02 §6.4](02-whatsapp-entegrasyonu.md)).
-
-**M20 · İnsana devir**
-- Mesai içi: "Sizi yetkilimize aktardık 🙋 Birazdan buradan yanıt verecek."
-- Mesai dışı: "Şu an ekibimiz yanıt veremiyor. Mesajınızı aldık, {acilis} itibarıyla dönüş yapacağız."
-
-**M26 · Aktif sipariş durumu**
-> {no} numaralı siparişinizin durumu: {durum_etiketi}{eta_ek}
-> Mesajınızı işletmeye de ilettik. Bir yetkiliyle görüşmek isterseniz "yetkili" yazın.
-- `{durum_etiketi}` §3.0'daki takip etiketidir. `{eta_ek}`: " · Tahmini {saat}".
-- Buton: **Siparişi takip et**
-
-**M27 · İptal niyeti**
-- **a)** `awaiting_customer` / `new`: "{no} numaralı siparişinizi iptal etmek istiyor musunuz?" — **Siparişi iptal et** · **Vazgeçtim**
-- **b)** `accepted` ve sonrası: "Siparişiniz hazırlanmaya başladığı için iptal talebinizi işletmeye ilettik. En kısa sürede size dönüş yapılacak." — Panelde iptal talebi açılır ve sohbet insana devredilir.
-
-**M29 · Sesli mesaj:** "Sesli mesajınızı işletmeye ilettik 🎧 Hızlı sipariş için menümüzü açabilirsiniz." — **Menüyü aç**
-**M30 · Desteklenmeyen içerik:** "Bu içeriği okuyamadık, lütfen yazarak iletin."
-**M31 · DUR:** "Kampanya mesajlarını durdurduk. Sipariş durum bildirimlerini de kapatalım mı?" — **Evet, hepsini durdur** · **Hayır**
-- **M31a** (Evet): "Tamam, size bundan sonra otomatik mesaj göndermeyeceğiz. İstediğiniz zaman BAŞLAT yazarak yeniden açabilirsiniz."
-- **M31b** (Hayır): "Tamam, kampanya mesajı almayacaksınız. Sipariş bildirimleriniz gelmeye devam edecek."
-**M32 · BAŞLAT:** "Sipariş bildirimlerini yeniden açtık 👍 Kampanya mesajları kapalı kalmaya devam ediyor."
-**M33 · Online sipariş kapalı:** "Merhaba, şu an WhatsApp üzerinden online sipariş alamıyoruz. Sipariş için lütfen bizi arayın: {sube_tel}"
-
-**Faz 2 ve sonrası**
-
-**M14 · Ürün tükendi, değişiklik onayı [Faz 2]:** "Siparişinizdeki {urun} maalesef tükendi 😔 Nasıl devam edelim?" — **Onsuz devam et** · **{alternatif} olsun** (örn. "Sütlaç olsun +10TL", ≤ 20 karakter) · **Siparişi iptal et**
-**M15 · Konum isteme [Faz 2]:** "Teslimat için konumunuzu paylaşır mısınız? Ardından bina no, kat ve daireyi yazmanız yeterli." — Konum gelince: "Teşekkürler! Şimdi bina no, kat, daire ve varsa adres tarifini yazar mısınız? Örnek: No 12, Kat 3, Daire 7, eczanenin üstü."
-**M16 · Telefon isteme [Faz 2]:** "Kuryemizin gerekirse size ulaşabilmesi için telefon numaranızı paylaşır mısınız? Numaranız yalnızca siparişiniz için kullanılır." (REQUEST_CONTACT_INFO yükü teyit edilmeli, [D02 §6.8](02-whatsapp-entegrasyonu.md))
-**M18 · AI sipariş özeti [Faz 2]:**
+**M18 · AI sipariş özeti [Faz 2]**
 > Siparişinizi şöyle anladım 👇
 > {kalemler_tutarli}
 > Teslimat: {adres_adi} ({mahalle}) · Ödeme: {odeme}
 > Ara toplam {ara_toplam} + teslimat {teslimat_ucreti} = Toplam {toplam} (KDV dahil)
 > Gıda siparişleri çabuk bozulabilen ürünler olduğundan cayma hakkı kapsamı dışındadır. Ön bilgilendirme ve sözleşme: {on_bilgi_link}
 > "Onayla"ya bastığınızda siparişiniz kesinleşir ve ödeme yükümlülüğü doğar.
-- Butonlar: **Onayla** · **Düzenle** · **İptal**
+
 - Gövde 1.024 karakteri aşarsa ilk kalemler + "ve N ürün daha" + tam özet linki gösterilir.
-**M19 · AI netleştirme [Faz 2]:** "{urun} için hangisini istersiniz?" — en fazla 2 seçenek butonu + **Menüyü aç** (örn. Adana: **Dürüm** · **Porsiyon** · **Menüyü aç**)
-**M21 · Konu dışı [Faz 2]:** "Ben yalnızca {isletme} menüsü ve siparişlerinizle ilgili yardımcı olabiliyorum 🙂 Sipariş vermek için menümüzü açabilir ya da "yetkili" yazarak ekibimize ulaşabilirsiniz." — **Menüyü aç**
-**M22 · Pazarlama izni [Faz 2]:** "{isletme} kampanya ve duyurularını WhatsApp'tan almak ister misiniz? İstediğiniz zaman "DUR" yazarak ayrılabilirsiniz." — **Evet, isterim** · **Hayır, teşekkürler**. Kayıt kuralları: zaman, kanal, `wamid`, metin sürümü, 3 iş günü içinde İYS ([D08 §3.4](08-mevzuat-kvkk-odeme-fatura.md)). "Hayır" diyen müşteriye 90 gün soru sorulmaz [T]. Nihai onay metni avukattan.
-**M23 · Sepeti terk [Faz 2+, marketing şablonu, yalnız ETK onaylı ve opt-in'li müşteri, tek sefer, varsayılan kapalı]:** "Sepetinizde {urun_ozet} bekliyor. Siparişinizi tamamlamak ister misiniz?" — **Sepete dön** · hızlı yanıt **Kampanyaları durdur**
+
+**Kısa mesajlar:**
+
+| Kod | Metin |
+|---|---|
+| M01K | Tekrar merhaba 👋 Sipariş vermek için menümüzü açabilirsiniz. |
+| M03 | Merhaba 👋 {isletme} şu an kapalı. {acilis} itibarıyla yeniden sipariş alacağız. ⏎ Bu arada menümüze göz atabilirsiniz. |
+| M04 | Merhaba 👋 Yoğunluk nedeniyle kısa bir süre yeni sipariş alamıyoruz 🙏 ⏎ {devam_satiri} ⏎ Anlayışınız için teşekkür ederiz. — `{devam_satiri}`: "Tahminen {devam_saati} itibarıyla yeniden sipariş alacağız." (saat girildiyse) / "Biraz sonra tekrar deneyebilirsiniz." |
+| M07 | 🔥 Siparişiniz hazırlanıyor. Sipariş no: {no} |
+| M08 | 🛍️ Siparişiniz hazır! Kasada sipariş numaranızı ({no}) söylemeniz yeterli. ⏎ Ödeme: {odeme} ⏎ Adresimiz: {sube_adres_kisa} |
+| M10a | Çok sevindik, teşekkür ederiz! 🙏 — [Faz 2] Pazarlama izni yoksa ve son 90 gün içinde "Hayır" denmemişse M22 sorusu ve butonları aynı mesaja eklenir. |
+| M10d | Teşekkür ederiz! Bir dahaki siparişinizde daha iyisini yapmak için çalışacağız 🙏 |
+| M10b | Üzgünüz 😔 Ne ters gitti? Bildiriminiz doğrudan işletme sahibine iletilecek. — Liste satırları: Geç geldi · Soğuk geldi · Eksik/yanlış ürün · Lezzet · Kurye · Diğer |
+| M10c | Teşekkürler, iletildi. {isletme} size buradan dönüş yapabilir. — "Diğer" seçildiyse: "Teşekkürler. İsterseniz yaşadığınız sorunu kısaca yazabilirsiniz, doğrudan işletmeye iletilecek." |
+| M13a | Teşekkürler, işletmeye hatırlattık. Onaylandığında buradan haber vereceğiz. |
+| M14 [F2] | Siparişinizdeki {urun} maalesef tükendi 😔 Nasıl devam edelim? — Alternatif butonu örneği: "Sütlaç olsun +10TL" (≤ 20 karakter) |
+| M15 [F2] | Teslimat için konumunuzu paylaşır mısınız? Ardından bina no, kat ve daireyi yazmanız yeterli. — Konum gelince: "Teşekkürler! Şimdi bina no, kat, daire ve varsa adres tarifini yazar mısınız? Örnek: No 12, Kat 3, Daire 7, eczanenin üstü." |
+| M16 [F2] | Kuryemizin gerekirse size ulaşabilmesi için telefon numaranızı paylaşır mısınız? Numaranız yalnızca siparişiniz için kullanılır. (REQUEST_CONTACT_INFO yükü teyit edilmeli, [D02 §6.8](02-whatsapp-entegrasyonu.md)) |
+| M17b | Bu kodla bekleyen bir sipariş bulamadık. Kodu kontrol edebilir ya da menüden yeniden sipariş verebilirsiniz. |
+| M17c | Bu sipariş kodunun süresi dolmuş ve sipariş iptal edildi. Yeniden sipariş vermek için menüyü açabilirsiniz. |
+| M17d | Bu sipariş zaten onaylandı 👍 Durumunu buradan takip edebilirsiniz. |
+| M19 [F2] | {urun} için hangisini istersiniz? — En fazla 2 seçenek butonu + Menüyü aç (örn. Adana: Dürüm · Porsiyon · Menüyü aç) |
+| M20 | Mesai içi: "Sizi yetkilimize aktardık 🙋 Birazdan buradan yanıt verecek." / Mesai dışı: "Şu an ekibimiz yanıt veremiyor. Mesajınızı aldık, {acilis} itibarıyla dönüş yapacağız." |
+| M21 [F2] | Ben yalnızca {isletme} menüsü ve siparişlerinizle ilgili yardımcı olabiliyorum 🙂 Sipariş vermek için menümüzü açabilir ya da "yetkili" yazarak ekibimize ulaşabilirsiniz. |
+| M22 [F2] | {isletme} kampanya ve duyurularını WhatsApp'tan almak ister misiniz? İstediğiniz zaman "DUR" yazarak ayrılabilirsiniz. — Kayıt: zaman, kanal, `wamid`, metin sürümü; 3 iş günü içinde İYS ([D08 §3.4](08-mevzuat-kvkk-odeme-fatura.md)). "Hayır" diyene 90 gün soru sorulmaz [T]. Nihai metin avukattan. |
+| M23 [F2+] | Sepetinizde {urun_ozet} bekliyor. Siparişinizi tamamlamak ister misiniz? — Marketing şablonu; yalnız ETK onaylı ve opt-in'li müşteriye, terkten 30–60 dk sonra, tek sefer; varsayılan kapalı. |
+| M26 | {no} numaralı siparişinizin durumu: {durum_etiketi}{eta_ek} ⏎ Mesajınızı işletmeye de ilettik. Bir yetkiliyle görüşmek isterseniz "yetkili" yazın. — `{durum_etiketi}` §3.0'daki etikettir; `{eta_ek}` = " · Tahmini {saat}" |
+| M27a | {no} numaralı siparişinizi iptal etmek istiyor musunuz? (`awaiting_customer`/`new`) |
+| M27b | Siparişiniz hazırlanmaya başladığı için iptal talebinizi işletmeye ilettik. En kısa sürede size dönüş yapılacak. (`accepted` ve sonrası; panelde iptal talebi açılır, sohbet insana devredilir) |
+| M28a | 🕒 Bugün {bugun_acilis}–{kapanis} arası açığız. Tüm çalışma saatlerimiz: {bilgi_link} |
+| M28b | 📍 Adresimiz: {sube_adres}. Haritada görmek için: {harita_link} |
+| M28c | 🛵 Teslimat ücreti {ucret_aralik}, minimum sepet {min_aralik}. Adresinize teslimat yapıp yapmadığımızı menüde adresinizi girerek hemen görebilirsiniz. |
+| M28d | 💳 Kapıda şu yöntemlerle ödeyebilirsiniz: {odeme_listesi}. (örn. "nakit, kredi kartı, yemek kartı (Multinet, Pluxee)") |
+| M29 | Sesli mesajınızı işletmeye ilettik 🎧 Hızlı sipariş için menümüzü açabilirsiniz. |
+| M30 | Bu içeriği okuyamadık, lütfen yazarak iletin. |
+| M31 | Kampanya mesajlarını durdurduk. Sipariş durum bildirimlerini de kapatalım mı? |
+| M31a | Tamam, size bundan sonra otomatik mesaj göndermeyeceğiz. İstediğiniz zaman BAŞLAT yazarak yeniden açabilirsiniz. |
+| M31b | Tamam, kampanya mesajı almayacaksınız. Sipariş bildirimleriniz gelmeye devam edecek. |
+| M32 | Sipariş bildirimlerini yeniden açtık 👍 Kampanya mesajları kapalı kalmaya devam ediyor. |
+| M33 | Merhaba, şu an WhatsApp üzerinden online sipariş alamıyoruz. Sipariş için lütfen bizi arayın: {sube_tel} |
 
 ### 9.4 Pencere dışı: utility şablonları
 
-Gövdeler [D02 §5.2](02-whatsapp-entegrasyonu.md)'de kanoniktir; aşağıdaki kopya bilgi içindir. Değişiklik D02'de yeni sürümle yapılır.
-
-| Service karşılığı | Şablon | Gövde | Buton |
-|---|---|---|---|
-| M05 | `siparis_alindi_v1` | Merhaba {{1}}, {{2}} siparişinizi aldı. Sipariş no: {{3}}, tutar: {{4}}. İşletme onayladığında size buradan haber vereceğiz. | Siparişi takip et |
-| M06 | `siparis_onaylandi_v1` | Siparişiniz onaylandı. {{1}} siparişinizi hazırlamaya başladı, tahmini süre {{2}} dakika. Sipariş no: {{3}}. | Siparişi takip et |
-| M08 | `siparis_hazir_v1` | Siparişiniz hazır. {{1}} sizi bekliyor. Sipariş no: {{2}}. Adres: {{3}}. | Siparişi takip et |
-| M09 | `siparis_yolda_v1` | Siparişiniz yola çıktı. {{1}} kuryesi yaklaşık {{2}} dakika içinde adresinizde olacak. Sipariş no: {{3}}. Ödeme: {{4}}. | Siparişi takip et |
-| M10 | `siparis_teslim_v1` | Siparişiniz teslim edildi, afiyet olsun! {{1}} olarak bizi tercih ettiğiniz için teşekkür ederiz. Sipariş no: {{2}}. Deneyiminizi aşağıdaki bağlantıdan paylaşabilirsiniz. | Değerlendir → `/t/{{1}}#degerlendir` |
-| M11 | `siparis_reddedildi_v1` | Üzgünüz, {{1}} siparişinizi şu anda alamıyor. Sebep: {{2}}. Sipariş no: {{3}}. Anlayışınız için teşekkür ederiz. | — |
-| M12 | `siparis_iptal_v1` | Siparişiniz iptal edildi. Sipariş no: {{1}}. Sebep: {{2}}. Sorunuz varsa bu mesajı yanıtlayarak {{3}} ile görüşebilirsiniz. | — |
-| Panelden eski sohbete yanıt | `yanit_bekliyor_v1` | Merhaba {{1}}, {{2}} olarak mesajınızı gördük ve yanıtlamak istiyoruz. Devam etmek için aşağıdaki butona dokunmanız yeterli. | Devam et |
-
-- Müşteri adı bilinmiyorsa `{{1}}` = "değerli müşterimiz". M13, M10a–d, M17, M26–M32 pencere dışında **hiç** gönderilmez; zaten müşteri yazdıktan sonra tetiklenirler.
-- Zamana duyarlı şablonlara kısa TTL verilmesi önerilir (örn. `siparis_yolda_v1` 30 dk), böylece geç teslim edilmezler (A05 §7.4, değer aralığı teyit edilmeli).
+Pencere kapalıyken aynı içerik [D02 §5.2](02-whatsapp-entegrasyonu.md)'deki utility şablonlarıyla gider; **gövdeler orada kanoniktir.** Eşleme: M05 → `siparis_alindi_v1`, M06 → `siparis_onaylandi_v1`, M08 → `siparis_hazir_v1`, M09 → `siparis_yolda_v1`, M10 → `siparis_teslim_v1` ("Değerlendir" URL butonu `/t/{token}#degerlendir`'e açılır), M11 → `siparis_reddedildi_v1`, M12 → `siparis_iptal_v1`. Panelden 24 saatten eski sohbete yanıt için `yanit_bekliyor_v1` kullanılır.
+- Müşteri adı bilinmiyorsa `{{1}}` = "değerli müşterimiz". M10a–d, M13, M17, M26–M32 pencere dışında **hiç** gönderilmez; zaten müşteri yazdıktan sonra tetiklenirler.
+- Zamana duyarlı şablonlara kısa TTL verilmesi önerilir (örn. `siparis_yolda_v1` 30 dk), böylece geç teslim edilmezler (A05 §7.4; izin verilen aralık teyit edilmeli).
 
 ### 9.5 SMS metinleri (WhatsApp'sız mod) [Faz 1]
 
