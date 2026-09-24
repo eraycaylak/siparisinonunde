@@ -901,11 +901,11 @@ Sahip: Operasyon lideri (sistem metrikleri için teknik lider).
 | **İlk yanıt SLA uyumu** | Öncelik süresinde ilk yanıt verilen temas / temas | Destek aracı | ≥ %90 [T]; P1'de %100 | Haftalık |
 | **P1 ve olay sayısı** | Haftalık P1 temas; SEV1/SEV2 olay sayısı ve süresi | Destek aracı, olay kaydı | Azalan eğilim | Haftalık |
 | **Onboarding süresi** | Kapı 1 ve Kapı 2 tamamlanma süresi (medyan) | `wa_onboarding_sessions` (`completed_at`), `tenants.onboarding_step` | Kapı 1 aynı gün; Kapı 2 ≤ 1 gün | Haftalık |
-| **ES terk oranı** | `CANCEL`/`ERROR` ile biten ES / başlatılan ES; `current_step` kırılımı | `wa_onboarding_sessions` | < %30 | Haftalık |
-| **Meta ödeme hatası oranı** | 131042 durumundaki canlı tenant / canlı tenant | `wa_accounts` sağlık durumu, `messages` hata kodları | 0 | Günlük |
-| **Kalite uyarısı** | YELLOW/RED numara sayısı | `wa_phone_numbers` | 0 | Günlük |
+| **ES terk oranı** | `CANCEL`/`ERROR` ile biten ES / başlatılan ES; `current_step` kırılımı | `wa_onboarding_sessions` (`status` = `cancelled`/`failed`; `current_step` `es_events` içinde) | < %30 | Haftalık |
+| **Meta ödeme hatası oranı** | 131042 durumundaki canlı tenant / canlı tenant | `wa_accounts.sending_paused_reason = payment_missing`, `messages.error_code` | 0 | Günlük |
+| **Kalite uyarısı** | YELLOW/RED numara sayısı | `wa_phone_numbers.quality_rating` | 0 | Günlük |
 | **Sahte sipariş oranı** | `cancel_reason = suspected_fake` / sipariş | `orders` | < %1 [T] | Haftalık |
-| **Sağlık skoru dağılımı** | Yeşil / sarı / kırmızı işletme sayısı; kırmızıda ortalama kalış süresi | Günlük rollup (§5.6) | Kırmızı ≤ %10 [T] | Haftalık |
+| **Sağlık skoru dağılımı** | Yeşil / sarı / kırmızı işletme sayısı; kırmızıda ortalama kalış süresi | Günlük rollup (§5.6; sağlık skoru tablosu [07](07-veri-modeli-ve-api.md)'de yok, §11 #12) | Kırmızı ≤ %10 [T] | Haftalık |
 
 ### 8.6 Maliyet metrikleri
 
@@ -915,12 +915,12 @@ Sahip: Finans. Kur: aylık ortalama (`fx_rates`). Meta mesaj ücretleri işletme
 |---|---|---|---|---|
 | **Altyapı / işletme** | Aylık altyapı faturası (sunucu, depolama, Cloudflare, gözlemlenebilirlik) / aktif işletme | Faturalar | ≤ 120 TL/ay ([01](01-vizyon-pazar-is-modeli.md) §7.1 üst sınırı) | Aylık |
 | **LLM / işletme** **[Faz 2]** | `llm_cost_usd_total` × kur / AI kullanan işletme | Prometheus, tenant LLM sayacı | Pakete göre kota; tenant bütçe koruması | Aylık |
-| **SMS / işletme** | SMS sağlayıcı faturası / aktif işletme | `notifications` (`sms`), fatura | ≤ 80 TL/ay | Aylık |
-| **Platform WhatsApp uyarı maliyeti** | Platform WABA şablon ücretleri | Kendi `wa_message_costs` kayıtlarımız | İzleme | Aylık |
+| **SMS / işletme** | SMS sağlayıcı faturası / aktif işletme (OTP, alarm, kritik durum SMS'i; platform maliyeti, KARARLAR §4) | `sms_messages` (`purpose`, `segments`, `est_cost_kurus`), `tenant_usage_daily.sms_count`, fatura | ≤ 80 TL/ay; adil kullanım kotası Esnaf 100 / Pro 300 SMS/ay, aşımda işletme uyarılır | Aylık |
+| **Platform WhatsApp uyarı maliyeti** | Platform WABA şablon ücretleri | `notifications` (`channel = platform_wa`), `tenant_usage_daily.platform_wa_count` × `wa_rate_cards` | İzleme | Aylık |
 | **Destek maliyeti / işletme** | Destek + onboarding personel maliyeti / aktif işletme | Bordro, zaman kaydı | ≤ 200 TL/ay (≥ %70 marj için, [01](01-vizyon-pazar-is-modeli.md) §7.2) | Aylık |
 | **Döviz bazlı gider / brüt gelir** | USD/EUR faturalı giderler (LLM, SaaS araçları, Cloudflare, platform Meta ücretleri) × kur / abonelik geliri | Muhasebe | **≤ %15** [T] (A06 §7.5) | Aylık |
 | **İşletmenin Meta maliyeti / sipariş** (bilgi) | Tenant'ın aylık tahmini Meta ücreti / teslim edilen sipariş | `wa_message_costs` (`est_try_kurus`) | İzleme; çeyrekte +%50 → R16 KRI | Aylık |
-| **Sipariş başı durum mesajı** | Otomatik durum mesajı / sipariş | `orders.wa_status_msg_count` | ≤ 4 (KARARLAR §6.5) | Haftalık |
+| **Sipariş başı durum mesajı** | Otomatik durum mesajı / sipariş (gecikme, ret ve iptal bilgilendirmesi bütçe dışı; Akış A karşılama + "Menüyü aç" ek 1 mesaj) | `orders.wa_status_msg_count` | ≤ 4 (toplam ≤ 5; KARARLAR §6.5) | Haftalık |
 
 ### 8.7 Pilot başarı kartı (K4 kapısı)
 

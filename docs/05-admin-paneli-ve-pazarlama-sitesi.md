@@ -732,13 +732,14 @@ Bugün
 Geçişten sonra
   N    = S × g × p                    taşınan sipariş / ay
   Cp   = N × B                        taşınan ciro / ay
+  M    = max(0, N × m − 1.000) × r × kur        Meta tahmini (m = 5: 4 durum + 1 karşılama; r = $0,0009)
   Net  = Cp×k − Cp×t − Cp×o×c − N×K − U − M
   N*   = (U + M) / (B × (k − t − o×c) − K)      başa baş sipariş / ay (yukarı yuvarlanır)
 ```
 
 - `N*` hesaplanırken `M`, önce `M = 0` ile bulunan `N*` değeri için hesaplanır, sonra `N*` bir kez yeniden hesaplanır (çoğu senaryoda `M = 0`: 180 × 5 = 900 < 1.000).
 - **Paydada sıfır veya negatif** (`B × (k − t − o×c) − K ≤ 0`): başa baş gösterilmez. Uyarı çıkar: "Bu varsayımlarla kendi kanal kendini amorti etmez. Teşviki düşürmeyi dene."
-- **Yuvarlama:** hesap kuruş hassasiyetinde yapılır; ≥ 1.000 TL tutarlar tam TL'ye yuvarlanarak gösterilir; `N*` yukarı yuvarlanır ve "ayda X sipariş, yani günde yaklaşık Y" olarak yazılır.
+- **Yuvarlama:** hesap kuruş hassasiyetinde yapılır; ≥ 1.000 TL tutarlar tam TL'ye yuvarlanarak gösterilir; **`N*` her zaman yukarı yuvarlanır** (amorti için gereken en az tam sipariş sayısı; [01](01-vizyon-pazar-is-modeli.md) §6.7 kanonik kuralı) ve "ayda X sipariş, yani günde yaklaşık Y" olarak yazılır.
 
 ### C.4.3 Çıktılar
 1. **Bugün pazaryerine ödediğin:** aylık ve yıllık; "gerçek maliyet (KDV hariç)" ve "nakit çıkışı (KDV dahil)" iki ayrı satır.

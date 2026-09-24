@@ -894,10 +894,11 @@ Salt-okunur abonelik modunda (G+10) menü, fiyat, ayar, bölge, personel ekranla
 - **WhatsApp'tan yaz yok (Faz 1):** kuryenin kişisel WhatsApp'ından yazması müşteri numarasını kişisel telefona taşır; yalnız arama sunulur (A06 §5.4) [T].
 - **Gizlilik:** teslimden sonra adres ve telefon kurye görünümünde maskelenir; kurye başka kuryenin siparişini açamaz (IDOR testi, D06 §6.6).
 
-### 9.3 Gün sonu özeti (K-04)
+### 9.3 Gün sonu özeti (K-04) **[Faz 2]**
+- **Faz kararı:** Faz 1 kurye görünümü [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11'deki "basit kurye görünümü"dür (atanan siparişler, yola çıktım/teslim ettim; K-02 başlığında bugünkü teslimat sayısı). Faz 1'de kuryenin tahsilat özeti kasada, P-32 gün sonu kasa raporunun **kurye kırılımından** alınır (§11.1). Kuryenin kendi ekranındaki gün sonu özeti Faz 2'dedir ([09](09-yol-haritasi-ve-sprint-plani.md) F2-17).
 - Bugünkü teslimat sayısı; **tahsilat özeti**: nakit toplam, kapıda kart toplam, yemek kartı (marka bazında), teslim edilemeyenler. "Kasaya teslim edilecek nakit: 3.420 TL".
 - Aynı veri panelde gün sonu kasa raporunun kurye kırılımında görünür (§11.1).
-- **[Faz 2]** Kurye hesap kapatma: kasiyer "Nakit teslim alındı" işaretler, fark varsa not; tur (çoklu sipariş) ve sıra önerisi.
+- Kurye hesap kapatma (aynı fazda): kasiyer "Nakit teslim alındı" işaretler, fark varsa not; tur (çoklu sipariş) ve sıra önerisi.
 
 ### 9.4 Çevrimdışı davranış
 - Kurye aksiyonları çevrimdışıyken **kuyruğa alınır** (gerçekleşme zamanıyla), bağlantı gelince gönderilir; ekranda "Gönderilmeyi bekliyor (1)" rozeti. Çakışmada (sipariş bu arada iptal edildi) kurye "Bu sipariş iptal edildi" görür (A05 §4.3).
@@ -917,6 +918,7 @@ Expo tabanlı native uygulama: arka plan konum, müşteriye canlı konum ve "kur
 ## 10. Mutfak görünümü (P-41, `kitchen` rolü)
 
 ### 10.1 [Faz 1] Temel hazırlık ekranı
+- **Faz kararı:** `kitchen` rolü kanoniktir ("yalnız sipariş/hazırlık ekranı, fiyat görmez", [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4) ve mutfak/kasa tabletinin PIN'li cihaz oturumu Faz 1'dedir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10 Güvenlik; D06 §6.2–6.3). Bu yüzden fiyatsız temel hazırlık ekranı **Faz 1**, tam KDS **Faz 2**'dir (§10.2).
 - Mutfak tableti cihaz oturumuyla açılır (rol: Mutfak); varsayılan **karanlık tema**, dikey veya yatay.
 - **Fiyat yoktur** (API ve SSE fiyat alanı içermez, D06 §6.5).
 - Sütunlar: **Onaylanan** (`accepted`) · **Hazırlanıyor** (`preparing`, adım açıksa) · **Hazır** (son 10 dk).
@@ -1046,7 +1048,7 @@ GTM'in kilit aracı (A02 §9.2).
 | AI self-servis menü çıkarma | 2 | Fotoğraf/PDF → taslak tablo (güven göstergesi, okunamayan fiyat kırmızı), seçenek grubu önerileri, **insan onayı olmadan yayın yok** (A05 §8.5) | Yükleme sonrası 2 dk içinde taslak |
 | Ürün değişikliği onayı (M14) | 2 | "Ürün kalmadı" → müşteriye butonlu mesaj (Onsuz devam / Yerine X / İptal); cevapla sipariş güncellenir | — |
 | İleri saatli sipariş ve slot kapasitesi | 2 | Planlı şerit, slot başına en çok N sipariş, hazırlık zamanında alarm | — |
-| Tam KDS, kurye mutabakatı ve tur, gelişmiş raporlar | 2 | §10.2, §9.3, §11.2 | — |
+| Tam KDS, kurye gün sonu ekranı (K-04) ile mutabakat ve tur, Excel içe/dışa aktarma (P-14), gelişmiş raporlar | 2 | §10.2, §9.3, §6.6, §11.2 | — |
 | Masa QR (`table_qr`, `dine_in`), WhatsApp Flows (`wa_flow`) | 3 | Masa QR seti ve masa numaralı kart, kasada ödeme; yeni kanal rozetleri, panel akışı aynı | — |
 | Kurye uygulaması ve kurye çağırma (§9.5); özel alan adı, açık API/webhook, çok dilli menü, Star CloudPRNT | 3 | Ayarlar altında | — |
 | MPS / kredi hattı | 3 | "WhatsApp mesajları dahil" paketinde P-25'te mesaj kredisi göstergesi | — |
@@ -1072,7 +1074,7 @@ GTM'in kilit aracı (A02 §9.2).
 | P-11 | Seçenek grupları | owner, manager | 1 |
 | P-12 | Tükenenler (hızlı liste) | owner, manager, cashier, kitchen | 1 |
 | P-13 | Toplu fiyat güncelleme | owner, manager | 1 |
-| P-14 | Menü içe/dışa aktarma (Excel) | owner, manager | 1 (temel) / 2 |
+| P-14 | Menü içe/dışa aktarma (Excel) | owner, manager | 2 |
 | P-15 | Menü önizleme | owner, manager, cashier | 1 |
 | P-16 | Çalışma saatleri ve özel günler | owner, manager | 1 |
 | P-17 | Teslimat bölgeleri | owner, manager | 1 |

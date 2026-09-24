@@ -782,10 +782,11 @@ Belirli parayı içeren imzalı sözleşmelerde oran **binde 9,48**'dir; e-imzal
 - [ ] Kurumsal aydınlatma metni, gizlilik politikası, çerez politikası ve rıza paneli — *Avukat, Ürün* — §2.4, §2.13
 - [ ] Abonelik sözleşmesi + kullanım koşulları + DPA + alt işleyen listesi (click-wrap, sürümlü, kabul kayıtları DB'de) — *Avukat, Teknik lider* — §2.2, §7.4–7.5
 - [ ] Son müşteri aydınlatma şablonu: vitrin, checkout, takip sayfası ve WhatsApp karşılama satırında — *Avukat, Ürün* — §2.4
-- [ ] Ön bilgilendirme + mesafeli satış şablonu; "Siparişi onayla (ödeme yükümlülüğü doğar)" adımı; cayma istisnası notu; onay kanıtı — *Avukat, Ürün, Teknik lider* — §4.4
+- [ ] Ön bilgilendirme + mesafeli satış şablonu; "Siparişi onayla" butonu ve hemen altında "ödeme yükümlülüğü doğar" ibaresi; cayma istisnası notu; onay kanıtı — *Avukat, Ürün, Teknik lider* — §4.4
+- [ ] SMS OTP yedeği ("WhatsApp'sız mod"): yurt içi SMS sağlayıcısıyla sözleşme ve DPA, SMS'lerin "bilgilendirme" türüyle gönderimi, SMS şablonlarında promosyon kontrolü, aydınlatma şablonunda SMS sağlayıcısı, adil kullanım kotası sayacı — *Teknik lider, Avukat* — §2.4, §2.11, §3.1, §8.6
 - [ ] KDV dahil fiyat, gizli ek ücret engeli, teslimat ücreti ve minimum sepet gösterimi — *Ürün* — §4.5
 - [ ] Yasak ürün bayrağı (alkol, tütün, ilaç) ve tüm akışlarda sepet engeli — *Teknik lider* — §4.6
-- [ ] Barındırma TR'de (DB, yedekler, müşteri medyası; sağlayıcıdan ISO 27001, lokasyon ve DPA belgeleri); aktarım envanteri; Meta için yazılı risk değerlendirmesi; yurt dışı araçlarda PII scrub ve maskeleme — *Teknik lider, Avukat* — §2.11–2.12
+- [ ] Barındırma TR'de (DB, yedekler, müşteri medyası; sağlayıcıdan ISO 27001, lokasyon ve DPA belgeleri); aktarım envanteri (Meta, Cloudflare, Sentry, e-posta, Google Maps, Web Push servisleri, GitHub, iş araçları); Meta için yazılı risk değerlendirmesi; yurt dışı araçlarda PII scrub ve maskeleme — *Teknik lider, Avukat* — §2.11–2.12
 - [ ] Teknik güvenlik: RLS tenant yalıtım testleri, şifreleme, RBAC + 2FA, `audit_log`, telefon maskeleme, PITR ve geri yükleme tatbikatı — *Teknik lider* — §2.2
 - [ ] Veri ihlali müdahale planı (işletmeye 24 saat, Kurul'a 72 saat) ve bildirim şablonları — *Teknik lider, Avukat* — §2.9
 - [ ] Saklama-imha politikası ve §2.8'deki [Faz 1] otomatik silme işleri; Coexistence geçmiş senkronu varsayılan kapalı — *Teknik lider* — §2.8
