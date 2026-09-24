@@ -1,0 +1,177 @@
+# 00 — Kararlar ve Sözlük
+
+> **Bağlayıcı belge.** Tüm plan dokümanları ve kod bu belgedeki isimleri, durum kodlarını, rolleri, fiyatları ve faz kararlarını aynen kullanır. Bir karar değişirse **önce bu belge** güncellenir, sonra ilgili dokümanlar. Açık kararlar bölüm 13'te; dokümanlar o maddelerde varsayılanla yazılmıştır.
+
+> Bu belge, plan dokümanlarını yazan herkes için **tek doğruluk kaynağıdır**. Buradaki isimler, durumlar, fiyatlar, roller ve kapsam kararları dokümanlarda **aynen** kullanılmalıdır. Bir karar araştırmayla çelişiyorsa burada yazan geçerlidir; gerekirse "açık karar" olarak işaretlenir.
+> Tarih: 2026-09-24. Çalışma adı: **siparisinonunde** (marka: "Siparişin Önünde"). Alan adı ve marka tescili henüz teyit edilmedi.
+
+## 1. Ürün tanımı (tek cümle)
+Türkiye'deki yerel işletmelerin (öncelik restoran/paket servis) **kendi WhatsApp numaralarından komisyonsuz sipariş almasını**, siparişleri **web panelinde sesli uyarıyla yönetmesini** ve müşterisine **otomatik WhatsApp durum bildirimleri** göndermesini sağlayan, sabit aylık abonelikli çok kiracılı (multi-tenant) SaaS.
+
+**Konumlandırma:** Pazaryeri DEĞİL. "İşletmenin kendi WhatsApp sipariş kanalı ve operasyon paneli." Ana mesaj: *"Keşif pazaryerinde, sadakat sende. Komisyonsuz, WhatsApp'tan."* Asla "Yemeksepeti'ni bırak" denmez; "pazaryerine bağımlı kalma" denir.
+
+**Bilinçli olarak yapılmayanlar (kapsam dışı):** tüketiciye yönelik ortak uygulama/pazaryeri, kurye filosu işletmek, işletme adına para tahsil etmek (ödeme aracılığı), resmi olmayan WhatsApp kütüphaneleri, genel amaçlı AI sohbet botu.
+
+## 2. Bileşenler ve alan adları (çalışma varsayımı)
+| Bileşen | Adres | Kullanıcı |
+|---|---|---|
+| Pazarlama sitesi | `siparisinonunde.com` | Ziyaretçi, işletme adayı |
+| İşletme storefront'u (menü + sipariş) | `{slug}.siparisinonunde.com` (Faz 3'te özel alan adı) | Son müşteri |
+| Sipariş takip sayfası | `{slug}.siparisinonunde.com/t/{token}` | Son müşteri |
+| İşletme paneli (PWA) | `panel.siparisinonunde.com` | İşletme sahibi ve personeli |
+| Kurye görünümü | `panel.siparisinonunde.com/kurye` (magic link ile, mobil) | Kurye |
+| Süper admin paneli | `admin.siparisinonunde.com` (2FA zorunlu, IP kısıtlı) | Platform ekibi |
+| Bayi paneli (Faz 2) | `panel.siparisinonunde.com/bayi` | Bayi/kurulum ortağı |
+| API | `api.siparisinonunde.com` | Panel, storefront, entegrasyonlar |
+| WhatsApp webhook | `hooks.siparisinonunde.com/wa` | Meta |
+
+## 3. Sözlük (Türkçe ↔ kod adı) — dokümanlarda bu eşleşme kullanılır
+| Türkçe | Kod / tablo | Not |
+|---|---|---|
+| İşletme (kiracı) | `tenant` | Faturalanan ticari birim |
+| Şube | `branch` | Her tenant'ta en az 1 şube; sipariş şubeye düşer |
+| WhatsApp hesabı | `wa_account` (WABA) | Tenant başına 1 WABA (işletmenin kendi Meta portföyünde) |
+| WhatsApp numarası | `wa_phone_number` | Şubeye bağlanır; mod: `cloud` \| `coexistence` |
+| Müşteri (kişi) | `customer` | Kimlik: `(tenant_id, wa_bsuid)`; telefon **nullable** |
+| Konuşma | `conversation` | Müşteri–işletme WhatsApp sohbeti |
+| Mesaj | `message` | Gelen/giden; `wamid` UNIQUE |
+| Menü, kategori, ürün | `menu`, `category`, `product` | |
+| Seçenek grubu / seçenek | `option_group`, `option` | "Porsiyon", "Ekstralar", "Çıkarılacaklar" (min/max seçim) |
+| Sipariş, kalem | `order`, `order_item`, `order_item_option` | Fiyatlar sipariş anında kopyalanır (snapshot) |
+| Teslimat bölgesi | `delivery_zone` | Poligon (PostGIS) + min sepet + ücret + tahmini süre |
+| Kurye | `courier` (bir `user` rolü) | İşletmenin kendi kuryesi |
+| Abonelik, plan, fatura | `subscription`, `plan`, `invoice` | Bizim işletmeye kestiğimiz |
+| Bayi | `reseller` | Faz 2 |
+| Denetim kaydı | `audit_log` | Tüm kritik işlemler |
+
+## 4. Roller (RBAC) — kanonik liste
+**Platform (admin paneli):** `platform_owner` (tam yetki), `platform_admin` (operasyon), `support_agent` (destek, loglu impersonation), `finance` (abonelik/fatura/tahsilat), `sales_rep` (lead ve deneme yönetimi). **Bayi (Faz 2):** `reseller_admin` (bayi yöneticisi — kendi işletmeleri, komisyon raporu) ve `reseller_technician` (kurulum teknisyeni — yalnız atandığı işletmelerin kurulum kontrol listesi); ikisi de yalnız kendi getirdiği işletmeleri görür.
+**Müşteri verisi dışa aktarma/silme (KVKK talepleri):** `owner` ve `manager`. **Manuel (telefon) siparişte bölge dışı istisnası:** personel uyarıyı görerek bölge dışına sipariş girebilir (kayıt altına alınır).
+**SMS maliyeti:** SMS OTP ve kritik durum SMS'leri platform maliyetidir, aboneliğe adil kullanım kotasıyla dahildir (Esnaf 100, Pro 300 SMS/ay; kota aşımında işletme uyarılır, Faz 2'de ek SMS paketi).
+**Oturum süreleri (kanonik):** platform (admin) oturumu 8 saat + 30 dk hareketsizlikte kilit; impersonation en fazla 30 dk, varsayılan salt-okunur, gerekçe zorunlu, işletmeye bildirim gider; işletme paneli oturumu 30 gün (kayıtlı cihaz), kurye magic link 12 saat (vardiya).
+**Kill-switch'ler (admin):** `signup_open`, `wa_onboarding`, `campaigns_global`, `llm_parsing`, `sms_fallback`, tenant bazında `ordering_enabled`.
+**İşletme (işletme paneli):** `owner` (İşletme Sahibi — her şey + abonelik + WhatsApp bağlantısı), `manager` (Yönetici/Şube Müdürü — menü, ayarlar, raporlar, personel; abonelik hariç), `cashier` (Kasiyer/Operatör — sipariş ekranı, sohbet, müşteri), `kitchen` (Mutfak — yalnız sipariş/hazırlık ekranı, fiyat görmez), `courier` (Kurye — yalnız kendine atanan siparişler).
+
+## 5. Sipariş durum makinesi (kanonik — tüm dokümanlarda aynen)
+| Kod | Türkçe etiket | Açıklama |
+|---|---|---|
+| `awaiting_customer` | Müşteri onayı bekleniyor | AI/sohbetten çıkarılan sipariş özeti ya da WhatsApp doğrulaması bekleyen web siparişi. Zaman aşımı: 30 dk → `cancelled` (sebep: `customer_timeout`) |
+| `new` | Yeni | İşletme onayı bekliyor. Kademeli alarm zinciri çalışır (bölüm 10); 15 dk yanıt yoksa `cancelled`/`tenant_no_response`. Otomatik kabul Faz 2'de, kurallı ve varsayılan kapalı |
+| `accepted` | Onaylandı | Tahmini hazırlık/teslim süresi verildi |
+| `preparing` | Hazırlanıyor | Opsiyonel adım (işletme ayarı) |
+| `ready` | Hazır | Gel-al: müşteri bekleniyor; paket: kurye bekleniyor |
+| `on_the_way` | Yolda | Kurye atandı ve çıktı |
+| `delivered` | Teslim edildi | Tüm teslim modları için başarılı final durum |
+| `rejected` | Reddedildi | `new` iken işletme reddetti; `rejection_reason` zorunlu; 30 sn "bekleyen ret" geri alma penceresinden sonra kesinleşir |
+| `cancelled` | İptal edildi | `awaiting_customer`, `new` veya onay sonrası durumlardan iptal; `cancelled_by` (customer/tenant/system) + `cancel_reason` zorunlu |
+
+Geçişler: `awaiting_customer→new|cancelled`; `new→accepted|rejected|cancelled` (`cancelled` burada yalnız müşteri iptali veya sistem zaman aşımı: işletme varsayılan 15 dk yanıt vermezse `cancelled_by=system`, sebep `tenant_no_response`, müşteriye özür + telefon bilgisi); `accepted→preparing|ready|on_the_way|cancelled`; `preparing→ready|cancelled`; `ready→on_the_way|delivered|cancelled`; `on_the_way→delivered|cancelled`. Planlı (ileri saatli) sipariş ayrı durum değildir: `new` + `scheduled_for` alanı.
+
+**Sebep kodları (kanonik):** `rejection_reason`: `closed` (kapalıyız), `out_of_zone` (bölge dışı), `item_unavailable` (ürün kalmadı), `too_busy` (yoğunluk), `duplicate` (mükerrer), `suspected_fake` (şüpheli/sahte), `other` (serbest metin zorunlu). Her sebep için müşteri mesaj metni 03 no'lu dokümanda. `cancel_reason`: `customer_request`, `customer_timeout`, `tenant_no_response`, `item_unavailable`, `courier_issue`, `duplicate`, `suspected_fake`, `payment_timeout` (Faz 2 online ödeme), `other`. `verification_method`: `wa_link` (Akış A token), `wa_code` (Akış B kod), `sms_otp`, `staff` (manuel sipariş). Test siparişleri `test_kind` alanıyla işaretlenir (`onboarding_test`, `canary`) ve rapor/faturalamadan hariç tutulur.
+
+**Adlandırma:** Veritabanı tablo adları **çoğul snake_case**'tir (`tenants`, `branches`, `orders`, `order_items`, `branch_events`…); sözlükteki tekil adlar varlık (entity) adıdır. `order` SQL'de ayrılmış kelime olduğundan tablo `orders`'tır. Enum değerleri İngilizce snake_case, UI etiketleri Türkçe.
+**Kuyruklar (kanonik):** `wa-inbound`, `wa-outbound`, `wa-media`, `notify`, `llm`, `print`, `images`, `cron`.
+**Gerçek zamanlı kanal:** Panel ↔ API arasında **SSE** (sunucu→istemci) + REST (aksiyonlar). WebSocket yalnız yazdırma ajanı bağlantısında (Faz 2).
+
+**Ödeme durumu (ayrı alan `payment_status`):** `unpaid`, `pending`, `paid`, `failed`, `refunded`, `partially_refunded`.
+**Ödeme yöntemi (`payment_method`):** `cash_on_delivery` (kapıda nakit), `card_on_delivery` (kapıda kredi kartı — kuryede POS), `meal_card_on_delivery` (kapıda yemek kartı; marka alanı: Multinet, Pluxee, Edenred, Setcard, Metropol…), `online_card` (Faz 2 — işletmenin kendi ödeme kuruluşu hesabı), `pay_at_counter` (gel-al/masa).
+**Teslim türü (`fulfillment_type`):** `delivery` (paket servis), `pickup` (gel-al), `dine_in` (masaya — Faz 3).
+**Sipariş kanalı (`channel`):** `wa_link` (WhatsApp sohbetinden gelen imzalı storefront linki), `wa_ai` (WhatsApp'ta serbest metinden AI ile — Faz 2), `web` (doğrudan storefront: QR, Instagram, Google, paket kartı), `table_qr` (Faz 3), `wa_flow` (WhatsApp Flows — Faz 3), `manual` (işletmenin panelden girdiği telefon siparişi).
+
+## 6. WhatsApp kararları
+1. **Yalnız resmi WhatsApp Cloud API.** Baileys/whatsapp-web.js/Evolution vb. hiçbir koşulda kullanılmaz (prototipte bile). Bu bir satış argümanıdır: "Resmi Meta altyapısı, numaran güvende."
+2. **Model: Doğrudan Meta Tech Provider + Embedded Signup (v4) + Coexistence varsayılan.** Her işletmenin varlıkları (portföy, WABA, numara) işletmenindir. Meta mesaj ücretlerini **doğrudan işletmenin Meta'ya tanımladığı karttan** çeker (USD). Biz yalnız aboneliğimizi faturalarız. **Multi-Partner Solution (MPS) / kredi hattı = Faz 3** (Türk bir Solution Partner ile; TL fatura, "mesaj dahil" paket, işletmenin Meta'ya kart girmesine gerek kalmaz). Solution Partner görüşmeleri Faz 1'de başlar; App Review/Business Verification gecikirse Plan B olarak pilot bir Solution Partner üzerinden başlatılabilir.
+3. **Kritik yol (Faz 0, hemen):** şirket kuruluşu → Meta Business Portfolio + Business Verification → Meta App + Tech Provider kaydı → Embedded Signup yapılandırması → App Review (whatsapp_business_messaging + whatsapp_business_management, video kanıtı) → onboarding limiti 10/hafta → 200/hafta. Embedded Signup v2 8 Ekim 2026'da kalkıyor; doğrudan v4 ile geliştirilir.
+4. **Varsayılan onboarding: Coexistence** (esnaf mevcut WhatsApp Business uygulaması numarasını kaybetmez, telefondan yazmaya devam eder). Alternatif: yeni numara. Normal WhatsApp kullanan esnafa önce WhatsApp Business'a geçiş rehberi. Coexistence kısıtları: 20 mesaj/sn, uygulama ≥14 günde bir açılmalı, API tarafında grup yok. Sohbet geçmişi senkronu (6 ay) ve kişi (contacts) senkronu **varsayılan kapalı** (veri minimizasyonu); işletme açık onayla açabilir.
+5. **Mesaj ekonomisi (1 Ekim 2026 sonrası):** Service mesajları ücretli (numara başına ayda ilk 1.000 ücretsiz); Türkiye utility/service ≈ $0,0009, marketing ≈ $0,0109 (rate card konfigürasyonda tutulur, kodda değil; çeyreklik değişir). Hedef: **sipariş başına en fazla 4 durum mesajı** (istisna: gecikme/iptal bilgilendirmesi gibi olağan dışı durum mesajları bütçe dışıdır) (alındı+takip linki, onaylandı+süre, yolda, teslim edildi+değerlendirme); Akış A'daki karşılama + "Menüyü aç" mesajı bunlara ek 1 mesajdır (toplam ≤ 5). "Hazırlanıyor" bildirimi varsayılan kapalı. Gel-al siparişte "yolda" yerine "hazır" mesajı gider. Pencere içinde serbest mesaj; pencere dışında utility template. Maliyet defteri: her status webhook'undaki `pricing` nesnesi kaydedilir; panelde "bu ay Meta'ya tahmini ödeme".
+6. **Meta ücreti pass-through:** Aboneliğe "WhatsApp mesajları dahil" vaadi verilmez (Faz 3 MPS'e kadar). Kampanya modülünde gönderim öncesi maliyet önizlemesi zorunlu.
+7. **Menü/sepet WhatsApp Catalog'da DEĞİL, kendi web storefront'umuzda** (Catalog modifier/seçenek desteklemez). WhatsApp Flows Faz 3. WhatsApp Pay Türkiye'de yok → online ödeme PSP linki (CTA URL).
+8. **Müşteri kimliği = `(tenant_id, wa_bsuid)`**; telefon nullable. 2026 kullanıcı adları nedeniyle `wa_id`/telefon webhook'ta gelmeyebilir. Kurye için telefon: webhook'ta varsa alınır, yoksa storefront formundaki "teslimat telefonu" alanı veya sohbette REQUEST_CONTACT_INFO butonu. İşletmeye contact book'u açık tutması önerilir.
+9. **AI politikası:** Ocak 2026 genel amaçlı chatbot yasağına uyum — bot yalnız işletmenin menü/sipariş/adres/çalışma saati konularında çalışır, konu dışına kibar ret + menü butonu, her zaman "Yetkiliyle görüş" (insana devir), işletme botu kapatabilir. Ürün "WhatsApp'ta ChatGPT" diye pazarlanmaz.
+10. **Commerce Policy:** Alkol, tütün/nargile, ilaç, tehlikeli madde (tüp/LPG şüpheli) WhatsApp akışında satılamaz → menüde "WhatsApp'ta gösterme/satma" bayrağı ve kategori filtresi; tüp bayi, eczane, tekel, nargile kafe hedeflenmez.
+
+## 7. Sipariş akışları (kanonik)
+- **Akış A — Birincil (Faz 1): Sohbet + web sepeti.** Müşteri yazar → bot karşılama + "Menüyü aç" CTA URL (imzalı, kısa ömürlü token → BSUID'ye bağlı) → storefront'ta sepet/adres/ödeme → sipariş doğrudan `new` → panelde sesli uyarı → durum mesajları WhatsApp'tan.
+- **Akış B — Doğrudan web (Faz 1):** QR/Instagram/Google/paket kartından storefront → sepet → sipariş `awaiting_customer` → "WhatsApp ile onayla" butonu (`wa.me/<numara>?text=Sipariş kodu: ABC123`) → müşterinin mesajı gelince BSUID bağlanır, sipariş `new` olur, 24 saatlik pencere müşteri tarafından açılmış olur (sahte siparişe karşı doğrulama + ücretsiz/ucuz mesaj). **Yedek: SMS OTP doğrulaması (Faz 1)** — müşterinin WhatsApp'ı yoksa, işletmenin WhatsApp bağlantısı henüz tamamlanmadıysa ya da WhatsApp kanalı arızalıysa ("WhatsApp'sız mod"); bu durumda durum bilgisi takip sayfasından ve kritik durumlarda (onaylandı/iptal) SMS ile verilir. Böylece işletme Meta adımları bitmeden **ilk gün web siparişi almaya başlayabilir** ve Meta tek nokta arızasına karşı ürün çalışmaya devam eder.
+- **Akış C — AI serbest metin (Faz 2):** "2 lahmacun 1 ayran" → LLM ile menüye eşleme (yapılandırılmış çıktı) → sipariş `awaiting_customer` → müşteriye özet mesajı + **kanonik 3 buton: [Onayla] [Düzenle] [İptal]** (reply button başlığı ≤ 20 karakter; "Onayla'ya bastığınızda siparişiniz kesinleşir ve ödeme yükümlülüğü doğar" ibaresi ve ön bilgilendirme linki **mesaj gövdesinde**). [Düzenle] sepeti dolu storefront linkini gönderir. Onaylanırsa `new`. Belirsizlikte panelde "insan onayı" / sohbet devralma.
+- **Akış D — Aynısından tekrar:** storefront'ta "Son siparişin" kartı **Faz 1**; sohbet içinde bot önerisi/tek dokunuşla tekrar **Faz 2**.
+- **Akış E — Manuel/telefon siparişi (Faz 1):** Kasiyer panelden hızlı sipariş girer; müşteri telefonu varsa bilgilendirme template'i gider.
+- **Flows ile sohbet içi sipariş:** Faz 3 (kanal kodu `wa_flow`).
+- **Mesaj koruma kuralları (kodla uygulanır):** 60 sn debounce ("alındı" ve "onaylandı" 60 sn içinde olursa tek mesaj) — **yalnız Akış A'da** (storefront ekranı zaten "alındı" gösterir); Akış B'de müşterinin doğrulama kodu mesajına "Siparişiniz alındı" yanıtı **anında** gider; takip linki teslimden **7 gün** sonra geçersizleşir; değerlendirme isteği "teslim edildi" mesajının içinde (butonlu); pazarlama izni sorusu (Faz 2) değerlendirme cevabının içinde; adres/telefon mesajlarda tekrar edilmez (takip sayfasında). `request_welcome` olayı (kullanıcı sohbeti ilk açtığında) desteklenir — sprint 1'de Türkiye numarasıyla test edilir.
+- **Storefront link token'ı** GET isteğinde tüketilmez (link önizleme/prefetch yakmasın): ilk açılışta oturum çerezine çevrilir, URL temizlenir, "Ben değilim" kaçışı vardır.
+- **Ret geri alma:** işletme reddettiğinde sipariş 30 sn "bekleyen ret" olarak kalır (ayrı durum değil; `rejection_scheduled_at` alanı + iptal edilebilir gecikmeli iş); 30 sn içinde "Geri al" basılmazsa `rejected` olur ve müşteri mesajı gider. `rejected→new` geçişi yoktur. **Otomatik kabul** Faz 2'de kurallı ve varsayılan kapalı.
+- **Şube sipariş durumu (`ordering_state`):** `open` (açık), `busy` (yoğun — ETA uzatılmış, sipariş alınır), `paused` (sipariş almayı durdurdu), `closed` (çalışma saati dışı; hesaplanır).
+- **İşletme yaşam döngüsü (`lifecycle_stage`, admin):** `lead`, `onboarding`, `pilot`, `trial`, `active`, `past_due`, `read_only`, `suspended`, `churned`. Abonelik durumu (`subscription.status`): `trialing`, `active`, `past_due`, `read_only`, `suspended`, `cancelled`.
+
+## 8. Fiyatlandırma (KDV hariç; KDV %20)
+| Paket | Aylık | Yıllık peşin (%20 indirim) | Hedef |
+|---|---|---|---|
+| **Esnaf** | 990 TL | 9.504 TL | Günde 5–20 sipariş, tek şube |
+| **Pro** (ana paket) | 1.790 TL | 17.184 TL | Günde 20–80 sipariş, tek şube |
+| **Zincir** | 2.990 TL / şube | 28.704 TL / şube | 2+ şube |
+- 14 gün **kartsız** deneme. İlk 100 işletme "kurucu üye": **12 ay boyunca sabit %30 indirim oranı** (sabit TL fiyat değil — liste fiyatı TÜFE ile güncellenebilir); "biz kuralım" kurulumu ücretsiz (normalde 1.990 TL + KDV tek sefer).
+- Pilot (ilk 10 işletme): 3 ay ücretsiz + concierge kurulum, karşılığında haftalık geri bildirim ve vaka izni.
+- **Sipariş başı ücret yok, ciro yüzdesi yok, ödeme işlemlerinden pay yok.** Meta mesaj ücretleri işletmenin Meta hesabından (pass-through).
+- **Zincir paketi Faz 2'de satışa çıkar** (çoklu şube Faz 2'de geliyor); 5+ şube için özel teklif. Faz 1'de yalnız Esnaf ve Pro satılır (Pro'nun Faz 2 özellikleri geldikçe pakete eklenir; paket içerik matrisi 01 no'lu dokümanda).
+- "Kartsız deneme" = bize kart vermeden deneme. WhatsApp mesajlarının teslimi için işletme deneme süresinde de **Meta'ya** ödeme yöntemi eklemek zorundadır (1 Ekim 2026 kuralı); onboarding sihirbazında zorunlu adımdır.
+- Kur varsayımı (tüm dokümanlarda): **1 USD ≈ 48,4 TL** (TCMB, 24.09.2026). TL karşılıkları yaklaşıktır.
+- Fiyatlar yıllık TÜFE endeksli güncellenir. Ücretsiz "Menü" katmanı (QR/web menü, ayda 50 web sipariş, WhatsApp API yok) Faz 3'te değerlendirilir.
+- Başa baş argümanı: %25 komisyonlu işletmede ayda ~21 sipariş kendi kanalına geçerse Pro kendini amorti eder.
+
+## 9. Ödeme, faturalama ve hukuk kararları
+- **Son müşteri ödemesi (Faz 1):** yalnız kapıda (nakit / kart — işletmenin POS'u / yemek kartı cihazı) ve gel-alda kasada; panelde yalnız kayıt tutulur. **Online kart (Faz 2):** işletme **kendi** PayTR hesabını bağlar (sonra iyzico); para doğrudan işletmeye gider; **müşteri parası hiçbir koşulda bizim hesabımıza girmez** (6493 lisans riski). Craftgate (işletmenin istediği POS'u bağlaması) Faz 3. Pazaryeri/alt üye işyeri modeli yalnız strateji "platform payı"na dönerse ve hukuki görüşle.
+- Gıda siparişinde **taksit yok**; **alkol ve tütün storefront'ta ve WhatsApp'ta satılamaz** (ürün bayrağıyla teknik olarak engellenir).
+- **Mesafeli satış onay adımı:** Her siparişte müşteriye özet (kalemler, KDV dahil toplam, teslimat ücreti), cayma hakkı istisnası notu (çabuk bozulan gıda), ön bilgilendirme linki ve onay eylemi gösterilir: storefront'ta "Siparişi onayla" butonu + altında "ödeme yükümlülüğü doğar" ibaresi; WhatsApp özetinde [Onayla] butonu + gövdede aynı ibare.
+- **Kampanya/toplu mesaj modülü Faz 2**: işletmenin İYS kaydı + alıcının önceden onayı + her mesajda ücretsiz ret yolu + gönderim öncesi İYS sorgusu (yazılımda zorunlu, WhatsApp operatör İYS filtresinden geçmez) + audit log. Sipariş durum mesajları saf bilgilendirmedir; şablon editörü içine promosyon/indirim kodu eklenmesini engeller.
+- **Veri minimizasyonu varsayılan:** Coexistence geçmiş senkronu kapalı; yapılandırılmış alerji/sağlık alanı YOK (yalnız serbest sipariş notu, kısa saklama); konum ve medya kısa sürede silinir; müşteri verisi tenant içinde kalır (platform geneli müşteri profili yok); otomatik silme işleri Faz 1'de.
+- **KVKK rolleri:** Son müşteri verisi → işletme veri sorumlusu, biz veri işleyen (DPA ile). İşletme sahibi/personel, abonelik, site ziyaretçisi verisi → biz veri sorumlusu. Keşif/dizin sayfası, ortak müşteri hesabı, ödeme aracılığı, ücretli öne çıkarma **yapılmaz** (ETAHS/pazaryeri sayılma riski).
+- **Bizim abonelik tahsilatımız:** Kendi faturalama motorumuz + tek PSP'nin kart saklama/abonelik API'si (PayTR veya iyzico) + yıllık planda havale/EFT. e-Fatura/e-Arşiv: **Paraşüt API** (ölçekte özel entegratör: Nilvera/QNB eSolutions/Uyumsoft). Dunning: askıya alma kademeli; askıda bile işletmenin sipariş alması hemen kesilmez (önce uyarı + salt-okunur mod, sözleşmede tanımlı süreler). Pilot döneminde ücretsiz.
+- **Dunning takvimi (kanonik):** G (ödeme günü) başarısız → G+1/G+3/G+7 yeniden deneme + e-posta/WhatsApp hatırlatma → **G+10 salt-okunur mod** (panelde ayar değiştirilemez, ama sipariş almaya devam eder) → **G+21 askıya alma** (storefront ve bot "şu an online sipariş alınmıyor, lütfen arayın" moduna geçer) → G+75 hesap kapatma ve veri silme süreci (dışa aktarma hakkı hatırlatılarak). Ayrıntı 08 no'lu dokümanda.
+- **Deneme bitişi:** 14 gün dolunca plan seçilmediyse 3 gün uyarı bandı → sonra sipariş alma durur (askı modu) → 90 gün içinde plan seçilirse veriler aynen döner, sonra silinir.
+- **Saklama süreleri:** 08-mevzuat-kvkk-odeme-fatura.md'deki saklama tablosu kanoniktir (her satır bir `retention.*` silme işine bağlı).
+- **MVP öncesi zorunlu belge seti** (avukatla sabit ücretli uyum paketi): abonelik sözleşmesi + kullanım koşulları, DPA + alt işleyen listesi, aydınlatma metni + gizlilik politikası, çerez politikası + rıza paneli, işletme adına son müşteri aydınlatma şablonu, ön bilgilendirme formu + mesafeli satış sözleşmesi şablonu, site künyesi, veri ihlali müdahale planı, saklama-imha politikası. Hepsi click-wrap ve sürümlü; kabul kayıtları DB'de.
+- **Vergi/şirket:** SaaS %20 KDV; fiyatlar KDV hariç + dahil birlikte gösterilir; yurt dışı hizmetlerde (Meta, Anthropic, Cloudflare vb.) sorumlu sıfatıyla KDV (2 No'lu beyanname) ve stopaj sınıflandırması; Teknokent değerlendirilir. Şirket türü: yatırım planı varsa AŞ, yoksa Ltd (açık karar). Marka başvurusu 9, 35, 38, 42. sınıflarda, isim duyurulmadan önce.
+
+## 10. Teknik kararlar
+- **Stack (varsayılan):** TypeScript monorepo — pnpm + Turborepo; `apps/web` Next.js 16 (pazarlama sitesi + storefront, host→tenant çözümleme `proxy.ts`); `apps/panel` ve `apps/admin` Vite 8 + React 19 + TanStack Router/Query + shadcn/ui (SPA + PWA); `apps/api` Fastify 5 (REST + SSE + WhatsApp webhook ingress, Zod 4 şemaları); `apps/worker` BullMQ (kanonik kuyruk listesi bölüm 5'te); PostgreSQL 18 + PostGIS + Drizzle ORM; Redis/Valkey; Better Auth (organization, 2FA/TOTP, phone OTP). **Alternatif:** ekip Laravel'de çok güçlüyse Laravel 13 + Filament 5 + Reverb + Horizon (açık karar; ilk hafta verilir, sonra değişmez). BaaS (Supabase/Firebase) çekirdek olarak kullanılmaz.
+- **Multi-tenancy:** tek paylaşımlı DB; her tabloda `tenant_id`; RLS ikinci savunma hattı (FORCE RLS, NOBYPASSRLS uygulama rolü, `set_config('app.tenant_id', …, true)`), bileşik FK; CI'da tenant yalıtım testleri zorunlu. Hiyerarşi `tenant → branch → (menü, bölge, numara, yazıcı)`.
+- **Kademeli alarm zamanlaması (kanonik, `new` durumundaki sipariş için):** t=0 panel sesi + Web Push; t=60 sn ses tekrarı (yükselen); t=2 dk platform WhatsApp numarasından işletme sahibine uyarı şablonu; t=5 dk SMS; t=10 dk müşteriye "işletme henüz onaylamadı" bilgisi; t=15 dk otomatik `cancelled` (`tenant_no_response`) + müşteriye özür/telefon bilgisi. Süreler işletme ayarıyla (min/maks sınırlı) değiştirilebilir. "Otomatik reddet" yoktur.
+- **"Sipariş kaçmaz" garantisi:** şube başına sıralı olay günlüğü (`branch_events.seq`) + SSE + `Last-Event-ID` ile yeniden oynatma + 30–60 sn emniyet sorgusu + sipariş başına ack. Kademeli alarm (Faz 1): panelde ses → Web Push → **platform WhatsApp numarasından** işletme sahibine uyarı şablonu → SMS → (eşik aşılırsa) müşteriye gecikme bilgisi. "Panel çevrimdışı" dedektörü. Vardiya başında "Siparişleri almaya başla" butonu (ses kilidi + Wake Lock).
+- **WhatsApp işleme:** imza doğrulama → ham olay DB → hemen 200 → kuyruk (jobId = olay hash'i) → worker; `wamid` UNIQUE; konuşma başına sıralı işleme (Postgres advisory lock); outbox; numara (80/20 mps) ve alıcı (≈6 sn) başı limiter; DLQ ekranı admin panelde. Konuşma ve sipariş için iki ayrı, tablo güdümlü durum makinesi (`packages/core`, %100 birim testli).
+- **Yazdırma:** Faz 1 tarayıcıdan 80/58 mm fiş (CSS); Faz 2 Android/Sunmi Capacitor uygulamasında otomatik ESC/POS + Windows yerel yazdırma ajanı (Go); varsayılan raster fiş (Türkçe karakter). Fişe "mali değeri yoktur" ibaresi (mali müşavir teyidi).
+- **Harita:** WhatsApp konum pini + storefront harita pini; PostGIS poligon bölgeler (`ST_Covers`); kuş uçuşu mesafe; harita görüntüleme MapLibre; geocoding/autocomplete Google Maps ücretsiz kotası ile başlar, 300+ işletmede self-host Photon/OSRM değerlendirilir.
+- **Alan adları:** Faz 1 wildcard alt alan adı (Cloudflare); Faz 3 özel alan adı (Cloudflare for SaaS, ilk 100 hostname ücretsiz).
+- **Barındırma:** **Kişisel veri (PostgreSQL, yedekler, müşteri medyası) Türkiye'de** barındırılır (yerli bulut/veri merkezi: Turkcell Bulut, Türk Telekom, Huawei Cloud İstanbul, Radore, Bulutistan — teklif alınacak); ikinci yedek başka bir Türkiye lokasyonunda. Ürün görselleri (kişisel veri değil) Cloudflare R2'de olabilir. Docker Compose tek sunucu → 3 sunucu (app, pg primary, pg standby); pgBackRest/WAL-G PITR; aylık geri yükleme tatbikatı. Yurt dışı alt işleyenler (Meta, Anthropic, Cloudflare, Sentry, e-posta sağlayıcısı) aktarım envanterine girer ve PII görmeyecek şekilde yapılandırılır (Sentry'de PII scrub, LLM'e giden metinde telefon/adres maskeleme).
+- **Güvenlik:** owner ve tüm platform kullanıcıları için zorunlu TOTP 2FA; mutfak/kasa tabletleri için PIN'li cihaz oturumu; WhatsApp token/PIN envelope encryption; audit log; Cloudflare + uygulama rate limit; OWASP ASVS 5.0 L1 (kimlik ve tenant yalıtımı L2); loglarda telefon maskelenir.
+- **AI:** yalnız serbest metin siparişlerde (Faz 2) Claude Haiku 4.5 + structured outputs + menü adayı getirme (retrieval) + sunucu tarafı doğrulama; zor vakada Sonnet 5; **fiyatı asla LLM hesaplamaz**; her zaman özet + [Onayla][Düzenle][İptal]. Menü fotoğrafından/PDF'ten menü çıkarma (Faz 2 onboarding) Sonnet 5 vision. Tenant başına LLM token sayacı ve bütçe koruması. Türkçe eval seti pilotta toplanır.
+- **Mobil:** Faz 1 PWA; Faz 2 Capacitor 8 Android sarmalayıcı (otomatik yazdırma, Sunmi, güvenilir alarm); Faz 3 Expo kurye uygulaması (arka plan konum).
+- **Gözlemlenebilirlik/CI:** Sentry (PII scrub), Prometheus/Grafana/Loki, Uptime Kuma; GitHub Actions; ortamlar dev/staging/prod. Repo köküne `CLAUDE.md` (tenant/RLS, outbox, FSM, "fiyat sunucuda hesaplanır" kuralları).
+- **Altyapı maliyeti (tahmin):** pilot ~$40–100/ay; 100 işletme ~$600–1.200/ay; 1.000 işletme ~$3.500–7.000/ay (en büyük değişken LLM). Yurt içi barındırma fiyatları teklifle netleşir.
+
+## 11. Fazlar (kanonik isimler)
+- **Talep doğrulama deneyi ("Seviye 0 concierge", Hafta 0–8, geliştirmeyle paralel):** 5–10 işletmede yazılım beklemeden `wa.me` linkli paket içi QR kartı + magnet + doğrudan kanal teşviki; siparişler işletmenin mevcut WhatsApp'ına düşer, ekip sayar (UTM/kod). Soru: pazaryeri müşterisi kendi kanala geçiyor mu? **Go/no-go kapısı** (Hafta 8): işletme başına haftalık kendi kanal siparişi ve ödeme niyeti ölçütleri (10 no'lu dokümanda). En büyük risk talep tarafıdır (R01).
+- **Faz 0 — Hazırlık (Hafta 0–4):** şirket, marka/alan adı, Meta doğrulama + App Review başvurusu, hukuk metinleri, teknik iskelet, müşteri görüşmeleri (20+ esnaf).
+- **Pilot öncesi zorunlu "sipariş kaçmaz" paketi:** kademeli alarm, sentetik canary sipariş (her tenant için periyodik uçtan uca test), en az iki ayrı sunucu/VM üzerinde webhook alımı (pilotta ucuz ikinci VPS yeterli), PITR yedek, pilot boyunca kurucuların üstlendiği P1 (acil) telefon hattı. Ticari lansmandan önce dış güvenlik incelemesi (pentest).
+- **Faz 1 — MVP (Hafta 1–12, Faz 0 ile paralel başlar):** Akış A, B, E; panel çekirdeği (canlı sipariş ekranı, menü, saatler, teslimat bölgesi, müşteriler, basit rapor, tarayıcıdan fiş yazdırma, personel); **basit kurye görünümü** (kendi kuryesine atama + magic link mobil ekran: yola çıktım/teslim ettim); WhatsApp gelen kutusu (sohbeti görme, yanıtlama, bot/insan modu); storefront + takip sayfası; admin çekirdeği; pazarlama sitesi v1 (hesaplayıcı dahil).
+- **Segment sırası:** 1) kendi kuryesi olan paket ağırlıklı bağımsız restoranlar (Faz 1'den); 2) su bayileri (tüp/LPG hariç — Commerce Policy) ve pastaneler — satış ve dikey uyarlamalar (depozito, tekrarlayan sipariş, ön sipariş/özel pasta formu) **Faz 2**; 3) market/şarküteri/çiçekçi **Faz 3**.
+- **Pilot (Hafta 10–18):** 10 işletme, tek şehir 2–3 ilçe, concierge.
+- **Faz 1'de olmayanlar (bilinçli):** AI serbest metin siparişi, kampanya/toplu mesaj, pazarlama izni toplama (İYS olmadan geçersiz), sepeti terk hatırlatması, online ödeme, çoklu şube, bayi paneli, AI ile self-servis menü çıkarma (Faz 1'de yalnız ekip içi concierge aracı).
+- **Faz 2 — v1 / Ticari lansman (Ay 4–9):** abonelik tahsilatı + e-fatura, online ödeme, AI sipariş, tekrar sipariş, kupon/sadakat, İYS uyumlu kampanya, yazıcı otomasyonu, bayi paneli, referans, SambaPOS/Adisyo entegrasyonu, çoklu şube.
+- **Faz 3 — v2 / Ölçek (Ay 9–18):** özel alan adı, Flows, native uygulamalar, masa QR, kurye çağırma entegrasyonu, ücretsiz katman, açık API, MPS/kredi hattı, ikinci şehir, market/şarküteri/çiçekçi dikeyleri.
+
+## 12. Başarı metrikleri (kanonik)
+- Pilot: işletme başına ilk 14 günde ≥10 kanal siparişi; pilotun 8. haftasında (pilot sonu) siparişlerin ≥%10'u kendi kanalından; panel günlük aktif.
+- Operasyon: sipariş kaçırma oranı %0 hedef (yeni sipariş 2 dk içinde onaylanmazsa alarm); webhook→panel p95 < 3 sn; aylık uptime ≥ %99,9.
+- İş: CAC ≤ 4.000 TL, geri ödeme < 4 ay, aylık logo churn ilk yıl %5–7 → sonra < %3, brüt marj ≥ %70.
+
+## 13. Açık kararlar (proje sahibine sorulacak — dokümanlar varsayılanla yazılır, varsayılan belirtilir)
+1. **Ekip ve stack:** Geliştiriciler TypeScript/React mi, PHP/Laravel mi? (Varsayılan: TypeScript monorepo.)
+2. **Pilot şehir/ilçeler** (saha satışı yakınlık ister). (Varsayılan: ekibin bulunduğu şehirde 2–3 ilçe.)
+3. **Şirket türü** (Ltd / AŞ) ve Teknokent. (Varsayılan: Ltd, yatırım planı netleşince AŞ'ye dönüşüm.)
+4. **Barındırma sağlayıcısı** (yurt içi teklifler). (Varsayılan: yurt içi yerli bulut.)
+5. **Meta modeli:** Tech Provider ile mi başlanacak, yoksa sürtünmesiz onboarding için baştan Solution Partner mı? (Varsayılan: Tech Provider + Plan B.)
+6. **Marka ve alan adı** müsaitliği ("Siparişin Önünde" / siparisinonunde.com).
+7. **Kurye:** yalnız işletmenin kendi kuryesi mi (varsayılan), ileride kurye firması entegrasyonu stratejik mi?
+8. **AI serbest metin siparişi** hangi paketlerde / kotalı mı? (Varsayılan: Pro ve üstü, adil kullanım kotası.)
+9. **Yemek kartı** online tahsilat ne zaman? (Varsayılan: Faz 1 yalnız kapıda.)
+10. **SLO hedefleri:** aylık erişilebilirlik %99,9 (varsayılan), RPO ≤ 5 dk, RTO ≤ 1 saat.
