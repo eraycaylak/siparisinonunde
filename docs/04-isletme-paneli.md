@@ -167,7 +167,7 @@ Roller KARARLAR §4'ten. ✓ tam, ◐ kısıtlı (kısıt hücrede yazılı), �
 - **Hedef:** Kayıttan ilk test siparişinin "ding" sesine kadar 10 dk [T]. Bu hedef yalnız **menü hazır geldiğinde** (ekip concierge ile hazırladıysa ya da ≤ 15 ürünlük menü elle girildiyse) gerçekçidir. Asıl süre riski Meta bağlantısı ve kart ekleme adımındadır (A05 §8.5; D02 §3.8 kabul kriteri: ES başlangıcından "Canlıya hazır"a < 15 dk).
 - **İki kapılı canlıya geçiş:** (1) storefront + panel + telefon siparişi hemen canlı olabilir ("WhatsApp'sız mod", §3.6); (2) WhatsApp bağlantısı hazır olunca devreye girer. Meta gecikmesi aktivasyonu durdurmaz (A06 §5.7).
 - Her adımda ilerleme çubuğu, "Sonra devam et" ve **"Biz kuralım"** butonu (ilk 100 işletmeye ücretsiz, sonra 1.990 TL + KDV; KARARLAR §8). Pilotta sihirbazı ekip doldurur, esnaf yalnız WhatsApp adımında telefonundan onay verir (A02 §9.2).
-- İlerleme `onboarding_step` alanına yazılır; admin panelindeki "takılan adım" hunisi bundan beslenir (A05 §5.1).
+- İlerleme `onboarding_step` alanına yazılır; kodlar ve tamamlanma koşulları [05](05-admin-paneli-ve-pazarlama-sitesi.md) §A.2.2 ile aynıdır, admin panelindeki "takılan adım" hunisi bundan beslenir. **Kapı 1** (`web_live`) adım 5'ten sonra açılabilir; **Kapı 2** (`live`) WhatsApp sağlık kontrolü ve test siparişiyle açılır.
 
 ### 3.2 Akış
 
@@ -180,7 +180,8 @@ flowchart TD
   C -- "Biz kuralım" --> C3["Fotoğraf/PDF yükle → ekip AI ile hazırlar<br/>(Faz 1 concierge, onay esnafta)"]
   C1 & C2 & C3 --> D["4 Çalışma saatleri"]
   D --> E["5 Teslimat bölgesi + gel-al + ödeme yöntemleri"]
-  E --> F{"6 WhatsApp'ı bağla"}
+  E --> K1["Kapı 1 (isteğe bağlı): web siparişini aç<br/>web_live · SMS doğrulamalı"]
+  K1 --> F{"6 WhatsApp'ı bağla"}
   F -- "Mevcut numara (önerilen)" --> F1["Coexistence ES"]
   F -- "Yeni numara" --> F2["Cloud ES + PIN"]
   F -- "Sonra" --> W["WhatsApp'sız mod<br/>web + SMS doğrulama"]
@@ -198,11 +199,11 @@ flowchart TD
 | 1 | **Hesap** | Ad soyad, cep telefonu (SMS OTP), e-posta, parola; kullanım koşulları + abonelik sözleşmesi + DPA click-wrap (sürümlü, [08](08-mevzuat-kvkk-odeme-fatura.md) §7.5); **TOTP kurulumu** (QR + 6 haneli kod + yedek kodlar; `owner` için zorunlu, D06 §6.6) | 2 dk | `account_created` |
 | 2 | **İşletme bilgisi** | Görünen ad, işletme türü (çip: dönerci, pideci, kebap, burger, pizza, ev yemeği, kafe, diğer), adres (haritada pin + yazılı), müşteriye gösterilecek telefon, logo (opsiyonel); **künye**: unvan veya ad-soyad, VKN/TCKN, vergi dairesi, MERSİS no (varsa), meslek odası, işletme kayıt no (5996, opsiyonel). Slug önerisi: `kardeslerdoner` → `kardeslerdoner.siparisinonunde.com` | 2 dk | `profile_done` |
 | 3 | **Menü** | Üç kart: **Elle gir** (kategori + ürün + fiyat, seçenek grubu şablonları: Porsiyon, Ekmek, Acı, Çıkarılacaklar, İçecek) · **Excel ile yükle** (§6.6) · **Biz kuralım** (menü fotoğrafı/PDF yükle; ekip AI aracıyla taslak çıkarır, esnaf fiyatları onaylar; A05 §8.5, D06 §11.7) | 3 dk (hazır menüyle) | `menu_done` |
-| 4 | **Çalışma saatleri** | Hazır şablonlar ("Her gün 11–23", "Hafta içi 10–22, hafta sonu 11–24"); gün bazında düzenleme; gece yarısını geçen kapanış | 30 sn | `hours_done` |
-| 5 | **Bölge ve ödeme** | Haritada şube çevresinde **3 km yarıçaplı hazır bölge**; ücret, min. sepet, tahmini süre alanları; "Poligon çiz" seçeneği; gel-al aç/kapa; ödeme çipleri (Kapıda nakit · Kapıda kart · Yemek kartı + markalar · Kasada öde) | 1,5 dk | `zone_done` |
+| 4 | **Çalışma saatleri** | Hazır şablonlar ("Her gün 11–23", "Hafta içi 10–22, hafta sonu 11–24"); gün bazında düzenleme; gece yarısını geçen kapanış | 30 sn | — |
+| 5 | **Bölge ve ödeme** | Haritada şube çevresinde **3 km yarıçaplı hazır bölge**; ücret, min. sepet, tahmini süre alanları; "Poligon çiz" seçeneği; gel-al aç/kapa; ödeme çipleri (Kapıda nakit · Kapıda kart · Yemek kartı + markalar · Kasada öde) | 1,5 dk | `ops_done` (+ isteğe bağlı `web_live`) |
 | 6 | **WhatsApp'ı bağla** | Yol seçimi, geçmiş aktarımı tercihi (varsayılan kapalı), Meta penceresi, **Meta'ya kart ekle** rehberi, "Başka telefondan TEST yaz" sağlık kontrolü. Metinler D02 §3.10'da | 3–5 dk | `wa_connected`, `meta_payment_ok` |
-| 7 | **Test siparişi** | "Kendi telefonunuzla bu QR'ı okutun, 1 ürün seçip sipariş verin." Panel "ding" çalar, kart belirir, esnaf **Onayla · 30 dk**'ya basar, telefonuna "Onaylandı" mesajı düşer. Test siparişi raporlara girmez (`is_test`) [T] | 1 dk | `test_order_done` |
-| 8 | **Canlıya geç** | Kontrol listesi (§3.4.4) + "Canlıya geç" butonu | 30 sn | `live` |
+| 7 | **Test siparişi** | "Kendi telefonunuzla bu QR'ı okutun, 1 ürün seçip sipariş verin." Panel "ding" çalar, kart belirir, esnaf **Onayla · 30 dk**'ya basar, telefonuna "Onaylandı" mesajı düşer. Test siparişi raporlara girmez (`is_test`) [T] | 1 dk | `wa_test_done` |
+| 8 | **Canlıya geç** | Kontrol listesi (§3.4.4) + "Canlıya geç" butonu; WhatsApp hazır değilse web siparişiyle (Kapı 1) devam | 30 sn | `live` (veya `web_live`) |
 | 9 | **Müşterine duyur** | QR/afiş/paket kartı oluşturucuya kısayol, Instagram/Google/WhatsApp profil linklerini kopyala (§12) | 1 dk | — |
 
 ### 3.4 Adım ayrıntıları
@@ -224,17 +225,15 @@ flowchart TD
 - Ekranda üç adım animasyonu: "1 Telefonla sipariş ver · 2 Sesi duy · 3 Onayla'ya bas". Kart geldiğinde "İşte bu kadar! Müşteriniz şimdi 'Onaylandı' mesajını aldı." WhatsApp'sız modda test, SMS doğrulamalı web siparişiyle yapılır.
 
 #### 3.4.4 "Canlıya geç" kontrol listesi
-| Kontrol | Engel mi? |
-|---|---|
-| Künye alanları tam (unvan/ad, adres, telefon, VKN/TCKN) | Evet; eksikse storefront yayına alınmaz ([08](08-mevzuat-kvkk-odeme-fatura.md) §4.7) |
-| ≥ 1 kategori, ≥ 1 fiyatlı aktif ürün | Evet |
-| Çalışma saatleri tanımlı | Evet |
-| ≥ 1 teslimat bölgesi **veya** gel-al açık | Evet |
-| ≥ 1 ödeme yöntemi | Evet |
-| Sözleşme kabulleri ve `owner` TOTP | Evet |
-| Test siparişi tamamlandı | Evet (pilotta ekip atlatabilir, audit) |
-| WhatsApp "Canlıya hazır" | Hayır; yoksa **WhatsApp'sız mod** ile canlıya geçilir |
-| Bir cihazda vardiya başlatıldı (ses açık) | Hayır; uyarı |
+| Kontrol | Kapı 1 `web_live` | Kapı 2 `live` |
+|---|---|---|
+| Künye tam (unvan/ad, adres, telefon, VKN/TCKN); eksikse storefront yayına alınmaz ([08](08-mevzuat-kvkk-odeme-fatura.md) §4.7) | Engel | Engel |
+| ≥ 1 kategori, ≥ 5 fiyatlı aktif ürün, yasaklı ürün taraması temiz | Engel | Engel |
+| Çalışma saatleri, ≥ 1 teslimat bölgesi **veya** gel-al, ≥ 1 ödeme yöntemi | Engel | Engel |
+| Sözleşme kabulleri ve `owner` TOTP | Engel | Engel |
+| WhatsApp canlı kapısı (token, webhook, gelen/giden mesaj, Meta faturalama, görünen ad; D02 §3.8) | — | Engel |
+| Test siparişi panele sesli düştü ve onaylandı | Önerilir | Engel (pilotta ekip atlatabilir, audit) |
+| Bir cihazda vardiya başlatıldı (ses açık) | Uyarı | Uyarı |
 
 ### 3.5 Takılma noktaları ve kurtarma
 
@@ -1192,7 +1191,7 @@ Toplam: Faz 1'de 41 panel + 4 kurye ekranı; Faz 2'de 6 yeni panel ekranı.
 | 13 | **WhatsApp'sız moddaki SMS maliyeti** (OTP + kritik durum SMS'i, ≈ 0,16–0,43 TL/SMS, A04 §3.8) aboneliğe dahil mi, ayrı mı faturalanır? Ayrıca A05 SMS OTP'yi Faz 2'ye koyuyor; KARARLAR §7 Faz 1. | KARARLAR uygulandı (Faz 1). Maliyet modeli [01](01-vizyon-pazar-is-modeli.md)/[09](09-yol-haritasi-ve-sprint-plani.md)'da kararlaştırılmalı; kötüye kullanıma karşı tenant başına aylık SMS tavanı önerilir. |
 | 14 | **Paket kapıları:** [01](01-vizyon-pazar-is-modeli.md) §6.3 önerisi (Esnaf'ta kurye görünümü yok, ≤ 3 bölge, 2 kullanıcı). Mutfak cihazı kullanıcı limitine sayılır mı? | Cihaz oturumları kullanıcı limitine sayılmaz önerisi; matris onaylanmalı. |
 | 15 | **`owner` zorunlu TOTP'nin onboarding sürtünmesi** (düşük dijital okuryazarlık). | KARARLAR gereği zorunlu; pilotta concierge kurar. Alternatif (WhatsApp/SMS OTP ile 2FA) güvenlik ekibiyle değerlendirilebilir. |
-| 16 | **`onboarding_step` kodları** (`account_created`, `profile_done`, `menu_done`, `hours_done`, `zone_done`, `wa_connected`, `meta_payment_ok`, `test_order_done`, `live`) ve test siparişi işareti (`is_test`). | [07](07-veri-modeli-ve-api.md) ve [05](05-admin-paneli-ve-pazarlama-sitesi.md) ile hizalanmalı. |
+| 16 | **`onboarding_step` kodları** [05](05-admin-paneli-ve-pazarlama-sitesi.md) §A.2.2 ile hizalandı (`account_created` → `profile_done` → `menu_done` → `ops_done` → `web_live` → `wa_connected` → `meta_payment_ok` → `wa_test_done` → `live`); test siparişi işareti (`is_test`) önerisi. | [07](07-veri-modeli-ve-api.md)'ye eklenmeli. Sihirbazda `web_live` isteğe bağlıdır; WhatsApp'ı hemen bağlayan işletmede atlanabilir. |
 | 17 | **Tasarruf raporu varsayımı:** tüm kanal siparişlerinin pazaryerinden geleceği varsayımı üst sınırdır; "yeni müşteri" (pazaryerinde hiç görülmemiş) ayrımı yapılamıyor. | Karta kalıcı "tahmindir" notu; pilot geri bildirimiyle "yalnız tekrar eden müşteriler" seçeneği değerlendirilir. |
 | 18 | **Kurye için "WhatsApp'tan yaz"** (A02 persona ihtiyacı) KVKK açısından kişisel telefona veri taşıyor. | Faz 1'de yalnız arama; Faz 3 native uygulamada maskeli iletişim değerlendirilir. |
 | 19 | **Ret sebebi "yoğunluk" metni:** D02 §5.2 ret şablonu sebep listesinde `too_busy` karşılığı yok. | D02'ye "şu an yoğunluk nedeniyle sipariş alamıyoruz" eklenmeli. |
