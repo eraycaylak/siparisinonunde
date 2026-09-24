@@ -300,7 +300,7 @@ Kurallar [06](06-teknik-mimari.md) §6.7 ile aynıdır; UI ve süreç burada.
   - Yedek yaşı, son geri yükleme tatbikatı, disk.
   - Açık alarmlar (P1/P2/P3).
   - Meta, Anthropic, Cloudflare durum sayfası bağlantıları.
-- **Deploy yasağı göstergesi:** Cuma 17:00–23:00 ve ilan edilmiş maç/iftar akşamlarında kırmızı "deploy yok" bandı (A06 §5.5).
+- **Deploy yasağı göstergesi:** her gün 11:30–14:00 ve 18:00–22:30, Cuma 17:00 sonrası ve ilan edilmiş maç/iftar akşamlarında kırmızı "deploy yok" bandı ([06](06-teknik-mimari.md) §16.2; A06 §5.5).
 - **[Faz 2]** Olay kaydı açma → `status.siparisinonunde.com` yayını + panel duyurusu (A-14) tek akışta.
 
 ### A-13 Feature flag ve kill-switch **[Faz 1]**
@@ -324,7 +324,8 @@ Kurallar [06](06-teknik-mimari.md) §6.7 ile aynıdır; UI ve süreç burada.
 
 ### A-14 Duyurular **[Faz 1 banner · Faz 2 tam]**
 - **[Faz 1]** Panel içi banner: başlık, metin, önem (`info`, `warning`, `critical`), hedef kitle (tümü, plan, tenant listesi, rol), başlangıç ve bitiş. Bakım bildirimi şablonu. Okunma oranı.
-- **[Faz 2]** Sürüm notları sayfası, e-posta gönderimi, durum sayfasıyla bağlantı. WhatsApp'tan duyuru yalnız kritik kesinti için ve utility şablon onaylıysa gönderilir (teyit edilmeli); tanıtım amaçlı duyuru WhatsApp'tan gitmez.
+- **[Faz 1]** Olay/kesinti ve planlı bakım duyuruları platform WABA'sından onaylı utility şablonlarıyla (`platform_hizmet_bildirimi_v1`, `platform_hizmet_duzeldi_v1`, `platform_planli_bakim_v1`) yalnız etkilenen tenant'lara gider; şablonlar pilot öncesi `APPROVED` olur ([02](02-whatsapp-entegrasyonu.md) §5.3, [10](10-riskler-operasyon-ve-metrikler.md) §6.3). Tanıtım amaçlı duyuru WhatsApp'tan gitmez.
+- **[Faz 2]** Sürüm notları sayfası, e-posta gönderimi, durum sayfasıyla bağlantı.
 - **Kabul kriterleri:** `critical` banner bitiş zamanına kadar kapatılamaz. Yayından önce hedef kitle önizlemesi gösterilir ("X işletme, Y kullanıcı").
 
 ### A-15 Global şablon kütüphanesi **[Faz 1]**
@@ -414,7 +415,7 @@ KPI hedefleri ve eşikler [10](10-riskler-operasyon-ve-metrikler.md)'dadır; bur
 | **Net yeni MRR** | Yeni + genişleme (plan yükseltme, şube ekleme) + yeniden kazanım − daralma (plan düşürme) − churn MRR |
 | **Logo churn (aylık)** | Ay içinde `churned` olan ücretli işletme ÷ ay başındaki ücretli işletme. Pilot ve deneme hariç (ayrı izlenir: deneme → ücretli dönüşüm) |
 | **Gelir churn (brüt / net)** | Brüt: (churn MRR + daralma MRR) ÷ ay başı MRR. Net: (churn + daralma − genişleme − yeniden kazanım) ÷ ay başı MRR |
-| **Kanal siparişi** | `channel ∈ {wa_link, wa_ai, wa_reorder, web, table_qr, wa_flow}` olan ve `rejected` veya `cancelled` ile bitmeyen sipariş. `manual` ayrı izlenir. Test siparişleri (`test_kind` = `onboarding_test` veya `canary`) tüm metriklerden hariçtir. Kuzey yıldızı = platform genelinde aylık kanal siparişi ([01](01-vizyon-pazar-is-modeli.md) §2.1) |
+| **Kanal siparişi** | `channel ∈ {wa_link, wa_ai, wa_reorder, web, table_qr, wa_flow}` olan ve `delivered` ile biten sipariş (kanonik tanım [10](10-riskler-operasyon-ve-metrikler.md) §8.1; [04](04-isletme-paneli.md) tasarruf raporu da yalnız `delivered` sayar). `manual` ayrı izlenir. Test siparişleri (`test_kind` = `onboarding_test` veya `canary`) tüm metriklerden hariçtir. Kuzey yıldızı = platform genelinde aylık kanal siparişi ([01](01-vizyon-pazar-is-modeli.md) §2.1) |
 | **Aktivasyon** | `live` tarihinden sonraki ilk 14 günde ≥ 10 kanal siparişi ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12). Oran = aktive olan ÷ o dönemde canlıya geçen |
 | **Aktif işletme** | Son 7 günde ≥ 1 kanal siparişi olan `pilot`, `trial`, `active`, `past_due` veya `read_only` işletme |
 | **Kendi kanal payı** | Kanal siparişi ÷ (kanal + `manual` + işletmenin beyan ettiği pazaryeri siparişi). Beyan yoksa hesaplanmaz. Pilot hedefi: her işletmenin kendi pilotunun 8. haftasında ≥ %10 ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12) |

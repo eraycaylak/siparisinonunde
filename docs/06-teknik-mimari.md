@@ -1,6 +1,6 @@
 # 06 — Teknik Mimari
 > **Amaç:** Ekibin ilk sprintten itibaren referans alacağı teknik mimariyi tek yerde tanımlamak: stack, servisler, multi-tenancy, gerçek zamanlılık ("sipariş kaçmaz"), asenkron işleme, yazdırma, harita, AI, barındırma, güvenlik, gözlemlenebilirlik, CI/CD ve maliyet.
-> **Tarih:** 2026-09-24 · **Durum:** Taslak v1 · **Bağlayıcı kaynak:** [Kararlar ve sözlük](00-kararlar-ve-sozluk.md) §10 (teknik kararlar, kanonik alarm zamanlaması), §3 (sözlük), §4 (roller, oturum süreleri, kill-switch'ler, SMS maliyeti), §5 (durum makinesi, sebep kodları, adlandırma, kuyruklar, SSE), §7 (akışlar, WhatsApp'sız mod, mesaj koruma kuralları), §11 (fazlar, pilot öncesi zorunlu "sipariş kaçmaz" paketi). Tablo adları, alanlar ve API yolları [07](07-veri-modeli-ve-api.md) ile hizalıdır.
+> **Tarih:** 2026-09-24 · **Durum:** Taslak (1. sürüm) · **Bağlayıcı kaynak:** [Kararlar ve sözlük](00-kararlar-ve-sozluk.md) §10 (teknik kararlar, kanonik alarm zamanlaması), §3 (sözlük), §4 (roller, oturum süreleri, kill-switch'ler, SMS maliyeti), §5 (durum makinesi, sebep kodları, adlandırma, kuyruklar, SSE), §7 (akışlar, WhatsApp'sız mod, mesaj koruma kuralları), §11 (fazlar, pilot öncesi zorunlu "sipariş kaçmaz" paketi). Tablo adları, alanlar ve API yolları [07](07-veri-modeli-ve-api.md) ile hizalıdır.
 
 **Kapsam:** Mimari ilkeler, stack ve gerekçesi, sistem/konteyner görünümü, repo yapısı ve kod kuralları, multi-tenancy, kimlik ve yetki, SSE + olay günlüğü + kademeli alarm, kuyruklar/outbox/cron, yazdırma, PostGIS ve geocoding, LLM boru hattı ve menü içe aktarma, storefront performansı, barındırma ve felaket kurtarma, gözlemlenebilirlik, güvenlik mimarisi, ortamlar/CI/CD/test, ölçek ve maliyet.
 
@@ -436,7 +436,7 @@ Zamanlama [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10'daki **kanon
 |---|---|---|---|
 | t = 0 | `new` | Panel: döngüsel ses, kırmızı bant, başlık/favicon, `setAppBadge`; **Web Push** tüm kayıtlı cihazlara | Push yükünde PII yok: "Yeni sipariş #1234" |
 | t + 60 sn | Henüz ack yok | **Ses tekrarı (yükselen):** ton/seviye artar; push tekrarlanır | |
-| t + 2 dk | Hâlâ `new` | **Platform WhatsApp numarasından** `owner`'a (ve ayarda seçili `manager`'a) `isletme_yeni_siparis_v1` ([02](02-whatsapp-entegrasyonu.md) §5.3) | Şablon `failed` olursa veya opt-in yoksa SMS hemen gider |
+| t + 2 dk | Hâlâ `new` | **Platform WhatsApp numarasından** `owner`'a (ve ayarda seçili `manager`'a) `isletme_yeni_siparis_v1` ([02](02-whatsapp-entegrasyonu.md) §5.3) | Şablon `failed` olursa veya opt-in yoksa aynı uyarı **e-posta** ile hemen gider; SMS yalnız t + 5 dk basamağında gider ([02](02-whatsapp-entegrasyonu.md) §5.3, §10.3) |
 | t + 5 dk | Hâlâ `new` | **Yalnız SMS** (`owner`); platform WhatsApp uyarısı bu adımda tekrarlanmaz | SMS ≈ 0,16–0,43 TL (A04 §3.8); platform maliyeti, adil kullanım kotasına sayılır (§17) |
 | t + 10 dk (işletme ayarı; otomatik iptalden en az 5 dk önce) | Hâlâ `new` | **Müşteriye gecikme bilgisi:** "İşletme henüz onaylamadı" + [Bekle] [İptal] | Metin [03](03-musteri-deneyimi-ve-storefront.md)'te; bütçe dışı istisna. [İptal] → `new → cancelled` (`cancelled_by = customer`, `customer_request`) |
 | **t + 15 dk** (işletme ayarı 10–30 dk) | Hâlâ `new` | **Otomatik iptal:** `new → cancelled` (`cancelled_by = system`, `cancel_reason = tenant_no_response`) + müşteriye özür ve işletme telefonu + `owner`'a bildirim | `order-new-watch` işi (§8.5) çalıştırır; müşteri mesajı bütçe dışı istisnadır. "Otomatik reddet" yoktur; sistem `rejected` üretmez |
@@ -552,7 +552,7 @@ CREATE TABLE outbox (                      -- tam alan listesi: 07 §3.4
 | `wa-webhook-sweeper`, `outbox-sweeper` | 1 dk | İşlenmemiş ham olay/outbox kayıtlarını yeniden kuyruğa atar | 1 |
 | `order-awaiting-timeout` | 1 dk | `awaiting_customer` 30 dk → `cancelled` (`cancelled_by = system`, sebep `customer_timeout`); pencere açıksa müşteriye bilgi | 1 |
 | `order-new-watch` | 1 dk | Alarm işi eksik `new` siparişleri yakalar (emniyet); `new_order_timeout_min` (varsayılan 15 dk) dolan siparişi `cancelled` yapar (`cancelled_by = system`, `tenant_no_response`) ve müşteriye özür + işletme telefonu mesajını outbox'a yazar (§7.6). Planlı siparişe uygulanmaz | 1 |
-| `scheduled-order-release` | 1 dk | Hazırlık zamanı gelen planlı siparişleri öne çıkarır, alarmı kurar | 1 |
+| `scheduled-order-release` | 1 dk | Hazırlık zamanı gelen planlı siparişleri öne çıkarır, alarmı kurar | 2 |
 | `branch-pause-expiry` | 1 dk | `paused_until` dolan şubeyi `open`'a döndürür, `branch.settings_changed` üretir | 1 |
 | `panel-offline-detector` | 1 dk | §7.7 | 1 |
 | `canary-tenant` | 1 dk (zamanlayıcı; şube başına açık saatte 15 dk) | Tenant canary siparişi (§7.10) | 1 |
@@ -827,7 +827,7 @@ DNS; wildcard sertifika ve TLS; WAF ve DDoS koruması; rate limiting kuralları 
 | Veri merkezi kaybı | Tam kesinti | 2. TR lokasyonunda altyapı kod olarak kurulur, `repo1`'den geri yükleme |
 | Redis kaybı | Kuyruklar boş | Yeniden başlatma; süpürücüler outbox/ham olaydan doldurur |
 | Cloudflare kesintisi | Erişim yok | DNS-only moda geçiş (origin TLS hazır) |
-| Meta/WhatsApp kesintisi (Anthropic kesintisi → §11.5; anahtar sızıntısı → §15.2) | Mesaj gelmez/gitmez | **"WhatsApp'sız mod" [Faz 1]:** tenant bazında otomatik devreye girer (WhatsApp bağlantısı yok, token 190, ödeme 131042) ya da Meta kesintisinde admin olay kaydından (`incidents`) toplu açılır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4). Storefront ve telefon siparişi (Akış E) açık kalır; Akış B doğrulaması **SMS OTP**'ye geçer (`otp_verifications`, `verification_method = sms_otp`; tenant izni `tenants.sms_fallback_enabled`). `sms_fallback` kill-switch'i varsayılan açıktır; kapatılırsa (ör. SMS pompalama saldırısı) SMS yedeği tamamen durur ve Akış B yalnız WhatsApp ile çalışır. Durum bilgisi takip sayfasından, kritik durumlarda (onaylandı/iptal) SMS ile verilir. Personel ayrıca "Telefonla doğruladım" (`staff`) yolunu kullanabilir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 Akış B) |
+| Meta/WhatsApp kesintisi (Anthropic kesintisi → §11.5; anahtar sızıntısı → §15.2) | Mesaj gelmez/gitmez | **"WhatsApp'sız mod" [Faz 1]:** tenant bazında otomatik devreye girer (WhatsApp bağlantısı yok, token 190, ödeme 131042) ya da Meta kesintisinde admin olay kaydından (`incidents`) toplu açılır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4). Storefront ve telefon siparişi (Akış E) açık kalır; Akış B doğrulaması **SMS OTP**'ye geçer (`otp_verifications`, `verification_method = sms_otp`; tenant izni `tenants.sms_fallback_enabled`). `sms_fallback` kill-switch'i varsayılan açıktır; kapatılırsa (ör. SMS pompalama saldırısı) SMS yedeği tamamen durur ve Akış B yalnız WhatsApp ile çalışır. Durum bilgisi takip sayfasından, kritik durumlarda (onaylandı/ret/iptal) SMS ile verilir. Personel ayrıca "Telefonla doğruladım" (`staff`) yolunu kullanabilir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 Akış B) |
 
 ## 14. Gözlemlenebilirlik
 ### 14.1 Metrikler (Prometheus)
@@ -862,7 +862,7 @@ DNS; wildcard sertifika ve TLS; WAF ve DDoS koruması; rate limiting kuralları 
 ### 14.4 Alarmlar
 | Seviye | Örnekler | Kanal ve süre |
 |---|---|---|
-| **P1** | Webhook sessizliği, platform canary başarısız, tek ingress düğümüne düşme / eski spool, 5xx > %2, DB erişilemez, `wa-inbound`/`notify` kuyruk yaşı > 60 sn, SSE bağlantılarında ani düşüş | Grafana Alerting → nöbetçiye push + SMS; 11:00–24:00 arası 15 dk içinde müdahale [T] |
+| **P1** | Webhook sessizliği, platform canary başarısız, tek ingress düğümüne düşme / eski spool, 5xx > %2, DB erişilemez, `wa-inbound`/`notify` kuyruk yaşı > 60 sn, SSE bağlantılarında ani düşüş | Grafana Alerting → nöbetçiye push + SMS; birincil nöbetçi 5 dk'da onaylar, P1 alarmlarının tamamı 15 dk içinde onaylanır ([10](10-riskler-operasyon-ve-metrikler.md) §5.9; P1 hattı saatleri [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4 "Destek hattı ve P1": 10:00–02:00 canlı yanıt, gece en geç 30 dk içinde geri dönüş) [T] |
 | **P2** | p95 webhook→panel > 3 sn, alarm adımı gecikmesi > 60 sn, outbox gecikmesi, yedek yaşı, disk, `wa-inbound` DLQ | Mesai içi 1 sa |
 | **P3** | DLQ > 0 (diğer kuyruklar), LLM hata artışı, yazıcı hataları kümelenmesi | Sonraki iş günü |
 | **İşletme** | `new` onaysız (§7.6 zinciri), `tenant_no_response` iptali, panel çevrimdışı, tenant canary başarısız ("bayat panel"), 131042/190, kalite düşüşü | Tenant'a (§7.6, §7.7, §7.10, [02](02-whatsapp-entegrasyonu.md) §10.2) |
