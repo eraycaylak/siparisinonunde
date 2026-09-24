@@ -33,6 +33,9 @@
 | 08 | [Mevzuat, KVKK, ödeme, fatura](docs/08-mevzuat-kvkk-odeme-fatura.md) | KVKK, İYS, e-ticaret, 6493, abonelik tahsilatı, e-fatura, uyum listesi |
 | 09 | [Yol haritası ve sprint planı](docs/09-yol-haritasi-ve-sprint-plani.md) | Kritik yol, Faz 0–3, 6 sprint, pilot, ekip, bütçe |
 | 10 | [Riskler, operasyon, metrikler](docs/10-riskler-operasyon-ve-metrikler.md) | Risk kaydı, doğrulama deneyleri, destek, olay yönetimi, SLO, KPI |
+| 11 | [Finansal model ve finansman](docs/11-finansal-model-ve-finansman.md) | Gelir-gider ve nakit projeksiyonu, senaryolar, sermaye ihtiyacı ([model betiği](docs/finans/model.py)) |
+| 12 | [Marka, tasarım ve kullanılabilirlik](docs/12-marka-tasarim-ve-kullanilabilirlik.md) | Marka, tasarım sistemi, ses, basılı şablonlar, kullanılabilirlik testi, cihaz matrisi, eğitim |
+| 13 | [Varsayım ve teyit kaydı](docs/13-varsayim-ve-teyit-kaydi.md) | Doğrulanması gereken varsayımlar, sahip ve son tarihleriyle |
 
 Ham araştırma raporları ve kaynak bağlantıları: [docs/arastirma/](docs/arastirma/). Konular: WhatsApp platformu, pazar, mevzuat, mimari, ürün/UX, risk.
 

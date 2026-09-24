@@ -170,5 +170,8 @@ Ayrıntı: [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13.
 | 08 | [Mevzuat, KVKK, ödeme, fatura](08-mevzuat-kvkk-odeme-fatura.md) | Uyum kontrol listesi, sözleşmeler, ödeme ve fatura |
 | 09 | [Yol haritası ve sprint planı](09-yol-haritasi-ve-sprint-plani.md) | Takvim, kritik yol, sprintler, pilot, bütçe |
 | 10 | [Riskler, operasyon ve metrikler](10-riskler-operasyon-ve-metrikler.md) | Risk kaydı, deneyler, destek, olay yönetimi, SLO, KPI |
+| 11 | [Finansal model ve finansman](11-finansal-model-ve-finansman.md) | 24 aylık gelir-gider ve nakit, 3 senaryo, sermaye ihtiyacı, finansman yolu, fiyat revizyon politikası (betik: `finans/model.py`) |
+| 12 | [Marka, tasarım ve kullanılabilirlik](12-marka-tasarim-ve-kullanilabilirlik.md) | Marka platformu, tasarım sistemi, alarm sesleri, basılı şablonlar, kullanılabilirlik testi, cihaz matrisi, eğitim içeriği |
+| 13 | [Varsayım ve teyit kaydı](13-varsayim-ve-teyit-kaydi.md) | Doğrulanması gereken 84 varsayım (28'i engelleyici), sahip, son tarih ve bağlı kapıyla |
 
 > **Güvenilirlik notu:** Araştırma 24 Eylül 2026'da yapıldı. Oturumun web arama kotası dolduğu ve bazı resmi siteler erişime kapalı olduğu için birçok rakam ikincil kaynaklardan üçgenlendi. Bu rakamlar dokümanlarda **"(teyit edilmeli)"**, [D?] veya [E] ile işaretli. Meta rate card'ı, Coexistence'ın +90 numaralarda çalışması, KVKK aktarım yaklaşımı ve sağlayıcı fiyatları ilk ücretli müşteriden önce birincil kaynaktan doğrulanmalı.
