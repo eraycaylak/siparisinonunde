@@ -437,7 +437,7 @@ flowchart TD
 
 ### 5.5 Onboarding operasyonu: concierge kurulum kontrol listesi **[Faz 1]**
 
-Pilot ve ilk 100 işletmede kurulum ekip tarafından yapılır (KARARLAR §8: "biz kuralım"). Canlıya geçiş **iki kapılıdır**: Kapı 1'de web storefront + panel hemen canlı olur (QR, telefon, manuel sipariş; Akış B doğrulaması WhatsApp gelene kadar işletme onayıyla, [06](06-teknik-mimari.md) §13.6); Kapı 2'de WhatsApp devreye girer. Böylece Meta gecikmesi aktivasyonu durdurmaz (A06 §5.7).
+Pilot ve ilk 100 işletmede kurulum ekip tarafından yapılır (KARARLAR §8: "biz kuralım"). Canlıya geçiş **iki kapılıdır**: Kapı 1'de web storefront + panel hemen canlı olur (QR, telefon, manuel sipariş; Akış B doğrulaması WhatsApp bağlanana kadar **SMS OTP** ile, durum bilgisi takip sayfasından ve kritik durumlarda SMS ile; KARARLAR §7); Kapı 2'de WhatsApp devreye girer. Böylece Meta gecikmesi aktivasyonu durdurmaz (A06 §5.7).
 
 **A. Ziyaret öncesi (uzaktan, 1–3 gün önce)**
 - [ ] Numara durumu: hangi uygulamada (normal WhatsApp / WhatsApp Business / başka sağlayıcı)? İki adımlı doğrulama PIN'i biliniyor mu?
@@ -539,7 +539,7 @@ Meta'nın kararları şeffaf değildir ve destek süreleri garanti değildir (A0
 | **E1 İşletmeyle çözüm** | Kart ekleme (131042), uygulamayı açma (14 gün), görünen ad düzeltme, "Yeniden bağlan" | L1 + işletme | Aynı gün |
 | **E2 Meta destek kaydı** | Business Support Home üzerinden kayıt; kısıtlamada (368, 131031) itiraz rehberiyle işletmenin kendi portföyünden itiraz; Tech Provider'lara açık destek kanalı varsa oradan (teyit edilmeli) | Teknik lider | Kayıt ≤ 2 sa; takip günlük |
 | **E3 Solution Partner** | İmzalı ön anlaşma varsa partner'ın Meta ilişkisi üzerinden eskalasyon; gerekirse tenant'ın `WaTransport`'u partner'a alınır ([02](02-whatsapp-entegrasyonu.md) §7.10) | Kurucu-İş | Anlaşmadaki süre |
-| **Paralel kol** | İşletme WhatsApp'sız moda: storefront + telefon + manuel sipariş; Akış B doğrulaması işletme onayına; müşteriye takip sayfası | L1 + işletme | ≤ 30 dk |
+| **Paralel kol** | İşletme WhatsApp'sız moda: storefront + telefon + manuel sipariş; Akış B doğrulaması SMS OTP'ye geçer; durum bilgisi takip sayfasından ve kritik durumlarda SMS ile (KARARLAR §7) | L1 + işletme | ≤ 30 dk |
 
 - Her Meta vakası `meta` etiketiyle kaydedilir: hata kodu, Meta kayıt no, açılış/yanıt/çözüm zamanları. Çeyrek sonunda Meta yanıt süreleri özetlenir; Plan B kararına veri olur.
 - **Meta değişiklik takibi:** Kurucu-İş her ay Meta geliştirici changelog'unu, fiyat (rate card) duyurularını ve politika sayfalarını kontrol eder; etkileri risk kaydına (R16, R24) ve [02](02-whatsapp-entegrasyonu.md)'ye işler. Bilinen yaklaşan tarihler: 30.09.2026 ödeme yöntemi son günü, 01.10.2026 service mesajlarının ücretli olması, 08.10.2026 ES v2'nin kalkması (A06 §3.3).
@@ -593,7 +593,7 @@ flowchart LR
   A[Tespit: alarm, canary, P1 araması] --> B[Olay aç + SEV + IC]
   B --> C[Sınırla: WhatsApp'sız mod, feature flag, trafik yönlendirme, erişim kapatma]
   C --> D[İlk duyuru §6.3]
-  D --> E[Tanı ve düzeltme; runbook §6.6]
+  D --> E[Tanı ve düzeltme, runbook §6.6]
   E --> F{Düzeldi mi?}
   F -->|Hayır| G[Güncelleme + gerekirse SEV yükselt] --> E
   F -->|Evet| H[Doğrulama: canary yeşil, bekleyen kuyruk boşaldı, etkilenen siparişler kontrol]
@@ -616,10 +616,10 @@ flowchart LR
 > Siparişin Önünde bilgilendirme: Bugün 19:40'tan beri müşterilerinize giden WhatsApp durum mesajlarında gecikme var. Siparişleriniz panele düşmeye devam ediyor; siparişleri her zamanki gibi panelden onaylayın. Ekibimiz sorunu çözmek için çalışıyor. Bir sonraki bilgiyi en geç 20:15'te vereceğiz.
 
 **2. WhatsApp — çözüldü (`platform_hizmet_duzeldi_v1`):**
-> Siparişin Önünde bilgilendirme: Durum mesajlarındaki gecikme 20:05 itibarıyla giderildi. Bekleyen mesajlar müşterilerinize gönderildi. Panelde "Bekleyen" sekmesinde onay bekleyen sipariş kalmadığını kontrol etmenizi rica ederiz. Yaşattığımız aksaklık için özür dileriz.
+> Siparişin Önünde bilgilendirme: Durum mesajlarındaki gecikme 20:05 itibarıyla giderildi. Bekleyen mesajlar müşterilerinize gönderildi. Panelde onay bekleyen sipariş kalmadığını kontrol etmenizi rica ederiz. Yaşattığımız aksaklık için özür dileriz.
 
 **3. SMS — WhatsApp genel kesintisi (WhatsApp kullanılamazken):**
-> Siparişin Önünde: WhatsApp genelinde kesinti var (19:40'tan beri). Web siparişleriniz panele düşüyor, paneli açık tutun. Telefonla gelen siparişleri panele girin. Bilgi 20:15'te.
+> Siparişin Önünde: WhatsApp genelinde kesinti var (19:40'tan beri). Web menünüzden gelen siparişler panele düşüyor, paneli açık tutun. Telefon siparişlerini panele girin. Bilgi 20:15'te.
 
 **4. SMS — SEV1 kesinti (sipariş alma etkilendi):**
 > Siparişin Önünde: 19:40'tan beri online siparişler panele ulaşmıyor. Lütfen telefonla sipariş almaya devam edin. Çözüm için çalışıyoruz; acil hat: {P1 numarası}. Bilgi 20:10'da.
@@ -633,7 +633,7 @@ SMS'te Türkçe karakterler segment sayısını artırabilir; sağlayıcının T
 >
 > {saat} itibarıyla {sade dille sorun} yaşıyoruz.
 > **Siparişlerinize etkisi:** {ör. "Online siparişler panele gecikmeli düşüyor; telefon siparişlerini panelden girebilirsiniz."}
-> **Sizden ricamız:** {ör. "Paneli açık tutun, 'Bekleyen' sekmesini kontrol edin."}
+> **Sizden ricamız:** {ör. "Paneli açık tutun, onay bekleyen siparişleri kontrol edin."}
 > **Bir sonraki bilgilendirme:** en geç {saat}. Acil durumda {P1 numarası} numaralı hattı arayabilirsiniz.
 >
 > Siparişin Önünde ekibi
@@ -641,7 +641,7 @@ SMS'te Türkçe karakterler segment sayısını artırabilir; sağlayıcının T
 **6. E-posta — olay özeti (SEV1/SEV2 kapanışından sonra ≤ 24 saat; postmortem'den sade özet 5 iş günü içinde):**
 > **Konu:** [Siparişin Önünde] {tarih} aksaklığı: ne oldu, ne yapıyoruz?
 >
-> {Tarih} {başlangıç}–{bitiş} arasında {sorun} yaşandı. Bu sürede {etki: ör. "12 işletmede 37 sipariş panele ortalama 9 dakika gecikmeyle düştü; kaybolan sipariş olmadı"}. Nedeni {sade kök neden}. Tekrarlanmaması için {1–3 somut önlem}. İşletmenize özel etki raporunu panelde "Bildirimler" bölümünde bulabilirsiniz. {Varsa: "Bu ayki faturanıza {x} günlük hizmet kredisi yansıtılacaktır."}
+> {Tarih} {başlangıç}–{bitiş} arasında {sorun} yaşandı. Bu sürede {etki: ör. "12 işletmede 37 sipariş panele ortalama 9 dakika gecikmeyle düştü; kaybolan sipariş olmadı"}. Nedeni {sade kök neden}. Tekrarlanmaması için {1–3 somut önlem}. İşletmenize özel etki raporunu panelinizde bulabilirsiniz. {Varsa: "Bu ayki faturanıza {x} günlük hizmet kredisi yansıtılacaktır."}
 
 **7. İşletmenin kendi müşterisine iletebileceği hazır metin** (işletme isterse Instagram hikâyesi veya WhatsApp durumu olarak paylaşır):
 > Online siparişimizde kısa süreli bir aksaklık var. Siparişleriniz için bizi {işletme telefonu} numarasından arayabilirsiniz. Anlayışınız için teşekkür ederiz!
@@ -708,7 +708,7 @@ Runbook'ların tam hâli `infra/runbooks/` altında tutulur ve her alarm kendi r
 
 **RB-2 · Meta / WhatsApp kesintisi** (Graph API 5xx, birden çok tenant'ta gönderim hatası, canary'de Meta adımı başarısız) — varsayılan **SEV2**
 - **0–5 dk:** Kesintinin bizde olmadığını doğrula (ingress, kuyruk, token toplu hatası değil). Meta durum kaynaklarını ve birden çok tenant'ın hata kodlarını karşılaştır.
-- **5–10 dk:** **WhatsApp'sız moda geç:** Akış B doğrulaması işletme onayına devredilir (`akis_b_wa_verification` kill switch, [06](06-teknik-mimari.md) §16.6); storefront'ta bilgi bandı; alarm zincirinde platform WABA basamağı atlanıp **SMS hemen** gönderilir (`platform_wa_alerts` kapat); giden mesajlar outbox'ta bekler.
+- **5–10 dk:** **WhatsApp'sız moda geç (KARARLAR §7):** Akış B doğrulaması SMS OTP'ye geçer (`akis_b_wa_verification` kill switch, [06](06-teknik-mimari.md) §16.6); müşteriye durum bilgisi takip sayfasından, onay ve iptalde SMS ile verilir; storefront'ta bilgi bandı; alarm zincirinde platform WABA basamağı atlanıp **SMS hemen** gönderilir (`platform_wa_alerts` kapat); giden WhatsApp mesajları outbox'ta bekler.
 - **10–15 dk:** İşletmelere **SMS + e-posta** duyurusu (§6.3 #3). Toparlanınca outbox boşaltılırken artık anlamsız durum mesajları atlanır (ör. teslim edilmiş siparişin "yolda" mesajı); kill switch'ler geri açılır.
 
 **RB-3 · Veritabanı arızası** (`/ready` başarısız, DB bağlantı hatası, disk > %95) — varsayılan **SEV1**
@@ -841,7 +841,7 @@ flowchart TD
   A1 --> A11["Demo→deneme, ES terk,<br/>kurulum süresi, 131042 oranı"]
   A3 --> A31["Sağlık skoru, değer raporu,<br/>destek teması, olay etkisi"]
   B --> B1["Kanal erişimi: dağıtılan kart/QR,<br/>karşılama sayısı, Google/Instagram"]
-  B --> B2["Huni: karşılama → link → sipariş;<br/>Akış B doğrulama"]
+  B --> B2["Huni: karşılama → link → sipariş,<br/>Akış B doğrulama"]
   B --> B3["Tekrar oranı (30 gün)"]
   B --> B4["Deneyim kalitesi: onay süresi,<br/>kaçan sipariş, 'siparişim nerede'"]
   G["Koruyucu metrikler: brüt marj, destek/işletme,<br/>döviz gider oranı, Meta maliyeti/sipariş, SLO"] -.-> NSM

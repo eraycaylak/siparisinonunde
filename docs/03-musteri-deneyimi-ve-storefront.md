@@ -40,30 +40,10 @@
 
 ```mermaid
 flowchart LR
-    subgraph SOHBET["Sohbete götüren → Akış A"]
-      G1["Müşteri WhatsApp'tan yazar"]
-      G2["Sohbeti ilk kez açar<br/>(request_welcome)"]
-      G3["Paket içi QR kart / magnet"]
-      G4["Click-to-WhatsApp reklamı"]
-    end
-    subgraph WEB["Web'e götüren → Akış B"]
-      W1["Instagram bio / hikâye"]
-      W2["Google İşletme Profili"]
-      W3["WhatsApp profili 'web sitesi'"]
-      W4["Kapı / vitrin afişi QR"]
-    end
-    G1 --> K["Bot karşılama + 'Menüyü aç'<br/>(imzalı token)"]
-    G2 --> K
-    G3 --> K
-    G4 --> K
-    K --> SF["Storefront<br/>{slug}.siparisinonunde.com"]
-    W1 --> SF
-    W2 --> SF
-    W3 --> SF
-    W4 --> SF
-    T["Masa QR (Faz 3)"] --> SF
+    A["Akış A girişleri: WhatsApp'tan yazan, request_welcome,<br/>paket QR / magnet, Click-to-WhatsApp reklamı"] --> K["Bot karşılama + 'Menüyü aç'<br/>(imzalı token)"] --> SF["Storefront<br/>{slug}.siparisinonunde.com"]
+    B["Akış B girişleri: Instagram, Google İşletme Profili,<br/>WhatsApp profili, kapı afişi · Masa QR (Faz 3)"] --> SF
     SF --> O["Sipariş → panel"]
-    TEL["Telefonla arayan"] --> E["Akış E: kasiyer girer"] --> O
+    T["Telefonla arayan"] --> E["Akış E: kasiyer girer"] --> O
 ```
 
 | Giriş | Müşterinin eylemi | Teknik tetik / link | Akış | `channel` | `src` | Faz | Not |
@@ -147,22 +127,17 @@ sequenceDiagram
 ```
 
 **Adımlar:**
-1. **Giriş.** Müşteri yazar, sohbeti açar (`request_welcome`) ya da paket kartı QR'ından gelir. Bot durumuna göre karşılama varyantını seçer (§8.1).
-2. **Karşılama.** M01 (ilk kez), M02 (tekrar gelen) ya da kapalı/yoğun varyantı gider. CTA URL tek buton taşır. "Yetkili" yolu gövdedeki satırla verilir ([D02 §6.3](02-whatsapp-entegrasyonu.md)).
-3. **Link.** `https://{slug}.siparisinonunde.com/?wa=<token>`. Token imzalıdır, 2 saat geçerlidir ve PII taşımaz (içeriği tenant, şube, müşteri ve konuşma kimliği). Her CTA mesajı yeni token üretir, eski token'lar süreleri dolana kadar geçerli kalır ([D02 §6.3](02-whatsapp-entegrasyonu.md)).
-4. **İlk açılış.** Token GET isteğinde **tüketilmez**, çünkü link önizlemesi veya prefetch onu yakmamalı. Sunucu token'ı doğrular ve host'a özel httpOnly oturum çerezine çevirir; `history.replaceState` token'ı adres çubuğundan siler. Önizleme istekleri (HEAD veya bilinen önizleme user-agent'ları) yalnız statik menüyü alır [T].
-5. **Menü (S-01).** Varsa "Son siparişin" kartı gösterilir. Ad, teslimat telefonu (maskeli), kayıtlı adresler ve son ödeme yöntemi ön dolu gelir.
-6. **Checkout (S-04/S-05).** "Bu sipariş WhatsApp'ta **Ayşe (…45 12)** adına verilecek · *Ben değilim*" satırı görünür. "Ben değilim" oturumu düşürür ve siparişi Akış B'ye çevirir.
-7. **Onay.** POST isteği istemcide üretilen bir idempotency anahtarı taşır. Fiyat, bölge, min. sepet ve açık/kapalı kontrolü sunucuda yapılır. Sipariş `new` ve `wa_link` olur, panelde sesli uyarı çalar.
-8. **Sonuç (S-06A).** "Siparişiniz alındı" mesajı, "WhatsApp'a dön" (`wa.me/<numara>`) butonu ve takip bilgisi gösterilir.
-9. **Bildirimler.** M05/M06 (debounce'lu) → M09 veya M08 → M10.
+1. **Giriş ve karşılama.** Bot duruma göre varyantı seçer: M01 (ilk kez), M02 (tekrar gelen), kapalı ya da yoğun varyantı (§8.1). CTA URL mesajı tek buton taşır, bu yüzden "yetkili" yolu gövdedeki satırla verilir ([D02 §6.3](02-whatsapp-entegrasyonu.md)).
+2. **Link.** `https://{slug}.siparisinonunde.com/?wa=<token>`. Token imzalıdır, 2 saat geçerlidir, PII taşımaz; içinde yalnız tenant, şube, müşteri ve konuşma kimliği vardır. Her CTA yeni token üretir, eski token'lar süreleri dolana kadar geçerli kalır ([D02 §6.3](02-whatsapp-entegrasyonu.md)).
+3. **İlk açılış.** Token GET isteğinde **tüketilmez**, çünkü link önizlemesi veya prefetch onu yakmamalı. Sunucu token'ı doğrulayıp host'a özel httpOnly oturum çerezine çevirir; `history.replaceState` token'ı adres çubuğundan siler. Önizleme istekleri (HEAD, bilinen önizleme user-agent'ları) yalnız statik menüyü alır [T].
+4. **Menü ve checkout.** S-01'de varsa "Son siparişin" kartı görünür; ad, maskeli telefon, kayıtlı adresler ve son ödeme yöntemi ön dolu gelir. Checkout'ta "Bu sipariş WhatsApp'ta **Ayşe (…45 12)** adına verilecek · *Ben değilim*" satırı bulunur.
+5. **Onay ve sonuç.** POST isteği istemcide üretilen bir idempotency anahtarı taşır. Fiyat, bölge, min. sepet ve açık/kapalı kontrolü sunucuda yapılır. Sipariş `new` + `wa_link` olur, panelde ses çalar. S-06A'da "WhatsApp'a dön" (`wa.me/<numara>`) butonu gösterilir. Ardından bildirimler gelir: M05/M06 (debounce'lu) → M09 veya M08 → M10.
 
 **Akış A'ya özgü kenar durumları** (ortak durumlar §3.7'de):
 
 | Durum | Davranış |
 |---|---|
-| Token süresi dolmuş (> 2 saat) veya imza geçersiz | Storefront normal açılır, üstte şu bant görünür: "Bağlantının süresi dolmuş. Sipariş verebilirsiniz; son adımda WhatsApp'tan tek dokunuşla onaylayacaksınız." Sipariş Akış B'ye düşer. |
-| Token başka işletmenin alt alan adında açıldı | Geçersiz sayılır, storefront bağlamsız açılır. |
+| Token süresi dolmuş (> 2 saat), imzası geçersiz ya da başka işletmenin alt alan adında açıldı | Storefront bağlamsız açılır, üstte bant görünür: "Bağlantının süresi dolmuş. Sipariş verebilirsiniz; son adımda WhatsApp'tan tek dokunuşla onaylayacaksınız." Sipariş Akış B'ye düşer. |
 | Link başkasına iletildi | "Ben değilim" kaçışı vardır. Token başına saatte en fazla 3 sipariş verilebilir [T]. |
 | Müşteri linke dokunup sipariş vermeden çıktı | Faz 1'de hiçbir şey yapılmaz. Sepeti terk hatırlatması (M23) yalnız Faz 2+, yalnız izinli müşteriye ve tek sefer gider. |
 | Opt-out'lu (`opt_out_all`) müşteri kendi sipariş verdi | Yalnız o siparişin durum mesajları gider ([D02 §6.9](02-whatsapp-entegrasyonu.md)). |
@@ -203,11 +178,10 @@ sequenceDiagram
 ```
 
 **Adımlar:**
-1. Müşteri storefront'a doğrudan gelir. Checkout'ta **teslimat telefonu zorunludur**, çünkü SMS yedeği ve kurye için gerekir. Checkout'ta şu ifade görünür: "Sipariş durumunu Lezzet Dürüm WhatsApp'tan bildirecek." ([D02 §9.1](02-whatsapp-entegrasyonu.md)).
-2. "Siparişi onayla" sonrası sipariş `awaiting_customer` olur. Aynı anda 6 karakterli kod (alfabe `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`, en az 1 rakam) ve `public_token` üretilir ([D02 §6.4](02-whatsapp-entegrasyonu.md), [D07 §1.2](07-veri-modeli-ve-api.md)).
+1. Müşteri storefront'a doğrudan gelir. Checkout'ta **teslimat telefonu zorunludur** (SMS yedeği ve kurye için). Checkout'ta şu ifade görünür: "Sipariş durumunu Lezzet Dürüm WhatsApp'tan bildirecek." ([D02 §9.1](02-whatsapp-entegrasyonu.md)).
+2. "Siparişi onayla" sonrası sipariş `awaiting_customer` olur. 6 karakterli kod (alfabe `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`, en az 1 rakam) ve `public_token` üretilir ([D02 §6.4](02-whatsapp-entegrasyonu.md), [D07 §1.2](07-veri-modeli-ve-api.md)).
 3. **S-06B** (§4.5) tek büyük yeşil buton gösterir: **"WhatsApp'ta onayla"** → `https://wa.me/<işletme numarası>?text=Sipariş%20kodu%3A%20K7M2Q9`. Masaüstünde aynı link QR olarak da verilir.
-4. Müşteri Gönder'e basar ve kod eşleşir: sipariş `new` olur, BSUID bağlanır, panelde ses çalar. S-06B sayfası doğrulanana kadar 3 sn'de bir yoklar [T], sonra takip görünümüne döner.
-5. Durum mesajları serbest (service) mesaj olarak gider, çünkü pencereyi müşteri açmıştır.
+4. Kod eşleşince sipariş `new` olur, BSUID bağlanır, panelde ses çalar. S-06B doğrulanana kadar 3 sn'de bir yoklar [T], sonra takip görünümüne döner. Pencereyi müşteri açtığı için durum mesajları service mesajı olarak gider.
 
 **Hukuki not:** Sözleşme onayı storefront'taki "Siparişi onayla" butonudur. WhatsApp adımı sahte siparişe karşı **doğrulamadır**, yeni bir sözleşme onayı değildir ([D08 §4.4](08-mevzuat-kvkk-odeme-fatura.md)).
 
@@ -220,27 +194,7 @@ sequenceDiagram
 - (b) İşletmenin WhatsApp bağlantısı henüz tamamlanmamıştır ya da gönderim duraklatılmıştır (131042, 190, kopma). Bu durumda storefront S-06B'yi hiç göstermez, doğrudan S-06C'yi açar.
 - (c) Platform genelinde "WhatsApp arızası" anahtarı açıktır (admin kill-switch, [05](05-admin-paneli-ve-pazarlama-sitesi.md)).
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor M as Müşteri
-    participant SF as Storefront
-    participant B as API
-    participant SMS as SMS sağlayıcısı
-    participant P as Panel
-    M->>SF: "Siparişi onayla"
-    SF->>B: POST sipariş
-    B-->>SF: awaiting_customer
-    B->>SMS: SMS-01 (6 haneli kod, 5 dk)
-    SF-->>M: S-06C kod girişi
-    M->>SF: Kodu girer (otomatik doldurma destekli)
-    SF->>B: Kod doğrula
-    B->>P: status=new, sesli uyarı
-    SF-->>M: S-07 takip sayfası
-    P->>B: Onayla
-    B->>SMS: SMS-02 onaylandı + takip linki
-    Note over M,SF: Diğer durumlar yalnız takip sayfasında görünür. Ret/iptalde SMS-03 gider.
-```
+**Akış:** "Siparişi onayla" → `awaiting_customer` → SMS-01 (6 haneli kod) → S-06C'de kod girilir → `new` + sesli uyarı → S-07 takip sayfası → onayda SMS-02, ret/iptalde SMS-03.
 
 - **Kod:** 6 haneli rakam, 5 dk geçerli. "Tekrar gönder" 60 sn sonra açılır. Telefon başına 10 dk'da en fazla 3, günde en fazla 5 SMS; IP başına saatte en fazla 10 gönderim. 5 hatalı girişten sonra kod geçersiz olur [T]. Bu sınırlar SMS pompalama saldırısına karşıdır (A04).
 - **Bildirim:** Durum bilgisi takip sayfasından verilir. SMS yalnız kritik durumlarda gider: onaylandı (SMS-02), ret/iptal (SMS-03). "Yolda" ve "teslim edildi" için SMS gönderilmez (KARARLAR §7).
