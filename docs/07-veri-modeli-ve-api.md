@@ -1,15 +1,15 @@
 # 07 — Veri Modeli ve API
 
 > **Amaç:** Geliştiricinin Drizzle şemasını, RLS politikalarını ve Fastify route'larını doğrudan çıkarabileceği somutlukta veri modeli, durum makineleri, API sözleşmeleri ve olay kataloğunu tanımlamak.
-> **Tarih:** 2026-09-24 · **Durum:** Taslak v1 · **Bağlayıcı kaynak:** [Kararlar ve sözlük](00-kararlar-ve-sozluk.md) §3–§5 (sözlük, roller, durum makinesi, sebep kodları, adlandırma, kuyruklar), §7 (akışlar ve mesaj koruma kuralları), §9 (dunning, saklama), §10 (teknik kararlar).
+> **Tarih:** 2026-09-24 · **Durum:** Taslak (düzeltme turu sonrası) · **Bağlayıcı kaynak:** [Kararlar ve sözlük](00-kararlar-ve-sozluk.md) §3–§5 (sözlük, roller, oturum süreleri, kill-switch'ler, SMS kotası, durum makinesi, sebep kodları, `verification_method`, `test_kind`, adlandırma, kuyruklar), §7 (akışlar, mesaj koruma kuralları, `lifecycle_stage`), §9 (dunning, deneme bitişi, saklama), §10 (teknik kararlar). Çelişkide 00 geçerlidir.
 
 **Kapsam:** Tablolar (alanlar, indeksler, RLS, PII/saklama), mermaid ERD, durum makineleri (sipariş, konuşma, abonelik, WhatsApp numarası, yazdırma işi), sepet/fiyat hesabı, REST + SSE + webhook sözleşmeleri, domain olayları ve outbox eşlemesi, rapor türetmeleri, saklama/silme işleri, migration ve seed.
 
 **Kapsam dışı (bağlantı verilir):** WhatsApp davranışı, şablon metinleri, konuşma motoru → [02](02-whatsapp-entegrasyonu.md) · storefront ekranları ve müşteri metinleri → [03](03-musteri-deneyimi-ve-storefront.md) · panel ekranları → [04](04-isletme-paneli.md) · admin ekranları → [05](05-admin-paneli-ve-pazarlama-sitesi.md) · stack, kuyruk işleyişi, RLS rolleri, SSE altyapısı, güvenlik → [06](06-teknik-mimari.md) · saklama sürelerinin ve dunning'in hukuki dayanağı → [08](08-mevzuat-kvkk-odeme-fatura.md).
 
-**Kaynaklar ve atıf:** `A01`, `A03`, `A04`, `A05` = arastirma/01-whatsapp-platform, 03-mevzuat-odeme-fatura, 04-mimari-teknoloji, 05-urun-ux; `D01`, `D02`, `D06`, `D08` = 01, 02, 06, 08 numaralı plan dokümanları; yalnız `§x` = bu doküman.
+**Kaynaklar ve atıf:** `A01`, `A03`, `A04`, `A05`, `A06` = [arastirma/01-whatsapp-platform.md](arastirma/01-whatsapp-platform.md), [arastirma/03-mevzuat-odeme-fatura.md](arastirma/03-mevzuat-odeme-fatura.md), [arastirma/04-mimari-teknoloji.md](arastirma/04-mimari-teknoloji.md), [arastirma/05-urun-ux.md](arastirma/05-urun-ux.md), [arastirma/06-riskler-kirmizi-takim.md](arastirma/06-riskler-kirmizi-takim.md); `D01`…`D10` = aynı numaralı plan dokümanları ([01](01-vizyon-pazar-is-modeli.md), [02](02-whatsapp-entegrasyonu.md), [03](03-musteri-deneyimi-ve-storefront.md), [04](04-isletme-paneli.md), [05](05-admin-paneli-ve-pazarlama-sitesi.md), [06](06-teknik-mimari.md), [08](08-mevzuat-kvkk-odeme-fatura.md), [10](10-riskler-operasyon-ve-metrikler.md)); yalnız `§x` = bu doküman.
 
-**Gösterim:** `NN` = NOT NULL, `✓` = nullable, `UK` = unique, `std` = standart kolonlar (§1.3). Roller: O = `owner`, M = `manager`, C = `cashier`, K = `kitchen`, Ku = `courier`; platform: PO = `platform_owner`, PA = `platform_admin`, SA = `support_agent`, F = `finance`, SR = `sales_rep`.
+**Gösterim:** `NN` = NOT NULL, `✓` = nullable, `UK` = unique, `std` = standart kolonlar (§1.3). Roller: O = `owner`, M = `manager`, C = `cashier`, K = `kitchen`, Ku = `courier`; platform: PO = `platform_owner`, PA = `platform_admin`, SA = `support_agent`, F = `finance`, SR = `sales_rep`; bayi (Faz 2): RA = `reseller_admin`, RT = `reseller_technician`.
 
 ---
 
@@ -17,14 +17,14 @@
 
 ### 1.1 Adlandırma ve tipler
 - **Tablolar çoğul `snake_case`** (`tenants`, `orders`, `order_items`, `branch_events`; KARARLAR §5 "Adlandırma"). Sözlükteki tekil adlar varlık adıdır. `audit_log` ve `tenant_usage_daily` kütle adı olarak istisnadır. Kolonlar `snake_case`, Drizzle nesneleri camelCase, API JSON alanları `snake_case`.
-- Enum değerleri KARARLAR ile **birebir**. Kararlı listeler `pgEnum`: `order_status`, `payment_status`, `payment_method`, `fulfillment_type`, `order_channel`, `tenant_role`, `platform_role`, `subscription_status`, `wa_mode`, `conversation_state`, `conversation_mode`. Değişebilecek listeler (sebep kodları, bildirim türleri, `lifecycle_stage`) `text` + `CHECK`. Tek kaynak `packages/core/enums.ts` (Zod); CHECK kısıtları buradan üretilir.
+- Enum değerleri KARARLAR ile **birebir**. Kararlı listeler `pgEnum`: `order_status`, `payment_status`, `payment_method`, `fulfillment_type`, `order_channel`, `tenant_role`, `platform_role`, `reseller_role`, `subscription_status`, `wa_mode`, `conversation_state`, `conversation_mode`. Değişebilecek listeler (sebep kodları, `verification_method`, `test_kind`, bildirim türleri, `lifecycle_stage`, `onboarding_step`, `suspension_reason`, mesaj niyeti) `text` + `CHECK`. Tek kaynak `packages/core/enums.ts` (Zod); CHECK kısıtları buradan üretilir.
 - Son ekler: FK `_id`, an `_at`, tarih `_date`, para `_kurus`, oran `_bp` (baz puan; %10 = 1000), USD `_usd_micros` (1 $ = 1.000.000).
 - Uzantılar: `postgis`, `pg_trgm`, `unaccent`, `citext`. Türkçe sıralama `COLLATE "tr-TR-x-icu"` (A04 §7.5).
 
 ### 1.2 Kimlikler
 - PK `uuid`, **UUIDv7** (zaman sıralı). DB varsayılanı `DEFAULT uuidv7()` (PostgreSQL 18, D06 §4.3); outbox ve idempotency için uygulamada üretim tercih edilir. Better Auth aynı üreteci kullanır (`generateId`, teyit edilmeli).
 - İstisnalar: `branch_events` PK `(branch_id, seq)`; `wa_webhook_events.id` = ham gövdenin SHA-256 hex'i; `feature_flags.key` metin.
-- Dışa açık kimlikler: `orders.number` (şube bazında artan, 1001'den başlar, ekranda `#1047`); **takip token'ı** = `base62(HMAC-SHA256(tracking_key[kid], order_id))[:22]`. Token her an yeniden üretilebilir (sonraki durum mesajlarındaki link için); DB'de yalnız `tracking_token_hash` tutulur (D06 §15.3). Sipariş kodu `order_verification_codes.code` (6 karakter, D02 §6.4). Storefront'ta UUID görünmez.
+- Dışa açık kimlikler: `orders.number` (şube bazında artan, 1001'den başlar, ekranda `#1047`); **takip token'ı** = `base62(HMAC-SHA256(tracking_key[kid], order_id))[:22]`. Token her an yeniden üretilebilir (sonraki durum mesajlarındaki link için); DB'de yalnız `tracking_token_hash` tutulur (D06 §15.3). **Takip linki teslimden 7 gün sonra geçersizdir** (KARARLAR §7): `orders.tracking_expires_at` = `delivered_at` (ret/iptalde final an) + 7 gün; sonrasında `/t/{token}` 410 `tracking_link_expired` döner. Sipariş kodu `order_verification_codes.code` (6 karakter, D02 §6.4). Storefront'ta UUID görünmez.
 
 ### 1.3 Zaman ve standart kolonlar
 - Anlar `timestamptz` (UTC). Gösterim ve iş kuralları `Europe/Istanbul` (`branches.timezone`). Yerel saatler `time`, günler `date`; şubenin saat dilimiyle yorumlanır. Domain kodunda saat enjekte edilir (D06 §4.3).
@@ -46,8 +46,9 @@
 | Geçici/teknik (outbox, ham olay, yazdırma işi, token, kod, OTP) | Süresi dolunca hard delete (§9). |
 
 ### 1.6 Çok kiracılık ve RLS
-- Kiracıya ait **her tabloda** `tenant_id uuid NN`. **İstisnalar** (platform tabloları; `tenant_id` yok veya nullable): `users` + Better Auth tabloları, `platform_users` + admin auth tabloları, `plans`, `plan_features`, `wa_rate_cards`, `fx_rates`, `feature_flags`, `announcements`, `legal_documents`, `leads`, `wa_webhook_events` (`tenant_id ✓`), `retention_runs` (`tenant_id ✓`). Bunlara yalnız ilgili servis yolu erişir.
-- DB rolleri D06 §5.3 ile aynıdır: `app_owner` (tablo sahibi, migration), `app_user` (api + worker, `NOBYPASSRLS`), `app_admin` (admin API; yalnız `platform_read` SELECT politikası; tenant adına yazma impersonation + `app_user` ile), `app_system` (`BYPASSRLS`; yalnız `sys_*` `SECURITY DEFINER` fonksiyonlarının sahibi).
+- Kiracıya ait **her tabloda** `tenant_id uuid NN`. **İstisnalar** (platform tabloları; `tenant_id` yok veya nullable): `users` + Better Auth tabloları, `platform_users` + admin auth tabloları, `plans`, `plan_features`, `wa_rate_cards`, `fx_rates`, `feature_flags`, `announcements`, `legal_documents`, `leads`, `wa_webhook_events` (`tenant_id ✓`), `retention_runs` (`tenant_id ✓`), `incidents`, `data_breach_incidents`, `subprocessors`, `abuse_blocklist`, `content_takedowns` (`tenant_id ✓`). Bunlara yalnız ilgili servis yolu erişir.
+- **Yalnız admin tabloları** (`tenant_id` taşır ama işletme paneli göremez; `app_user` için politika yoktur, yalnız `app_admin` okur/yazar): `tenant_lifecycle_events`, `admin_notes`, `admin_tasks`, `tenant_health_scores`, `abuse_signals`, `incident_tenants`. İşletme kendi `impersonation_sessions` kayıtlarını görür (D04 §7.14).
+- DB rolleri D06 §5.3 ile aynıdır: `app_owner` (tablo sahibi, migration), `app_user` (api + worker, `NOBYPASSRLS`), `app_admin` (admin API; kiracı tablolarında yalnız `platform_read` SELECT politikası, yalnız admin tablolarında yazma; tenant adına yazma impersonation + `app_user` ile), `app_system` (`BYPASSRLS`; yalnız `sys_*` `SECURITY DEFINER` fonksiyonlarının sahibi).
 - Politika şablonu (CI kataloğu doğrular):
 
 ```sql
@@ -119,10 +120,17 @@ erDiagram
   plans ||--o{ subscriptions : ""
   subscriptions ||--o{ invoices : "Faz 2"
   invoices ||--o{ payments_subscription : "Faz 2"
+  tenants ||--o{ tenant_lifecycle_events : "geçmiş"
+  tenants ||--o{ tenant_onboarding_steps : "adımlar"
+  tenants ||--o{ tenant_usage_monthly : "SMS kotası"
+  tenants ||--o{ marketplace_declarations : "kanal payı"
   tenants {
     uuid id PK
     citext slug UK
     text lifecycle_stage
+    text onboarding_step
+    text suspension_reason
+    bool ordering_enabled
   }
   branches {
     uuid id PK
@@ -199,7 +207,9 @@ erDiagram
     payment_status payment_status
     int total_kurus
     text verification_method
-    text test_kind
+    text test_kind "null = gerçek"
+    timestamptz rejection_scheduled_at
+    text acquisition_source
   }
 ```
 
@@ -231,6 +241,7 @@ erDiagram
     text wamid UK
     text direction
     text source
+    text intent
   }
   outbox {
     text topic
@@ -297,6 +308,34 @@ erDiagram
   tenants ||--o{ integrations : "SambaPOS/Adisyo"
   integrations ||--o{ external_refs : ""
   payment_provider_accounts ||--o{ order_payments : "PayTR/iyzico"
+  resellers ||--o{ reseller_users : "reseller_admin / reseller_technician"
+  resellers ||--o{ reseller_access_grants : "kurulum erişimi"
+```
+
+### 2.8 (h) Admin, destek ve uyum kayıtları
+
+```mermaid
+erDiagram
+  tenants ||--o{ admin_notes : "not, etiket, temas"
+  tenants ||--o{ admin_tasks : "görev"
+  tenants ||--o{ tenant_health_scores : "günlük"
+  tenants ||--o{ abuse_signals : ""
+  tenants |o--o{ content_takedowns : "5651"
+  incidents ||--o{ incident_tenants : "etkilenen"
+  tenants ||--o{ incident_tenants : ""
+  incidents |o--o| data_breach_incidents : "ihlal ise"
+  platform_users ||--o{ impersonation_sessions : ""
+  tenants ||--o{ impersonation_sessions : ""
+  tenant_health_scores {
+    date score_date PK
+    smallint score
+    text band
+  }
+  data_breach_incidents {
+    timestamptz detected_at
+    timestamptz tenant_notify_due_at
+    timestamptz authority_notify_due_at
+  }
 ```
 
 ---
@@ -310,16 +349,20 @@ Faz 1 tabloları tam ayrıntılı; küçük tablolarda alanlar satır içinde li
 | Ad | Değerler | Kaynak |
 |---|---|---|
 | `order_status` | `awaiting_customer`, `new`, `accepted`, `preparing`, `ready`, `on_the_way`, `delivered`, `rejected`, `cancelled` | KARARLAR §5 |
-| `rejection_reason` | `closed`, `out_of_zone`, `item_unavailable`, `too_busy`, `other` (not zorunlu) | KARARLAR §5 |
-| `cancelled_by` / `cancel_reason` | `customer`, `tenant`, `system` / `customer_request`, `customer_timeout`, `tenant_no_response`, `item_unavailable`, `courier_issue`, `duplicate`, `suspected_fake`, `other` | KARARLAR §5 |
+| `rejection_reason` | `closed`, `out_of_zone`, `item_unavailable`, `too_busy`, `duplicate`, `suspected_fake`, `other` (not zorunlu) | KARARLAR §5 |
+| `cancelled_by` / `cancel_reason` | `customer`, `tenant`, `system` / `customer_request`, `customer_timeout`, `tenant_no_response`, `item_unavailable`, `courier_issue`, `duplicate`, `suspected_fake`, `payment_timeout` (Faz 2 online ödeme), `other` | KARARLAR §5 |
 | `payment_status` / `payment_method` | `unpaid`, `pending`, `paid`, `failed`, `refunded`, `partially_refunded` / `cash_on_delivery`, `card_on_delivery`, `meal_card_on_delivery`, `online_card` (Faz 2), `pay_at_counter` | KARARLAR §5 |
 | `fulfillment_type` / `order_channel` | `delivery`, `pickup`, `dine_in` (Faz 3) / `wa_link`, `wa_ai` (Faz 2), `web`, `table_qr` (Faz 3), `manual`, `wa_flow` (Faz 3) | KARARLAR §5, §7 |
 | `meal_card_brand` | `multinet`, `pluxee`, `edenred`, `setcard`, `metropol`, `other` | KARARLAR §5 |
-| `tenant_role` / `platform_role` | `owner`, `manager`, `cashier`, `kitchen`, `courier` / `platform_owner`, `platform_admin`, `support_agent`, `finance`, `sales_rep` (+ `reseller`, Faz 2) | KARARLAR §4 |
+| `tenant_role` / `platform_role` / `reseller_role` | `owner`, `manager`, `cashier`, `kitchen`, `courier` / `platform_owner`, `platform_admin`, `support_agent`, `finance`, `sales_rep` / `reseller_admin`, `reseller_technician` (Faz 2) | KARARLAR §4 |
 | `subscription_status` / `lifecycle_stage` | `trialing`, `active`, `past_due`, `read_only`, `suspended`, `cancelled` / `lead`, `onboarding`, `pilot`, `trial`, `active`, `past_due`, `read_only`, `suspended`, `churned` | KARARLAR §7 |
+| `onboarding_step` | `account_created`, `profile_done`, `menu_done`, `ops_done`, `web_live` (Kapı 1), `wa_connected`, `meta_payment_ok`, `wa_test_done`, `live` (Kapı 2) | D05 §A.2.2, D04 §3.3 |
+| `suspension_reason` | Otomatik: `payment` (dunning G+21), `trial_ended`, `pilot_ended`; admin: `policy`, `abuse`, `legal` | D05 §A.2.1 |
 | `ordering_state` | Saklanan: `open`, `busy`, `paused`; hesaplanan: `closed` (çalışma saati dışı) | KARARLAR §7 |
-| `verification_method` / `status_notify_channel` | `whatsapp`, `sms`, `staff` (öneri), `none` / `whatsapp`, `sms`, `none` | KARARLAR §7 Akış B |
-| `test_kind` | `none`, `test` (onboarding/demo), `canary` (sentetik) | KARARLAR §11 |
+| `verification_method` / `status_notify_channel` | `wa_link` (Akış A token), `wa_code` (Akış B kod), `sms_otp`, `staff` (manuel sipariş, "Telefonla doğruladım") / `whatsapp`, `sms`, `none` | KARARLAR §5 |
+| `test_kind` | `onboarding_test`, `canary`; `NULL` = gerçek sipariş. Test siparişleri rapor, metrik ve faturalamadan hariçtir | KARARLAR §5 |
+| `message_intent` | `greeting`, `menu_request`, `order_code`, `order_status_query` ("siparişim nerede"), `cancel_request`, `handoff_request`, `complaint`, `hours_address`, `free_text_order` (Faz 2), `review_reply`, `stop`, `off_topic`, `other` | D10 §8.4, D02 §6 |
+| `acquisition_source` | `marketplace_card` (pazaryeri paketine konan kart/QR), `marketplace_declared` (müşteri/işletme "pazaryerinden geldi" dedi), `in_store_qr`, `google`, `instagram`, `word_of_mouth`, `referral`, `returning`, `unknown` | D10 §8.3, D03 §2 |
 | `wa_mode` | `cloud`, `coexistence` | KARARLAR §3 |
 | `conversation_state` / `conversation_mode` | `idle`, `greeting`, `menu_link_sent`, `order_linking`, `order_active`, `ai_ordering`, `awaiting_confirm` / `bot`, `human` | D02 §6.1 |
 
@@ -336,18 +379,31 @@ Faz 1 tabloları tam ayrıntılı; küçük tablolarda alanlar satır içinde li
 | `tax_number`, `tax_office`, `billing_address`, `billing_email` | text | ✓ | Fatura profili; şahıs işletmesinde TCKN (`pii:identity`) |
 | `contact_phone_e164`, `food_registration_no` | text | ✓ | İletişim; gıda işletme kayıt no (künye) |
 | `vertical` | text | NN | `restaurant` (Faz 1); `water`, `patisserie` (Faz 2) |
-| `lifecycle_stage` | text | NN | Admin yaşam döngüsü (§4.3); abonelik olaylarıyla senkronlanır, `lead`/`onboarding` elle |
-| `onboarding_step` | text | NN | `profile_done` → `menu_done` → `zone_done` → `wa_connected` → `meta_payment_ok` → `test_order_done` → `live` (A05 §5.1) |
+| `lifecycle_stage`, `lifecycle_changed_at` | text, timestamptz | NN | Admin yaşam döngüsü (KARARLAR §7, D05 §A.2.1). **Elle yazılmaz**, `core.deriveLifecycleStage()` türetir (§4.3); her değişiklik `tenant_lifecycle_events`'e yazılır. `lead` aşaması `leads` tablosunda yaşar (tenant yok) |
+| `onboarding_step`, `onboarding_step_at` | text, timestamptz | NN | Son tamamlanan adım (§3.0; D05 §A.2.2 ve D04 §3.3 ile aynı kodlar) ve o adıma giriş anı ("takılan adım": canlı değil ve > 48 sa [T]). Adım geçmişi `tenant_onboarding_steps` |
+| `web_live_at`, `live_at` | timestamptz | ✓ | Kapı 1 (web siparişi, WhatsApp'sız mod) ve Kapı 2 (tam canlı); aktivasyon penceresi `live_at` + 14 gün |
+| `signup_approved_at`, `signup_approved_by` | timestamptz, uuid | ✓ | Faz 1 onaylı kayıt: sahte işletme, Commerce Policy ve Meta kotası kontrolü (D05 §C.5.2); `web_live` bunu gerektirir |
+| `suspension_reason`, `suspended_at`, `suspended_by_platform_user_id`, `suspension_note` | text, timestamptz, uuid, text | ✓ | Askı sebebi (§3.0). `payment`/`trial_ended`/`pilot_ended` abonelik olayından otomatik; `policy`/`abuse`/`legal` admin askısıdır (gerekçe zorunlu, audit) ve abonelik durumundan bağımsız `lifecycle_stage = suspended` yapar |
+| `ordering_enabled`, `ordering_disabled_reason` | bool, text | NN / ✓ | Tenant bazında kill-switch (KARARLAR §4); false → storefront ve bot "şu an online sipariş alınmıyor, lütfen arayın"; varsayılan true |
+| `storefront_published`, `storefront_unpublished_reason` | bool, text | NN / ✓ | Künye eksik (`imprint_missing`), onay bekliyor (`not_approved`), içerik kaldırma (`takedown`), sahte işletme şüphesi (`fake_business`) |
+| `health_score`, `health_band`, `health_computed_at` | smallint, text, timestamptz | ✓ | Son günlük sağlık skoru (0–100; `green`/`yellow`/`red`) denormalize kopyası; geçmiş `tenant_health_scores` (D10 §5.6) |
+| `account_manager_platform_user_id` | uuid | ✓ | Satış/başarı sorumlusu (SR; D05 A-03) |
+| `is_demo` | bool | NN | Demo/sandbox/iç tenant (D05 §B.5, §10 seed); platform metrikleri, MRR ve faturalamadan hariç; Meta/SMS maliyeti "demo" etiketiyle izlenir |
+| `signup_ref_code` | text | ✓ | **[Faz 2]** Kayıttaki ilk geçerli bayi (`?b=`) veya referans (`?r=`) kodu (D05 §B.3) |
 | `bot_enabled` / `ai_enabled` | bool | NN | Konuşma botu (true) / AI sipariş (Faz 2, false) |
 | `bot_mute_minutes` | smallint | NN | Echo/panel yanıtından sonra bot susması; 10–120, varsayılan 30 (D02 §6.10) |
 | `sms_fallback_enabled` | bool | NN | "WhatsApp'sız mod" (SMS OTP) izni; varsayılan true |
 | `message_settings` | jsonb | NN | Karşılama metni (promosyon filtresinden geçer), durum bildirimi aç/kapa (`preparing` false), debounce süresi |
-| `savings_commission_bp` | int | ✓ | İşletmenin girdiği pazaryeri kesinti oranı; tasarruf kartı (§8) |
+| `savings_commission_bp` | int | ✓ | İşletmenin girdiği pazaryeri kesinti oranı; tasarruf kartı ve aylık değer raporu (§8, D10 §5.6) |
 | `retention_customer_months` | smallint | NN | 6–24, varsayılan 24 (D08 §2.8 satır 6) |
 | `is_pilot`, `is_founding_member`, `reseller_id` | bool, bool, uuid | NN, NN, ✓ | `reseller_id` Faz 2 |
 | `closed_at`, `data_export_until` | timestamptz | ✓ | Fesih ve dışa aktarma penceresi sonu (silme günü) |
 
-İndeks `UNIQUE(slug)`, `(lifecycle_stage)`. Saklama: `retention.tenant_offboarding` (§9); kiracı satırı ve faturalar 10 yıl.
+İndeks `UNIQUE(slug)`, `(lifecycle_stage)`, `(onboarding_step, onboarding_step_at) WHERE live_at IS NULL` (takılan adım), `(health_band)`. `tenants.status` diye bir kolon **yoktur**; yaşam döngüsü yalnız `lifecycle_stage`'dir (KARARLAR §7). Admin kolonları (`health_*`, `account_manager_*`, `suspension_note`) işletme paneli projeksiyonunda yer almaz. Saklama: `retention.tenant_offboarding` (§9); kiracı satırı ve faturalar 10 yıl.
+
+#### `tenant_lifecycle_events`, `tenant_onboarding_steps` **[Faz 1]**
+- `tenant_lifecycle_events` (yalnız admin, append-only; D05 §A.2.1 huni ve churn metriklerinin kaynağı): `id`, `tenant_id`, `from_stage ✓` (ilk satırda `lead`, `lead_id ✓` ile), `to_stage NN`, `cause` (`signup`, `onboarding_step`, `subscription_status_changed`, `pilot_assigned`, `pilot_ended`, `trial_extended`, `admin_suspend`, `admin_unsuspend`, `winback`), `subscription_status ✓`, `suspension_reason ✓`, `actor_type` (`system`, `admin`), `actor_platform_user_id ✓`, `note ✓`, `occurred_at`. İndeks `(tenant_id, occurred_at)`, `(to_stage, occurred_at)`. `churned → onboarding` (geri kazanım, veri silinmediyse aynı tenant) desteklenir. Saklama: tenant satırıyla.
+- `tenant_onboarding_steps` (panel sihirbazı okur, admin hunisi D05 A-05 bundan beslenir): PK `(tenant_id, step)`; `completed_at`, `completed_by_user_id ✓` / `completed_by_platform_user_id ✓` (concierge), `source` (`wizard`, `concierge`, `reseller`, `system`), `skipped` (`web_live` isteğe bağlıdır, D04 §3.3), `reopened_at ✓` (ör. WhatsApp koptu → `wa_connected` geri açılır). Embedded Signup alt hunisi `wa_onboarding_sessions`'tadır (§3.4).
 
 #### `branches` **[Faz 1]**
 
@@ -364,8 +420,10 @@ Faz 1 tabloları tam ayrıntılı; küçük tablolarda alanlar satır içinde li
 | `ordering_state` | text | NN | `open`, `busy`, `paused` (CHECK); `closed` saklanmaz, `core.effectiveOrderingState()` hesaplar |
 | `busy_extra_minutes`, `paused_until`, `pause_reason` | smallint, timestamptz, text | ✓ | Yoğunluk modu (+15/+30 dk); "Sipariş almayı durdur" (15/30/60 dk/bugün) |
 | `use_preparing_step` | bool | NN | `preparing` adımı (false) |
-| `alarm_policy` | jsonb | NN | `{"push_sec":60,"platform_wa_sec":[120,300],"sms_sec":300,"customer_notice_sec":600}` (D06 §7.6) |
-| `new_order_timeout_min` | smallint | NN | `new` → `cancelled` (`tenant_no_response`) süresi; varsayılan 15 |
+| `alarm_policy` | jsonb | NN | Kanonik zamanlama (KARARLAR §10): `{"push_sec":0,"sound_repeat_sec":60,"platform_wa_sec":[120,300],"sms_sec":300,"customer_notice_sec":600,"platform_wa_enabled":true,"sms_enabled":true,"notify_manager":false}`; t=0 ses + Web Push, 60 sn ses tekrarı, 2 dk platform WhatsApp, 5 dk SMS, 10 dk müşteriye bilgi (ayar 8–15), 15 dk iptal. "Otomatik reddet" yoktur (D04 §7.7) |
+| `new_order_timeout_min` | smallint | NN | `new` → `cancelled` (`cancelled_by = system`, `tenant_no_response`) süresi; varsayılan 15 (15/20/30) |
+| `eta_chips_min`, `last_order_minutes_before_close` | smallint[], smallint | NN / ✓ | Onay süre çipleri (varsayılan `{15,20,30,45,60}`, en çok 6); son sipariş saati (kapanıştan N dk önce checkout kapanır, D04 §7.3) |
+| `phone_confirm_rule` | jsonb | ✓ | "İlk sipariş ve tutar > X TL ise telefonla teyit" (`{"first_order_over_kurus":50000}`; D10 §5.7); sipariş kartında rozet, akışı durdurmaz |
 | `panel_offline_auto_pause` | bool | NN | Panel çevrimdışıysa storefront'u durdur (D06 §7.7; false) |
 | `auto_accept_rules` | jsonb | ✓ | **[Faz 2]** Kurallı otomatik kabul, varsayılan kapalı |
 | `scheduled_enabled`, `scheduled_max_days`, `scheduled_min_lead_min` | bool, smallint, smallint | NN | Planlı sipariş |
@@ -379,8 +437,8 @@ std, `hostname citext UK` (`lezzet.siparisinonunde.com`), `branch_id ✓`, `kind
 
 #### `users` ve Better Auth tabloları **[Faz 1]** (platform)
 - `users` (`panelAuth`; işletme kullanıcıları, kurye, bayi): `id uuid PK`, `email citext UK ✓` (kurye e-postasız olabilir), `email_verified`, `phone_e164 UK ✓`, `phone_verified`, `name NN` (`pii:identity`), `image ✓`, `two_factor_enabled`, `locale`, `last_login_at`, `disabled_at`. RLS: kendi satırı veya aynı tenant'ta üyeliği olanlar.
-- `sessions` (`token` hash, `expires_at` — 7 gün kayan; kurye 7 gün; `ip_address`, `user_agent` `pii:network`, `active_tenant_id`, `impersonated_by`), `accounts` (parola hash'i), `verifications` (magic link 15 dk tek kullanım, OTP), `two_factors` (TOTP sırrı envelope encryption, yedek kodlar hash'li), `invitations` (`tenant_id`, `email`/`phone`, `role`, `branch_id`, `status`, `expires_at` 7 gün).
-- `platform_users` (`adminAuth`, ayrı örnek ve çerez; D06 §6.1): `email UK NN`, `name`, `platform_role NN`, `two_factor_enabled` (her zaman true), `last_login_at`, `disabled_at`; oturumlar `platform_sessions` (8 sa, 30 dk hareketsizlik kilidi), `platform_accounts`, `platform_two_factors`.
+- `sessions` (`token` hash, `expires_at` — işletme paneli **30 gün** (kayıtlı cihaz), kurye **12 saat** (vardiya) (KARARLAR §4); `kind` (`panel`, `courier`, `impersonation`), `ip_address`, `user_agent` `pii:network`, `active_tenant_id`, `impersonated_by`, `impersonation_session_id ✓`), `accounts` (parola hash'i), `verifications` (kurye magic link tek kullanım, açılmazsa 15 dk'da düşer; OTP), `two_factors` (TOTP sırrı envelope encryption, yedek kodlar hash'li), `invitations` (`tenant_id`, `email`/`phone`, `role`, `branch_id`, `status`, `expires_at` 7 gün).
+- `platform_users` (`adminAuth`, ayrı örnek ve çerez; D06 §6.1): `email UK NN`, `name`, `platform_role NN`, `two_factor_enabled` (her zaman true), `last_login_at`, `disabled_at`; oturumlar `platform_sessions` (**8 saat** + 30 dk hareketsizlikte kilit, KARARLAR §4), `platform_accounts`, `platform_two_factors`.
 - Adlar Better Auth `modelName`/`fields` ayarıyla eşlenir (organization → `tenants`, member → `memberships`); şema kütüphane CLI'sıyla üretilip Drizzle'a alınır. Saklama: hesap kapanışı + 30 gün (`retention.users`).
 
 #### `memberships` **[Faz 1]**
@@ -406,7 +464,10 @@ Panel cihazı: çevrimdışı dedektörü, push, PIN'li cihaz oturumu, tarayıc�
 
 #### `plans` ve `plan_features` **[Faz 1]** (platform)
 - `plans`: `code UK` (`esnaf`, `pro`, `zincir`), `name`, `price_monthly_kurus` (99000 / 179000 / 299000), `price_yearly_kurus` (950400 / 1718400 / 2870400), `per_branch` (Zincir), `vat_rate_bp` (2000), `is_sellable` (Zincir Faz 2'de true), `sort`. TÜFE güncellemesi satırı değiştirir.
-- `plan_features` (paket hakları; feature flag değildir, D06 §16.6): PK `(plan_id, feature_key)`, `enabled`, `limit_value ✓`. Anahtarlar: `max_users` (Esnaf 2), `max_delivery_zones` (Esnaf 3), `courier_view` (Pro+), `ai_ordering`, `coupons`, `loyalty`, `campaigns`, `online_payment`, `pos_integration`, `multi_branch`, `advanced_reports`, `custom_domain`, `open_api`. İçerik matrisi D01 §6.3.
+- `plan_features` (paket hakları; feature flag değildir, D06 §16.6): PK `(plan_id, feature_key)`, `enabled`, `limit_value ✓`. Anahtarlar: `max_users` (Esnaf 2), `max_delivery_zones` (Esnaf 3), `courier_view` (Pro+), **`sms_monthly_quota`** (adil kullanım: Esnaf 100, Pro 300 SMS/ay, KARARLAR §4; Zincir değeri Faz 2'de satışla belirlenir), `ai_ordering`, `coupons`, `loyalty`, `campaigns`, `online_payment`, `pos_integration`, `multi_branch`, `advanced_reports`, `custom_domain`, `open_api`. İçerik matrisi D01 §6.3.
+
+#### `tenant_usage_monthly` **[Faz 1]** (SMS kotası sayacı)
+PK `(tenant_id, month date)`; `sms_count int NN` (kotaya sayılan: müşteriye giden `otp` + `order_status` SMS'leri), `sms_ops_count` (sayılmayan platform operasyon SMS'leri: `alarm`, `panel_offline`, `courier_login`), `sms_quota` (ay başında `plan_features.sms_monthly_quota`'dan kopyalanır), `sms_quota_warned_at ✓` (%80), `sms_quota_exceeded_at ✓`, `platform_wa_count`, `llm_tokens_in/out` (Faz 2), `updated_at`. Sayaç `sms.send` işinde aynı transaction'da `UPDATE … SET sms_count = sms_count + 1` ile artar (segment sayısı maliyet için `sms_messages.segments`'te). **Kota aşımında SMS kesilmez**: işletmeye panel + e-posta uyarısı gider, admin A-07'de görünür; ek SMS paketi Faz 2 (KARARLAR §4). Pilot ve `is_demo` tenant'larda kota uygulanmaz, sayım sürer.
 
 #### `subscriptions` **[Faz 1 kayıt · Faz 2 tahsilat]**
 
@@ -420,17 +481,19 @@ Panel cihazı: çevrimdışı dedektörü, push, PIN'li cihaz oturumu, tarayıc�
 | `founding_seq` | int | ✓, UK | İlk 100 sayacı |
 | `is_pilot`, `pilot_ends_at`, `trial_ends_at` | bool, timestamptz, timestamptz | | Pilot 3 ay ücretsiz; deneme 14 gün kartsız |
 | `current_period_start`, `current_period_end` | timestamptz | ✓ | |
-| `past_due_since`, `read_only_at`, `suspended_at`, `cancelled_at`, `cancel_reason`, `cancel_at_period_end` | | ✓ | Dunning damgaları (§4.3) |
+| `past_due_since`, `read_only_at`, `suspended_at`, `cancelled_at`, `cancel_reason`, `cancel_at_period_end` | | ✓ | Dunning damgaları (§4.3); `cancel_reason` burada abonelik iptal sebebidir (çıkış görüşmesi kodu, D10 §5.6), sipariş `cancel_reason`'ından ayrıdır |
+| `trial_warning_started_at` | timestamptz | ✓ | Deneme bitti, 3 günlük uyarı bandı başladı (KARARLAR §9) |
+| `grace_until`, `grace_reason` | date, text | ✓ | Finans ek süresi (en fazla 7 gün, tek sefer, gerekçeli; D05 A-08) |
 | `psp_provider`, `psp_customer_ref`, `psp_card_ref`, `card_last4`, `card_brand` | text | ✓ | Faz 2; yalnız PSP token'ı |
 
 Kısıt `UNIQUE(tenant_id) WHERE status <> 'cancelled'`. Saklama 10 yıl.
 
 #### `invoices`, `payments_subscription` **[Faz 2]**
-- `invoices`: `subscription_id`, `number UK` (ödeme referansı `SO-2026-000123`, D08 §6.4), `status` (`draft`, `issued`, `paid`, `void`, `refunded`), `period_start/end`, `lines jsonb`, `subtotal_kurus`, `vat_kurus`, `total_kurus`, `due_at`, `paid_at`, `buyer_snapshot jsonb` (`pii:identity`), `einvoice_type` (`e_fatura`, `e_arsiv`), `einvoice_external_id` (Paraşüt), `einvoice_uuid` (ETTN), `einvoice_status`, `pdf_storage_key`. Paraşüt idempotency anahtarı = `invoices.id`.
+- `invoices`: `subscription_id`, `number UK` (ödeme referansı `SO-2026-000123`, D08 §6.4), `status` (`draft`, `issued`, `paid`, `void`, `refunded`), `period_start/end`, `lines jsonb`, `subtotal_kurus`, `vat_kurus`, `total_kurus`, `due_at`, `paid_at`, `buyer_snapshot jsonb` (`pii:identity`), `einvoice_type` (`e_fatura`, `e_arsiv`), `einvoice_external_id` (Paraşüt), `einvoice_uuid` (ETTN), `einvoice_status` (`pending`, `sent`, `formalized`, `failed`; D05 A-08), `pdf_storage_key`. Paraşüt idempotency anahtarı = `invoices.id`.
 - `payments_subscription`: `invoice_id`, `method` (`card`, `bank_transfer`), `psp_payment_id UK ✓`, `amount_kurus`, `status` (`pending`, `succeeded`, `failed`, `refunded`), `attempt_no`, `failure_code`, `bank_reference ✓`, `matched_by_platform_user_id ✓`, `raw jsonb` (kart verisi yok). İkisi de 10 yıl. Hesap alacağı defteri `account_credits` Faz 2 (D08 §6.6).
 
 #### `leads` **[Faz 1]** (platform)
-`source` (`demo_form`, `field_visit`, `reseller`, `referral`), `business_name`, `contact_name`, `phone_e164`, `email` (`pii:*`), `city`, `district`, `vertical`, `owner_platform_user_id` (SR), `stage` (`new`, `contacted`, `demo_scheduled`, `trial`, `won`, `lost`), `next_step_at`, `notes`, `utm jsonb`, `tenant_id ✓` (kazanılınca), `last_contact_at`. Saklama 12 ay hareketsizlik (`retention.leads`).
+`source` (`demo_form`, `calculator`, `field`, `reseller`, `referral`, `chamber`, `event`, `inbound_call`; D05 A-20), `business_name`, `contact_name`, `phone_e164`, `email` (`pii:*`), `city`, `district`, `vertical`, `daily_orders_band` (`0-10`, `10-20`, `20-40`, `40-80`, `80+`), `marketplaces text[]`, `calculator_snapshot jsonb ✓` (hesaplayıcı girdi ve çıktıları), `owner_platform_user_id` (SR), `stage` (`new`, `contacted`, `demo_scheduled`, `demo_done`, `proposal`, `won`, `lost`), `lost_reason ✓` (`price`, `already_whatsapp`, `timing`, `unreachable`, `not_fit`, `commerce_policy`), `next_step`, `next_step_at` (açık aşamada NN), `wa_opt_in_at ✓` (Meta opt-in), `b2b_objection_at ✓` (ticari ileti ret kaydı, D08 §3.7), `notes`, `utm jsonb`, `landing_page`, `tenant_id ✓` (`won` yalnız tenant'a bağlanarak kapanır), `last_contact_at`. Tekrar kontrolü: aynı telefon/VKN'li açık lead veya tenant uyarısı. Saklama 12 ay hareketsizlik (`retention.leads`).
 
 ### 3.2 Menü
 
@@ -452,6 +515,7 @@ std, `menu_id`, `name`, `description ✓`, `sort_order`, `is_visible`, `availabi
 | `is_available`, `sort_order` | bool, int | NN | Genel stok anahtarı |
 | `allergens`, `tags` | text[] | NN | 14 ana alerjen etiketi (D08 §2.7), rozetler (`spicy`, `vegan`) |
 | `wa_restricted`, `restricted_reason` | bool, text | NN / ✓ | Commerce Policy; true ise sepete eklenemez |
+| `platform_hidden_at`, `platform_hidden_reason`, `content_takedown_id` | timestamptz, text, uuid | ✓ | Admin gizlemesi: yasaklı ürün taraması (`prohibited_item`) veya içerik kaldırma (`takedown`, D05 A-16); işletme kaldıramaz, yalnız admin geri açar |
 | `availability_schedule_id`, `external_ref` | uuid, text | ✓ | "Kahvaltı 08–12"; POS eşlemesi (Faz 2) |
 
 İndeks `(tenant_id, category_id, sort_order)`, GIN `name gin_trgm_ops`. Fiyat değişikliği `product_price_history`'ye ve `audit_log`'a yazılır.
@@ -491,7 +555,8 @@ Kimlik `(tenant_id, wa_bsuid)`, telefon nullable (KARARLAR §6.8, D02 §8). Plat
 | `internal_note` | text | ✓ | İşletme notu; UI sağlık bilgisi yazılmaması uyarısı gösterir (`pii:content`) |
 | `marketing_opt_in`, `marketing_opt_in_at`, `marketing_suppressed_until` | bool, timestamptz, timestamptz | | **[Faz 2]** Toplama Faz 1'de yok (KARARLAR §11); kanıt `consents`'te |
 | `opt_out_all`, `opt_out_all_at` | bool, timestamptz | | "DUR → hepsini durdur" (D02 §6.9) |
-| `first_order_at`, `last_order_at`, `order_count`, `delivered_total_kurus` | | | `order.delivered` ile güncellenir (`test_kind='none'`) |
+| `first_order_at`, `last_order_at`, `order_count`, `delivered_total_kurus` | | | `order.delivered` ile güncellenir (yalnız `test_kind IS NULL`) |
+| `acquisition_source`, `acquisition_marked_by` | text, text | ✓ | İlk kanal siparişindeki edinim kaynağı (§3.0 `acquisition_source`); `marked_by`: `system` (`source_meta`'dan), `customer` (storefront'taki isteğe bağlı "Bizi nereden buldunuz?" sorusu), `staff` (panelde "Bu müşteri pazaryerinden geldi" işareti). Tasarruf ve kanal payı raporları için (D10 §8.3) |
 | `last_inbound_at` | timestamptz | ✓ | Son gelen WhatsApp mesajı |
 | `blocked_at`, `block_reason` | timestamptz, text | ✓ | Kara liste (sebep zorunlu) |
 | `merged_into_id` | uuid | ✓ | Birleştirilen kaynak kayıt |
@@ -510,44 +575,49 @@ std, `customer_id`, `label` ("Ev", "İş"), `city`, `district`, `neighbourhood`,
 |---|---|---|---|
 | std, `version`, `branch_id` | | NN | |
 | `number` | int | NN | `UNIQUE(branch_id, number)` |
-| `tracking_token_hash`, `tracking_kid` | text, smallint | NN | Takip token'ının SHA-256'sı (UK) ve anahtar sürümü (§1.2) |
+| `tracking_token_hash`, `tracking_kid`, `tracking_expires_at` | text, smallint, timestamptz | NN, NN, ✓ | Takip token'ının SHA-256'sı (UK), anahtar sürümü (§1.2); geçersizlik anı = teslim (veya ret/iptal) + 7 gün (KARARLAR §7) |
 | `status`, `channel`, `fulfillment_type` | enum | NN | §3.0 |
-| `test_kind` | text | NN | `none`, `test`, `canary`; rapor, istatistik ve kullanım metriklerinde yalnız `none` sayılır |
+| `test_kind` | text | ✓ | `onboarding_test` (sihirbaz test siparişi, D04 §3.3), `canary` (sentetik, §4.1); `NULL` = gerçek sipariş. Rapor, KPI, kullanım sayaçları ve faturalamada yalnız `test_kind IS NULL` sayılır (KARARLAR §5) |
 | `customer_id`, `conversation_id`, `link_token_id` | uuid | ✓ | Akış B'de doğrulanana kadar `customer_id` boş olabilir; CHECK `channel IN ('wa_link','wa_ai') → customer_id IS NOT NULL` |
-| `verification_method`, `verified_at`, `verification_ref` | text, timestamptz, text | ✓ | `whatsapp` (link oturumu, sipariş kodu, AI butonu), `sms` (OTP), `staff` ("Telefonla doğruladım"), `none` (Akış E); ref = wamid / OTP id / link token id |
+| `verification_method`, `verified_at`, `verification_ref` | text, timestamptz, text | ✓ | KARARLAR §5: `wa_link` (Akış A link oturumu), `wa_code` (Akış B sipariş kodu), `sms_otp` (WhatsApp'sız mod), `staff` (Akış E manuel sipariş ve "Telefonla doğruladım"); `awaiting_customer`'da boş, `new`'e geçişte NN. Ref = link token id / wamid / OTP id / user id. Akış C [Onayla] (Faz 2) kodu Açık konular #11 |
 | `status_notify_channel` | text | NN | `whatsapp`, `sms` (WhatsApp'sız mod: yalnız onaylandı/red/iptal SMS'i), `none` |
 | `wa_notify`, `wa_status_msg_count` | bool, smallint | NN | Sipariş bazında bildirim izni; otomatik durum mesajı sayacı (≤ 4) |
-| `source_meta` | jsonb | ✓ | `src` (QR/afiş/ig/google), `utm`, CTWA `referral` |
+| `source_meta` | jsonb | ✓ | `src` (QR/afiş/ig/google/paket kartı), `utm`, CTWA `referral` |
+| `acquisition_source` | text | ✓ | Pazaryeri sipariş beyanı ve edinim kaynağı (§3.0): `source_meta.src`'den türetilir (paket içi kart `src=card` → `marketplace_card`), müşterinin isteğe bağlı cevabı veya personelin "Bu müşteri pazaryerinden geldi" işaretiyle (`marketplace_declared`) güncellenir; değişiklik `order_events`'e yazılır |
 | `customer_name`, `delivery_phone_e164` | text | ✓ | Snapshot; teslimat telefonu müşteri kimliğini değiştirmez (`pii:identity`, `pii:contact`) |
 | `customer_address_id`, `delivery_zone_id` | uuid | ✓ | Analiz FK'ları |
 | `delivery_address`, `delivery_location` | jsonb, geography(Point) | ✓ | `delivery` ise NN (CHECK); konum 30 gün sonra NULL (§9) |
 | `zone_name`, `zone_eta_minutes` | text, smallint | ✓ | |
+| `out_of_zone_override`, `out_of_zone_override_by`, `out_of_zone_fee_kurus` | bool, uuid, int | NN / ✓ / ✓ | Yalnız `manual` kanalında: personel uyarıyı görerek bölge dışına sipariş girer (KARARLAR §4), özel ücret yazılabilir; `audit_log` + `order_events` |
 | `notes` | text | ✓ | ≤ 140 karakter; `pii:content-sensitive`; final + 30 gün silinir |
+| `internal_note` | text | ✓ | İşletme iç notu ("zili çalma dedi", D04 §4.12); müşteriye gitmez; `notes` ile aynı silme kuralı |
 | `scheduled_for` | timestamptz | ✓ | Planlı sipariş (durum yine `new`) |
 | `items_subtotal_kurus`, `delivery_fee_kurus`, `discount_kurus`, `total_kurus` | int | NN | CHECK `total = items_subtotal + delivery_fee − discount` (§5) |
 | `vat_included_kurus`, `min_basket_kurus`, `currency` | int, int, char(3) | NN | |
 | `payment_method`, `payment_status`, `meal_card_brand`, `paid_at` | | | Marka `meal_card_on_delivery` ise NN |
 | `cash_tendered_kurus` | int | ✓ | "Kaç TL ile ödeyeceksiniz?" → para üstü (fişe basılır) |
 | `placed_at`, `business_date` | timestamptz, date | NN | Müşteri onay anı / iş günü |
-| `first_acked_at` | timestamptz | ✓ | İlk ack (`order_acks`) |
+| `first_acked_at` | timestamptz | ✓ | İlk ack (`order_acks`); D10 S4'teki "görüldü" (`first_seen_at`) bu alandır |
 | `accepted_at`, `preparing_at`, `ready_at`, `on_the_way_at`, `delivered_at`, `rejected_at`, `cancelled_at` | timestamptz | ✓ | FSM yazar |
 | `accepted_by_user_id`, `created_by_user_id` | uuid | ✓ | |
-| `prep_eta_minutes`, `estimated_ready_at`, `estimated_delivery_at` | | ✓ | `accept`'te zorunlu |
-| `rejection_reason`, `rejection_note`, `rejection_requested_at`, `rejection_requested_by` | | ✓ | 30 sn geri alma penceresi (§4.1); `rejected` ise reason NN; `other` ise not NN |
-| `cancelled_by`, `cancel_reason`, `cancel_note`, `cancel_requested_at` | | ✓ | `cancelled` ise ilk ikisi NN; talep = müşterinin onay sonrası iptal isteği |
+| `prep_eta_minutes`, `estimated_ready_at`, `estimated_delivery_at` | | ✓ | `accept`'te zorunlu (D04'teki `eta_at` = `estimated_delivery_at`, gel-alda `estimated_ready_at`) |
+| `delay_notice_count` | smallint | NN | "Gecikme bildir" mesajı sayacı; bütçe dışı, sipariş başına en çok 2 [T] (D04 §4.10) |
+| `rejection_reason`, `rejection_note` | text | ✓ | `rejected` ise reason NN; `other` ise not NN (müşteriye gider) |
+| `rejection_scheduled_at`, `rejection_requested_by` | timestamptz, uuid | ✓ | **Bekleyen ret** (KARARLAR §7): doluysa sipariş `new` kalır ve bu anda (istek + 30 sn) `rejected` olur; "Geri al" alanları temizler. D04 §4.7'deki `pending_action*` önerisinin karşılığıdır. CHECK `rejection_scheduled_at IS NULL OR status = 'new'` |
+| `cancelled_by`, `cancel_reason`, `cancel_note`, `cancel_requested_at` | | ✓ | `cancelled` ise ilk ikisi NN; `other` ise not NN; müşterinin serbest iptal gerekçesi `cancel_note`'a yazılır (D03); talep = müşterinin onay sonrası iptal isteği |
 | `customer_confirmed_at`, `confirmation_method`, `confirmation_ref`, `confirmation_amount_hash` | | ✓ | Mesafeli satış onayı: `storefront_button` (ref = request_id), `wa_button` (ref = wamid), `cashier_phone`; tutar hash'i (D08 §4.4) |
 | `confirmation_ip`, `confirmation_user_agent` | inet, text | ✓ | `pii:network` |
 | `print_count`, `pos_ref`, `ai_parse_id` | | ✓ | Son ikisi Faz 2 |
 | `note_purge_at`, `pii_scrubbed_at` | timestamptz | ✓ | §9 |
 
-İndeksler: `UNIQUE(tenant_id,id)`, `UNIQUE(tracking_token_hash)`, açık siparişler `(tenant_id, branch_id, status) WHERE status IN (açık)`, `(tenant_id, branch_id, placed_at DESC)`, `(tenant_id, customer_id, placed_at DESC)`, `(tenant_id, business_date) WHERE test_kind = 'none'`, `(branch_id, scheduled_for) WHERE scheduled_for IS NOT NULL AND status IN ('new','accepted')`. Kişisel alanlar müşteri anonimleşince temizlenir (ilçe kalır); tutar ve kalemler abonelik süresince kalır.
+İndeksler: `UNIQUE(tenant_id,id)`, `UNIQUE(tracking_token_hash)`, açık siparişler `(tenant_id, branch_id, status) WHERE status IN (açık)`, `(tenant_id, branch_id, placed_at DESC)`, `(tenant_id, customer_id, placed_at DESC)`, `(tenant_id, business_date) WHERE test_kind IS NULL`, `(branch_id, scheduled_for) WHERE scheduled_for IS NOT NULL AND status IN ('new','accepted')`, `(rejection_scheduled_at) WHERE rejection_scheduled_at IS NOT NULL` (emniyet süpürücüsü). Kişisel alanlar müşteri anonimleşince temizlenir (ilçe kalır); tutar ve kalemler abonelik süresince kalır.
 
 #### `order_items`, `order_item_options` **[Faz 1]**
 - `order_items`: std, `order_id`, `product_id ✓`, `product_name NN`, `category_name ✓`, `unit_price_kurus NN`, `options_unit_kurus NN`, `quantity smallint NN` (1–50), `line_total_kurus NN` (CHECK `= (unit + options) × quantity`, ≥ 0), `vat_rate_bp NN`, `note ✓` (`pii:content-sensitive`), `sort_order`. `kitchen` projeksiyonunda fiyat alanları yoktur.
 - `order_item_options`: std, `order_item_id`, `option_id ✓`, `option_group_id ✓`, `group_name NN`, `option_name NN`, `price_delta_kurus NN`, `quantity NN DEFAULT 1`.
 
 #### `order_events` **[Faz 1]** (append-only)
-`created_at`, `tenant_id`, `order_id`, `type` (`status_changed`, `rejection_requested`, `rejection_undone`, `eta_updated`, `payment_updated`, `courier_assigned`, `printed`, `message_failed`, `customer_linked`, `cancel_requested`, `cancel_request_declined`, `alarm_step`), `from_status ✓`, `to_status ✓`, `actor_type` (`user`, `device`, `courier`, `customer`, `system`), `actor_user_id ✓`, `actor_device_id ✓`, `reason ✓`, `data jsonb`. İndeks `(tenant_id, order_id, created_at)`. Panel zaman çizelgesi buradan ("Elif onayladı · 14.02").
+`created_at`, `tenant_id`, `order_id`, `type` (`status_changed`, `rejection_scheduled`, `rejection_undone`, `eta_updated`, `delay_notified`, `payment_updated`, `courier_assigned`, `printed`, `message_failed`, `customer_linked`, `cancel_requested`, `cancel_request_declined`, `alarm_step`, `items_edited`, `details_edited`, `out_of_zone_override`, `acquisition_marked`), `from_status ✓`, `to_status ✓`, `actor_type` (`user`, `device`, `courier`, `customer`, `system`), `actor_user_id ✓`, `actor_device_id ✓`, `reason ✓`, `data jsonb`. İndeks `(tenant_id, order_id, created_at)`. Panel zaman çizelgesi buradan ("Elif onayladı · 14.02").
 
 #### `order_acks` **[Faz 1]**
 PK `(order_id, device_id)`; `tenant_id`, `user_id ✓`, `acked_at`. İlk kayıt `orders.first_acked_at`'i yazar ve `order.acked` olayı üretir (D06 §7.4). "Görüldü" ≠ "onaylandı".
@@ -569,20 +639,20 @@ Kullanım: müşterinin WhatsApp'ı yoksa, işletmenin WhatsApp bağlantısı ta
 | `expires_at`, `verified_at` | timestamptz | | +5 dk |
 | `ip`, `sms_message_id` | inet, uuid | ✓ | |
 
-Limitler: telefon başına günde ≤ 5 OTP, IP başına saatlik sınır (D06 §15.4). Doğrulanınca `awaiting_customer → new`, `verification_method = 'sms'`, `status_notify_channel = 'sms'`; müşteri BSUID'siz kayıt olarak telefonla bulunur veya oluşturulur (`phone_source = 'sms_otp'`), sonradan WhatsApp'tan yazarsa D02 §8.3 kural 2 ile birleşir. Saklama 30 gün.
+Limitler: telefon başına günde ≤ 5 OTP, IP başına saatlik sınır (D06 §15.4). Doğrulanınca `awaiting_customer → new`, `verification_method = 'sms_otp'`, `status_notify_channel = 'sms'`; müşteri BSUID'siz kayıt olarak telefonla bulunur veya oluşturulur (`phone_source = 'sms_otp'`), sonradan WhatsApp'tan yazarsa D02 §8.3 kural 2 ile birleşir. Saklama 30 gün.
 
 #### `sms_messages` **[Faz 1]**
-Tüm SMS gönderimlerinin sağlayıcı kaydı: std, `branch_id ✓`, `order_id ✓`, `purpose` (`otp`, `order_status`, `alarm`, `courier_login`, `panel_offline`), `to_phone_e164` (`pii:contact`), `template_key`, `provider`, `provider_message_id ✓`, `status` (`queued`, `sent`, `delivered`, `failed`), `error ✓`, `segments`, `est_cost_kurus`, `sent_at`, `delivered_at`. Teslim raporu webhook'la gelir (§6.6). Saklama 90 gün, sonra telefon maskelenir.
+Tüm SMS gönderimlerinin sağlayıcı kaydı: std, `branch_id ✓`, `order_id ✓`, `purpose` (`otp`, `order_status`, `alarm`, `courier_login`, `panel_offline`), `to_phone_e164` (`pii:contact`), `template_key`, `provider`, `provider_message_id ✓`, `status` (`queued`, `sent`, `delivered`, `failed`), `error ✓`, `segments`, `est_cost_kurus`, `counts_toward_quota bool` (`otp` ve `order_status` true; `tenant_usage_monthly`), `sent_at`, `delivered_at`. SMS maliyeti platformundur (KARARLAR §4). Teslim raporu webhook'la gelir (§6.6). Saklama 90 gün, sonra telefon maskelenir.
 
 #### `storefront_link_tokens` **[Faz 1]** (Akış A)
-"Menüyü aç" token'ı durumsuz HMAC'tir (D02 §6.3); tablo oturuma çevirme, iptal ve huni analizi içindir. Token gövdesine `j` (jti) eklenir = bu tablonun `id`'si. **GET'te tüketilmez:** storefront ilk açılışta `POST /store/link-session` ile HttpOnly çereze çevirir ve URL'yi temizler (KARARLAR §7). Alanlar: std, `branch_id`, `customer_id NN`, `conversation_id NN`, `issued_wamid ✓`, `expires_at NN` (2 sa), `session_started_at ✓`, `open_count`, `disowned_at ✓` ("Ben değilim" → sipariş Akış B'ye düşer), `order_id ✓`, `revoked_at ✓`, `prefill_cart jsonb ✓` (Faz 2 [Düzenle]). Saklama 30 gün.
+"Menüyü aç" token'ı durumsuz HMAC'tir (D02 §6.3); tablo oturuma çevirme, iptal ve huni analizi içindir. Token gövdesine `j` (jti) eklenir = bu tablonun `id`'si. **GET'te tüketilmez:** storefront ilk açılışta `POST /store/link-session` ile HttpOnly çereze çevirir ve URL'yi temizler (KARARLAR §7). Alanlar: std, `branch_id`, `customer_id NN`, `conversation_id NN`, `issued_wamid ✓`, `expires_at NN` (2 sa), `first_opened_at ✓` (ilk açılış = oturuma çevrilme; D10 §8.4 huni metriği), `open_count`, `disowned_at ✓` ("Ben değilim" → sipariş Akış B'ye düşer), `order_id ✓`, `revoked_at ✓`, `prefill_cart jsonb ✓` (Faz 2 [Düzenle]). Saklama 30 gün.
 
 #### `couriers`, `courier_assignments` **[Faz 1]**
 - `couriers`: kurye bir `user` + `memberships.role = 'courier'`dır (KARARLAR §3); bu tablo yalnız kuryeye özgü profil verisidir. std, `membership_id UK`, `user_id`, `branch_id`, `display_name`, `phone_e164` (`pii:contact`), `vehicle`, `is_on_shift`, `shift_started_at`, `last_seen_at`, `deleted_at`. Pro ve Zincir'de (`courier_view`).
 - `courier_assignments`: std, `order_id`, `courier_id`, `branch_id`, `status` (`assigned`, `departed`, `delivered`, `unassigned`, `failed`), `assigned_at`, `assigned_by_user_id`, `departed_at`, `delivered_at`, `unassigned_at`, `failure_reason ✓` (`customer_unreachable`, `address_not_found`, `other`), `collected_payment_method ✓`, `collected_amount_kurus ✓`. `UNIQUE(order_id) WHERE status IN ('assigned','departed')`. Kurye müşteri telefonunu yalnız aktif atamada görür.
 
 #### `reviews` **[Faz 1]**
-Teslim mesajındaki 3 butondan veya takip sayfasından (KARARLAR §7, A05 §3.12): std, `order_id UK`, `customer_id ✓`, `rating` (`great`, `ok`, `bad`), `reasons text[]` (`late`, `cold`, `missing_wrong_item`, `taste`, `courier`, `other`), `source` (`wa_button`, `tracking_page`), `wamid ✓`, `comment ✓` (Faz 2, `pii:content`), `is_public` (Faz 2; isimle yayın açık rıza), `reply_text ✓` (Faz 2). `bad` → panelde anlık uyarı.
+Teslim mesajındaki 3 butondan veya takip sayfasından (KARARLAR §7, A05 §3.12): std, `order_id UK`, `customer_id ✓`, `rating` (`great`, `ok`, `bad`), `reasons text[]` (`late`, `cold`, `missing_wrong_item`, `taste`, `courier`, `other`), `source` (`wa_button`, `tracking_page`), `wamid ✓`, `comment ✓` (≤ 280 karakter, takip sayfasında Faz 1 (D03); `pii:content`), `is_public` (Faz 2; isimle yayın açık rıza), `reply_text ✓` (Faz 2). `bad` → panelde anlık uyarı.
 
 #### `order_payments` **[Faz 2]**
 Online kart, işletmenin kendi PSP hesabıyla: std, `order_id`, `provider_account_id`, `provider` (`paytr`, `iyzico`), `provider_payment_id UK`, `payment_link_url`, `amount_kurus`, `refunded_kurus`, `status` (payment_status), `installment_count` (CHECK = 1), `raw jsonb`, `paid_at`. Para platform hesabına girmez (KARARLAR §9).

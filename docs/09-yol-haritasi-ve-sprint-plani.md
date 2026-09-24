@@ -38,7 +38,7 @@
 | 8 Eki Per | H2 | Embedded Signup (ES) v2 kalkar. Biz yalnız v4 kullandığımız için etkilenmeyiz | — |
 | 9 Eki Cum | H2 | Şirket tescili ve vergi levhası alınır, Business Verification (BV) başvurusu yapılır. S1 demo | KUR, TL |
 | 16 Eki Cum | H3 | **K1 Problem kapısı** (§4.6) | KUR |
-| 23 Eki Cum | H4 | S2 demo = App Review videolarının provası. Gizlilik ve kullanım koşulları yayında | TL, AV |
+| 23 Eki Cum | H4 | S2 demo = App Review videolarının provası. BV onayı için hedef tarih | TL, KUR |
 | 27 Eki Sal | H5 | **App Review başvurusu** (hedef; en geç 6 Kasım) | TL |
 | 6 Kas Cum | H6 | S3 demo. **Plan B tetik kontrolü T3** (§2.5) | TL, KUR |
 | 20 Kas Cum | H8 | S4 demo. **K2 talep go/no-go** ve **K3 platform kapısı** | KUR, TL |
@@ -212,7 +212,7 @@ Belge listesi ve içerikleri [08](08-mevzuat-kvkk-odeme-fatura.md) §7.4'tedir. 
 | Belge | Hangi adımın ön koşulu | Hedef | Sahip |
 |---|---|---|---|
 | Gizlilik politikası, kullanım koşulları, veri silme talimatı | Meta App URL'si, BV, web sitesi v0 | 9 Eki | AV, FE |
-| Açılış sayfası ve hesaplayıcı metinlerinin kontrolü ("komisyonsuz", karşılaştırmalı reklam) | D5 yayını | 14 Eki | AV |
+| Açılış sayfası ve hesaplayıcı metinlerinin kontrolü ("komisyonsuz", karşılaştırmalı reklam) | D5 yayını | 12 Eki | AV |
 | Pazaryeri sözleşme incelemesi (D10) | D3'te paket içi kart dağıtımı | 16 Eki (hızlı görüş) | AV |
 | Pay sahipleri sözleşmesi, fikri hak devirleri, personel gizlilik taahhütnameleri | İlk kod birleştirmesi; ekibe katılan herkes | 23 Eki | AV, KUR |
 | VERBİS muafiyet değerlendirmesi (yazılı) | Gerçek son müşteri verisi | 6 Kas | AV |
@@ -469,7 +469,7 @@ Menü sayfalarında **çerez kullanılmaz**; ölçüm sunucu logu ve UTM ile yap
 
 ---
 
-## 5. Faz 1 MVP sprint planı (Hafta 1–12)
+## 5. **[Faz 1]** MVP sprint planı (Hafta 1–12)
 
 **Faz 1 kapsamı** (KARARLAR §11): Akış A, B ve E; panel çekirdeği; basit kurye görünümü; WhatsApp gelen kutusu; storefront ve takip sayfası; admin çekirdeği; pazarlama sitesi v1. **Bilinçli olarak Faz 1'de olmayanlar:** AI serbest metin siparişi, kampanya/toplu mesaj, pazarlama izni toplama, sepeti terk hatırlatması, online ödeme, çoklu şube, bayi paneli, AI ile self-servis menü çıkarma (Faz 1'de yalnız ekip içi concierge aracı var).
 
@@ -492,7 +492,7 @@ Menü sayfalarında **çerez kullanılmaz**; ölçüm sunucu logu ve UTM ile yap
 - **Kapasite varsayımı:** 2 tam zamanlı geliştirici (TL, FE) + AI. Sprint başına ≈ 18 geliştirici-günü; S3'te 29 Ekim tatili nedeniyle ≈ 16 [T]. Plan kapasitenin ~%80'iyle yapılır. Pilot başladıktan sonra (S6) destek için %30 ayrılır [T]. DEV3 varsa "C" maddeleri ve S6'nın admin ve rapor işleri ona verilir.
 - **İş bölümü:** TL WhatsApp, ingress, FSM, altyapı ve güvenlikten sorumludur. FE storefront, panel ve siteden sorumludur. `packages/core` (fiyat, FSM) çift inceleme ister.
 - **Ritüeller:** Sprint başında Pazartesi 09:00 planlama. Her gün 09:30'da 15 dakikalık stand-up. Çarşamba 16:00 backlog incelemesi (KUR + TL, 30 dk). İkinci haftanın Cuma günü 15:00 demo (staging'de, gerçek telefonla; pilot döneminde bir pilot işletme video ile katılır), 16:00 retro. Her Cuma 16:30'da 20 dakikalık iş kolu durumu (Meta, hukuk, deney).
-- **Takip:** GitHub Projects. Hikâye kimlikleri bu dokümandakilerdir (S1-01…). Ekran ve özellik kimlikleri A05'tendir (P-LIVE-01, S-05, M06…).
+- **Takip:** GitHub Projects. Hikâye kimlikleri bu dokümandakilerdir (S1-01…). Epikler A05 §9'daki E1–E12'dir; **E0** (platform ve altyapı) bu dokümanın eklemesidir. Ekran ve özellik kimlikleri A05'tendir (P-LIVE-01, S-05, M06…).
 
 ### 5.3 S1 — Temel ve WhatsApp borusu (H1–H2 · 28 Eyl – 9 Eki)
 
@@ -794,7 +794,7 @@ Hikâyenin kabul kriteri, faz etiketi ve ilgili doküman bağlantısı yazılmı
 
 **Efor ölçeği [T]:** **S** ≤ 1 sprint, 1 kişi · **M** ≈ 1 sprint, 2 kişi · **L** ≥ 2 sprint, 2+ kişi.
 
-### 8.1 Faz 2 — v1 ve ticari lansman (28 Ara 2026 – ≈ 27 Haz 2027)
+### 8.1 **[Faz 2]** v1 ve ticari lansman (28 Ara 2026 – ≈ 27 Haz 2027)
 
 | # | Epik | Kapsam | Efor | Bağımlılık | İş gerekçesi | Dönem |
 |---|---|---|---|---|---|---|
@@ -820,7 +820,7 @@ Hikâyenin kabul kriteri, faz etiketi ve ilgili doküman bağlantısı yazılmı
 
 **Sıralama mantığı:** Önce gelir (F2-01), güvenlik (F2-02) ve güvenilirlik (F2-03) gelir. Ardından edinme maliyeti (F2-04, F2-06) ve takvime bağlı fırsat (F2-05, GloriaFood) sıralanır. Sonra sipariş kaçırma (F2-07) ve tutundurma (F2-08) gelir. Farklılaştırıcılar (F2-09…F2-11) ve dağıtım (F2-12) bunları izler. Hukuki ve kalite riski en yüksek modül (F2-14) ile en büyük kapsam (F2-15) en sona konur.
 
-### 8.2 Faz 3 — v2 ve ölçek (≈ Haz 2027 – Mar 2028)
+### 8.2 **[Faz 3]** v2 ve ölçek (≈ Haz 2027 – Mar 2028)
 
 | # | Epik | Efor | Bağımlılık | İş gerekçesi |
 |---|---|---|---|---|

@@ -1,9 +1,9 @@
 # 02 — WhatsApp Entegrasyonu (Cloud API, Tech Provider, Embedded Signup, Coexistence)
 
 > **Amaç:** Geliştiricinin WhatsApp tarafını doğrudan uygulayabilmesi için Meta hazırlığı, işletme onboarding'i, mesaj/şablon tasarımı, konuşma motoru, webhook/gönderim mimarisi, kimlik, politika uyumu, hata yönetimi ve test stratejisini tek yerde tanımlamak.
-> **Tarih:** 2026-09-24 · **Durum:** Taslak v1 · **Bağlayıcı kaynak:** [Kararlar ve sözlük](00-kararlar-ve-sozluk.md) bölüm 6.
+> **Tarih:** 2026-09-24 · **Durum:** Taslak (düzeltme turu sonrası) · **Bağlayıcı kaynak:** [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5 (durum makinesi, sebep kodları, adlandırma, kuyruklar, SSE), §6 (WhatsApp kararları), §7 (akışlar, mesaj koruma kuralları, ret geri alma), §10 (kademeli alarm). Çelişkide 00 geçerlidir. Tablo adları [07](07-veri-modeli-ve-api.md) ile aynıdır (çoğul snake_case).
 
-**Kapsam:** Cloud API erişimi, Tech Provider süreci, Embedded Signup v4, Coexistence, şablon kataloğu, mesaj bütçesi ve maliyet defteri, konuşma durum makinesi, webhook ingress → kuyruk → worker → outbox mimarisi, BSUID, WhatsApp politikaları, hata kodları, izleme, test.
+**Kapsam:** Cloud API erişimi, Tech Provider süreci, Embedded Signup v4, Coexistence, şablon kataloğu (müşteri ve platform şablonları), mesaj bütçesi ve maliyet defteri, konuşma durum makinesi, WhatsApp'sız mod (SMS OTP yedeği) ile WhatsApp kanalının sınırı, webhook ingress → kuyruk → worker → outbox mimarisi, BSUID, WhatsApp politikaları, hata kodları, izleme, kademeli alarm, test.
 
 **Kapsam dışı (bağlantı verilir):**
 - Müşteriye giden serbest (service) mesajların tam Türkçe metinleri ve storefront ekranları → [03 Müşteri deneyimi](03-musteri-deneyimi-ve-storefront.md)
@@ -23,14 +23,15 @@
 | 2 | **Model: doğrudan Meta Tech Provider + Embedded Signup v4 + Coexistence varsayılan.** Portföy, WABA ve numara işletmenindir. Meta mesaj ücretini işletmenin Meta'ya tanımladığı karttan (USD) çeker; biz yalnız aboneliği faturalarız. | Faz 0–1 |
 | 3 | **MPS / kredi hattı = Faz 3:** Türk bir Solution Partner ile Multi-Partner Solution (TL fatura, "mesaj dahil" paket, işletmenin Meta'ya kart girmesine gerek kalmaz). Solution Partner görüşmeleri Faz 1'de başlar; App Review/Business Verification gecikirse **Plan B** olarak pilot bir Solution Partner üzerinden başlar. Bu yüzden gönderim katmanı taşıyıcı-bağımsız yazılır (§7.10). | Faz 1 (görüşme, Plan B), Faz 3 (MPS) |
 | 4 | **Kritik yol (Faz 0, hemen):** şirket → Business Portfolio + Business Verification → Meta App + Tech Provider → ES v4 yapılandırması → App Review (`whatsapp_business_messaging`, `whatsapp_business_management`, video) → onboarding limiti 10/hafta → 200/hafta. ES v2 8 Ekim 2026'da kalkıyor; yalnız v4 geliştirilir. | Faz 0 |
-| 5 | **Varsayılan onboarding: Coexistence.** Alternatif: yeni numara. Normal WhatsApp kullanan esnafa önce WhatsApp Business'a geçiş rehberi. Kısıtlar: 20 mesaj/sn, uygulama ≥14 günde bir açılmalı, API'de grup yok. **Sohbet geçmişi senkronu (6 ay) varsayılan kapalı**; işletme isterse bağlanırken açar. | Faz 1 |
-| 6 | **Mesaj ekonomisi (1 Ekim 2026 sonrası):** service mesajları ücretli (numara başına ayda ilk 1.000 ücretsiz); TR utility/service ≈ $0,0009, marketing ≈ $0,0109. Rate card **konfigürasyonda**, kodda değil. **Sipariş başına en fazla 4 durum mesajı** (alındı+takip linki, onaylandı+süre, yolda — gel-alda "hazır", teslim edildi+değerlendirme); Akış A'daki karşılama + "Menüyü aç" ek 1 mesaj (toplam ≤ 5); "hazırlanıyor" varsayılan kapalı. Pencere içinde serbest mesaj, dışında utility şablonu. | Faz 1 |
+| 5 | **Varsayılan onboarding: Coexistence.** Alternatif: yeni numara. Normal WhatsApp kullanan esnafa önce WhatsApp Business'a geçiş rehberi. Kısıtlar: 20 mesaj/sn, uygulama ≥14 günde bir açılmalı, API'de grup yok. **Sohbet geçmişi senkronu (6 ay) ve kişi (contacts) senkronu varsayılan kapalı**; işletme açık onayla açabilir. | Faz 1 |
+| 6 | **Mesaj ekonomisi (1 Ekim 2026 sonrası):** service mesajları ücretli (numara başına ayda ilk 1.000 ücretsiz); TR utility/service ≈ $0,0009, marketing ≈ $0,0109. Rate card **konfigürasyonda**, kodda değil. **Sipariş başına en fazla 4 durum mesajı** (alındı+takip linki, onaylandı+süre, yolda — gel-alda "hazır", teslim edildi+değerlendirme); Akış A'daki karşılama + "Menüyü aç" ek 1 mesaj (toplam ≤ 5); gecikme/iptal bilgilendirmesi gibi olağan dışı mesajlar bütçe dışı; "hazırlanıyor" varsayılan kapalı. **60 sn debounce yalnız Akış A'da**; Akış B'de doğrulama kodu mesajına "alındı" anında gider (§4.3). Pencere içinde serbest mesaj, dışında utility şablonu. | Faz 1 |
 | 7 | **Maliyet defteri ve pass-through:** her status webhook'undaki `pricing` nesnesi kaydedilir; panelde "bu ay Meta'ya tahmini ödeme". Aboneliğe "WhatsApp mesajları dahil" vaadi verilmez (MPS'e kadar). Kampanya modülünde (Faz 2) gönderim öncesi maliyet önizlemesi ve İYS sorgusu zorunlu; durum şablonlarına promosyon/indirim kodu konamaz. | Faz 1 / Faz 2 |
 | 8 | **Menü/sepet kendi web storefront'umuzda**, WhatsApp Catalog'da değil (modifier desteği yok). Flows Faz 3. WhatsApp Pay Türkiye'de yok → online ödeme PSP linki (CTA URL). | Faz 1 / Faz 3 |
 | 9 | **Müşteri kimliği `(tenant_id, wa_bsuid)`**; telefon nullable. Kurye telefonu: webhook'taki `wa_id` → storefront "teslimat telefonu" → sohbette REQUEST_CONTACT_INFO. İşletmeye contact book'u açık tutması önerilir. | Faz 1 |
-| 10 | **AI politikası:** bot yalnız menü/sipariş/adres/çalışma saati konularında çalışır; konu dışına kibar ret + menü butonu; her zaman "Yetkiliyle görüş"; işletme botu kapatabilir. "WhatsApp'ta ChatGPT" diye pazarlanmaz. | Faz 1 (kural tabanlı), Faz 2 (AI) |
-| 11 | **Kademeli yeni sipariş alarmı:** panel sesi → Web Push → ayrı **platform WhatsApp numarasından** işletme sahibine uyarı şablonu → SMS → eşik aşılırsa müşteriye gecikme bilgisi (§10.3). | Faz 1 |
+| 10 | **AI politikası:** bot yalnız menü/sipariş/adres/çalışma saati konularında çalışır; konu dışına kibar ret + menü butonu; her zaman "Yetkiliyle görüş"; işletme botu kapatabilir. "WhatsApp'ta ChatGPT" diye pazarlanmaz. AI sipariş özetinde kanonik butonlar **[Onayla] [Düzenle] [İptal]**; "ödeme yükümlülüğü doğar" ibaresi mesaj gövdesinde (§6.5). | Faz 1 (kural tabanlı), Faz 2 (AI) |
+| 11 | **Kademeli yeni sipariş alarmı (kanonik zamanlama):** t=0 panel sesi + Web Push → t=60 sn ses tekrarı (yükselen) → t=2 dk ayrı **platform WhatsApp numarasından** işletme sahibine uyarı şablonu → t=5 dk SMS → t=10 dk müşteriye "henüz onaylanmadı" bilgisi → t=15 dk otomatik `cancelled` (`tenant_no_response`) + müşteriye özür ve işletme telefonu (§10.3). "Otomatik reddet" yoktur. | Faz 1 |
 | 12 | **Commerce Policy:** alkol, tütün/nargile, ilaç, tehlikeli madde (tüp/LPG şüpheli) WhatsApp akışında satılamaz → ürün/kategori bayrağı; bu dikeyler hedeflenmez. | Faz 1 |
+| 13 | **WhatsApp'sız mod (SMS OTP yedeği):** müşterinin WhatsApp'ı yoksa, işletmenin WhatsApp bağlantısı henüz tamamlanmadıysa ya da WhatsApp kanalı arızalıysa Akış B doğrulaması SMS OTP ile yapılır; durum bilgisi takip sayfasından, kritik durumlarda (onaylandı, ret, iptal) SMS ile verilir. İşletme Meta adımları bitmeden ilk gün web siparişi alabilir (§6.11). | Faz 1 |
 
 ## 2. Meta tarafı hazırlık ve kritik yol **[Faz 0]**
 
@@ -64,7 +65,7 @@ Süreler **bizim tahminimizdir**; Meta inceleme süreleri resmi olarak taahhüt 
 | ☐ | Uygulamayı **Live** moda al | Teknik lider | 1 saat | ES rol dışı kullanıcılarla çalışıyor |
 | ☐ | Onboarding limitini doğrula: 7 günde 10 → doğrulama + review sonrası 200 | Teknik lider | Onaylardan sonra | Admin panelde "kalan onboarding kotası" sayacı. "Access Verification" gereksinimi çelişkili (A01 §1.3 [?]) |
 | ☐ | **Solution Partner görüşmeleri** (Plan B pilotu + Faz 3 MPS: kredi hattı, TL fatura, Coexistence desteği, fiyat) | Kurucu | Faz 1 içinde, 2–4 hafta | İmzaya hazır teklif + teknik entegrasyon notu |
-| ☐ | Ayrı **platform WhatsApp numarası** (kendi portföyümüzde WABA, Cloud API; alarm ve abonelik şablonları, §5.3, §10.3) | Teknik lider | 1 gün | Numara kayıtlı, şablonlar onaylı |
+| ☐ | Ayrı **platform WhatsApp numarası** (kendi portföyümüzde WABA, Cloud API; alarm, panel çevrimdışı, kurye giriş linki, olay duyurusu ve abonelik şablonları, §5.3, §10.3) | Teknik lider | 1 gün | Numara kayıtlı; §5.3'teki Faz 1 şablonları pilot öncesi `APPROVED` |
 
 ### 2.3 Embedded Signup v4 yapılandırması
 
@@ -102,7 +103,9 @@ Meta iki kanıt istiyor: (a) uygulamamızdan gönderilen mesajın WhatsApp istem
 
 ## 3. İşletme onboarding'i **[Faz 1]**
 
-Yetki: yalnız `owner` rolü WhatsApp bağlantısını başlatır, yeniden bağlar ve kaldırır ([00](00-kararlar-ve-sozluk.md) §4).
+Yetki: yalnız `owner` rolü WhatsApp bağlantısını başlatır, yeniden bağlar ve kaldırır ([00](00-kararlar-ve-sozluk.md) §4). Admin tarafında `wa_onboarding` kill-switch'i Embedded Signup başlatmayı durdurur (örn. Meta onboarding kotası dolunca).
+
+**Bağlantı bitmeden sipariş:** İşletme, Meta adımları (portföy, doğrulama, ödeme yöntemi, şablon onayı) tamamlanmadan da storefront'u yayına alabilir. Bu sürede web siparişleri **WhatsApp'sız modda** (Akış B + SMS OTP, §6.11) doğrulanır; numara `live` olunca Akış B WhatsApp doğrulamasına ve Akış A'ya kendiliğinden geçilir.
 
 ### 3.1 Teknik akış
 
@@ -122,7 +125,7 @@ sequenceDiagram
   A->>G: oauth/access_token (kod takası, anında)
   G-->>A: BISU access token
   A->>G: debug_token → token'ın gerçekten bu WABA'ya yetkili olduğunu doğrula
-  A->>A: token'ı zarf şifrelemeyle sakla, wa_account + wa_phone_number oluştur
+  A->>A: token'ı zarf şifrelemeyle sakla, wa_accounts + wa_phone_numbers satırı oluştur
   A->>G: POST /{waba_id}/subscribed_apps
   alt mode = cloud (yeni numara)
     A->>G: POST /{phone_number_id}/register {messaging_product, pin}
@@ -189,17 +192,17 @@ async function completeOnboarding(tenantId: string, userId: string, body: Comple
   const { waba_id: wabaId, phone_number_id, business_id } = body.session?.data ?? {};
   if (!scopeTargets(dbg, 'whatsapp_business_management').includes(wabaId)) throw new OnboardingError('WABA_MISMATCH');
   await db.tx(async (tx) => {
-    await tx.waAccount.upsert({ tenantId, wabaId, businessId: business_id, tokenEnc: await kms.seal(access_token, { tenantId }), tokenExpiresAt: expiresAt(dbg) });
-    await tx.waPhoneNumber.insert({ tenantId, branchId: body.branchId, phoneNumberId: phone_number_id, mode: body.mode, status: 'connecting' }); // UNIQUE
+    await tx.waAccounts.upsert({ tenantId, wabaId, businessId: business_id, ...(await kms.seal(access_token, { tenantId })), tokenExpiresAt: expiresAt(dbg) }); // token_ciphertext, token_iv, token_auth_tag, token_dek_encrypted, token_kek_version
+    await tx.waPhoneNumbers.insert({ tenantId, branchId: body.branchId, phoneNumberId: phone_number_id, mode: body.mode, connectionStatus: 'connecting' }); // phone_number_id global UNIQUE
     await tx.auditLog.insert({ tenantId, userId, action: 'wa.connect', meta: { wabaId, mode: body.mode } });
   });
-  await jobs.add('wa-onboarding-continue', { tenantId, wabaId }); // subscribed_apps, register, şablonlar, sağlık
+  await queues.waOutbound.add('onboarding_continue', { tenantId, wabaId }, { jobId: `wa-onb:${wabaId}` }); // subscribed_apps, register, şablonlar, sağlık (§3.5)
 }
 ```
 
-**Token ve PIN saklama:** zarf şifreleme (envelope encryption). KMS'ten tenant başına veri anahtarı (DEK) üretilir; token/PIN AES-256-GCM ile şifrelenir; DB'de `ciphertext`, `iv`, `auth_tag`, `kms_key_id`, `dek_encrypted` tutulur. Çözme yalnız `wa-sender` ve `wa-onboarding` servislerinde, bellekte kısa süreli önbellekle (≤5 dk). Token/PIN asla loglanmaz, hata raporlarına girmez. KMS seçimi → [06](06-teknik-mimari.md).
+**Token ve PIN saklama:** zarf şifreleme (envelope encryption). KMS'ten tenant başına veri anahtarı (DEK) üretilir; token/PIN AES-256-GCM ile şifrelenir; DB'de `wa_accounts.token_ciphertext`, `token_iv`, `token_auth_tag`, `token_dek_encrypted`, `token_kek_version` (PIN için `wa_phone_numbers.pin_ciphertext` + iv/tag/dek) tutulur ([07](07-veri-modeli-ve-api.md) §3.4). Çözme yalnız `wa-outbound` tüketicisinde (`wa-sender`) ve onboarding kodunda, bellekte kısa süreli önbellekle (≤5 dk). Token/PIN asla loglanmaz, hata raporlarına girmez. KMS seçimi → [06](06-teknik-mimari.md).
 
-### 3.5 Sonraki adımlar (`wa-onboarding-continue` işi, idempotent)
+### 3.5 Sonraki adımlar (`onboarding_continue` işi, `wa-outbound` kuyruğunda, idempotent)
 
 | Adım | Çağrı / işlem | Hata olursa |
 |---|---|---|
@@ -211,18 +214,18 @@ async function completeOnboarding(tenantId: string, userId: string, body: Comple
 | 6. Ödeme yöntemi | Esnaf Meta Billing Hub'dan kart ekler (API ile eklenemez) | Sağlık kontrolünde 131042 → canlıya geçiş engellenir |
 | 7. Sağlık kontrolü | §3.8 | Eksik adımlar listesi |
 
-**Geçmiş senkronu kararı:** Geçmiş (6 ay 1:1 sohbet) varsayılan **kapalı** (veri minimizasyonu). İşletme açarsa aydınlatma metni gösterilir ([08](08-mevzuat-kvkk-odeme-fatura.md)). `history` webhook'undan gelen mesajlar `source='history'` ile saklanır, bot tetiklemez, sipariş oluşturmaz. **Kişi senkronu** (`smb_app_state_sync`) için de öneri varsayılan kapalı (esnafın kişisel rehberi gelir) → Açık konular #5.
+**Geçmiş senkronu kararı:** Geçmiş (6 ay 1:1 sohbet) varsayılan **kapalı** (veri minimizasyonu). İşletme açarsa aydınlatma metni gösterilir ([08](08-mevzuat-kvkk-odeme-fatura.md)). `history` webhook'undan gelen mesajlar `source='history'` ile saklanır, bot tetiklemez, sipariş oluşturmaz. **Kişi senkronu** (`smb_app_state_sync`) de varsayılan **kapalı**dır (esnafın kişisel rehberi gelir; [00](00-kararlar-ve-sozluk.md) §6.4); işletme açık onayla açabilir. Tercihler `wa_accounts.history_sync_enabled` ve `contacts_sync_enabled` alanlarında tutulur. Senkron hiç çağrılmazsa Coexistence'ın başka bir işlevinin etkilenip etkilenmediği teyit edilmeli (Açık konular #5).
 
 ### 3.6 Görünen ad
 
 - Görünen ad ES sırasında verilir; Business Verification tamamlanınca incelemeye girer; sonraki değişiklikler onaya tabidir (A01 §2.2). Kural: tabela veya ticari ünvanla tutarlı ad ("Lezzet Dürüm Kadıköy"). Panel, ad girilmeden önce örnek ve uyarı gösterir.
-- `phone_number_name_update` webhook'u → `wa_phone_number.name_status` güncellenir; `DECLINED` → panelde kırmızı uyarı + "Adı düzelt" rehberi.
+- `phone_number_name_update` webhook'u → `wa_phone_numbers.name_status` güncellenir; `DECLINED` → panelde kırmızı uyarı + "Adı düzelt" rehberi.
 
 ### 3.7 Ödeme yöntemi adımı (131042)
 
 - Tech Provider modelinde işletme WABA'sına kendi kartını ekler. **1 Ekim 2026'dan itibaren ödeme yöntemi olmayan WABA'ların service mesajları teslim edilmez** (A01 §4.1).
 - Panel adımı: 4 ekranlık görselli rehber + Billing Hub'a derin bağlantı (URL teyit edilmeli) + "Kartımı ekledim, kontrol et" butonu (sağlık kontrolünü yeniden çalıştırır). Deneme süresinde de zorunludur ("kartsız deneme" yalnız bize kart vermemek demektir). Ödeme yöntemi API ile doğrudan okunamayabilir; birincil tespit yöntemi **test mesajının 131042 ile düşmesi**dir. WABA alanlarından ödeme bilgisi okunabiliyorsa ek sinyal olarak kullanılır (teyit edilmeli).
-- Canlıda 131042 alınırsa: tenant'ın otomatik gönderimleri duraklatılır (kuyruğa alınır, 24 saat saklanır), işletmeye §5.3 `isletme_meta_odeme_v1` şablonu + e-posta + panel banner'ı, admin panelde kırmızı rozet.
+- Canlıda 131042 alınırsa: tenant'ın otomatik gönderimleri duraklatılır (`wa_accounts.sending_paused_reason = 'payment_missing'`; kuyruğa alınır, 24 saat saklanır), işletmeye §5.3 `isletme_meta_odeme_v1` şablonu + e-posta + panel banner'ı, admin panelde kırmızı rozet. Duraklama sürdükçe yeni web siparişleri WhatsApp'sız modda doğrulanır (§6.11).
 
 ### 3.8 Sağlık kontrolü ve "canlı" kapısı
 
@@ -255,8 +258,8 @@ async function completeOnboarding(tenantId: string, userId: string, body: Comple
 | WA Business sürümü eski / uygulama yok | ES Coexistence adımı | Güncelleme/geçiş rehberi | "WhatsApp Business uygulamanızı güncelleyin." |
 | `/register` PIN hatası | Graph hatası | Deneme sayacı (72 saatte 10 sınırı) | "Numaranın iki adımlı doğrulama PIN'ini girin." |
 | 24 saatlik senkron kaçtı | İş zamanlayıcı | Geçmiş istenmiyorsa yok say; isteniyorsa yeniden bağlanma önerisi | "Eski sohbetleri aktarmak için bağlantıyı yenilemeniz gerekiyor." |
-| Canlıda token geçersiz (190) | Gönderim hatası / günlük `debug_token` | Tenant gönderimi duraklat, "Yeniden bağlan" | Panel banner + e-posta + platform şablonu |
-| Coexistence koptu | `account_update` / gönderim hataları / sessizlik (§10) | Tenant gönderimi duraklat, "Yeniden bağlan" | "WhatsApp bağlantınız koptu. Siparişler gecikebilir." |
+| Canlıda token geçersiz (190) | Gönderim hatası / günlük `debug_token` | Tenant gönderimi duraklat, "Yeniden bağlan"; yeni web siparişleri WhatsApp'sız moda düşer (§6.11) | Panel banner + e-posta + platform şablonu |
+| Coexistence koptu | `account_update` / gönderim hataları / sessizlik (§10) | Tenant gönderimi duraklat, "Yeniden bağlan"; yeni web siparişleri WhatsApp'sız moda düşer (§6.11) | "WhatsApp bağlantınız koptu. Web siparişleri SMS doğrulamasıyla alınmaya devam ediyor; müşteri bildirimleri gecikebilir." |
 
 **"Yeniden bağlan" akışı:** Aynı ES akışı, mevcut portföy ve WABA seçilir. Yeni token eskisinin yerine yazılır (eski token iptal edilir). `phone_number_id` aynıysa tüm veri korunur. **Farklı portföy** seçilirse BSUID'ler değişir → §8.4 portföy geçişi kuralı. Bağlantı yeniden kurulunca duraklatılan kuyruk, 24 saatten eski durum mesajları atılarak boşaltılır.
 
@@ -291,7 +294,7 @@ Sihirbazın genel akışı [04](04-isletme-paneli.md)'te. WhatsApp adımının m
 Fiyatlar kodda sabit yazılmaz; admin panelden yönetilen, tarihli rate card kaydında tutulur. Meta rate card'ları genelde **üç ayda bir** değişir; TR utility Nisan–Temmuz 2026'da ≈ $0,0053 idi (A01 §4.3).
 
 ```yaml
-# wa_rate_card (admin panelden düzenlenir; kayıt değişmez, yeni effective_from ile eklenir)
+# wa_rate_cards tablosu (admin panelden düzenlenir; satır değişmez, yeni effective_from ile eklenir; DB'de USD mikro birim) + fx_rates
 rate_cards:
   - { market: TR, effective_from: 2026-10-01, currency: USD, free_service_per_number_per_month: 1000,
       per_message: { marketing: 0.0109, utility: 0.0009, authentication: 0.0009, service: 0.0009 },
@@ -301,32 +304,39 @@ fx: { USDTRY: 48.4, as_of: 2026-09-24, source: TCMB }   # yalnız TL gösterimi;
 
 ### 4.3 Sipariş başına mesaj bütçesi (4 durum + 1 karşılama)
 
-Sipariş başına en fazla **4 otomatik durum mesajı**; Akış A'daki karşılama + "Menüyü aç" mesajı bunlara ek 1 mesajdır (toplam ≤ 5, KARARLAR 6.5). Kademeli alarmdaki müşteriye gecikme bilgisi (§10.3) bütçe dışı istisnadır, sipariş başına en fazla 1 (Açık konular #4).
+Sipariş başına en fazla **4 otomatik durum mesajı**; Akış A'daki karşılama + "Menüyü aç" mesajı bunlara ek 1 mesajdır (toplam ≤ 5, [00](00-kararlar-ve-sozluk.md) §6.5). Gecikme/iptal bilgilendirmesi gibi olağan dışı durum mesajları bütçe dışıdır: kademeli alarmdaki müşteriye gecikme bilgisi (§10.3, sipariş başına en fazla 1) ve `tenant_no_response` iptalindeki özür mesajı. Sayaç `orders.wa_status_msg_count` alanındadır ([07](07-veri-modeli-ve-api.md)). Müşteriye giden serbest metinler ve kodları (M05…M13) [03](03-musteri-deneyimi-ve-storefront.md) §9'dadır.
 
 | Olay (sipariş durumu) | Mesaj | Varsayılan | Not |
 |---|---|---|---|
-| `new` oluştu | **1. Alındı + takip linki** | Açık | Akış B'de müşterinin "Sipariş kodu" mesajına yanıt olarak gider |
-| `accepted` | **2. Onaylandı + tahmini süre** | Açık | |
-| `preparing` | Hazırlanıyor | **Kapalı** | Açılırsa bütçe aşımı olmaması için "yolda" ile birleştirilir |
+| `new` oluştu | **1. Alındı + takip linki** | Açık | **Akış A:** 60 sn debounce (aşağıda). **Akış B:** müşterinin doğrulama kodu mesajına yanıt olarak **anında** gider, debounce yok. **Akış E:** pencere kapalıysa `siparis_alindi_v1` şablonu, debounce yok. WhatsApp'sız modda gönderilmez (takip sayfası, §6.11) |
+| `accepted` | **2. Onaylandı + tahmini süre** | Açık | Akış A'da debounce içinde gelirse 1. mesajla birleşir ("alındı ve onaylandı", 1 mesaj sayılır). WhatsApp'sız modda SMS |
+| `preparing` | Hazırlanıyor | **Kapalı** | Açılsa bile yalnız birleşik "alındı ve onaylandı" gittiyse (bütçede "yolda/hazır" ve "teslim" için yer varsa) gönderilir; aksi halde atlanır ([03](03-musteri-deneyimi-ve-storefront.md) §9.6) |
 | `ready` (gel-al) | **3. Hazır** | Açık | Paket serviste gönderilmez |
 | `on_the_way` | **3. Yolda** (+ ödeme yöntemi hatırlatması) | Açık | |
-| `delivered` | **4. Teslim edildi + değerlendirme linki** | Açık | |
-| `rejected` | Reddedildi + sebep | Açık | Kalan mesajların yerini alır (toplam 2) |
-| `cancelled` | İptal + sebep | Açık | Kalan mesajların yerini alır (en fazla 4) |
+| `delivered` | **4. Teslim edildi + değerlendirme butonları** | Açık | |
+| `rejected` | Reddedildi + sebep | Açık | "Reddet"ten **30 sn sonra** gider ("bekleyen ret", aşağıda); "Geri al" basılırsa hiç gitmez. Kalan mesajların yerini alır (toplam 2). Sebep metni §5.2. WhatsApp'sız modda SMS |
+| `cancelled` | İptal + sebep | Açık | `awaiting_customer→cancelled` (Akış B/C zaman aşımı), `new→cancelled` (müşteri iptali veya 15 dk `tenant_no_response`) ve onay sonrası iptalleri kapsar. `tenant_no_response`'ta özür + işletme telefonu (bütçe dışı). Akış B'nin 30 dk `customer_timeout` iptalinde mesaj gitmez (müşteri henüz doğrulamadı). WhatsApp'sız modda SMS |
 
 **Kurallar:**
 - Otomatik mesaj sayacı sipariş başına tutulur; 4'e ulaşınca sonraki otomatik mesaj gönderilmez (terminal durum mesajı hariç: `rejected`/`cancelled` her zaman gider, gerekirse önceki bekleyen mesajı iptal ederek).
+- **60 sn debounce — yalnız Akış A** ([00](00-kararlar-ve-sozluk.md) §7): storefront ekranı zaten "alındı" gösterdiği için "alındı" outbox kaydı `available_at = placed_at + 60 sn` ile yazılır. Bu sürede `accepted` gelirse kayıt `superseded` olur ve tek birleşik "alındı ve onaylandı" mesajı gider. **Akış B'de** müşteri doğrulama kodunu gönderdiğinde "Siparişiniz alındı" yanıtı **anında** gider (müşteri sohbette yanıt bekliyor; pencereyi kendisi açtı). Akış E ve WhatsApp'sız modda debounce yoktur.
+- **Bekleyen ret (30 sn):** işletme "Reddet" dediğinde sipariş `new` kalır, `rejection_reason` ve `rejection_scheduled_at` yazılır; `order.finalize_rejection` outbox kaydı `available_at = +30 sn` ile açılır, kademeli alarm duraklar. 30 sn içinde "Geri al" basılırsa kayıt iptal edilir, müşteriye hiçbir şey gitmez, alarm kaldığı yerden sürer. Süre dolunca `new → rejected` geçişi ve ret mesajı aynı transaction'da outbox'a yazılır. `rejected → new` geçişi yoktur ([00](00-kararlar-ve-sozluk.md) §7).
 - **Yerine geçme (supersede):** aynı sipariş için henüz gönderilmemiş eski durum mesajı, yeni durum geldiğinde atılır (örn. "onaylandı" kuyrukta beklerken "yolda" gelirse yalnız "yolda" gider).
-- Operatörün panelden elle yazdığı mesajlar bütçeye girmez, ayrı sayılır.
+- Operatörün panelden elle yazdığı mesajlar ve müşterinin tetiklediği yanıtlar (değerlendirme cevabı, "Beklerim", sipariş kodu hataları) bütçeye girmez, ayrı sayılır.
 - Süre değişikliği (örn. "10 dk gecikecek") otomatik gönderilmez; panelde hazır yanıt olarak sunulur ([04](04-isletme-paneli.md)).
 
 ### 4.4 Pencere içi/dışı karar mantığı
 
 ```ts
-type SendPlan = { kind: 'free_form'; expectedCategory: 'service' } | { kind: 'template'; name: string; expectedCategory: 'utility' | 'marketing' } | { kind: 'skip'; reason: string };
+type SendPlan = { kind: 'free_form'; expectedCategory: 'service' } | { kind: 'template'; name: string; expectedCategory: 'utility' | 'marketing' }
+  | { kind: 'sms_fallback'; templateKey: string } | { kind: 'skip'; reason: string };
 const SAFETY_MS = 5 * 60_000; // pencere sonuna 5 dk kala şablona geç (saat kayması, kuyruk gecikmesi)
+const SMS_CRITICAL = new Set(['accepted', 'rejected', 'cancelled']); // WhatsApp'sız modda SMS giden durumlar (§6.11)
 function planSend(msg: OutboundIntent, c: ConversationState, t: TenantWaState, now = Date.now()): SendPlan {
-  if (t.sendingPaused) return { kind: 'skip', reason: t.pauseReason };           // 131042, 190, kopma
+  if (t.sendingPaused) {                                                         // 131042, 190, kopma
+    const smsOk = msg.orderId && SMS_CRITICAL.has(msg.orderEvent!) && msg.deliveryPhone && t.smsFallbackEnabled && flags.sms_fallback;
+    return smsOk ? { kind: 'sms_fallback', templateKey: `order_${msg.orderEvent}` } : { kind: 'skip', reason: t.pauseReason };
+  }
   if (msg.orderId ? !msg.orderWaNotify : c.customer.optOutAll) return { kind: 'skip', reason: 'no_notify_consent' }; // §6.9
   if (msg.category === 'marketing') {
     if (!c.customer.marketingOptIn || c.customer.marketingSuppressedUntil > now) return { kind: 'skip', reason: 'no_marketing_consent' };
@@ -341,18 +351,20 @@ function planSend(msg: OutboundIntent, c: ConversationState, t: TenantWaState, n
 }
 ```
 
+- **SMS kanalındaki siparişler** (`orders.status_notify_channel = 'sms'`, WhatsApp'sız mod) `wa.send` üretmez; sipariş servisi kritik durumlarda doğrudan `sms.send` outbox kaydı yazar (`notify` kuyruğu, §6.11). `sms_fallback` sonucu ise gönderici aynı içeriği `sms.send` kaydı olarak yeniden yazar: WhatsApp gönderimi duraklatılmışken açık siparişin kritik durumları, teslimat telefonu varsa SMS'e düşer.
 - **Pencere dışı tipik durumlar:** Akış E (telefon siparişi), ertesi güne planlı sipariş (`scheduled_for`), müşterinin 24 saatten eski mesajına panelden yanıt.
-- **FEP/CTWA:** gelen mesajda `referral` nesnesi (reklam kaynağı) varsa `conversation.fep_candidate_at` işaretlenir; 24 saat içinde yanıt verilirse 72 saat ücretsiz olur. FEP yalnız **ücreti** etkiler; pencere dışında serbest mesaj izni verdiğini varsaymıyoruz (teyit edilmeli). Gerçek ücret `pricing.type = free_entry_point` ile doğrulanır. Esnafa Click-to-WhatsApp reklam rehberi [Faz 2].
+- **FEP/CTWA:** gelen mesajda `referral` nesnesi (reklam kaynağı) varsa `conversations.fep_candidate_at` işaretlenir; 24 saat içinde yanıt verilirse 72 saat ücretsiz olur. FEP yalnız **ücreti** etkiler; pencere dışında serbest mesaj izni verdiğini varsaymıyoruz (teyit edilmeli). Gerçek ücret `pricing.type = free_entry_point` ile doğrulanır. Esnafa Click-to-WhatsApp reklam rehberi [Faz 2].
 - **Messaging limit:** pencere içi yanıtlar sayılmaz; yalnız pencere dışı şablonlar tekil kullanıcı sayar (§9.4).
 
 ### 4.5 Maliyet defteri
 
 Her status webhook'u `pricing` nesnesi taşıyabilir (A01 §9.2): `billable: boolean`, `pricing_model` (örn. `"PMP"`, teyit edilmeli), `category` (`marketing | utility | authentication | service`), `type` (`regular | free_customer_service | free_entry_point`).
 
-- **Kayıt:** `wamid` başına tek kayıt (UNIQUE); ilk `pricing` içeren status yazılır, sonrakiler yalnız eksik alanı doldurur. Alanlar: `tenant_id`, `phone_number_id`, `wamid`, `category`, `type`, `billable`, `delivered_at`, `rate_card_id`, `est_usd`, `est_try` (tablo: [07](07-veri-modeli-ve-api.md)).
+- **Kayıt (`wa_message_costs` tablosu):** `wamid` başına tek kayıt (UNIQUE); ilk `pricing` içeren status yazılır, sonrakiler yalnız eksik alanı doldurur. Alanlar: `tenant_id`, `wa_phone_number_id`, `wamid`, `message_id`, `category`, `pricing_type`, `billable`, `pricing_model`, `source`, `delivered_at`, `billing_month`, `in_free_tier`, `rate_card_id`, `est_usd_micros`, `est_try_kurus` (tam liste: [07](07-veri-modeli-ve-api.md) §3.4).
 - **Tahmin:** ücret teslim edilen mesajdan alınır → `failed` mesajlar 0. `billable=false` veya `type ≠ regular` → 0. Service kategorisinde numara başına ay içindeki ilk 1.000 mesaj 0 kabul edilir (Meta'nın bu kotayı webhook'ta nasıl işaretlediği ve ay sınırının saat dilimi teyit edilmeli). Kalan: `rate_card[category] × 1`.
 - **Gösterim:** panelde "Bu ay Meta'ya tahmini ödeme: ≈ X TL (Y $)" + kategori kırılımı + "Kesin tutar Meta faturasındadır" notu. Admin panelde tenant bazında aynı rapor.
 - Coexistence'ta telefondan gönderilen mesajlar ücretsizdir; deftere `source='business_app'` ile 0 olarak yazılır.
+- Platform WABA'sından (§5.3) giden mesajlar ve SMS'ler tenant defterine girmez; platform maliyeti olarak `tenant_usage_daily.platform_wa_count` / `sms_count` ve `sms_messages` tablosunda izlenir ([07](07-veri-modeli-ve-api.md) §3.7).
 
 ### 4.6 Aylık maliyet örneği (Türkiye, 1 Ekim 2026 sonrası)
 
@@ -365,7 +377,8 @@ Varsayım: Akış A, sipariş başına 5 service mesajı (karşılama + 4 durum;
 | Orta | 1.500 | 7.500 | 6.500 | $5,85 ≈ **283 TL** | $34,45 ≈ 1.667 TL |
 | Çok yoğun | 5.000 | 25.000 | 24.000 | $21,60 ≈ **1.045 TL** | $127,20 ≈ 6.156 TL |
 
-- Akış B siparişi 4 mesajdır (karşılama yok). Pencere dışı utility şablonu ücretsiz kotaya girmez: 3 şablon × $0,0009 = $0,0027/sipariş. **Pazarlama** asıl değişken kalemdir: 1.000 kişiye bir kampanya ≈ $10,90 ≈ 528 TL.
+- Akış B siparişi en fazla 4 mesajdır (karşılama yok). Pencere dışı utility şablonu ücretsiz kotaya girmez: 3 şablon × $0,0009 = $0,0027/sipariş. **Pazarlama** [Faz 2] asıl değişken kalemdir: 1.000 kişiye bir kampanya ≈ $10,90 ≈ 528 TL.
+- WhatsApp'sız moddaki sipariş 0 WhatsApp mesajıdır; SMS (OTP + en fazla 2 kritik durum SMS'i) platform maliyetidir ve aboneliğe adil kullanım kotasıyla dahildir (Esnaf 100, Pro 300 SMS/ay; [00](00-kararlar-ve-sozluk.md) §4).
 
 **Kabul kriterleri (maliyet):** Rate card değişikliği deploy gerektirmez; her gönderilen mesajın `wamid`'i için en geç 24 saat içinde defter kaydı oluşur; panel tahmini ile deftere yazılan ücretli mesaj sayısı birebir tutar; kampanya ekranı gönderimden önce "≈ N mesaj × fiyat = X TL" gösterir ve onaysız gönderim yapılamaz [Faz 2].
 

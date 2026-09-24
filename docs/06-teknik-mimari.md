@@ -1,6 +1,6 @@
 # 06 — Teknik Mimari
 > **Amaç:** Ekibin ilk sprintten itibaren referans alacağı teknik mimariyi tek yerde tanımlamak: stack, servisler, multi-tenancy, gerçek zamanlılık ("sipariş kaçmaz"), asenkron işleme, yazdırma, harita, AI, barındırma, güvenlik, gözlemlenebilirlik, CI/CD ve maliyet.
-> **Tarih:** 2026-09-24 · **Durum:** Taslak v1 · **Bağlayıcı kaynak:** [Kararlar ve sözlük](00-kararlar-ve-sozluk.md) §10 (teknik kararlar), §3 (sözlük), §4 (roller), §5 (durum makinesi).
+> **Tarih:** 2026-09-24 · **Durum:** Taslak v1 · **Bağlayıcı kaynak:** [Kararlar ve sözlük](00-kararlar-ve-sozluk.md) §10 (teknik kararlar, kanonik alarm zamanlaması), §3 (sözlük), §4 (roller, oturum süreleri, kill-switch'ler, SMS maliyeti), §5 (durum makinesi, sebep kodları, adlandırma, kuyruklar, SSE), §7 (akışlar, WhatsApp'sız mod, mesaj koruma kuralları), §11 (fazlar, pilot öncesi zorunlu "sipariş kaçmaz" paketi). Tablo adları, alanlar ve API yolları [07](07-veri-modeli-ve-api.md) ile hizalıdır.
 
 **Kapsam:** Mimari ilkeler, stack ve gerekçesi, sistem/konteyner görünümü, repo yapısı ve kod kuralları, multi-tenancy, kimlik ve yetki, SSE + olay günlüğü + kademeli alarm, kuyruklar/outbox/cron, yazdırma, PostGIS ve geocoding, LLM boru hattı ve menü içe aktarma, storefront performansı, barındırma ve felaket kurtarma, gözlemlenebilirlik, güvenlik mimarisi, ortamlar/CI/CD/test, ölçek ve maliyet.
 
@@ -17,14 +17,14 @@
 | # | İlke | Pratikte anlamı |
 |---|---|---|
 | 1 | **Sipariş kaçmaz.** | Her sipariş olayı şube başına sıralı bir DB günlüğüne yazılır. SSE yalnız hızlandırıcıdır; kaçan olay DB'den telafi edilir. Onaylanmayan sipariş kademeli alarmla bir insana ulaşır (§7). |
-| 2 | **Önce kalıcı yaz, sonra işle.** | Webhook ve sipariş önce PostgreSQL'e yazılır, sonra 200/201 döner. Yan etkiler (mesaj, alarm, baskı) aynı transaction'da outbox'a yazılır (§8.2). Redis kaybı veri kaybı değildir. |
+| 2 | **Önce kalıcı yaz, sonra işle.** | Webhook ve sipariş önce PostgreSQL'e yazılır, sonra 200/201 döner. PostgreSQL'e ulaşılamazsa webhook ingress düğümü olayı kendi yerel kalıcı spool'una yazar ve 200 döner (§13.3). Yan etkiler (mesaj, alarm, baskı) aynı transaction'da outbox'a yazılır (§8.2). Redis kaybı veri kaybı değildir. |
 | 3 | **Tenant yalıtımı iki katmanlı.** | Uygulamada her sorgu tenant bağlamında çalışır; DB'de FORCE RLS + NOBYPASSRLS rol + bileşik FK vardır (§5). Yalıtım testi geçmeyen PR birleşmez. |
 | 4 | **Fiyat sunucuda hesaplanır.** | İstemci, LLM veya fiş şablonu fiyat üretmez. Tutarlar `packages/core`'daki tek fonksiyonla kuruş (integer) olarak hesaplanır ve sipariş anında kopyalanır (snapshot). |
 | 5 | **Her dış girdi idempotent.** | Webhook (olay hash'i, `wamid`), sipariş gönderimi (`Idempotency-Key`), giden mesaj (`dedupe_key`), kuyruk işi (`jobId`), baskı işi. Tekrar teslim = no-op (§8.3). |
 | 6 | **Durum makineleri tablo güdümlü ve saf.** | Sipariş ve konuşma FSM'leri `packages/core`'da yan etkisiz `transition(state, event, ctx) → {next, effects[]}` fonksiyonlarıdır; %100 birim testlidir. Effect'ler outbox'a yazılır. |
 | 7 | **Veri minimizasyonu varsayılan.** | Gereksiz veri toplanmaz; toplanan veri süresi dolunca otomatik silinir (§8.5). Log, LLM, push ve hata izleme PII görmez. |
 | 8 | **Kişisel veri Türkiye'de.** | PostgreSQL, yedekler ve müşteri medyası yurt içinde barınır. Yurt dışı alt işleyenler aktarım envanterindedir ve PII görmeyecek şekilde yapılandırılır (§13.1). |
-| 9 | **Basit başla, ölçerek ölçekle.** | Pilotta tek sunucu + Docker Compose ve modüler monolit (bir `api`, bir `worker` imajı) kullanılır. Mikroservis ve Kubernetes yoktur. Ayrıştırmayı metrik (kuyruk derinliği, p95) tetikler (§13.3). Metriği ve alarmı olmayan akış canlıya çıkmaz (§14). |
+| 9 | **Basit başla, ölçerek ölçekle.** | Pilotta tek uygulama sunucusu + Docker Compose ve modüler monolit (bir `api`, bir `worker` imajı) kullanılır. Tek istisna webhook alımıdır: en az iki ayrı sunucu/VM üzerinde çalışır (pilotta ucuz ikinci VPS, §13.3). Mikroservis ve Kubernetes yoktur. Ayrıştırmayı metrik (kuyruk derinliği, p95) tetikler (§13.3). Metriği ve alarmı olmayan akış canlıya çıkmaz (§14). |
 | 10 | **Resmi ve değiştirilebilir entegrasyonlar.** | Yalnız resmi WhatsApp Cloud API kullanılır. Graph API, SMS, geocoding, LLM ve PSP çağrıları adaptör arayüzlerinin arkasındadır (örn. `WaTransport`, [02](02-whatsapp-entegrasyonu.md) §7.10). |
 | 11 | **Esnafın donanımı ve ağı tasarım sınırıdır.** | Ucuz Android tablet, zayıf Wi-Fi, 4G'ye düşme ve termal yazıcı koşullarında test edilir (§7.8, §12). |
 
@@ -113,9 +113,12 @@ flowchart LR
     CAD["Caddy<br/>host → servis"]
     WEB["web<br/>Next.js 16"]
     API["api<br/>Fastify: REST · SSE · ajan WS"]
-    HK["api-hooks<br/>aynı imaj, yalnız webhook ingress"]
+    HK["api-hooks (düğüm 1)<br/>aynı imaj, yalnız webhook ingress"]
     WRK["worker<br/>BullMQ: wa-inbound · wa-outbound · wa-media<br/>notify · llm · print · images · cron"]
     SPA["panel + admin<br/>statik SPA/PWA"]
+  end
+  subgraph HOST2["İkinci ingress sunucusu (TR, ayrı VPS)"]
+    HK2["api-hooks (düğüm 2)<br/>+ yerel kalıcı spool"]
   end
   subgraph DATA["Veri (TR)"]
     PG[("PostgreSQL 18 + PostGIS<br/>RLS · outbox · branch_events")]
@@ -124,9 +127,11 @@ flowchart LR
     BK[("pgBackRest yedekleri<br/>2. TR lokasyonu, şifreli")]
   end
   CFP --> CAD
+  CFP -->|hooks, sağlık kontrollü havuz| HK2
   CAD --> WEB & API & HK & SPA
   WEB -->|iç ağ| API
   HK & API --> PG & RD
+  HK2 -->|özel ağ / WireGuard| PG & RD
   RD --> WRK
   WRK --> PG & OBJ
   PG -. WAL .-> BK
@@ -138,7 +143,7 @@ flowchart LR
 |---|---|---|---|---|
 | `web` | Pazarlama sitesi; storefront (menü, sepet, adres, checkout); takip sayfası `/t/{token}`; host → tenant | Next.js 16 | Yatay, stateless; ISR + CDN | 1 |
 | `api` | Panel/admin/storefront REST; SSE akışı; yetki; yazıcı ajanı WS **[Faz 2]** | Fastify 5, Zod 4, Better Auth | Yatay; SSE bağlantısı başına düşük bellek | 1 |
-| `api-hooks` | `hooks.siparisinonunde.com/wa`: imza → ham olay → 200 ([02](02-whatsapp-entegrasyonu.md) §7.2) | Aynı imaj, `ROLE=hooks` | En az 2 kopya; storefront trafiğinden yalıtılmış | 1 |
+| `api-hooks` | `hooks.siparisinonunde.com/wa`: imza → ham olay → 200 ([02](02-whatsapp-entegrasyonu.md) §7.2) | Aynı imaj, `ROLE=hooks` | **En az iki ayrı sunucu/VM** üzerinde (pilotta ana sunucu + ucuz ikinci VPS, §13.3); storefront trafiğinden yalıtılmış | 1 |
 | `worker` | Kuyruk tüketicileri (§8.1) | BullMQ | Pilotta tek süreç; Faz 2'de kuyruk grubuna göre ayrılır | 1 |
 | `panel` | İşletme paneli + kurye görünümü (`/kurye`) + bayi (`/bayi`, **[Faz 2]**) | Vite SPA/PWA | Statik | 1 |
 | `admin` | Süper admin: tenant, abonelik, WABA sağlığı, DLQ, impersonation, feature flag | Vite SPA | Statik; Cloudflare Access + IP kısıtı | 1 |
@@ -151,11 +156,11 @@ flowchart LR
 | Host | Hedef | Not |
 |---|---|---|
 | `siparisinonunde.com` | `web` (pazarlama) | ISR, CDN cache |
-| `{slug}.siparisinonunde.com` | `web` (storefront) + `/api/store/*` → `api` | Wildcard DNS ve sertifika (Cloudflare). Ayrılmış alt adlar: `www, panel, admin, api, hooks, status, cdn, static, mail, blog, destek, app` |
-| `panel.siparisinonunde.com` | `panel` SPA + `/api/*` → `api` | **Aynı kaynaktan (same-origin)** API: çerez host'a özel (`__Host-` önekli), CORS yok |
-| `admin.siparisinonunde.com` | `admin` SPA + `/api/*` → `api` (admin route grubu) | Ayrı çerez, ayrı Better Auth örneği (§6.1) |
-| `api.siparisinonunde.com` | `api` | Sunucudan sunucuya çağrılar, yazıcı ajanı **[Faz 2]**, açık API **[Faz 3]** |
-| `hooks.siparisinonunde.com` | `api-hooks` | Yalnız Meta webhook'u (ve Faz 2'de PSP callback'leri) |
+| `{slug}.siparisinonunde.com` | `web` (storefront) + `/api/v1/store/*` → `api` | Wildcard DNS ve sertifika (Cloudflare). Ayrılmış alt adlar: `www, panel, admin, api, hooks, status, cdn, static, mail, blog, destek, app` |
+| `panel.siparisinonunde.com` | `panel` SPA + `/api/v1/panel/*`, `/api/v1/courier/*` → `api` | **Aynı kaynaktan (same-origin)** API: çerez host'a özel (`__Host-` önekli), CORS yok |
+| `admin.siparisinonunde.com` | `admin` SPA + `/api/v1/admin/*` → `api` (admin route grubu) | Ayrı çerez, ayrı Better Auth örneği (§6.1) |
+| `api.siparisinonunde.com` | `api` (`/v1/…`) | Sunucudan sunucuya çağrılar, yazıcı ajanı **[Faz 2]**, açık API **[Faz 3]** |
+| `hooks.siparisinonunde.com` | `api-hooks` (iki düğüm, §13.3) | Meta webhook'u, SMS teslim raporu (Faz 1) ve Faz 2'de PSP callback'leri ([07](07-veri-modeli-ve-api.md) §6.6) |
 | Özel alan adı (`siparis.isletme.com`) **[Faz 3]** | `web` | Cloudflare for SaaS: ilk 100 hostname ücretsiz, sonra $0,10/ay (A04 §2.4) |
 
 Panel çerezinin `.siparisinonunde.com` üst alanına yazılmaması bilinçli bir karardır. Aksi halde oturum çerezi her tenant storefront'una da gönderilir.
@@ -166,7 +171,7 @@ Panel çerezinin `.siparisinonunde.com` üst alanına yazılmaması bilinçli bi
 siparisinonunde/
 ├─ apps/
 │  ├─ web/              # Next.js 16: app/(marketing), app/(store)/_s/[tenant]/..., proxy.ts
-│  ├─ api/              # Fastify: routes/{panel,admin,store,hooks,sse,agent}, plugins/{auth,tenant,raw-body,rate-limit}
+│  ├─ api/              # Fastify: routes/v1/{panel,courier,admin,store,hooks,sse,agent}, plugins/{auth,tenant,raw-body,rate-limit}
 │  ├─ worker/           # BullMQ: queues/{wa-inbound,wa-outbound,wa-media,notify,llm,print,images,cron}
 │  ├─ panel/            # Vite SPA/PWA: features/{orders,chat,menu,zones,printers,staff,reports,courier}
 │  ├─ admin/            # Vite SPA: features/{tenants,waba-health,dlq,impersonation,flags,billing}
@@ -202,7 +207,7 @@ siparisinonunde/
 - **Para:** Her zaman kuruş cinsinden `integer` kullanılır, alan adı `*_kurus` olur. Float yasaktır. KDV dahil/hariç alanlar açıkça adlandırılır.
 - **Zaman:** DB'de `timestamptz` (UTC) kullanılır. İş kuralları (çalışma saati, rapor günü) `Europe/Istanbul` ile hesaplanır. `new Date()` domain kodunda yasaktır, saat enjekte edilir.
 - **Kimlikler:** `uuid` kullanılır. PostgreSQL 18'in `uuidv7()` fonksiyonu zaman sıralı olduğu için indeks dostudur. Müşteriye görünen sipariş no ve takip token'ı ayrı alanlardır.
-- **Adlandırma:** Tablo ve sütunlar `snake_case`, tablo adları sözlükteki gibi tekildir (`tenant`, `branch`, `order_item`; istisnalar için Açık konular #8). TS'de `camelCase` kullanılır. Durum kodları KARARLAR §5'teki gibi aynen yazılır.
+- **Adlandırma:** Tablo ve sütunlar `snake_case`'tir; **tablo adları çoğuldur** (`tenants`, `branches`, `orders`, `order_items`, `branch_events`; `audit_log` ve `tenant_usage_daily` kütle adı istisnasıdır). Sözlükteki tekil adlar (`tenant`, `order`…) varlık adıdır; `order` SQL'de ayrılmış kelime olduğundan tablo `orders`'tır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5, [07](07-veri-modeli-ve-api.md) §1.1). Tam tablo ve alan listesi 07 §3'tedir; bu dokümandaki SQL'ler 07'deki adları kullanır. TS'de `camelCase` kullanılır. Durum ve sebep kodları, enum değerleri ve kuyruk adları [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5'teki gibi aynen yazılır.
 - **Sınırlar:** Her HTTP girdisi, iş yükü, SSE olayı ve LLM çıktısı Zod ile doğrulanır. Hatalar RFC 9457 `application/problem+json` biçiminde döner.
 - **Loglama:** Pino JSON kullanılır. Telefon, adres, mesaj metni ve token loglanmaz (§14.2). Her log satırı `request_id`, `tenant_id` ve `trace_id` taşır.
 - **Test ve PR:** Test dosyası kodun yanında durur (`*.test.ts`); domain değişikliği testsiz birleşmez. Conventional Commits kullanılır; PR şablonunda "tenant/RLS etkisi", "migration geriye uyumlu mu", "yeni metrik/alarm" kutuları vardır.
@@ -224,13 +229,13 @@ Tek paylaşımlı veritabanı kullanılır, her tenant tablosunda `tenant_id` bu
 ### 5.2 Tenant çözümleme
 | Giriş noktası | Tenant kaynağı | Kontrol |
 |---|---|---|
-| Storefront (`web`) | `Host` → `storefront_host` → `(tenant_id, branch_id)` | Redis'te 60 sn cache. Bilinmeyen host → 404. Askıdaki tenant → "geçici olarak sipariş alınmıyor" sayfası |
-| Storefront API | Host + imzalı menü token'ı (`t`, `b` alanları, [02](02-whatsapp-entegrasyonu.md) §6.3) | Token'daki tenant ≠ host tenant'ı → 403 |
-| Panel API | Oturum → aktif organizasyon (`tenant_id`) + `X-Branch-Id` başlığı | Üyelik (`membership`) ve şube kapsamı kontrol edilir. Gövdedeki `tenant_id` yok sayılır |
-| Cihaz (PIN) oturumu | Cihaz kaydı → sabit `(tenant_id, branch_id)` | Cihaz iptal edildiyse 401 |
+| Storefront (`web`) | `Host` → `storefront_hosts` → `(tenant_id, branch_id)` (`sys_resolve_host()`) | Redis'te 60 sn cache. Bilinmeyen host → 404. Askıdaki tenant → "geçici olarak sipariş alınmıyor" sayfası |
+| Storefront API | Host + link oturumu çerezi (`so_ls`; imzalı menü token'ından `POST /api/v1/store/link-session` ile üretilir, [02](02-whatsapp-entegrasyonu.md) §6.3) | Token'daki tenant ≠ host tenant'ı → 403 |
+| Panel API | Oturum → aktif organizasyon (`tenant_id`) + `X-Branch-Id` başlığı | Üyelik (`memberships`) ve şube kapsamı kontrol edilir. Gövdedeki `tenant_id` yok sayılır |
+| Cihaz (PIN) oturumu | Cihaz kaydı (`devices`) → sabit `(tenant_id, branch_id)` | Cihaz iptal edildiyse 401 |
 | Kurye | Kurye oturumu → `(tenant_id, branch_id, user_id)` | Yalnız kendine atanan siparişler |
-| WhatsApp webhook | `phone_number_id` → `wa_phone_number` → `branch` → `tenant` | `entry[].id` (WABA) çapraz kontrol; bilinmeyen numara → `orphan` + admin alarmı |
-| Yazıcı ajanı **[Faz 2]** | Ajan token'ı → `branch` | Token iptal edilebilir |
+| WhatsApp webhook | `phone_number_id` → `wa_phone_numbers` → `(tenant_id, branch_id)` (`sys_wa_route()`) | `entry[].id` (WABA) çapraz kontrol; bilinmeyen numara → `wa_webhook_events.status = 'orphan'` + admin alarmı |
+| Yazıcı ajanı **[Faz 2]** | Ajan token'ı → şube (`branch_id`) | Token iptal edilebilir |
 | Worker işi | İş yükündeki `tenant_id` | Varlık yüklendikten sonra `tenant_id` eşleşmesi yeniden doğrulanır |
 | Platform geneli cron | `SECURITY DEFINER` fonksiyon yalnız `(tenant_id, id)` listesi döner | Her kayıt ayrı tenant transaction'ında işlenir (§5.5) |
 
@@ -244,12 +249,12 @@ CREATE ROLE app_system NOLOGIN BYPASSRLS;      -- yalnız sys_* SECURITY DEFINER
 REVOKE UPDATE, DELETE ON audit_log FROM app_user;   -- denetim kaydı yalnız INSERT
 
 -- Her tenant tablosu için (migration şablonu, CI kataloğu doğrular)
-ALTER TABLE order_item ENABLE ROW LEVEL SECURITY;
-ALTER TABLE order_item FORCE  ROW LEVEL SECURITY;   -- sahip de tabi
-CREATE POLICY tenant_isolation ON order_item TO app_user
+ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE order_items FORCE  ROW LEVEL SECURITY;   -- sahip de tabi
+CREATE POLICY tenant_isolation ON order_items TO app_user
   USING      (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
   WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
-CREATE POLICY platform_read ON order_item FOR SELECT TO app_admin USING (true);
+CREATE POLICY platform_read ON order_items FOR SELECT TO app_admin USING (true);
 ```
 
 - `current_setting(..., true)` ayar yoksa NULL, transaction-yerel ayar düştükten sonra boş dize döner. `nullif` iki durumda da **hiç satır göstermez** (fail-closed) ve `''::uuid` hatasını önler.
@@ -258,11 +263,13 @@ CREATE POLICY platform_read ON order_item FOR SELECT TO app_admin USING (true);
 
 ### 5.4 Bileşik FK ve indeksler
 ```sql
-ALTER TABLE "order" ADD CONSTRAINT order_tenant_uk UNIQUE (tenant_id, id);
-ALTER TABLE order_item
-  ADD CONSTRAINT order_item_order_fk FOREIGN KEY (tenant_id, order_id) REFERENCES "order" (tenant_id, id),
-  ADD CONSTRAINT order_item_branch_fk FOREIGN KEY (tenant_id, branch_id) REFERENCES branch (tenant_id, id);
-CREATE INDEX order_branch_open_idx ON "order" (tenant_id, branch_id, created_at DESC) WHERE status IN ('new','accepted','preparing','ready','on_the_way');
+ALTER TABLE orders ADD CONSTRAINT orders_tenant_id_id_uk UNIQUE (tenant_id, id);
+ALTER TABLE order_items
+  ADD CONSTRAINT order_items_order_fk FOREIGN KEY (tenant_id, order_id) REFERENCES orders (tenant_id, id);
+ALTER TABLE orders
+  ADD CONSTRAINT orders_branch_fk FOREIGN KEY (tenant_id, branch_id) REFERENCES branches (tenant_id, id);
+CREATE INDEX orders_open_idx ON orders (tenant_id, branch_id, status)
+  WHERE status IN ('awaiting_customer','new','accepted','preparing','ready','on_the_way');
 ```
 
 Bileşik FK, başka tenant'ın şubesine veya siparişine referansı DB seviyesinde imkânsız kılar. İndekslerde `tenant_id` ilk sütundur.
@@ -303,11 +310,13 @@ export function withTenant<T>(ctx: { tenantId: string; branchId?: string; actor:
 ### 6.2 Oturum türleri
 | Oturum | Kim | Giriş | Süre | 2FA | Kapsam |
 |---|---|---|---|---|---|
-| Panel kullanıcısı | `owner`, `manager`, `cashier` | E-posta + parola | 7 gün kayan | `owner` **zorunlu TOTP**; `manager` önerilir | Tenant; şube üyeliği |
+| Panel kullanıcısı | `owner`, `manager`, `cashier` | E-posta + parola | **30 gün (kayıtlı cihaz)**; kayıtsız cihazda tarayıcı oturumu | `owner` **zorunlu TOTP**; `manager` önerilir | Tenant; şube üyeliği |
 | Cihaz (PIN) **[Faz 1]** | Paylaşılan mutfak/kasa tableti; `kitchen`, `cashier` | Eşleştirme kodu → cihaz token'ı; personel PIN'i | Cihaz 90 gün; PIN oturumu vardiya boyu (en çok 12 sa) | — | Tek şube, rolü cihaz belirler |
-| Kurye **[Faz 1]** | `courier` | Magic link (platform WABA veya SMS) | Link 15 dk, tek kullanım; oturum 7 gün | — | Yalnız kendine atanan siparişler |
-| Bayi **[Faz 2]** | `reseller` | E-posta + parola | 7 gün | Zorunlu | Getirdiği tenant'ların özet verisi |
-| Platform | `platform_owner`, `platform_admin`, `support_agent`, `finance`, `sales_rep` | E-posta + parola + TOTP; Cloudflare Access + IP izin listesi | 8 sa; 30 dk hareketsizlikte kilit | **Zorunlu** | Platform |
+| Kurye **[Faz 1]** | `courier` | Magic link (platform WABA veya SMS) | Link tek kullanımlık (15 dk içinde açılmalı); oturum **12 saat (vardiya)** | — | Yalnız kendine atanan siparişler |
+| Bayi **[Faz 2]** | `reseller_admin`, `reseller_technician` | E-posta + parola | 7 gün | Zorunlu | Yalnız getirdiği işletmeler: `reseller_admin` özet + komisyon raporu; `reseller_technician` yalnız atandığı işletmelerin kurulum kontrol listesi |
+| Platform | `platform_owner`, `platform_admin`, `support_agent`, `finance`, `sales_rep` | E-posta + parola + TOTP; Cloudflare Access + IP izin listesi | **8 sa**; 30 dk hareketsizlikte kilit | **Zorunlu** | Platform |
+
+Süreler [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4 "Oturum süreleri"ndeki kanonik değerlerdir (bayi oturumu 00'da tanımlı değildir, varsayılan 7 gün).
 
 ### 6.3 Cihaz / PIN oturumu
 1. `owner` veya `manager` panelde "Cihaz ekle" der ve rolü (mutfak/kasa) seçer. 8 haneli kod veya QR 10 dk geçerli olur.
@@ -316,7 +325,7 @@ export function withTenant<T>(ctx: { tenantId: string; branchId?: string; actor:
 4. Cihazlar panelde listelenir (son görülme, ses durumu, sürüm) ve tek tıkla iptal edilir.
 
 ### 6.4 Kurye magic link
-Kurye kullanıcısı telefon numarasıyla eklenir. Giriş linki platform WABA şablonuyla (yoksa SMS) gider: `panel.siparisinonunde.com/kurye/giris?t=…`. Token 15 dk geçerli ve tek kullanımlıktır, oturum 7 gün sürer. Kurye görünümü SSE kullanmaz: 30 sn yoklama + atamada Web Push. `owner` kuryenin oturumunu anında kapatabilir.
+Kurye kullanıcısı telefon numarasıyla eklenir. Giriş linki platform WABA şablonuyla (yoksa SMS) gider: `panel.siparisinonunde.com/kurye/giris?t=…`. Token 15 dk geçerli ve tek kullanımlıktır, açılan oturum 12 saat (bir vardiya) sürer ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4); ertesi vardiyada yeni link gönderilir. Kurye görünümü SSE kullanmaz: 30 sn yoklama + atamada Web Push. `owner` kuryenin oturumunu anında kapatabilir.
 
 ### 6.5 RBAC izin matrisi
 İzinler kodda `resource:action` olarak tanımlanır (`packages/auth/permissions.ts`), roller izin kümesidir. Kontrol API'deki tek `authorize(ctx, perm, resource)` ile yapılır; UI yalnız gizler. Kısmi görünürlük alan projeksiyonuyla sağlanır: `kitchen` rolüne giden sipariş yanıtları ve SSE olayları fiyat alanı içermez.
@@ -331,14 +340,14 @@ Kurye kullanıcısı telefon numarasıyla eklenir. Giriş linki platform WABA ş
 | `delivery:assign` | ✓ | ✓ | ✓ | — | — |
 | `conversation:read` / `conversation:reply` / `conversation:handoff` | ✓ | ✓ | ✓ | — | — |
 | `customer:read` | ✓ | ✓ | ✓ | — | ad + adres (atanan) |
-| `customer:export` / `customer:erase` | ✓ | — | — | — | — |
+| `customer:export` / `customer:erase` (KVKK talepleri, taze oturum) | ✓ | ✓ | — | — | — |
 | `menu:update`, `branch:settings` (saatler, bölgeler, yazıcılar) | ✓ | ✓ | stok aç/kapa | stok aç/kapa | — |
 | `report:read` | ✓ | ✓ | günlük özet | — | — |
 | `staff:manage`, `device:pair` | ✓ | ✓ (owner hariç) | — | — | — |
 | `wa:connect`, `billing:manage` | ✓ | — | — | — | — |
 | `audit:read` | ✓ | şube | — | — | — |
 
-Platform rolleri: `platform_owner` her şey; `platform_admin` operasyon (tenant askıya alma, DLQ, flag, yazma yetkili impersonation); `support_agent` okuma + loglu impersonation; `finance` abonelik/fatura/tahsilat; `sales_rep` lead ve deneme yönetimi; `reseller` yalnız kendi tenant'larının özeti. Ayrıntılı ekran yetkileri [04](04-isletme-paneli.md) ve [05](05-admin-paneli-ve-pazarlama-sitesi.md)'te.
+Platform rolleri: `platform_owner` her şey; `platform_admin` operasyon (tenant askıya alma, DLQ, flag, yazma yetkili impersonation); `support_agent` okuma + loglu impersonation; `finance` abonelik/fatura/tahsilat; `sales_rep` lead ve deneme yönetimi. Bayi rolleri **[Faz 2]**: `reseller_admin` (kendi getirdiği işletmeler, komisyon raporu) ve `reseller_technician` (yalnız atandığı işletmelerin kurulum kontrol listesi); ikisi de yalnız kendi getirdiği işletmeleri görür ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4). Ayrıntılı ekran yetkileri [04](04-isletme-paneli.md) ve [05](05-admin-paneli-ve-pazarlama-sitesi.md)'te.
 
 ### 6.6 Kabul kriterleri (kimlik)
 - `owner` TOTP kurmadan panelde sipariş ekranı dışında işlem yapamaz. Platform kullanıcısı TOTP ve izinli IP olmadan giriş yapamaz.
@@ -347,8 +356,8 @@ Platform rolleri: `platform_owner` her şey; `platform_admin` operasyon (tenant 
 - İptal edilen cihaz 60 sn içinde SSE bağlantısını kaybeder ve yeniden bağlanamaz.
 
 ### 6.7 Impersonation (destek erişimi)
-- `support_agent` bir tenant için impersonation'ı **gerekçe + destek kaydı no** ile başlatır. Süre 30 dk, varsayılan **salt okunur**dur. Yazma modu `platform_admin` onayı gerektirir.
-- Oturum `impersonated_by` taşır. Tüm istekler `audit_log.actor_type = 'admin_impersonation'` ile yazılır. Panelde kırmızı bant görünür. İşletme sahibi kendi audit ekranında "Destek ekibi 14:02–14:20 arası hesabınızı görüntüledi" kaydını görür.
+- `support_agent` bir tenant için impersonation'ı **gerekçe (zorunlu) + destek kaydı no** ile başlatır (`impersonation_sessions`). Süre **en fazla 30 dk**'dır; uzatma yoktur, gerekirse yeni gerekçeyle yeni oturum açılır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4). Varsayılan **salt okunur**dur. Yazma modu `platform_admin` onayı gerektirir.
+- Oturum `impersonated_by` taşır. Tüm istekler `audit_log.actor_type = 'admin_impersonation'` ile yazılır. Panelde kırmızı bant görünür. Oturum başladığında işletmeye (`owner`) bildirim gider (`notifications`); işletme sahibi kendi audit ekranında "Destek ekibi 14:02–14:20 arası hesabınızı görüntüledi" kaydını da görür.
 - Impersonation görünümünde müşteri telefonu ve adresi **maskeli** gelir, açmak ayrı ve loglu bir aksiyondur. DPA'daki destek erişimi maddesiyle uyumludur ([08](08-mevzuat-kvkk-odeme-fatura.md)).
 
 ## 7. Gerçek zamanlılık ve "sipariş kaçmaz" tasarımı
@@ -358,7 +367,7 @@ Dört katman birbirini yedekler: (1) **DB olay günlüğü** (`branch_events.seq
 ### 7.2 `branch_events`
 ```sql
 -- Sipariş durumu değiştiren her transaction içinde (packages/db/orderEvents.ts)
-WITH s AS (UPDATE branch SET event_seq = event_seq + 1 WHERE id = $1 RETURNING tenant_id, id, event_seq),
+WITH s AS (UPDATE branches SET event_seq = event_seq + 1 WHERE id = $1 RETURNING tenant_id, id, event_seq),
      e AS (INSERT INTO branch_events (tenant_id, branch_id, seq, type, order_id, payload)
            SELECT tenant_id, id, event_seq, $2, $3, $4 FROM s RETURNING branch_id, seq)
 SELECT pg_notify('branch_events', branch_id || ':' || seq) FROM e;   -- NOTIFY yalnız COMMIT'te teslim edilir
@@ -366,12 +375,12 @@ SELECT pg_notify('branch_events', branch_id || ':' || seq) FROM e;   -- NOTIFY y
 
 - `seq` şube başına kesintisiz artan `bigint` değeridir. Satır kilidi şube içi yazmaları sıralar; yük bu desen için küçüktür (1.000 işletmede zirve ~1,7 sipariş/sn, A04 §12).
 - `pg_notify` transactional olduğu için "commit oldu ama bildirim gitmedi" ikiliği oluşmaz. Her `api` örneği PgBouncer dışından **tek bir LISTEN bağlantısı** tutar, bağlantı koparsa yeniden bağlanır ve aktif şubeler için telafi sorgusu çalıştırır. Faz 3'te çok sayıda `api` örneğinde fan-out Redis pub/sub'a taşınabilir.
-- Olay tipleri: `order.created`, `order.updated`, `order.acked`, `conversation.message`, `conversation.handoff`, `alarm.escalated`, `device.presence`, `branch.settings_changed`. Yük küçüktür (id, durum, sürüm, özet). Ayrıntı gerekiyorsa REST ile çekilir. Sözleşme [07](07-veri-modeli-ve-api.md)'dedir.
+- Olay tipleri (başlıcaları): `order.created`, `order.updated`, `order.acked`, `conversation.message`, `conversation.handoff`, `alarm.escalated`, `device.presence`, `branch.settings_changed`, `menu.availability`, `print.job`. Yük küçüktür (id, durum, sürüm, özet). Ayrıntı gerekiyorsa REST ile çekilir. Tam liste ve sözleşme [07](07-veri-modeli-ve-api.md) §6.7'dedir. Canary olayları `is_canary` işaretlidir (§7.10).
 - Saklama: 30 gün (aylık partition). Daha eski `Last-Event-ID` gelirse `event: resync` gönderilir ve istemci anlık görüntüyü (snapshot) yeniden çeker.
 
 ### 7.3 SSE akışı
 ```ts
-app.get('/api/panel/branches/:branchId/stream', { preHandler: [auth, requireBranchPerm('order:read')] }, async (req, reply) => {
+app.get('/api/v1/panel/branches/:branchId/stream', { preHandler: [auth, requireBranchPerm('order:read')] }, async (req, reply) => {
   reply.hijack();
   reply.raw.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store', 'x-accel-buffering': 'no' });
   const last = BigInt((req.headers['last-event-id'] as string) ?? '0');
@@ -388,9 +397,9 @@ app.get('/api/panel/branches/:branchId/stream', { preHandler: [auth, requireBran
 - **Çok sekme / çok cihaz:** Sesi yalnız lider sekme çalar (`navigator.locks`, Safari 15.4+), sekmeler `BroadcastChannel` ile senkronlanır. Bir cihazda "Onayla" basılınca `order.updated` tüm cihazlarda alarmı susturur ("Ayşe onayladı · 14:02").
 
 ### 7.4 Emniyet sorgusu ve ack
-- **Emniyet sorgusu:** Panel her 30–60 sn'de (rastgele sapmalı) `GET /api/panel/branches/:id/snapshot?since_seq=` çağırır. Dönen yanıt açık siparişler + güncel `max_seq`'tir. İstemcinin `seq`'i gerideyse eksik olaylar uygulanır ve SSE yeniden kurulur.
-- **Ack (görüldü):** Sipariş kartı ekranda göründüğünde `POST /api/panel/orders/:id/ack {device_id}` çağrılır ve `order_ack` kaydı + `order.acked` olayı oluşur. **Görüldü** ile **onaylandı** (`accepted`) ayrıdır. Panel sesi "Gördüm/Onayla" ile durur. Panel dışı eskalasyon ise durum `new` kaldıkça sürer (§7.6).
-- **Cihaz nabzı:** SSE bağlantısı ve 60 sn'de bir `POST /devices/heartbeat {audio_unlocked, wake_lock_active, visible, app_version}` kaydı `device.last_seen_at` alanını günceller.
+- **Emniyet sorgusu:** Panel her 30–60 sn'de (rastgele sapmalı) `GET /api/v1/panel/branches/:id/snapshot?since_seq=` çağırır. Dönen yanıt açık siparişler + güncel `max_seq`'tir. İstemcinin `seq`'i gerideyse eksik olaylar uygulanır ve SSE yeniden kurulur.
+- **Ack (görüldü):** Sipariş kartı ekranda göründüğünde `POST /api/v1/panel/orders/:id/ack {device_id}` çağrılır ve `order_acks` kaydı + `order.acked` olayı oluşur. **Görüldü** ile **onaylandı** (`accepted`) ayrıdır. Panel sesi "Gördüm/Onayla" ile durur. Panel dışı eskalasyon ise durum `new` kaldıkça sürer (§7.6).
+- **Cihaz nabzı:** SSE bağlantısı ve 60 sn'de bir `POST /api/v1/panel/devices/heartbeat {audio_unlocked, wake_lock_active, visible, app_version, last_event_seq}` kaydı `devices.last_seen_at` alanını günceller.
 
 ### 7.5 Sequence diyagramı (Akış A siparişi)
 ```mermaid
@@ -402,40 +411,40 @@ sequenceDiagram
   participant W as worker
   participant S as Panel (SSE)
   participant O as İşletme sahibi
-  M->>A: POST /api/store/orders (Idempotency-Key, imzalı menü token'ı)
+  M->>A: POST /api/v1/store/orders (Idempotency-Key, link oturumu çerezi so_ls)
   A->>A: Zod doğrulama, fiyatı yeniden hesapla, bölge + min sepet
-  A->>P: TX: order(new) + kalemler + branch_events(seq 1043) + outbox(alındı mesajı, alarm, baskı) + NOTIFY
+  A->>P: TX: orders(new) + order_items + branch_events(seq 1043) + outbox(alındı mesajı +60 sn, alarm, baskı) + NOTIFY
   A-->>M: 201 {sipariş no, takip linki}
   P-->>A: NOTIFY branch 1043
   A->>S: id: 1043, event: order.created
   S->>S: lider sekme döngüsel alarm + kırmızı bant
-  S->>A: POST /orders/:id/ack
+  S->>A: POST /api/v1/panel/orders/:id/ack
   W->>W: outbox → wa-outbound (alındı), notify (gecikmeli alarm adımları), print
   alt 2 dk'da hâlâ new
     W->>O: platform WABA: isletme_yeni_siparis_v1
   end
-  S->>A: POST /orders/:id/accept {eta_dk: 30}
-  A->>P: TX: accepted + branch_events(1044) + outbox(onaylandı mesajı)
+  S->>A: POST /api/v1/panel/orders/:id/accept {eta_minutes: 30}
+  A->>P: TX: accepted + branch_events(1044) + outbox(onaylandı, 60 sn içindeyse alındı ile tek mesaj)
   A->>S: id: 1044, order.updated → tüm cihazlarda alarm susar
   Note over S,A: Bağlantı koparsa: Last-Event-ID 1043 ile yeniden bağlanır, sunucu seq > 1043'ü DB'den basar
 ```
 
 ### 7.6 Kademeli alarm zinciri **[Faz 1]**
-Sipariş `new` olduğunda outbox → `notify` kuyruğuna deterministik `jobId` ile gecikmeli işler eklenir (`alarm:{order_id}:{adım}`). Her adım çalışmadan önce siparişin hâlâ `new` olup olmadığını kontrol eder. Böylece iş iptal edilmese bile yanlış alarm gitmez. Onayda işler temizlik için ayrıca kaldırılır.
+Zamanlama [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10'daki **kanonik** zincirdir. Sipariş `new` olduğunda outbox → `notify` kuyruğuna deterministik `jobId` ile gecikmeli işler eklenir (`alarm:{order_id}:{adım}`, `alarm_escalations` kaydı). Her adım çalışmadan önce siparişin hâlâ `new` olduğunu ve bekleyen ret (`rejection_scheduled_at` dolu) olmadığını kontrol eder. Böylece iş iptal edilmese bile yanlış alarm gitmez. Onay, ret veya iptalde işler temizlik için ayrıca kaldırılır.
 
 | Zaman (varsayılan) | Koşul | Kanal | Not |
 |---|---|---|---|
-| t = 0 | `new` | Panel: döngüsel ses, kırmızı bant, başlık/favicon, `setAppBadge`; Web Push tüm kayıtlı cihazlara | Push yükünde PII yok: "Yeni sipariş #1234" |
-| t + 60 sn | Henüz ack yok | Ses tonu/seviyesi değişir, push tekrarlanır | |
-| t + 2 dk | Hâlâ `new` | **1. hatırlatma:** platform WABA'dan `owner`'a (ve ayarda seçili `manager`'a) `isletme_yeni_siparis_v1` ([02](02-whatsapp-entegrasyonu.md) §5.3) | Şablon `failed` olursa veya opt-in yoksa SMS hemen gider |
-| t + 5 dk | Hâlâ `new` | **2. hatırlatma:** platform WABA tekrar + **SMS** (`owner`) | SMS ≈ 0,16–0,43 TL (A04 §3.8) |
-| t + 10 dk (işletme ayarı 8–15) | Hâlâ `new` | **Müşteriye gecikme bilgisi:** "İşletme henüz onaylamadı" + [Bekle] [İptal] | Metin [03](03-musteri-deneyimi-ve-storefront.md)'te; [İptal]'in FSM karşılığı → Açık konular #2 |
-| — | İşletme ayarı "N dk'da onaylanmazsa otomatik reddet" (varsayılan kapalı) | `new → rejected` (aktör: system) | Sebep kodu → Açık konular #3 |
-| **[Faz 2]** t + 6 dk | Hâlâ `new` | Otomatik sesli arama (TTS) | Sağlayıcı API'si ve fiyatı teyit edilmeli |
+| t = 0 | `new` | Panel: döngüsel ses, kırmızı bant, başlık/favicon, `setAppBadge`; **Web Push** tüm kayıtlı cihazlara | Push yükünde PII yok: "Yeni sipariş #1234" |
+| t + 60 sn | Henüz ack yok | **Ses tekrarı (yükselen** ton/seviye); push tekrarlanır | |
+| t + 2 dk | Hâlâ `new` | **Platform WhatsApp numarasından** `owner`'a (ve ayarda seçili `manager`'a) `isletme_yeni_siparis_v1` ([02](02-whatsapp-entegrasyonu.md) §5.3) | Şablon `failed` olursa veya opt-in yoksa SMS hemen gider |
+| t + 5 dk | Hâlâ `new` | **SMS** (`owner`); platform WhatsApp uyarısı da tekrarlanır ([02](02-whatsapp-entegrasyonu.md) §10.3) | SMS ≈ 0,16–0,43 TL (A04 §3.8); platform maliyeti, adil kullanım kotasına sayılır (§17) |
+| t + 10 dk (işletme ayarı 8–15) | Hâlâ `new` | **Müşteriye gecikme bilgisi:** "İşletme henüz onaylamadı" + [Bekle] [İptal] | Metin [03](03-musteri-deneyimi-ve-storefront.md)'te; bütçe dışı istisna. [İptal] → `new → cancelled` (`cancelled_by = customer`, `customer_request`) |
+| **t + 15 dk** (işletme ayarı 15/20/30) | Hâlâ `new` | **Otomatik iptal:** `new → cancelled` (`cancelled_by = system`, `cancel_reason = tenant_no_response`) + müşteriye özür ve işletme telefonu + `owner`'a bildirim | `order-new-watch` işi (§8.5) çalıştırır; müşteri mesajı bütçe dışı istisnadır. "Otomatik reddet" yoktur; sistem `rejected` üretmez |
+| **[Faz 2, değerlendirme]** t + 6 dk | Hâlâ `new` | Otomatik sesli arama (TTS) | Kanonik zincirde yoktur; eklenirse önce 00 güncellenir. Sağlayıcı API'si ve fiyatı teyit edilmeli |
 
-- **Otomatik kabul** (işletme ayarı): Sipariş hemen `accepted` olur. Alarm zinciri bu durumda `ack` üzerine kurulur (görülmeyen sipariş yine eskale edilir).
-- **Planlı sipariş** (`new` + `scheduled_for`): Alarm zinciri, geldiği anda kısa bir "planlı sipariş" sesiyle başlar. Hazırlık zamanında (`scheduled_for − hazırlık süresi`) tam alarm yeniden kurulur.
-- Tüm eşikler platform varsayılanıdır, işletme panelden ayarlar ([04](04-isletme-paneli.md)).
+- **Otomatik kabul [Faz 2]** (kurallı, varsayılan kapalı; `branches.auto_accept_rules`): Kurala uyan sipariş hemen `accepted` olur. Alarm zinciri bu durumda `ack` üzerine kurulur (görülmeyen sipariş yine eskale edilir).
+- **Planlı sipariş** (`new` + `scheduled_for`): Geldiği anda kısa bir "planlı sipariş" sesi çalar. Hazırlık zamanında (`scheduled_for − hazırlık süresi`) ses, push, platform WhatsApp ve SMS adımları yeniden kurulur; müşteriye gecikme bilgisi ve 15 dk otomatik iptal planlı siparişe uygulanmaz ([07](07-veri-modeli-ve-api.md) §4.1).
+- Tüm eşikler platform varsayılanıdır; işletme panelden min/maks sınırları içinde ayarlar ([04](04-isletme-paneli.md)). Ayarlar `branches.alarm_policy` ve `branches.new_order_timeout_min` alanlarındadır.
 
 ### 7.7 Panel çevrimdışı dedektörü **[Faz 1]**
 - **Kural (her dakika):** Şube açık saatteyse ve sipariş alıyorsa, `audio_unlocked = true` olan ve son 3 dk içinde nabız gönderen **hiç cihaz** yoksa uyarı üretilir.
@@ -459,8 +468,25 @@ Kaynak: MDN BCD üzerinden A04 §3.4–3.6. Wake Lock sayfa gizlenince düşer v
 - Webhook alımından panelde sesli uyarıya **p95 < 3 sn** (KARARLAR §12). Storefront siparişinden panele p95 < 2 sn [T].
 - SSE bağlantısı 10 dk koparılıp geri verildiğinde arada oluşan tüm olaylar sırayla ve tekrarsız uygulanır (e2e testi).
 - NOTIFY dinleyicisi zorla öldürüldüğünde sipariş en geç 60 sn içinde emniyet sorgusuyla panelde görünür.
-- `new` sipariş 2 dk onaylanmazsa platform WABA uyarısı 2 dk ± 15 sn içinde gönderilir. Onaylanmış siparişe hiçbir eskalasyon gitmez (sahte saatle test).
+- `new` sipariş 2 dk onaylanmazsa platform WABA uyarısı 2 dk ± 15 sn içinde gönderilir. Onaylanmış, reddedilmiş veya bekleyen retteki siparişe hiçbir eskalasyon gitmez (sahte saatle test).
+- 15 dk (varsayılan) yanıtsız kalan sipariş en geç 16. dakikada `cancelled` / `tenant_no_response` olur, müşteriye özür + işletme telefonu gider; hiçbir yolda sistem `rejected` üretmez (sahte saatle test).
 - Açık saatte tüm cihazlar kapatıldığında `owner` 4 dk içinde uyarı alır.
+- Tenant canary'si (§7.10), paneli "çevrimiçi" görünen ama olay almayan şube için 30 dk içinde işletme uyarısı üretir.
+
+### 7.10 Sentetik canary **[Faz 1]** (pilot öncesi zorunlu paket)
+[00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11 gereği her tenant için periyodik, uçtan uca test siparişi çalışır. Amaç "webhook 200 dönüyor ama sipariş panelde yok" türü sessiz arızaları gerçek müşteri siparişinden önce yakalamaktır. Operasyonel eşikler ve SLO'lar [10](10-riskler-operasyon-ve-metrikler.md) §7.1 ve §7.3'te, veri modeli [07](07-veri-modeli-ve-api.md) §4.1'dedir.
+
+| Katman | Nasıl çalışır | Sıklık [T] | Ölçüm / başarısızlıkta alarm |
+|---|---|---|---|
+| **Tenant canary** (her tenant'ın her şubesi, Meta hariç) | `cron` kuyruğundaki `canary-tenant` işi, şubenin storefront API'sine (`POST /api/v1/store/orders`, Cloudflare üzerinden) platform imzalı `X-Canary` başlığıyla sentetik sipariş gönderir. Sipariş `test_kind = 'canary'` ile gerçek yoldan geçer: fiyat hesabı → DB → `branch_events` (`is_canary`) → SSE → panel cihazı. Panel canary'yi göstermez, ses çalmaz, yalnız sessizce ack'ler. Outbox'taki mesaj niyeti `wa-outbound`'dan geçer ama Graph API çağrısı dry-run'dır (mock taşıyıcı) | Şubenin açık saatlerinde 15 dk (sapmalı) | `canary_ack_seconds{branch}`. Şubede "çevrimiçi" cihaz varken 60 sn içinde ack gelmezse "bayat panel": SSE'ye `resync` gönderilir; 2 ardışık başarısızlıkta `owner`'a panel çevrimdışı akışıyla (§7.7) uyarı. Sipariş oluşturma adımı hata verirse platform alarmı (birden çok tenant'ta → P1) |
+| **Platform canary** (Meta dahil) | `canary-platform` işi `sandbox` tenant'ında canary siparişi açar (`awaiting_customer`); platformun ayrı canary numarası sipariş kodunu WhatsApp'tan gönderir → Meta → iki ingress düğümünden biri → `wa-inbound` → sipariş `new` → SSE → başsız (headless) panel istemcisi ack'ler → "alındı" yanıtı Graph API ile canary numarasına döner | Açık saatlerde (10:00–02:00) 5 dk, gece 15 dk | `canary_e2e_seconds`, başarı oranı. > 60 sn veya 2 ardışık kayıp → **P1** ([10](10-riskler-operasyon-ve-metrikler.md) S5) |
+
+- **Hariç tutma:** `test_kind = 'canary'` (ve `onboarding_test`) siparişleri raporlardan, rollup'lardan (`report_daily_*`), aylık değer raporundan, `tenant_usage_daily` sayaçlarından, müşteri istatistiklerinden ve faturalama/kota hesaplarından hariçtir; işletmenin gördüğü sipariş numarası sayacını tüketmez. Alarm zinciri (§7.6) canary için çalışmaz; gerçek WhatsApp gönderimi yalnız platform canary'sinde, `sandbox` tenant'ı ile canary numarası arasında yapılır.
+- **Temizlik:** Canary kaydı ack alınınca veya en geç 10 dk sonra `sys_purge_canary()` ile kalıcı silinir (FSM'de iptal geçişi kullanılmaz); ölçüm yalnız metriklerde kalır.
+- **Güvenlik:** `X-Canary` imzası platform sırrıyla HMAC'lidir ve Turnstile'ı yalnız bu istek için atlatır; imzasız istekte `test_kind` alanı yok sayılır.
+- Canary numaraları arası otomatik mesajlaşmanın Meta politikasına uygunluğu ve aylık maliyeti teyit edilmeli ([10](10-riskler-operasyon-ve-metrikler.md) §7.3).
+
+**Kabul kriterleri (canary):** Ingress durdurulduğunda platform canary ≤ 10 dk içinde P1 üretir; SSE katmanı bozulup ingress sağlamken de P1 üretir; canary siparişleri hiçbir işletme ekranında, raporunda ve faturasında görünmez (sözleşme testi).
 
 ## 8. Asenkron işleme
 ### 8.1 Kuyruklar ve iş tipleri
@@ -469,13 +495,13 @@ Kaynak: MDN BCD üzerinden A04 §3.4–3.6. Wake Lock sayfa gizlenince düşer v
 | `wa-inbound` | `split` (ham olay → alt işler), `message`, `status`, `template_event`, `account_event` | 20; **konuşma başına sıralı**: `pg_advisory_xact_lock(hashtext(conversation_key))` (BullMQ grupları Pro özelliği olduğu için, A04 §5.2) | 10, üstel 2 sn'den |
 | `wa-outbound` | `send` (outbox kaydı → Graph API) | Numara başı token bucket (80/sn; Coexistence 20/sn) + alıcı başı ~6 sn ([02](02-whatsapp-entegrasyonu.md) §7.6) | 6, `min(1s×2ⁿ, 60s)` + jitter |
 | `wa-media` | `download` (5 dk geçerli URL → TR obje depolama) | 5 | 5, üstel |
-| `notify` | `alarm_step`, `push`, `platform_wa`, `sms`, `email` | 10; en yüksek öncelik | 5, 5 sn sabit (alarm geç kalmasın) |
-| `llm` | `parse_order`, `menu_import` **[Faz 2]** | Global 5, tenant başı 1; zaman aşımı 20 sn / 180 sn | 2 |
+| `notify` | `alarm_step`, `push`, `platform_wa`, `sms` (alarm, kurye girişi, SMS OTP, WhatsApp'sız mod durum SMS'i), `email`, `finalize_rejection` (30 sn bekleyen retin kesinleşmesi) | 10; en yüksek öncelik | 5, 5 sn sabit (alarm geç kalmasın) |
+| `llm` | `parse_order` **[Faz 2]**, `menu_import` (**[Faz 1]** ekip içi concierge aracı, **[Faz 2]** self-servis) | Global 5, tenant başı 1; zaman aşımı 20 sn / 180 sn | 2 |
 | `print` | `render` (fiş → raster/ESC/POS), `dispatch` | 5 | 3 |
 | `images` | `variants` (EXIF temizleme, AVIF/WebP 320/640/1080 px) | 2; düşük öncelik | 3 |
 | `cron` | Zamanlanmış işler (§8.5) | BullMQ job scheduler; her çalıştırma tek worker'da | İşe göre |
 
-Pilotta tek `worker` süreci tüm kuyrukları tüketir. **Faz 2'de** `QUEUES` ortam değişkeniyle üç sürece ayrılır: `worker-wa` (wa-*), `worker-rt` (notify, print), `worker-bg` (llm, images, cron). Böylece LLM veya görsel işleme yükü alarm gecikmesine yol açmaz.
+Kuyruk adları [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5'teki kanonik listedir (`wa-inbound`, `wa-outbound`, `wa-media`, `notify`, `llm`, `print`, `images`, `cron`); yeni kuyruk önce 00'a eklenir. Pilotta tek `worker` süreci tüm kuyrukları tüketir. **Faz 2'de** `QUEUES` ortam değişkeniyle üç sürece ayrılır: `worker-wa` (wa-*), `worker-rt` (notify, print), `worker-bg` (llm, images, cron). Böylece LLM veya görsel işleme yükü alarm gecikmesine yol açmaz.
 
 ### 8.2 Outbox deseni
 ```sql

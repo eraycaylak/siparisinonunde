@@ -7,7 +7,7 @@
 > **Kapsam dışı (bağlantı verilir):** mesaj metinleri ve checkout ekranları → [03](03-musteri-deneyimi-ve-storefront.md); panel ekranları → [04](04-isletme-paneli.md); admin/finans ekranları ve pazarlama sitesi → [05](05-admin-paneli-ve-pazarlama-sitesi.md); barındırma, şifreleme ve log mimarisi → [06](06-teknik-mimari.md); tablo alanları → [07](07-veri-modeli-ve-api.md); takvim → [09](09-yol-haritasi-ve-sprint-plani.md); olay yönetimi ve SLO → [10](10-riskler-operasyon-ve-metrikler.md).
 > **İlgili dokümanlar:** [00 Kararlar](00-kararlar-ve-sozluk.md) (özellikle bölüm 9, bağlayıcı) · [01 İş modeli](01-vizyon-pazar-is-modeli.md) · [02 WhatsApp](02-whatsapp-entegrasyonu.md) · [06 Mimari](06-teknik-mimari.md) · [07 Veri modeli](07-veri-modeli-ve-api.md)
 > **Kaynaklar:** [arastirma/03-mevzuat-odeme-fatura.md](arastirma/03-mevzuat-odeme-fatura.md) (ana kaynak), [arastirma/01-whatsapp-platform.md](arastirma/01-whatsapp-platform.md) (politikalar), [arastirma/02-pazar-rakipler-is-modeli.md](arastirma/02-pazar-rakipler-is-modeli.md) (Nisan 2026 düzenlemesi), [arastirma/04-mimari-teknoloji.md](arastirma/04-mimari-teknoloji.md) (alt işleyenler).
-> **Tarih:** 2026-09-24 · **Durum:** Taslak v1
+> **Tarih:** 2026-09-24 · **Durum:** Taslak (düzeltme turunda [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) ile hizalandı)
 
 ---
 
@@ -36,9 +36,9 @@
 4. **Olay ve başvuru süreleri:** Veri ihlalinde işletmeye **24 saat**, Kurul'a **72 saat**; ilgili kişi başvurusuna **30 gün**. Panelde dışa aktar, düzelt ve sil/anonimleştir var (§2.9, §2.10).
 5. **Sipariş durum mesajları saf bilgilendirmedir.** Şablon editörü promosyon içeriğini engeller. Kampanya modülü **[Faz 2]**'de gelir: işletmenin İYS kaydı, önceden onay, her mesajda ret yolu, gönderim öncesi İYS sorgusu ve audit log şartıyla. WhatsApp, SMS gibi operatörün İYS filtresinden geçmez (§3).
 6. **Pazaryeri değiliz.** Vitrin işletmenin künyesiyle yayınlanır, satıcı işletmedir. ETAHS sayılma riskini doğuran özellikler "kırmızı çizgi"dir (§4.2).
-7. **Her siparişte mesafeli satış onay adımı var:** özet, KDV dahil toplam, teslimat ücreti, cayma hakkı istisnası notu, ön bilgilendirme linki ve "Siparişi onayla (ödeme yükümlülüğü doğar)". Onay kanıtı saklanır (§4.4).
+7. **Her siparişte mesafeli satış onay adımı var:** özet, KDV dahil toplam, teslimat ücreti, cayma hakkı istisnası notu, ön bilgilendirme linki ve onay eylemi: storefront'ta "Siparişi onayla" butonu ve hemen altında "ödeme yükümlülüğü doğar" ibaresi; WhatsApp AI özetinde [Faz 2] **[Onayla] [Düzenle] [İptal]** butonları ve gövdede aynı ibare. Onay kanıtı saklanır (§4.4).
 8. **Müşteri parası hiçbir koşulda bizim hesabımıza girmez (6493).** [Faz 1]'de ödeme kapıda alınır. [Faz 2]'de işletme kendi PayTR hesabını, ardından iyzico hesabını bağlar. [Faz 3]'te Craftgate gelir. Gıdada taksit yok; alkol ve tütün teknik olarak engellidir (§4.6, §5).
-9. **Abonelik:** Faturalama motoru bizde, kart tokenı tek PSP'de, yıllık planda havale/EFT seçeneği var, e-Fatura/e-Arşiv Paraşüt API ile kesilir. Dunning kademelidir ve **sipariş alma hemen kesilmez**: G+10'da salt-okunur mod, G+21'de askı (§6.3).
+9. **Abonelik:** Faturalama motoru bizde, kart tokenı tek PSP'de, yıllık planda havale/EFT seçeneği var, e-Fatura/e-Arşiv Paraşüt API ile kesilir. Dunning kademelidir ve **sipariş alma hemen kesilmez**: G+1/G+3/G+7 yeniden deneme, G+10'da salt-okunur mod, G+21'de askı, G+75'te hesap kapanışı ve veri silme (§6.3). Deneme bitişinde 3 gün uyarı bandı, ardından askı; 90 gün içinde plan seçilirse veri aynen döner, sonra silinir (§6.2). SMS OTP ve kritik durum SMS'lerinin maliyeti platformdadır (§8.6).
 10. **Faz 0 kritik yolu:** şirket kuruluşu → Meta Business Verification → MVP öncesi belge seti; marka başvurusu paralel yürür ve isim duyurulmadan önce yapılır. Vergi düzeni ilk aydan kurulur (2 No'lu KDV, stopaj sınıflandırması, Teknokent değerlendirmesi). Tüm [O] ve [D?] maddeler **ilk ücretli işletmeden önce** teyit edilir (§7–§9).
 
 ---
@@ -51,14 +51,14 @@ Dayanak: 6698 sayılı Kanun (RG 07.04.2016) [Y]; 7499 sayılı Kanun'la yapıla
 
 | Veri / işleme | VS | Vİ (ve alt işleyenler) | Hukuki sebep | Not |
 |---|---|---|---|---|
-| Son müşterinin adı, BSUID/telefonu, adresi, konumu, sipariş içeriği, sipariş notu, WhatsApp yazışmaları (siparişi almak ve teslim etmek için) | **İşletme** | **Biz**. Alt işleyenler: TR barındırma, Meta (Cloud API), SMS/e-posta sağlayıcısı, harita, [Faz 2] LLM | m.5/2-c sözleşmenin kurulması/ifası [Y] | Kimlik `(tenant_id, wa_bsuid)`. Veri tenant içinde kalır [K01] |
+| Son müşterinin adı, BSUID/telefonu, adresi, konumu, sipariş içeriği, sipariş notu, WhatsApp yazışmaları (siparişi almak ve teslim etmek için) | **İşletme** | **Biz**. Alt işleyenler: TR barındırma, Meta (Cloud API), SMS sağlayıcısı (SMS OTP ve WhatsApp'sız mod durum SMS'i, Faz 1), e-posta sağlayıcısı, harita (Google Maps), Cloudflare, [Faz 2] LLM (§2.11) | m.5/2-c sözleşmenin kurulması/ifası [Y] | Kimlik `(tenant_id, wa_bsuid)`; WhatsApp'sız modda (SMS OTP) doğrulanmış telefon. Veri tenant içinde kalır [K01] |
 | Fiş/fatura ve muhasebe kaydı (işletmenin) | İşletme | Biz (panel kaydı) | m.5/2-ç hukuki yükümlülük [Y] | Yasal defter/belge saklama işletmenindir (§2.8) |
 | Kayıtlı adresi sonraki siparişte hatırlama; işletme içi sipariş istatistiği | İşletme | Biz | m.5/2-c veya m.5/2-f meşru menfaat [T] | Müşteriye "adresimi sil" yolu verilir |
 | Kampanya listesi ve segment [Faz 2] | İşletme | Biz | ETK onayı + gerekiyorsa açık rıza (§2.5) | Onay ve İYS işletmenin yükümlülüğü, kontroller yazılımda (§3.6) |
 | Kurye ve personelin iş verisi (atama, teslim süreleri, kasiyer işlemleri) | İşletme | Biz | İş ilişkisi, m.5/2-c/f [T] | [Faz 3] canlı kurye konumu ayrıca değerlendirilir |
 | İşletme sahibi/yetkilisinin kimlik, iletişim, abonelik, fatura ve ödeme verisi | **Biz** | Paraşüt, PSP, TR barındırma, e-posta | m.5/2-c, ç [Y/T] | |
 | Panel hesapları, oturum ve güvenlik logları | Biz (hizmet güvenliği) | — | m.5/2-f [T] | |
-| Platform WABA'sından işletme sahibine giden uyarılar ([02](02-whatsapp-entegrasyonu.md) §5.3) | Biz | Meta | m.5/2-c + Meta opt-in | Onboarding'de sahibin onayıyla |
+| Platform WABA'sından ve SMS ile işletme sahibine/personele giden uyarılar (onaylanmamış sipariş alarmı t=2 dk WhatsApp, t=5 dk SMS; kurye giriş linki; [02](02-whatsapp-entegrasyonu.md) §5.3) | Biz | Meta, SMS sağlayıcısı | m.5/2-c + Meta opt-in | Onboarding'de sahibin onayıyla |
 | Pazarlama sitesi ziyaretçisi, demo talebi, çerezler | Biz | Analitik, CRM, e-posta | Zorunlu çerez dışında açık rıza (§2.13) | |
 | Anonim platform istatistiği (ortalama sepet, yoğun saat) | Biz | — | Gerçekten anonimse KVKK dışında [Y] | Takma adlı (pseudonymous) veri kişisel veridir [Y] |
 
@@ -84,7 +84,7 @@ KVKK, GDPR m.28 gibi maddeleri tek tek saymaz. Ancak m.12/2 ve Kurum uygulaması
 | 7 | İlgili kişi başvuruları | m.11 başvurularına teknik destek (dışa aktarma, düzeltme, silme). Cevap süresi 30 gün [Y] |
 | 8 | İhlal bildirimi | Tespitten itibaren **en geç 24 saat** içinde işletmeye bildirim. İşletmenin 72 saatlik Kurul bildirimini yapabilmesi buna bağlıdır [T] |
 | 9 | Denetim ve sorumluluk | Makul bilgi talebi hakkı (rapor, anket veya sertifika ile karşılanır); sorumluluk dağılımı, tazmin, üst sınır |
-| 10 | Sözleşme sonu | 30 günlük dışa aktarma penceresi, ardından silme; yedeklerden rotasyonla düşme süresi (§2.8). Yasal saklama istisnaları ayrıca yazılır |
+| 10 | Sözleşme sonu | Silmeden önce en az 30 günlük dışa aktarma penceresi: gönüllü iptalde dönem sonundan itibaren 30 gün; dunning'de G+45 bildiriminden G+75 kapanışına kadar; deneme bitişinde askı süresince D+90'a kadar (§6.2, §6.3). Ardından silme; yedeklerden rotasyonla düşme süresi (§2.8). Yasal saklama istisnaları ayrıca yazılır |
 | 11 | İşletmenin yükümlülükleri | Aydınlatma metnini yayınlamak (şablon bizden), ETK/İYS yükümlülükleri, hukuka uygun talimat, VERBİS kaydı varsa güncel tutmak |
 
 ### 2.3 VERBİS
@@ -100,12 +100,12 @@ Dayanak: m.10 ve Aydınlatma Tebliği (RG 10.03.2018) [Y]. Zorunlu içerik: VS k
 | Metin | Kim adına | Nerede yayınlanır | Faz |
 |---|---|---|---|
 | A. Kurumsal aydınlatma metni + gizlilik politikası (ziyaretçi, demo talebi, işletme yetkilisi, abonelik) | Biz | `siparisinonunde.com` altbilgisi, kayıt formu, panel. **Meta App için gizlilik politikası URL'si de bu sayfadır** (A01 §1.3) | Faz 0 |
-| B. Son müşteri aydınlatma metni **şablonu**. İşletme unvanı, adresi ve iletişim bilgisi otomatik dolar; sürümlüdür | İşletme (VS) | Storefront altbilgisi ve checkout, takip sayfası, WhatsApp karşılama mesajındaki kısa satır + link | Faz 1 |
+| B. Son müşteri aydınlatma metni **şablonu**. İşletme unvanı, adresi ve iletişim bilgisi otomatik dolar; sürümlüdür | İşletme (VS) | Storefront altbilgisi ve checkout, takip sayfası, WhatsApp karşılama mesajındaki kısa satır + link, SMS OTP kod ekranındaki (WhatsApp'sız mod) kısa satır + link | Faz 1 |
 | C. Panel kullanıcıları (personel, kurye) için kısa bilgilendirme | Hesap güvenliği için biz, personel yönetimi için işletme | Panel girişi, kurye magic link ekranı | Faz 1 |
 
 **Son müşteri şablonunun iskeleti (avukat metni yazar) [T]:**
-1. **Veri sorumlusu** {işletme unvanı, adres, telefon, e-posta, varsa MERSİS}; **işlenen veriler**: ad, WhatsApp kullanıcı kimliği/telefon, teslimat adresi ve konum, sipariş ve ödeme yöntemi, sipariş notu, WhatsApp yazışmaları, işlem güvenliği (IP, cihaz); **amaçlar ve hukuki sebepler** (m.5/2-c, ç, f); **toplama yöntemi** (WhatsApp, web vitrini, telefon).
-2. **Aktarılan taraflar:** yazılım sağlayıcısı Siparişin Önünde (veri işleyen); Meta/WhatsApp (**yurt dışı**, ülke ve dayanak açıkça); işletmenin kuryesi; [Faz 2] ödeme kuruluşu ve yapay zekâ hizmet sağlayıcısı (yurt dışı); yetkili kurumlar.
+1. **Veri sorumlusu** {işletme unvanı, adres, telefon, e-posta, varsa MERSİS}; **işlenen veriler**: ad, WhatsApp kullanıcı kimliği/telefon, SMS doğrulaması için cep telefonu numarası ve doğrulama kaydı, teslimat adresi ve konum, sipariş ve ödeme yöntemi, sipariş notu, WhatsApp yazışmaları, işlem güvenliği (IP, cihaz); **amaçlar ve hukuki sebepler** (m.5/2-c, ç, f; siparişin doğrulanması ve sahte siparişin önlenmesi dahil); **toplama yöntemi** (WhatsApp, web vitrini, SMS doğrulaması, telefon).
+2. **Aktarılan taraflar:** yazılım sağlayıcısı Siparişin Önünde (veri işleyen) ve onun alt işleyenleri: yurt içi barındırma; **SMS hizmet sağlayıcısı (yurt içi; doğrulama kodu ve WhatsApp'sız modda onay/iptal SMS'i) [Faz 1]**; Meta/WhatsApp (**yurt dışı**, ülke ve dayanak açıkça); harita hizmeti (Google Maps, **yurt dışı**; adres otomatik tamamlama, ad ve telefon gönderilmez); işletmenin kuryesi; [Faz 2] ödeme kuruluşu ve yapay zekâ hizmet sağlayıcısı (yurt dışı); yetkili kurumlar. Güncel alt işleyen listesine link verilir (§2.11).
 3. **Saklama süreleri** (§2.8 özetle). Sipariş notunda paylaşılan bilgilerin (sağlık bilgisi dahil) yalnız o sipariş için kullanıldığı ve 30 gün sonra silindiği (§2.7).
 4. **m.11 hakları ve başvuru yolu:** işletmenin iletişim kanalı; [Faz 2] storefront başvuru formu.
 
@@ -116,6 +116,7 @@ Dayanak: m.10 ve Aydınlatma Tebliği (RG 10.03.2018) [Y]. Zorunlu içerik: VS k
 | İşleme | Hukuki sebep | Açık rıza gerekir mi? |
 |---|---|---|
 | Siparişi almak, hazırlamak, teslim etmek, müşteriyle iletişim | m.5/2-c [Y] | Hayır |
+| Siparişi doğrulamak (WhatsApp kodu veya SMS OTP, [Faz 1]) ve sahte siparişi önlemek | m.5/2-c, f [T] | Hayır |
 | Fiş/fatura, muhasebe | m.5/2-ç [Y] | Hayır |
 | Adresi hatırlamak, işletme içi basit istatistik | m.5/2-c/f [T] | Genelde hayır [T] |
 | Kampanya/duyuru mesajı [Faz 2] | 6563 kapsamında **önceden onay** (§3). KVKK açısından ETK onayının yeterliliği tartışmalı [O/D?] (teyit edilmeli) | ETK onayı şart; profilleme varsa ayrıca açık rıza önerilir [T] |
@@ -130,7 +131,7 @@ Genel kurallar: açık rıza hizmet şartına bağlanamaz, yani "onay vermezsen 
 
 ### 2.6 Rıza ve kabul kayıtlarının ortak modeli
 
-Açık rıza, ETK onayı (§3.4), mesafeli satış onayı (§4.4) ve sözleşme kabulü (§7.5) aynı ilkeyle saklanır: **kim, hangi metnin hangi sürümünü, ne zaman, hangi kanaldan ve hangi kanıtla kabul etti.** Metinler `legal_document` sürümleri olarak tutulur ve içerik hash'i saklanır. Alan listesi → [07](07-veri-modeli-ve-api.md).
+Açık rıza, ETK onayı (§3.4), mesafeli satış onayı (§4.4) ve sözleşme kabulü (§7.5) aynı ilkeyle saklanır: **kim, hangi metnin hangi sürümünü, ne zaman, hangi kanaldan ve hangi kanıtla kabul etti.** Metinler `legal_documents` tablosunda sürüm olarak tutulur ve içerik hash'i saklanır; kabuller `legal_acceptances`, onay ve retler `consents` tablosuna yazılır. Alan listesi → [07](07-veri-modeli-ve-api.md).
 
 ### 2.7 Özel nitelikli veri: alerji kuralı
 
@@ -142,7 +143,7 @@ Açık rıza, ETK onayı (§3.4), mesafeli satış onayı (§4.4) ve sözleşme 
 3. Alerjen bilgisi **menü ürün özelliği** olarak gösterilir ("içinde fıstık var", 14 ana alerjen etiketi). Bu kişisel veri değildir ve gıda mevzuatı açısından da faydalıdır (§4.6).
 4. **[Faz 2] AI akışı:** LLM'e giden metinde sağlık ifadeleri (alerji, hastalık adları) maskelenir. Maskelenemeyen belirsiz durumda sipariş panelde insan onayına düşer [T].
 
-**Kabul kriterleri:** Müşteri tablosunda sağlık amaçlı alan bulunmadığı şema testinde doğrulanır. Final durumdan 30 gün sonra `order.note` boştur. Not içeriği hiçbir log ve hata kaydında yer almaz.
+**Kabul kriterleri:** Müşteri tablosunda sağlık amaçlı alan bulunmadığı şema testinde doğrulanır. Final durumdan 30 gün sonra `orders.notes` boştur. Not içeriği hiçbir log ve hata kaydında yer almaz.
 
 ### 2.8 Saklama ve imha (ürüne otomatik silme işi olarak yansır)
 
@@ -154,23 +155,24 @@ Dayanak: Silme, Yok Etme veya Anonim Hale Getirme Yönetmeliği (RG 28.10.2017) 
 | 2 | WhatsApp medyası (ses, fotoğraf, belge) | 30 gün | Alınma | Nesne depodan kalıcı silme, referans NULL | `retention.media` | 1 | [T]; A03 30–90 gün |
 | 3 | Gelen konum mesajının ham koordinatı | 30 gün | Alınma | Koordinat silinir; siparişteki adres metni kalır | `retention.locations` | 1 | [T]; A03 ≤30 gün |
 | 4 | WhatsApp mesaj içeriği (Coexistence geçmiş senkronu açıksa o mesajlar da) | 6 ay | Mesajın zaman damgası | Metin silinir. `wamid`, yön, zaman ve maliyet kalır; sipariş özeti siparişte durur | `retention.wa_messages` | 1 | [T]; A03 6–12 ay |
-| 5 | Takip sayfasındaki kişisel alanlar (adres, telefon) | 30 gün | Final durum | Sayfada gizlenir; sipariş özeti ve sözleşme metni erişilebilir kalır | `retention.tracking_pages` | 1 | [T] |
+| 5 | Takip sayfası linki (`/t/{token}`) ve sayfadaki kişisel alanlar (adres, telefon) | Teslimden (veya iptal/ret final durumundan) 7 gün | Final durum | Link geçersizleşir; kişisel alanlar artık gösterilmez. Siparişe bağlı ön bilgilendirme ve sözleşme metni sürümü, kişisel veri içermeyen kalıcı adreste (`legal_documents` URL'si) erişilebilir kalır | `retention.tracking_pages` | 1 | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 (takip linki 7 gün) |
 | 6 | Müşteri kimlik ve iletişim verisi (ad, telefon, BSUID, kullanıcı adı, adres defteri) | 24 ay hareketsizlik; işletme 6–24 ay arasında kısaltabilir | Son sipariş veya son gelen mesaj | **Anonimleştirme:** kişi kaydı anonim kimliğe döner; siparişlerdeki ad, telefon ve adres anlık görüntüleri temizlenir, ilçe düzeyi kalır | `retention.customer_inactive` (haftalık) | 1 | [T]; A03 24 ay |
 | 7 | Sipariş kaydı (kalemler, tutar, tarih, ödeme yöntemi, kanal) | Abonelik süresince | — | Hesap kapanınca satır 12 | — | 1 | Defter/belge saklama işletmenindir (VUK m.253: 5 yıl, TTK m.82: 10 yıl) [O]; işletme kendi kopyasını alır |
 | 8 | Kurye canlı konumu | 30 gün | Teslim | Silme | `retention.courier_locations` | 3 | [T]; A03 ≤30 gün |
 | 9 | ETK onay ve ret kayıtları | Onayın sona ermesinden itibaren 3 yıl | Ret / sona erme | Silme | `retention.consents` | 2 | Yönetmelik [O] |
 | 10 | Trafik ve erişim logları (yer sağlayıcı) | 1 yıl | Kayıt | Silme | `retention.access_logs` | 1 | 5651 m.5, 1–2 yıl aralığı [O]; kesin süre (teyit edilmeli) |
 | 11 | Uygulama logları (telefon maskeli) ve hata izleme olayları | 30 gün | Kayıt | Log sisteminin ve Sentry'nin saklama ayarı | (altyapı ayarı) | 1 | [T] |
-| 12 | Kapanan tenant'ın tüm verisi | 30 gün dışa aktarma penceresi, sonra silme | Fesih | Tenant verisinin tamamı silinir; bizim fatura kayıtlarımız kalır | `retention.tenant_offboarding` | 1 | DPA m.10 |
+| 12 | Kapanan tenant'ın tüm verisi | Silmeden önce en az 30 günlük dışa aktarma penceresi. Gönüllü iptal: dönem sonu + 30 gün. Dunning: **G+75** (pencere G+45 bildirimiyle başlar, §6.3). Deneme bitişi: **D+90** (bu süre içinde plan seçilirse veri aynen döner, §6.2) | İptalde dönem sonu; dunning'de başarısız ödeme günü (G); denemede deneme bitişi (D0) | Tenant verisinin tamamı silinir; bizim fatura kayıtlarımız kalır. Yedeklerden 35 gün içinde düşer (satır 17) | `retention.tenant_offboarding` | 1 | DPA m.10; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9 |
 | 13 | Panel güvenlik ve `audit_log` kayıtları | 2 yıl | Kayıt | Silme | `retention.audit` | 1 | [T] |
 | 14 | Panel kullanıcı hesabı (işletme yetkilisi, personel) | Hesap kapanışından 30 gün sonra | Kapanış | Silme. Kabul kayıtları ve faturadaki bilgiler 10 yıl kalır | `retention.users` | 1 | [T] (teyit edilmeli) |
 | 15 | Pazarlama sitesi talepleri (demo, lead) | 12 ay hareketsizlik | Son temas | Silme | `retention.leads` | 1 | [T] |
 | 16 | Bizim faturalarımız ve muhasebe belgelerimiz | 10 yıl | Belge tarihi | — | — | 2 | TTK m.82, VUK m.253 [O] |
 | 17 | Yedekler (PITR) | 35 gün rotasyon | — | Eski yedek otomatik silinir. Silinen veri en geç 35 günde yedeklerden de düşer | Yedek aracı politikası | 1 | [T]; A03 35–90 gün |
 | 18 | İmha kayıtları (bu işlerin çıktısı) | En az 3 yıl | Koşu | — | — | 1 | [O] |
+| 19 | SMS OTP doğrulama kayıtları (`otp_verifications`) ve SMS gönderim kayıtları (`sms_messages`: müşteri OTP'si, WhatsApp'sız mod durum SMS'i, işletme alarmı) | OTP kaydı 30 gün; SMS gönderim kaydı 90 gün | Kayıt | OTP kaydı silinir; SMS kaydında telefon maskelenir, durum ve maliyet kalır | `retention.technical` | 1 | [T]; Akış B SMS OTP yedeği ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7), [07](07-veri-modeli-ve-api.md) §9 |
 
 **Kabul kriterleri (otomatik silme) [Faz 1]:**
-- Her iş idempotenttir, tenant bazında çalışır ve sonucu `retention_run` kaydına yazar: iş adı, tenant, silinen/anonimleşen kayıt sayısı, süre, hata. Bu kayıt imha tutanağı yerine geçer.
+- Her iş idempotenttir, tenant bazında çalışır ve sonucu `retention_runs` tablosuna yazar: iş adı, tenant, silinen/anonimleşen kayıt sayısı, süre, hata. Bu kayıt imha tutanağı yerine geçer.
 - Başarısız veya 48 saattir koşmamış iş admin panelinde alarm üretir.
 - İşletme süre ayarını (satır 6) değiştirince yeni süre bir sonraki koşuda uygulanır. Ayar değişikliği `audit_log`'a yazılır.
 - Staging'de zaman yolculuğu (sahte saat) testiyle her iş doğrulanır. CI'da "silinmiş alan logda görünmez" testi çalışır.
@@ -200,10 +202,12 @@ Dayanak: m.11, m.13 ve Başvuru Tebliği (RG 10.03.2018). Cevap süresi en geç 
 
 **Akış [T]:** Son müşteri işletmeye başvurur. Başvuru bize gelirse `support_agent` başvurucuya işletmenin iletişim bilgisini verir, işletmeye 2 iş günü içinde iletir ve DPA kapsamında teknik destek sağlar.
 
+**Yetki ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4):** Müşteri verisine ilişkin KVKK talepleri (başvuru kaydı, dışa aktarma, başvuruya bağlı düzeltme, silme/anonimleştirme) yalnız `owner` ve `manager` tarafından yürütülür.
+
 | Panel işlevi | Kim kullanır | Faz |
 |---|---|---|
 | Müşteri detayında **"Verileri dışa aktar"**: kimlik, iletişim, adresler, siparişler, mesajlar, onaylar (JSON + okunur PDF/CSV) | `owner`, `manager` | 1 |
-| **"Düzelt"**: ad, telefon, adres | `owner`, `manager`, `cashier` | 1 |
+| **"Düzelt"** (KVKK başvurusuna bağlı düzeltme, başvuru kaydına işlenir): ad, telefon, adres. Kasiyerin sipariş sırasında yaptığı olağan adres/ad güncellemesi KVKK talebi sayılmaz | `owner`, `manager` | 1 |
 | **"Sil / anonimleştir"**: açık siparişi yoksa çalışır; mali sipariş kaydı anonim kalır (§2.8 satır 6 yöntemi) | `owner`, `manager` | 1 |
 | **"Tüm bildirimleri durdur"** (`opt_out_all`, [02](02-whatsapp-entegrasyonu.md) §6.9) | `owner`, `manager`, `cashier` | 1 |
 | **Başvuru kaydı**: tarih, kanal, talep türü, son tarih (başvuru + 30 gün), durum. Son tarihe 7 gün kala uyarı | `owner`, `manager` | 1 |
@@ -211,7 +215,7 @@ Dayanak: m.11, m.13 ve Başvuru Tebliği (RG 10.03.2018). Cevap süresi en geç 
 | Storefront'ta self-servis "KVKK başvurusu" formu → işletmenin başvuru kutusu | Son müşteri | 2 |
 | Bizim VS olduğumuz veri: hesap ayarlarında dışa aktarım ve hesap silme talebi | İşletme kullanıcıları | 1 |
 
-**Kabul kriterleri:** Anonimleştirilen müşteri aramada bulunmaz; siparişlerde "Anonim müşteri" görünür. Her işlem `audit_log`'a yazılır. `cashier` dışa aktarım yapamaz. Başvuru yanıt şablonu, verinin yedeklerden 35 gün içinde düşeceğini söyler.
+**Kabul kriterleri:** Anonimleştirilen müşteri aramada bulunmaz; siparişlerde "Anonim müşteri" görünür. Her işlem `audit_log`'a yazılır. `cashier`, `kitchen` ve `courier` KVKK talebi işlemlerini (dışa aktarma, silme/anonimleştirme, başvuru kaydı) göremez ve yapamaz (yetki testi). Başvuru yanıt şablonu, verinin yedeklerden 35 gün içinde düşeceğini söyler.
 
 ### 2.11 Yurt dışına aktarım (m.9) ve alt işleyen envanteri
 
@@ -222,20 +226,20 @@ Dayanak: m.11, m.13 ve Başvuru Tebliği (RG 10.03.2018). Cevap süresi en geç 
 
 Yurt dışından **uzaktan erişim** de aktarım sayılır [O]. Bu yüzden üretim veritabanına yalnız Türkiye'deki bastion üzerinden erişilir; yurt dışından erişim yasaktır ya da istisna kaydıyla açılır [T].
 
-**Aktarım envanteri** (admin panelinde ve kamuya açık alt işleyen sayfasında tutulur; kolonlar: ülke, veri kategorisi, m.9 dayanağı, sözleşme tarihi, bildirim tarihi):
+**Aktarım envanteri** (admin panelinde ve kamuya açık alt işleyen sayfasında tutulur; kolonlar: ülke, veri kategorisi, m.9 dayanağı, sözleşme tarihi, bildirim tarihi). **Yurt dışı alt işleyen ve araçlar:** Meta, Anthropic, Cloudflare, Sentry (SaaS seçilirse), e-posta sağlayıcısı (yurt dışı seçilirse), **Google Maps Platform, Web Push servisleri (FCM, APNs, Mozilla), GitHub ve iş araçları**. [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10'daki liste (Meta, Anthropic, Cloudflare, Sentry, e-posta sağlayıcısı) burada bu dört kalemle genişletildi. **Yurt içi alt işleyenler:** barındırma, SMS sağlayıcısı, PSP, Paraşüt.
 
 | Alt işleyen / araç | Amaç | Kişisel veri | Konum | m.9 yaklaşımı | Minimizasyon | Faz |
 |---|---|---|---|---|---|---|
 | **Meta (WhatsApp Cloud API)** | Mesaj iletimi | Mesaj içeriği, BSUID/telefon, profil adı | Yurt dışı; sunucu konumu [D?] (teyit edilmeli) | WABA işletmenindir; aktaran büyük olasılıkla işletme (VS→Vİ), biz de akıştayız (Vİ→Vİ yorumu). **Meta'nın Türk standart sözleşmesi modülü var mı [D?] (teyit edilmeli).** Varsa imza ve bildirim sorumluluğu DPA'da netleşir; işletme adına bildirimi bizim yapabilmemiz [D?] (teyit edilmeli). Yoksa: yazılı risk değerlendirmesi, aydınlatmada açık bildirim, avukat görüşü | Şablonlarda adres ve telefon tekrarlanmaz; ayrıntı TR'de barınan takip sayfasında gösterilir. Coexistence geçmiş senkronu kapalıdır. WhatsApp dışı web kanalı her zaman açıktır | 1 |
-| **Anthropic (Claude API)** | Serbest metin sipariş ayrıştırma; menü fotoğrafından çıkarma (kişisel veri yok) | Maskelenmiş sipariş metni | ABD (inference geo yalnız `us`/`global`) [K04] | Standart sözleşme imzalanabiliyorsa imza + 5 iş günü bildirim; yoksa gönderilen metnin kişisel veri olmaktan çıkarılması. Alternatif: AB bölgesinde Bedrock/Vertex (model uygunluğu [D?]) (teyit edilmeli) | Ad, telefon, adres ve sağlık ifadeleri maskelenir. API verisi varsayılan olarak eğitimde kullanılmaz ve saklanmaz (Covered Models hariç) [K04] | 2 |
+| **Anthropic (Claude API)** | [Faz 2] serbest metin sipariş ayrıştırma; menü fotoğrafından/PDF'ten çıkarma (Faz 1'de yalnız ekip içi concierge aracı, Faz 2'de self-servis; kişisel veri yok) | Maskelenmiş sipariş metni (Faz 2); menü çıkarmada yok | ABD (inference geo yalnız `us`/`global`) [K04] | Standart sözleşme imzalanabiliyorsa imza + 5 iş günü bildirim; yoksa gönderilen metnin kişisel veri olmaktan çıkarılması. Alternatif: AB bölgesinde Bedrock/Vertex (model uygunluğu [D?]) (teyit edilmeli) | Ad, telefon, adres ve sağlık ifadeleri maskelenir. API verisi varsayılan olarak eğitimde kullanılmaz ve saklanmaz (Covered Models hariç) [K04] | 1 (menü, kişisel veri yok) / 2 (sipariş) |
 | **Cloudflare** | DNS, CDN, WAF, TLS sonlandırma; R2'de yalnız ürün görselleri | Geçen HTTP trafiği (form verisi dahil), IP adresi | Global edge | KVKK standart sözleşmesi modülü var mı [D?] (teyit edilmeli). TLS sonlandırmanın yurt dışında olması aktarımdır [K04] | R2'de kişisel veri yok (müşteri medyası TR'de). Alternatif: kişisel veri taşıyan uç noktaları TR origin'e doğrudan yönlendirme ([06](06-teknik-mimari.md)'da değerlendirilir) | 1 |
 | **Sentry** (SaaS) | Hata izleme | PII scrub sonrası teknik veri | Sağlayıcı bölgesi [D?] (teyit edilmeli) | Standart sözleşme, ya da TR'de self-host (Sentry/GlitchTip) ile aktarım yok | PII scrub zorunlu, IP maskeleme, request body gönderilmez | 1 |
 | **E-posta sağlayıcısı** (fatura, şifre sıfırlama, uyarı, opsiyonel sözleşme PDF'i) | İşlemsel e-posta | Yetkili e-postası ve adı; son müşteri e-postası (varsa) | Seçilecek; **yurt içi tercih edilir** (A03 §2.11) | Yurt dışıysa standart sözleşme + bildirim | Gövdede sipariş ayrıntısı yerine link | 1 |
-| **Google Maps Platform** | Adres otomatik tamamlama, geocoding | Adres metni, koordinat | ABD | Standart sözleşme sorgusu; yoksa risk değerlendirmesi | Ad ve telefon gönderilmez; kayıtlı adres ve poligon kullanımıyla çağrı azaltılır; 300+ işletmede self-host Photon (KARARLAR §10) | 1 |
-| **Web Push servisleri** (tarayıcı push altyapıları) | Personele "yeni sipariş" bildirimi | Yok (yalnız sipariş no) | Yurt dışı | Kişisel veri gönderilmediği için aktarım yok sayılır [T] | Payload'da müşteri adı ve adresi yok | 1 |
-| **SMS sağlayıcısı** (Netgsm, İleti Merkezi, Verimor) | OTP, işletme alarm yedeği; [Faz 2] müşteri SMS OTP | Telefon | TR | Aktarım yok | — | 1 |
-| **İş araçları** (kurumsal e-posta, CRM, destek aracı) | Satış ve destek | İşletme yetkilisi verisi (biz VS) | Değişken | Yurt dışıysa VS→Vİ standart sözleşme | Destek aracına son müşteri verisi aktarılmaz | 1 |
-| **GitHub** (kod, CI) | Geliştirme | Yok | ABD | — | Üretim verisi issue ve loglara konmaz | 1 |
+| **Google Maps Platform** | Storefront'ta adres otomatik tamamlama, geocoding ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10) | Adres metni, koordinat, istek IP'si | **Yurt dışı** (ABD) | Standart sözleşme sorgusu; yoksa yazılı risk değerlendirmesi. Son müşteri aydınlatma şablonunda yurt dışı alıcı olarak adıyla yazılır (§2.4) | Ad ve telefon gönderilmez; kayıtlı adres ve poligon kullanımıyla çağrı azaltılır; 300+ işletmede self-host Photon (KARARLAR §10) | 1 |
+| **Web Push servisleri**: Google FCM (Chrome, Edge, Android), Apple APNs (Safari, iOS'ta ana ekrana eklenmiş PWA), Mozilla Push Service (Firefox) | Personele "yeni sipariş" bildirimi (alarm zinciri t=0) | Müşteri verisi yok (yalnız sipariş no). Personel cihazının push uç noktası ve IP'si servis tarafından görülür | **Yurt dışı** (ABD / servis bölgesi [D?] (teyit edilmeli)) | Payload Web Push şifrelemesiyle uçtan uca şifrelidir [O]; müşteri verisi gönderilmediği için son müşteri açısından aktarım yok sayılır [T]. Personelin teknik verisi tarayıcı üreticisinin şartlarıyla işlenir; panel kullanıcı bilgilendirmesinde (§2.4-C) belirtilir | Payload'da müşteri adı, telefonu ve adresi yok; bildirim metni "Yeni sipariş #1234" düzeyinde | 1 |
+| **SMS sağlayıcısı** (Netgsm, İleti Merkezi, Verimor) | **Müşteri SMS OTP doğrulaması ve WhatsApp'sız modda kritik durum SMS'i (onaylandı/iptal) [Faz 1]**; işletmeye alarm SMS'i (t=5 dk); kurye giriş linki; panel girişi OTP | Telefon; mesaj metni (kod, işletme adı, takip linki) | TR | Aktarım yok. DPA'da alt işleyen olarak yer alır; son müşteri aydınlatma şablonunda adıyla yazılır (§2.4) | Mesajda adres ve sipariş ayrıntısı yok, yalnız takip linki; ileti türü "bilgilendirme" olarak işaretlenir (§3.1); maliyeti platform öder (§8.6); gönderim kayıtları 90 gün sonra maskelenir (§2.8 satır 19) | 1 |
+| **İş araçları** (kurumsal e-posta ve ofis paketi, CRM, destek/yardım masası, toplantı aracı) | Satış ve destek | İşletme yetkilisi ve aday verisi (biz VS) | Değişken; çoğu **yurt dışı** | Yurt dışıysa VS→Vİ standart sözleşme + 5 iş günü bildirim; yurt içi alternatif varsa tercih edilir (e-posta sağlayıcısında olduğu gibi) | Destek aracına son müşteri verisi aktarılmaz; ekran görüntüsünde telefon/adres maskelenir | 1 |
+| **GitHub** (kod, GitHub Actions CI) | Geliştirme | Müşteri verisi yok (yalnız ekip üyelerinin geliştirici hesapları) | **Yurt dışı** (ABD) | Müşteri verisi olmadığı için aktarım yok sayılır [T]; ekip hesapları için iş araçlarıyla aynı yaklaşım | Üretim verisi, sırlar ve DB dökümleri issue, repo ve CI loglarına konmaz; test verisi sentetiktir | 1 |
 | **TR barındırma, PSP (PayTR/iyzico), Paraşüt** | Altyapı, tahsilat, fatura | Tüm DB; kart tokenı (PSP'de); fatura verisi | TR | Aktarım yok | — | 1–2 |
 
 **Meta için eylem planı [T]:** (a) Meta'nın güncel veri işleme ve aktarım şartlarında KVKK modülü olup olmadığı Tech Provider kanalından ve Türk Solution Partner'lardan **yazılı olarak** sorulur. (b) Cevap gelene kadar yazılı aktarım risk değerlendirmesi hazırlanır ve avukat görüşü alınır. (c) Bu, Türkiye'de WhatsApp Business API kullanan herkesin ortak sorunudur. Pazarlamada "KVKK uyumlu" yerine "Verileriniz Türkiye'de barındırılır" gibi doğrulanabilir ifadeler kullanılır.
@@ -243,7 +247,7 @@ Yurt dışından **uzaktan erişim** de aktarım sayılır [O]. Bu yüzden üret
 ### 2.12 Barındırma kararı
 
 - KVKK genel bir yerelleştirme zorunluluğu getirmez [Y]. Yerelleştirme sektöreldir (bankacılık, ödeme kuruluşları, e-belge entegratörleri) ve biz bu sektörlerde değiliz [O/T].
-- **Karar (KARARLAR §10):** Kişisel veri (PostgreSQL, yedekler, müşteri medyası) **Türkiye'de** barındırılır; ikinci yedek başka bir Türkiye lokasyonunda tutulur; ürün görselleri kişisel veri olmadığı için Cloudflare R2'de olabilir. Teklif alınacaklar: Turkcell Bulut, Türk Telekom, Huawei Cloud İstanbul, Radore, Bulutistan [D?] (özellik ve fiyatlar teyit edilmeli). Sağlayıcıdan veri merkezi konumu, ISO 27001, yedek lokasyonu, SLA ve KVKK DPA'sı istenir.
+- **Karar (KARARLAR §10):** Kişisel veri (PostgreSQL, yedekler, müşteri medyası) **Türkiye'de** barındırılır; ikinci yedek başka bir Türkiye lokasyonunda tutulur; ürün görselleri kişisel veri olmadığı için Cloudflare R2'de olabilir. Teklif alınacaklar: Turkcell Bulut, Türk Telekom, Huawei Cloud İstanbul, Radore, Bulutistan [D?] (özellik ve fiyatlar teyit edilmeli). Sağlayıcı seçimi proje sahibi kararıdır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13.4; varsayılan: yurt içi yerli bulut). Sağlayıcıdan veri merkezi konumu, ISO 27001, yedek lokasyonu, SLA ve KVKK DPA'sı istenir.
 - **Gerekçe:** Kendi altyapımız için m.9 yükü kalkar; esnafa "verileriniz Türkiye'de" güven mesajı verilir. Karşılığında yönetilen servis azdır ve DevOps yükü artar (A03 §2.12).
 
 ### 2.13 Çerezler
@@ -271,6 +275,8 @@ Dayanak: 6563 sayılı Kanun (RG 05.11.2014) [Y]; Ticari İletişim ve Ticari El
 
 Kanundaki tanım, araçları "gibi" diyerek açık uçlu sayar. Anlık mesajlaşma üzerinden gönderilen ticari amaçlı içerik de kapsama girer [O/T]. İYS SSS'sine göre kampanya/pazarlama içerikli WhatsApp mesajı için önceden onay, İYS kaydı ve aynı kanaldan ücretsiz ret yolu gerekir; sipariş onayı ve teslimat bildirimi gibi işlemsel mesajlar onaya tabi değildir [K02, https://iys.org.tr/iys/sss]. Onay gerektirmeyen iletiler: kurulmuş sözleşmenin ifasına yönelik bilgilendirme ve tahsilat iletileri, teslimat/değişiklik/kullanım iletileri, alıcının başlattığı talebe cevap, esnaf ve tacir alıcılara gönderilen iletiler [O]. Madde numaraları (teyit edilmeli).
 
+**SMS kanalı [O/T]:** SMS, WhatsApp'tan farklı olarak operatörün İYS filtresinden geçer. Gönderimde her ileti "ticari" veya "bilgilendirme" olarak işaretlenir; ticari işaretli SMS'te alıcının İYS izni sorgulanır [O] (sağlayıcı arayüzündeki alan adı ve kural (teyit edilmeli)). **Müşteri SMS OTP'si (doğrulama kodu), WhatsApp'sız modda onay/iptal SMS'i ve işletmeye giden alarm SMS'i bilgilendirme niteliğindedir**: kurulmuş veya kurulmakta olan sözleşmenin ifasına ya da alıcının talebine yöneliktir. Önceden onay ve İYS kaydı gerektirmez, sağlayıcıda "bilgilendirme" türüyle gönderilir. SMS şablonları da promosyon kontrolünden geçer (§3.2.1); tek bir promosyon satırı ileti türünü ticariye çevirir. Bu SMS'lerin maliyeti platformdadır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4, §8.6).
+
 ### 3.2 Mesaj sınıflandırma tablosu
 
 | Mesaj | Örnek | Sınıf | Onay / İYS gerekir mi? | Ürün kuralı | Faz |
@@ -279,6 +285,9 @@ Kanundaki tanım, araçları "gibi" diyerek açık uçlu sayar. Anlık mesajlaş
 | Ret, iptal, gecikme, "ürün tükendi, yerine X?" | `siparis_reddedildi_v1`, `siparis_iptal_v1` | Bilgilendirme | **Hayır** [O] | Aynı | 1 |
 | Karşılama + "Menüyü aç" (müşteri yazdıktan sonra) | Akış A | Talebe cevap | **Hayır** [O] | Talep dışı promosyon eklenmez | 1 |
 | KVKK aydınlatma satırı | Karşılama içinde | Bilgilendirme | Hayır | Yalnız ilk konuşmada | 1 |
+| Müşteri SMS OTP'si (Akış B yedeği, "WhatsApp'sız mod") | "Doğrulama kodunuz: 482913. {İşletme}" | Bilgilendirme (sözleşmenin kurulması, müşterinin talebi) | **Hayır** [O/T] | Sağlayıcıda "bilgilendirme" türüyle gönderilir; promosyon içermez; maliyeti platformda | 1 |
+| WhatsApp'sız modda kritik durum SMS'i | "Siparişiniz onaylandı, tahmini 35 dk. Takip: {link}" / iptal bilgisi | Bilgilendirme (sözleşmenin ifası) | **Hayır** [O/T] | Yalnız onaylandı ve ret/iptal; adres ve telefon tekrarlanmaz; promosyon linting'i (§3.2.1) | 1 |
+| İşletmeye alarm (platform WhatsApp numarası t=2 dk, SMS t=5 dk) ve kurye giriş linki | "Onay bekleyen siparişiniz var" | Bilgilendirme (abonelik hizmetinin ifası) | Hayır | Utility şablonu / bilgilendirme SMS'i | 1 |
 | Değerlendirme isteği (teslim mesajındaki "Değerlendir" butonu, teşviksiz) | `siparis_teslim_v1` | **Gri alan**; bilgilendirme lehine yorumlanabilir [T] | KARARLAR gereği teslim mesajında kalır | İndirim, hediye veya "tekrar sipariş ver" çağrısı içeremez; ayrı mesaj olarak gönderilmez; işletme kapatabilir. Avukata sorulur (§11.1) | 1 |
 | Değerlendirme + teşvik | "Yorum yapana %10 indirim" | Ticari ileti | **Evet** | Yalnız kampanya modülünden | 2 |
 | Teslim + indirim kodu | "Bir sonraki siparişe KOD10" | Ticari ileti [O/T] | **Evet** | Utility şablonunda engellenir | — |
@@ -298,7 +307,7 @@ Kanundaki tanım, araçları "gibi" diyerek açık uçlu sayar. Anlık mesajlaş
 #### 3.2.1 Şablon promosyon kontrolü [Faz 1]
 
 KARARLAR §9 gereği şablon editörü ve serbest durum mesajları promosyon içeremez. Kurallar [T]:
-- Utility şablonunda ve durum mesajı düzenleyicisinde "indirim", "%", "kampanya", "kod", "fırsat", "bedava", "hediye", "kupon" türü kelimeler ve kupon kodu kalıpları engellenir. Kullanıcıya uyarı gösterilir.
+- Utility şablonunda, SMS şablonlarında (OTP, durum, alarm) ve durum mesajı düzenleyicisinde "indirim", "%", "kampanya", "kod", "fırsat", "bedava", "hediye", "kupon" türü kelimeler ve kupon kodu kalıpları engellenir. Kullanıcıya uyarı gösterilir.
 - İşletme, platformun ana şablon setini ([02](02-whatsapp-entegrasyonu.md) §5.2) değiştiremez; yalnız izinli değişkenleri doldurur.
 - **Kabul kriterleri:** Promosyon kelimesi içeren utility gövdesi kaydedilemez (birim test). Meta'nın utility → marketing kategori değişimi gelirse şablon durum bildiriminde kullanılmaz ([02](02-whatsapp-entegrasyonu.md) §5.4).
 
@@ -315,7 +324,7 @@ Onay yazılı olarak veya her türlü elektronik araçla alınabilir; **ispat y�
 | Toplama noktası | Yöntem | Not |
 |---|---|---|
 | Storefront checkout | **İşaretlenmemiş** kutu: *"{İşletme}'nin kampanya ve duyurularını WhatsApp ve SMS ile almak istiyorum."* | Sipariş vermek için zorunlu değildir |
-| WhatsApp sohbeti | Promosyon içermeyen soru + [Evet] [Hayır] butonları: *"{İşletme}'nin kampanyalarından WhatsApp'tan haberdar olmak ister misiniz?"* | Yalnız işletme kampanya modülünü açtıysa, müşteri başına bir kez ve pencere içinde gönderilir. Onay isteyen mesaj tanıtım içermez [O/D?] (teyit edilmeli) |
+| WhatsApp sohbeti | Promosyon içermeyen soru + [Evet, isterim] [Hayır, teşekkürler] butonları: *"{İşletme} kampanya ve duyurularını WhatsApp'tan almak ister misiniz? İstediğiniz zaman "DUR" yazarak ayrılabilirsiniz."* (nihai metin [03](03-musteri-deneyimi-ve-storefront.md) M22) | Ayrı mesaj değildir: değerlendirme cevabına verilen yanıtın içinde gider ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7), yani sipariş başına mesaj bütçesini artırmaz. Yalnız işletme kampanya modülünü açtıysa ve müşterinin izni yoksa sorulur; "Hayır" diyene 90 gün sorulmaz [T]. Onay isteyen mesaj tanıtım içermez [O/D?] (teyit edilmeli) |
 | Kasada/telefonda sözlü onay | Panelde "onay alındı" işareti + kanıt notu | Zayıf ispat; önerilmez [T] |
 
 **Kaydedilecek kanıt (her onay ve ret için):** tenant, müşteri, kanal, tür (onay/ret), yöntem (checkbox, WhatsApp butonu, yazılı cevap, İYS senkronu), onay metninin sürümü ve hash'i, zaman damgası, IP/cihaz veya `wamid`, İYS'ye iletim durumu ve İYS işlem kimliği, 3 iş günü son tarihi.
@@ -425,12 +434,12 @@ Dayanak: 6502 sayılı Kanun, Mesafeli Sözleşmeler Yönetmeliği (RG 27.11.201
 | Tutar | **KDV dahil toplam**, teslimat ücreti ayrı satırda | Aynı |
 | Cayma notu | *"Gıda siparişleri çabuk bozulabilen ürünler olduğundan cayma hakkı kapsamı dışındadır."* | Aynı cümle |
 | Ön bilgilendirme | "Ön bilgilendirme formu ve mesafeli satış sözleşmesi" linki (checkout'ta açılır metin) | Aynı link (takip sayfası altında, TR'de barınır) |
-| Onay | Buton: **"Siparişi onayla (ödeme yükümlülüğü doğar)"** | Gövdede butonun hemen üstünde: *"Onayladığınızda ödeme yükümlülüğü doğar."* Buton: "Siparişi onayla". WhatsApp buton başlığı kısa olmak zorunda (≈20 karakter [D?] (teyit edilmeli)); bkz. §12 |
-| Kanıt | Metin sürümleri, zaman, IP/cihaz, tutar hash'i | Metin sürümleri, zaman, `wamid`, tutar hash'i |
+| Onay | Buton: **"Siparişi onayla · {toplam}"**; butonun hemen altında kilitli metin: *"'Siparişi onayla'ya bastığınızda siparişiniz kesinleşir ve ödeme yükümlülüğü doğar."* | Kanonik 3 buton: **[Onayla] [Düzenle] [İptal]** (reply button başlığı ≤ 20 karakter). Gövdede: *"'Onayla'ya bastığınızda siparişiniz kesinleşir ve ödeme yükümlülüğü doğar."* + ön bilgilendirme linki. [Düzenle] sepeti dolu storefront linkini gönderir; hukuki onay o durumda storefront butonudur ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 Akış C, §9) |
+| Kanıt | Metin sürümleri, zaman, IP/cihaz, tutar hash'i (`legal_acceptances`) | Metin sürümleri, zaman, `wamid`, tutar hash'i |
 
-- **Akış B:** Hukuki onay storefront butonudur. Sonraki "WhatsApp ile onayla" adımı (`awaiting_customer` → `new`) sahte siparişe karşı **doğrulamadır**; yeni bir sözleşme onayı değildir [T].
+- **Akış B:** Hukuki onay storefront butonudur. Sonraki "WhatsApp ile onayla" adımı (`awaiting_customer` → `new`, `verification_method = wa_code`) ya da **SMS OTP yedeği** (`sms_otp`, "WhatsApp'sız mod", **[Faz 1]**) sahte siparişe karşı **doğrulamadır**; yeni bir sözleşme onayı değildir [T]. WhatsApp'sız modda durum bilgisi takip sayfasından, kritik durumlar (onaylandı, ret/iptal) bilgilendirme SMS'iyle verilir (§3.1).
 - **Akış E (telefon siparişi):** Sözleşme telefonda kurulur. Müşteri WhatsApp bildirimine onay verdiyse `siparis_alindi_v1` şablonundaki takip linki ön bilgilendirme ve sözleşme metnini gösterir. Telefonla kurulan sözleşmede ön bilgilendirme yükümlülüğünün nasıl karşılanacağı avukata sorulur (§11.1).
-- **Kalıcı veri saklayıcı:** Onaylanan özet ve link WhatsApp sohbetinde kalır; takip sayfasında sözleşme metni sipariş boyunca ve sonrasında erişilebilir durur (§2.8 satır 5). Bunun yeterli sayılıp sayılmadığı gri alandır [D?] (teyit edilmeli). İhtiyatlı yol: müşteri e-posta verdiyse PDF e-postayla da gönderilir.
+- **Kalıcı veri saklayıcı:** Onaylanan özet ve link WhatsApp sohbetinde kalır (WhatsApp'sız modda onay SMS'indeki takip linki). Takip sayfası sözleşme metnini sipariş boyunca gösterir; link teslimden 7 gün sonra geçersizleşir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7). Sonrasında siparişe bağlı ön bilgilendirme ve sözleşme sürümü kişisel veri içermeyen kalıcı adreste erişilebilir kalır (§2.8 satır 5). Bunun yeterli sayılıp sayılmadığı gri alandır [D?] (teyit edilmeli). İhtiyatlı yol: müşteri e-posta verdiyse PDF e-postayla da gönderilir.
 - **Kendi abonelik satışımız:** İşletmeler ticari amaçla hareket ettiği için 6502 anlamında tüketici değildir [O]. Mesafeli Sözleşmeler Yönetmeliği uygulanmaz; B2B click-wrap yeterlidir [T].
 
 **Kabul kriterleri:** Onay butonuna basılmadan `order` oluşmaz (Akış A) veya `awaiting_customer` durumuna geçmez (Akış B). Her siparişte ön bilgilendirme, sözleşme ve aydınlatma metinlerinin sürüm kimlikleri siparişe bağlanır. Toplam tutar sunucuda hesaplanır ve onay ekranındakiyle birebir aynıdır (hash kontrolü). Metin değişirse eski siparişler kendi sürümünü göstermeye devam eder.
@@ -556,7 +565,9 @@ Ticaret Bakanlığı 13 Nisan 2026'da yemek sipariş platformları için yeni ku
 - **Faz 1 (MVP + pilot):** Pilot işletmeler 3 ay ücretsizdir (KARARLAR §8). Bu dönemde tahsilat motoru gerekmez. **Pilot bitip Faz 2 motoru hazır değilse** ilk ücretli işletmeden önce manuel akış kurulur: havale/EFT + Paraşüt web arayüzünden (veya GİB e-Arşiv Portalı'ndan) fatura.
 - **Faz 2 (ticari lansman):** Kendi faturalama motorumuz (planlar, kıst hesabı, kupon ve kurucu üye indirimi, deneme, fatura durumu) + kart tokenlama ve çekim için **tek PSP** (M1'de hangisi entegre edilirse: PayTR veya iyzico) + yıllık planda havale/EFT + Paraşüt API (KARARLAR §9).
 - **3D Secure:** İlk işlemde zorunludur. Sonraki üye işyeri başlatmalı (MIT) çekimler için non-3D yetkisi veya abonelik ürünü gerekebilir [O/D?] (teyit edilmeli). PSP seçiminde **ilk soru** budur. Paddle/Lemon Squeezy gibi Merchant of Record modelleri TL ve e-Fatura düzenine uymaz; Stripe Türkiye'de yoktur [O/T].
-- Fiyatlar KDV hariç ve dahil birlikte gösterilir. Yıllık TÜFE endekslemesi sözleşmede yazılır; kurucu üyede 12 ay sabittir.
+- Fiyatlar KDV hariç ve dahil birlikte gösterilir. Liste fiyatlarının yıllık TÜFE endekslemesi sözleşmede yazılır.
+- **Kurucu üye (ilk 100 işletme, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8):** 12 ay boyunca **sabit %30 indirim oranı** uygulanır. Sabitlenen TL fiyat değil, orandır: liste fiyatı TÜFE ile güncellenirse kurucu üyenin ödediği tutar da yeni liste fiyatının %70'i olur. Faturalama motoru oranı saklar (`discount_bp`, [07](07-veri-modeli-ve-api.md)); abonelik sözleşmesinde ve fatura satırında "Kurucu üye indirimi %30 (bitiş: {tarih})" yazılır. "Biz kuralım" kurulumu kurucu üyede ücretsizdir (normalde 1.990 TL + KDV); bedelsiz hizmetin fatura ve KDV durumu mali müşavire sorulur (§11.2).
+- **Deneme:** 14 gün **kartsız** (bize kart verilmez). Bitiş davranışı §6.2'de.
 
 ### 6.2 Tekrarlayan ödeme akışı [Faz 2]
 
@@ -586,7 +597,16 @@ sequenceDiagram
 
 - **Fatura profili (onboarding'de, `owner`):** fatura unvanı, VKN veya TCKN, vergi dairesi, adres, fatura e-postası. e-Fatura mükellefiyeti entegratör API'siyle GİB listesinden otomatik sorgulanır [O].
 - **Plan değişikliği:** Yükseltmede kıst fark hemen faturalanır. Düşürmede kalan tutar **hesap alacağı** olarak bir sonraki faturadan düşülür [T].
-- **Deneme bitişi (14 gün kartsız) [T, öneri]:** D0'da "paket seç" bandı gösterilir. D+3'te salt-okunur mod başlar (§6.3'teki tanımla). D+7'de askı başlar. D+30'da veri silme bildirimi gider, D+60'ta silme yapılır. Ekran davranışı [05](05-admin-paneli-ve-pazarlama-sitesi.md) ve [04](04-isletme-paneli.md) ile hizalanır.
+- **Deneme bitişi (14 gün kartsız; kanonik kural [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9):** 14 gün dolunca plan seçilmediyse **3 gün uyarı bandı** gösterilir → ardından **sipariş alma durur (askı modu)** → **90 gün içinde** plan seçilirse veriler aynen döner → sonra silinir. Deneme bitişinde salt-okunur ara aşama yoktur. D0 = deneme bitişi (14. günün sonu). Ekran davranışı [04](04-isletme-paneli.md) ve [05](05-admin-paneli-ve-pazarlama-sitesi.md) ile aynıdır.
+
+| Gün | Olay | İşletmeye iletişim | Hizmet durumu (`subscription.status` / `lifecycle_stage`) |
+|---|---|---|---|
+| D−3 | Deneme bitiş hatırlatması [T] | Panel bandı + e-posta + platform WhatsApp uyarısı (`trial_ending`) | Normal (`trialing` / `trial`) |
+| D0 | Deneme bitti, plan seçilmedi: **3 gün uyarı bandı** başlar | Panel bandı: "Deneme süreniz bitti. 3 gün içinde paket seçmezseniz online sipariş alma durur." + e-posta + WhatsApp | Normal; sipariş alınır |
+| **D+3** | **Askı: sipariş alma durur** | E-posta + WhatsApp | `suspended` / `suspended`. Storefront ve bot "Şu an online sipariş alınmıyor, lütfen arayın" + işletme telefonu gösterir. Açık siparişler tamamlanabilir. Panelde "Paket seç", "Verilerimi dışa aktar" ve okuma açık. **Veri korunur** |
+| D+3 → D+90 | Plan seçilirse | Onay e-postası | Veriler (menü, müşteriler, ayarlar, geçmiş) **aynen döner**; dakikalar içinde `active` |
+| D+60 | Silme hatırlatması (30 günlük dışa aktarma hatırlatması, DPA m.10) [T] | E-posta + panel bandı; D+83'te son hatırlatma | `suspended` |
+| **D+90** | Hesap kapanır, tenant verisi silinir (`retention.tenant_offboarding`, §2.8 satır 12); yedeklerden 35 gün içinde düşer | E-posta (silme teyidi) | `cancelled` / `churned` |
 
 ### 6.3 Dunning takvimi (başarısız ödeme)
 

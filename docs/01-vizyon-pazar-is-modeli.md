@@ -3,13 +3,13 @@
 > **Amaç:** Siparişin Önünde'nin hangi problemi, kimin için ve hangi iş modeliyle çözdüğünü; pazarı, rakipleri, fiyatlandırmayı, birim ekonomiyi ve pazara giriş planını tek yerde tanımlamak.
 > **Kapsam:** Problem ve çözüm, vizyon ve konumlandırma, pazar büyüklüğü, rakipler, personalar, paketler ve fiyat kuralları, birim ekonomi, go-to-market (GTM), pazaryerleriyle birlikte kullanım, savunulabilirlik.
 > **Kapsam dışı:** WhatsApp teknik ayrıntıları ve mesaj akışları ([02](02-whatsapp-entegrasyonu.md)), ekran ve özellik tasarımı ([03](03-musteri-deneyimi-ve-storefront.md), [04](04-isletme-paneli.md), [05](05-admin-paneli-ve-pazarlama-sitesi.md)), sözleşme, vergi ve tahsilat ([08](08-mevzuat-kvkk-odeme-fatura.md)), takvim ([09](09-yol-haritasi-ve-sprint-plani.md)), risk matrisi ve KPI'lar ([10](10-riskler-operasyon-ve-metrikler.md)).
-> **İlgili dokümanlar:** [00 Kararlar ve sözlük](00-kararlar-ve-sozluk.md) · [02 WhatsApp entegrasyonu](02-whatsapp-entegrasyonu.md) · [04 İşletme paneli](04-isletme-paneli.md) · [05 Admin paneli ve pazarlama sitesi](05-admin-paneli-ve-pazarlama-sitesi.md) · [08 Mevzuat](08-mevzuat-kvkk-odeme-fatura.md) · [09 Yol haritası](09-yol-haritasi-ve-sprint-plani.md) · [10 Riskler ve metrikler](10-riskler-operasyon-ve-metrikler.md)
+> **İlgili dokümanlar:** [00 Kararlar ve sözlük](00-kararlar-ve-sozluk.md) (bağlayıcı) · [02 WhatsApp entegrasyonu](02-whatsapp-entegrasyonu.md) · [04 İşletme paneli](04-isletme-paneli.md) · [05 Admin paneli ve pazarlama sitesi](05-admin-paneli-ve-pazarlama-sitesi.md) · [06 Teknik mimari](06-teknik-mimari.md) · [08 Mevzuat](08-mevzuat-kvkk-odeme-fatura.md) · [09 Yol haritası](09-yol-haritasi-ve-sprint-plani.md) · [10 Riskler ve metrikler](10-riskler-operasyon-ve-metrikler.md)
 > **Kaynaklar:** [arastirma/02-pazar-rakipler-is-modeli.md](arastirma/02-pazar-rakipler-is-modeli.md) (ana kaynak), [arastirma/01-whatsapp-platform.md](arastirma/01-whatsapp-platform.md) (maliyet ve rakip altyapıları).
 > **Tarih:** 2026-09-24 · **Durum:** Taslak v1
 
 **Okuma notları**
 - Rakamlar araştırma raporlarından alındı; kaynak sayfalar arama özetleri üzerinden okundu. Dışarıya sunulmadan önce kritik rakamlar birincil kaynaktan teyit edilmelidir. **[T]** bizim tahminimiz veya hesabımızdır; **(teyit edilmeli)** doğrulanmamış bilgidir.
-- Fiyatlar aksi yazılmadıkça **KDV hariçtir** (yazılım hizmetinde KDV %20). Kur varsayımı **1 USD ≈ 48,4 TL** (TCMB, 24.09.2026); arastirma/02 serbest piyasa kurunu (48,8) kullanır, fark sonuçları değiştirmez. Kur ve Meta rate card'ı konfigürasyonda tutulur.
+- Fiyatlar aksi yazılmadıkça **KDV hariçtir** (yazılım hizmetinde KDV %20). Kur varsayımı **1 USD ≈ 48,4 TL** (TCMB, 24.09.2026; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8). arastirma/02'deki 48,8 serbest piyasa kurudur; bu dokümandaki tüm TL karşılıkları 48,4 ile hesaplanmıştır. Kur ve Meta rate card'ı konfigürasyonda tutulur.
 
 ---
 
@@ -85,7 +85,7 @@ flowchart LR
 ### 2.1 Vizyon, misyon, kuzey yıldızı
 - **Vizyon:** Türkiye'deki her mahalle işletmesinin, müşterisiyle arasına kimse girmeden, **kendi kanalından** sipariş alabildiği bir düzen.
 - **Misyon:** Esnafın zaten kullandığı WhatsApp'ı komisyonsuz ve güvenli bir sipariş ve müşteri kanalına çevirmek; kurulumu bir günde bitirmek, maliyeti sabit ve öngörülebilir tutmak.
-- **Kuzey yıldızı metriği:** İşletmelerin kendi kanalından aldığı aylık sipariş sayısı (`wa_link`, `wa_ai`, `web`, `table_qr`; `manual` ayrı izlenir). Tanım ve hedefler: [10](10-riskler-operasyon-ve-metrikler.md).
+- **Kuzey yıldızı metriği:** İşletmelerin kendi kanalından aldığı aylık sipariş sayısı (`wa_link`, `wa_ai`, `web`, `table_qr`, `wa_flow`; `manual` ayrı izlenir). Tanım ve hedefler: [10](10-riskler-operasyon-ve-metrikler.md).
 
 ### 2.2 Konumlandırma cümlesi
 
@@ -100,11 +100,11 @@ flowchart LR
 | İşletme için | Son müşteri için |
 |---|---|
 | **Komisyonsuz kendi kanalı:** sabit aylık ücret; sipariş başı ücret, ciro yüzdesi, ödeme payı yok | **Uygulama ve üyelik yok:** WhatsApp'tan yazar veya QR'ı okutur |
-| **Kaçan sipariş yok:** sesli uyarı, 2. ve 5. dakikada hatırlatma, 2 dakikada onaylanmayan siparişe alarm | **Net menü ve fiyat:** fotoğraflı, seçenekli web menüsü |
+| **Kaçan sipariş yok:** sesli uyarı + Web Push; 1. dakikada ses tekrarı, 2. dakikada sahibin telefonuna WhatsApp uyarısı, 5. dakikada SMS (kademeli alarm, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10) | **Net menü ve fiyat:** fotoğraflı, seçenekli web menüsü |
 | **Kâğıt-kalem yok:** sipariş yapılandırılmış veri olarak düşer (ürün, seçenek, adres, ödeme tipi) | **Daha iyi fiyat veya ikram:** işletme komisyon ödemediği için doğrudan kanala özel avantaj verebilir |
 | **Daha az "siparişim nerede?" araması:** otomatik WhatsApp durum bildirimleri ve takip sayfası | **Siparişin nerede olduğunu bilmek:** durum mesajları ve takip linki |
-| **Müşterisini tanıma:** müşteri listesi, sipariş geçmişi, aynısından tekrar **[Faz 2]** | **Alıştığı ödeme:** kapıda nakit, kart, yemek kartı; gel-alda kasada |
-| **Numara güvende:** resmi Cloud API; Coexistence ile telefondaki uygulama çalışmaya devam eder | **Hızlı tekrar:** "Geçen seferkinin aynısı" **[Faz 2]** |
+| **Müşterisini tanıma:** müşteri listesi, sipariş geçmişi, "Son siparişin" kartıyla aynısından tekrar **[Faz 1]**; sohbet içi tekrar önerisi **[Faz 2]** | **Alıştığı ödeme:** kapıda nakit, kart, yemek kartı; gel-alda kasada |
+| **Numara güvende:** resmi Cloud API; Coexistence ile telefondaki uygulama çalışmaya devam eder | **Hızlı tekrar:** storefront'ta "Son siparişin" kartı **[Faz 1]**; sohbette tek dokunuşla tekrar **[Faz 2]** |
 | **Değer görünür:** aylık "kendi kanalından X sipariş, Y TL tasarruf" raporu; "biz kuralım" ile hızlı başlangıç | **Gerektiğinde insan:** "Yetkiliyle görüş" her zaman erişilebilir |
 
 ### 2.4 Ne değiliz
@@ -148,11 +148,14 @@ flowchart LR
 
 | Öncelik | Segment | Neden | Faz |
 |---|---|---|---|
-| **1** | Kendi kuryesi olan, paket ağırlıklı bağımsız restoranlar: dönerci, pide/lahmacun, kebap, çiğ köfte, bağımsız pizza/burger, ev yemekleri | Lojistik hazır, tasarruf ilk günden görünür, tekrar siparişi yüksek kategoriler | Pilot → Faz 2 |
-| 2 | Gel-al ağırlıklı işletmeler (fırın, büfe, kafe) | Aynı ürün, `pickup` akışı; teslimat bölgesi gerekmez. Fırsatçı olarak alınır, özel kampanya yapılmaz | Faz 2 |
-| 3 | Su bayi, pastane, market | Yüksek tekrar ve WhatsApp alışkanlığı; özel akış gerekir (damacana depozitosu, özel pasta formu) | Faz 3 |
-| Ertelenir | Zincirler; tamamen platform kuryesine bağlı işletmeler | Uzun satış döngüsü; lojistik yok | Zincir: Faz 2'den sonra |
+| **1** | Kendi kuryesi olan, paket ağırlıklı bağımsız restoranlar: dönerci, pide/lahmacun, kebap, çiğ köfte, bağımsız pizza/burger, ev yemekleri | Lojistik hazır, tasarruf ilk günden görünür, tekrar siparişi yüksek kategoriler | Faz 1'den (pilot) |
+| 2 | Su bayi (tüp/LPG satanlar hariç) ve pastane | Yüksek tekrar ve WhatsApp alışkanlığı; dikey uyarlamalar gerekir (damacana depozitosu, tekrarlayan sipariş, ön sipariş / özel pasta formu) | Faz 2 |
+| 3 | Market, şarküteri, çiçekçi | Geniş ürün kataloğu ve stok yönetimi ister | Faz 3 |
+| Fırsatçı | Gel-al ağırlıklı işletmeler (fırın, büfe, kafe) | Aynı ürün, `pickup` akışı; teslimat bölgesi gerekmez. Talep gelirse alınır, özel kampanya yapılmaz | Faz 1'den |
+| Ertelenir | Zincirler; tamamen platform kuryesine bağlı işletmeler | Uzun satış döngüsü; lojistik yok | Zincir paketi Faz 2'de satışa çıkar |
 | **Hedeflenmez** | Tüp bayi, eczane, tekel, nargile kafe | WhatsApp Commerce Policy | — |
+
+Segment sırası [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11 ile aynıdır.
 
 ---
 
@@ -173,7 +176,7 @@ Alanda üç model var (arastirma/01 §8.3): **`wa.me` modeli** (sepet hazır met
 | Yemek Butik | Komisyonsuz sipariş, oda protokolleri | Ciroya göre kademeli, en fazla 10.000 | Web/uygulama | Oda kanalının çalıştığının kanıtı; ciroya bağlı ücret |
 | İletmen TekMenü | Pazaryeri siparişlerini tek ekranda toplama + menü | Paket başı 5,99 TL | Web menü | Hacim arttıkça pahalılaşıyor |
 | OxyMenu | Adisyon + QR + paket | 749 (+KDV) / 1.499; 30 gün deneme | Web/uygulama | Adisyonla bütünleşik |
-| SiparişGo, Siparişmatik vb. | Su bayi, market | Belirsiz | WA + telefon | Faz 3 dikeylerinde rakip |
+| SiparişGo, Siparişmatik vb. | Su bayi, market | Belirsiz | WA + telefon | Su bayi (Faz 2) ve market (Faz 3) dikeylerinde rakip |
 | Wabo ve AI botlar | Genel WA AI asistanı | 1.490–5.490 | "QR ile bağlanır", muhtemelen resmi değil | Ban riski; sipariş paneli yok |
 | Sipariş Ustası | *Rakip değil:* pazaryeri panel ajansı | Teklif | — | Ortaklık adayı |
 
@@ -224,7 +227,7 @@ Kaynaklar: arastirma/02 §5. **Abrasel araştırması (Mart 2025, 2.176 işletme
 | Numara riski | Yok; Coexistence ile uygulama da çalışır | Yok | **Yüksek** (kapatılma) | — |
 | Sipariş panele nasıl düşer | Yapılandırılmış veri, sesli uyarı | Mesaj metni; elle işlenir | Değişken, çoğunlukla metin | Tablet/panel |
 | Seçenekler (porsiyon, ekstra, çıkarılacak) | Var (storefront) | Sınırlı | Sınırlı | Var |
-| Müşteriye otomatik durum bildirimi | Var (sipariş başı ≤ 4 mesaj) | Yok | Var ama riskli | Var (uygulamada) |
+| Müşteriye otomatik durum bildirimi | Var (sipariş başı ≤ 4 durum mesajı) | Yok | Var ama riskli | Var (uygulamada) |
 | Müşteri verisi kimde | İşletmede (müşteri listesi) | Sohbetlerde dağınık | Tüm sohbetler sağlayıcının sunucusunda (KVKK riski) | Pazaryerinde; telefon maskeli |
 | Yeni müşteri (keşif) | Yok; işletmenin mevcut müşterisi + CTWA reklamı | Yok | Yok | **Güçlü** |
 | Maliyet modeli | Sabit abonelik + Meta ücreti (işletmenin Meta hesabından) | Düşük sabit ücret | 1.490–5.490 TL/ay | %9–40 komisyon + KDV + reklam |
@@ -241,7 +244,7 @@ Rol kodları [00 Kararlar ve sözlük](00-kararlar-ve-sozluk.md) ile aynıdır. 
 - **Profil:** 40–55 yaşında; dönerci veya pideci; 1 şube, 3–8 çalışan. Günde 20–60 paket, yarıdan fazlası pazaryerinden. 1–2 kendi kuryesi var. Telefonu WhatsApp Business sohbetleriyle dolu. Teknolojiye mesafeli, ama ekranda "para" görünce ikna oluyor. Satın alma kriteri: tanıdık tavsiyesi, somut TL hesabı, taahhütsüz plan.
 - **İhtiyaç:** Bir günde kurulum (biz yapalım); numarasını ve WhatsApp uygulamasını kaybetmemek; sesli uyarı ve tek tuşla onay; aylık "ne kadar tasarruf ettim" raporu; sabit, öngörülebilir ücret; istediğinde bırakabilmek.
 - **Acı:** Aylık kesinti dökümünü anlamamak (Joker, reklam, KDV kalemleri); algoritmada görünmez olma korkusu; fiyatını pazaryerine göre şişirmek zorunda kalmak; kâğıda yazılan siparişler, adres hataları, unutulan sipariş; "bir sistem daha" yorgunluğu.
-- **Başarı ölçütü:** İlk 14 günde ≥ 10 kanal siparişi; 60. günde siparişlerin ≥ %10'u kendi kanalından; aylık raporda tasarrufun abonelik ücretini geçmesi.
+- **Başarı ölçütü:** İlk 14 günde ≥ 10 kanal siparişi; 8. haftada (pilot sonu) siparişlerin ≥ %10'u kendi kanalından ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12); aylık raporda tasarrufun abonelik ücretini geçmesi.
 
 ### 5.2 Kasiyer / operatör: "Elif" (`cashier`)
 - **Profil:** 20–30 yaşında. Yoğun saatte hem kasaya, hem telefona, hem 3–4 pazaryeri tabletine bakıyor.
@@ -251,7 +254,7 @@ Rol kodları [00 Kararlar ve sözlük](00-kararlar-ve-sozluk.md) ile aynıdır. 
 
 ### 5.3 Kurye: "Burak" (`courier`)
 - **Profil:** İşletmenin kendi kuryesi veya esnaf kurye. Motorda, telefonu tek elle kullanıyor.
-- **İhtiyaç:** Uygulama indirmeden, magic link ile kendine atanan siparişler; tek tuşla navigasyon; müşteriyi arama veya yazma; "Yola çıktım" ve "Teslim ettim" butonları (müşteriye otomatik bildirim gider); kapıda ödeme tipi (nakit, kart, yemek kartı markası) ve para üstü bilgisi; gün sonu tahsilat özeti.
+- **İhtiyaç:** Uygulama indirmeden, magic link ile (vardiya boyu, 12 saat geçerli) kendine atanan siparişler; tek tuşla navigasyon; müşteriyi arama veya yazma; "Yola çıktım" ve "Teslim ettim" butonları (müşteriye otomatik bildirim gider); kapıda ödeme tipi (nakit, kart, yemek kartı markası) ve para üstü bilgisi; gün sonu tahsilat özeti.
 - **Acı:** Yanlış veya eksik adres; müşteriye ulaşamamak (kullanıcı adları nedeniyle telefon her zaman gelmeyebilir); kapıda ödeme tipi sürprizi.
 - **Başarı ölçütü:** Adres kaynaklı geri dönüş ve arama sayısı düşer; teslim tek dokunuşla kapanır.
 
@@ -259,14 +262,14 @@ Rol kodları [00 Kararlar ve sözlük](00-kararlar-ve-sozluk.md) ile aynıdır. 
 - **Profil:** 25–45 yaşında, mahallenin düzenli müşterisi. Pazaryerini keşif için kullanıyor; sevdiği dönerciyi zaten biliyor.
 - **İhtiyaç:** Uygulama indirmeden sipariş; fotoğraflı ve fiyatlı menü; "geçen seferkinin aynısı"; durum bildirimi ve takip linki; kapıda kart veya yemek kartı; doğrudan kanala özel avantaj; gerektiğinde bir insanla konuşmak.
 - **Acı:** Pazaryerinde şişkin fiyat; meşgul telefon hattı; telefonda belirsiz kalan menü ve fiyat; üyelik zorunluluğu.
-- **Başarı ölçütü:** İlk siparişini uygulama ve üyelik olmadan tamamlar; ikinci siparişini tekrar butonuyla verir **[Faz 2]**. **Dikkat:** Sipariş bildirimleri işlemseldir, onaya tabi değildir. Kampanya mesajları yalnız **açık rıza ve İYS kaydıyla** gönderilir ([08](08-mevzuat-kvkk-odeme-fatura.md)).
+- **Başarı ölçütü:** İlk siparişini uygulama ve üyelik olmadan tamamlar; ikinci siparişini storefront'taki "Son siparişin" kartıyla verir **[Faz 1]**. **Dikkat:** Sipariş bildirimleri işlemseldir, onaya tabi değildir. Kampanya mesajları yalnız **açık rıza ve İYS kaydıyla** gönderilir ([08](08-mevzuat-kvkk-odeme-fatura.md)).
 
 ### 5.5 Platform admini: "Can" (`platform_admin`; ekip içinde `support_agent`, `finance`, `sales_rep`)
 - **İhtiyaç:** İşletme yönetimi (açma, askıya alma, paket değişikliği); WABA ve numara sağlığı (kalite puanı, limitler, şablon onayları, Coexistence bağlantısı); işletme başına tahmini Meta maliyeti (bilgi amaçlı; ödemeyi işletme yapar); abonelik ve fatura; loglu impersonation; onboarding hunisi (deneme → aktivasyon → ödeme); sipariş hacmi düşen işletme için churn uyarısı; bayi ve referans ödemeleri; denetim kaydı ve KVKK talepleri.
 - **Acı:** Meta'nın politika ve fiyat değişiklikleri; elle yapılan onboarding yükü; Meta'ya ödeme yöntemi eklenmediği için duran mesajlar (hata 131042).
 - **Başarı ölçütü:** Onboarding başına harcanan destek süresi düşer; destek uzmanı başına ≥ 300 işletme (§7.2 marj hedefi); churn gerçekleşmeden müdahale.
 
-### 5.6 Bayi / kurulum ortağı: "Serkan" (`reseller`) **[Faz 2]**
+### 5.6 Bayi / kurulum ortağı: "Serkan" (`reseller_admin`; ekibindeki kurulum teknisyeni `reseller_technician`) **[Faz 2]**
 - **Profil:** POS bayisi, teknik servis veya yerel reklam ajansı. Ayda onlarca restoran ziyaret ediyor.
 - **İhtiyaç:** Yalnız kendi getirdiği işletmeleri gördüğü bayi paneli; komisyon raporu; demo hesabı; eğitim materyali; kurulum kontrol listesi; zamanında ödeme.
 - **Acı:** Tek seferlik kazanç yerine yinelenen gelir istiyor; kurulumda müşteriye mahcup olmak istemiyor; destek yükünün kendisine kalmasından çekiniyor.
@@ -279,10 +282,11 @@ Rol kodları [00 Kararlar ve sözlük](00-kararlar-ve-sozluk.md) ile aynıdır. 
 ### 6.1 İlkeler
 - **Sabit aylık abonelik.** Sipariş başı ücret yok, ciro yüzdesi yok, ödeme işlemlerinden pay yok.
 - **Meta mesaj ücretleri pass-through.** İşletmenin kendi Meta hesabından çekilir; aboneliğe dahil değildir (§6.5).
+- **SMS maliyeti platformda.** Müşteri SMS OTP yedeği ve kritik durum SMS'leri aboneliğe adil kullanım kotasıyla dahildir: **Esnaf 100, Pro 300 SMS/ay**. Kota aşılınca işletme uyarılır; ek SMS paketi **[Faz 2]** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4). Maliyeti birim ekonomide COGS'tadır (§7.1).
 - **Liste fiyatı KDV hariç** yazılır, yanında KDV dahil tutar gösterilir. Esnaf "ne ödeyeceğim?" sorusunu KDV dahil düşünür.
 - **Taahhütsüz aylık plan**, yıllık peşinde %20 indirim. **Fiyatlar yıllık TÜFE endeksli** güncellenir. Paketler sipariş kotasıyla değil **özellikle** ayrışır (öneri).
 
-### 6.2 Paketler (KARARLAR, değiştirilmez)
+### 6.2 Paketler ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8, değiştirilmez)
 
 | | **Esnaf** | **Pro** (ana paket) | **Zincir** |
 |---|---|---|---|
@@ -290,33 +294,38 @@ Rol kodları [00 Kararlar ve sözlük](00-kararlar-ve-sozluk.md) ile aynıdır. 
 | **Aylık (KDV hariç)** | **990 TL** | **1.790 TL** | **2.990 TL / şube** |
 | Aylık (KDV dahil) | 1.188 TL | 2.148 TL | 3.588 TL / şube |
 | **Yıllık peşin, %20 indirim (KDV hariç)** | **9.504 TL** (792 TL/ay) | **17.184 TL** (1.432 TL/ay) | **28.704 TL / şube** (2.392 TL/ay) |
-| Kurucu üye (%30, 12 ay sabit) | 693 TL/ay | 1.253 TL/ay | 2.093 TL/ay/şube |
+| Kurucu üye (12 ay sabit %30 indirim oranı; bugünkü liste fiyatıyla) | 693 TL/ay | 1.253 TL/ay | 2.093 TL/ay/şube |
 | "Biz kuralım" kurulum | 1.990 TL + KDV tek sefer; ilk 100 işletmeye ücretsiz | ← | ← |
 
-- **Zincir paketi**, çoklu şube özelliği geldiğinde **[Faz 2]** satışa açılır.
+- **Zincir paketi**, çoklu şube özelliği geldiğinde **[Faz 2]** satışa açılır; 5+ şube için özel teklif verilir. Faz 1'de yalnız Esnaf ve Pro satılır.
 - **"Biz kuralım" kapsamı:** menü girişi, temel fotoğraf düzenleme, WhatsApp bağlantısı (Embedded Signup, Coexistence), 1 QR stand seti ve paket kartı tasarımı (arastirma/02 §7.2).
 
 ### 6.3 Paket içerik matrisi (öneri)
 
-> KARARLAR paket fiyatlarını ve hedeflerini sabitler, içerik dağılımını sabitlemez. Aşağıdaki matris bu dokümanın önerisidir ve [04](04-isletme-paneli.md) ile senkron tutulmalıdır. Faz etiketi özelliğin **ne zaman** geldiğini, ✓ işareti **hangi pakette** olduğunu gösterir.
+> [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) paket fiyatlarını, hedeflerini ve özelliklerin **fazını** sabitler (§7, §8, §11); özelliklerin paketlere dağılımını bu dokümana bırakır (00 §8). Aşağıdaki matris bu dokümanın önerisidir ve [04](04-isletme-paneli.md) ile senkron tutulmalıdır. Faz etiketi özelliğin **ne zaman** geldiğini, ✓ işareti **hangi pakette** olduğunu gösterir. Zincir sütunu Faz 2'de satışa çıkar; Pro'nun Faz 2 özellikleri geldikçe pakete eklenir.
 
-| Özellik | Faz | Esnaf | Pro | Zincir |
+| Özellik | Faz | Esnaf | Pro | Zincir (Faz 2'den) |
 |---|---|---|---|---|
 | **Sipariş kanalları** | | | | |
 | WhatsApp sipariş hattı: resmi Cloud API, Coexistence veya yeni numara | [Faz 1] | ✓ | ✓ | ✓ (şube başı numara) |
 | Storefront `{slug}.siparisinonunde.com`: menü, seçenek grupları, sepet | [Faz 1] | ✓ | ✓ | ✓ |
 | Akış A (sohbet + web sepeti), Akış B (doğrudan web + WhatsApp ile onay), Akış E (manuel/telefon) | [Faz 1] | ✓ | ✓ | ✓ |
-| Akış D: Aynısından tekrar | [Faz 2] | ✓ | ✓ | ✓ |
-| Akış C: AI ile serbest metin siparişi | [Faz 2] | — | ✓ | ✓ |
+| "WhatsApp'sız mod": Akış B'de SMS OTP doğrulaması (müşterinin WhatsApp'ı yoksa, işletmenin Meta bağlantısı tamamlanmadıysa veya WhatsApp kanalı arızalıysa) | [Faz 1] | ✓ | ✓ | ✓ |
+| Akış D: storefront'ta "Son siparişin" kartı (aynısından tekrar) | [Faz 1] | ✓ | ✓ | ✓ |
+| Akış D: sohbet içinde bot önerisi ve tek dokunuşla tekrar | [Faz 2] | ✓ | ✓ | ✓ |
+| Akış C: AI ile serbest metin siparişi (özet + [Onayla] [Düzenle] [İptal]; adil kullanım kotası, 00 §13.8 varsayılanı) | [Faz 2] | — | ✓ | ✓ |
 | Masa QR (`dine_in`) | [Faz 3] | — | ✓ | ✓ |
 | WhatsApp Flows ile sohbet içi sipariş | [Faz 3] | — | ✓ | ✓ |
 | **Operasyon** | | | | |
-| Canlı sipariş ekranı, sesli uyarı, 2/5 dk hatırlatma, 2 dk alarmı | [Faz 1] | ✓ | ✓ | ✓ |
+| Canlı sipariş ekranı, sesli uyarı ve kademeli alarm (t=0 ses + Web Push, 60 sn ses tekrarı, 2 dk WhatsApp uyarısı, 5 dk SMS, 10 dk müşteriye bilgi, 15 dk `cancelled` / `tenant_no_response`) | [Faz 1] | ✓ | ✓ | ✓ |
 | Otomatik WhatsApp durum bildirimleri + sipariş takip sayfası | [Faz 1] | ✓ | ✓ | ✓ |
+| WhatsApp gelen kutusu: sohbeti görme, yanıtlama, bot/insan modu | [Faz 1] | ✓ | ✓ | ✓ |
+| SMS kotası (müşteri OTP yedeği + kritik durum SMS'leri; platform öder, aşımda uyarı) | [Faz 1] | 100 SMS/ay | 300 SMS/ay | Öneri: şube başına 300 SMS/ay |
+| Ek SMS paketi (kota aşımı için) | [Faz 2] | ✓ | ✓ | ✓ |
 | Teslimat bölgeleri (poligon, min sepet, ücret, tahmini süre) | [Faz 1] | En fazla 3 bölge | Sınırsız | Sınırsız |
 | Kapıda ödeme (nakit, kart, yemek kartı), gel-alda kasada | [Faz 1] | ✓ | ✓ | ✓ |
 | Tarayıcıdan fiş yazdırma | [Faz 1] | ✓ | ✓ | ✓ |
-| Kurye görünümü (magic link) ve kurye atama | [Faz 1] | — | ✓ | ✓ |
+| Basit kurye görünümü (magic link mobil ekran: yola çıktım / teslim ettim) ve kurye atama | [Faz 1] | — | ✓ | ✓ |
 | Yazıcı otomasyonu (otomatik mutfak ve kasa fişi) | [Faz 2] | — | ✓ | ✓ |
 | Online kart ödemesi (işletmenin kendi ödeme kuruluşu hesabı) | [Faz 2] | — | ✓ | ✓ |
 | SambaPOS / Adisyo entegrasyonu | [Faz 2] | — | ✓ | ✓ |
@@ -336,17 +345,17 @@ Rol kodları [00 Kararlar ve sözlük](00-kararlar-ve-sozluk.md) ile aynıdır. 
 | **Destek** | | Panel içi yardım + WhatsApp destek hattı | + akşam yoğun saatlerinde canlı destek | + öncelikli yanıt, atanmış hesap sorumlusu |
 | **Paket içi WhatsApp mesajı / mesaj kredisi** | [Faz 3] | Yok; yalnız MPS (kredi hattı) ile mümkün olur | ← | ← |
 
-**Araştırmadan ayrılan noktalar:** POS entegrasyonu yalnız Zincir'de değil Pro'da da var, çünkü GloriaFood'dan geçecek SambaPOS kullanıcılarının çoğu tek şubeli. "Aynısından tekrar" tüm paketlerde var, çünkü kanal benimsenmesi churn'e karşı ana savunmamız. Araştırmadaki "ayda 300 / 1.000 pazarlama mesajı kredisi" kaldırıldı (§6.5).
+**Araştırmadan ayrılan noktalar:** POS entegrasyonu yalnız Zincir'de değil Pro'da da var, çünkü GloriaFood'dan geçecek SambaPOS kullanıcılarının çoğu tek şubeli. "Aynısından tekrar" tüm paketlerde var, çünkü kanal benimsenmesi churn'e karşı ana savunmamız. Araştırmadaki "ayda 300 / 1.000 pazarlama mesajı kredisi" kaldırıldı (§6.5). SMS kotası mesaj kredisi değildir: yalnız OTP ve kritik durum SMS'leri içindir, kampanyada kullanılamaz.
 
 ### 6.4 Deneme, kurucu üye, pilot ve diğer kurallar
 
 **14 gün kartsız deneme** (abonelik tahsilatı geldiğinde, **[Faz 2]** ticari lansmanla)
 - Bize kart bilgisi verilmez. Deneme boyunca Pro özellikleri açıktır (öneri); sonunda işletme paketini seçer.
-- Deneme bitince ödeme yapılmazsa hesabın davranışı [05](05-admin-paneli-ve-pazarlama-sitesi.md) ve [08](08-mevzuat-kvkk-odeme-fatura.md)'de tanımlanır.
-- **Önemli ayrım:** "Kartsız" yalnız **bizim** aboneliğimiz içindir. WhatsApp mesajlarının teslim edilmesi için işletmenin **Meta'ya** ödeme yöntemi tanımlaması deneme sırasında da zorunludur (1 Ekim 2026 kuralı). Pazarlama sitesinde bu ayrım açıkça yazılır.
+- **Deneme bitişi** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9): 14 gün dolunca plan seçilmediyse 3 gün uyarı bandı → sipariş alma durur (askı modu) → 90 gün içinde plan seçilirse veriler aynen döner, sonra silinir. Ekran ve sözleşme ayrıntısı [05](05-admin-paneli-ve-pazarlama-sitesi.md) ve [08](08-mevzuat-kvkk-odeme-fatura.md)'de.
+- **Önemli ayrım:** "Kartsız" yalnız **bizim** aboneliğimiz içindir. WhatsApp mesajlarının teslim edilmesi için işletmenin **Meta'ya** ödeme yöntemi tanımlaması deneme sırasında da zorunludur (1 Ekim 2026 kuralı; onboarding sihirbazında zorunlu adım). Pazarlama sitesinde bu ayrım açıkça yazılır. Meta adımları tamamlanana kadar işletme "WhatsApp'sız mod"da (SMS OTP doğrulamalı web siparişi, **[Faz 1]**) ilk gün sipariş almaya başlayabilir.
 
 **Kurucu üye (ilk 100 işletme)**
-- %30 indirim, **12 ay sabit** (bu sürede TÜFE güncellemesi uygulanmaz): Esnaf 693, Pro 1.253, Zincir 2.093 TL/şube. "Biz kuralım" kurulumu ücretsiz (normalde 1.990 TL + KDV). 12 ayın sonunda o günkü liste fiyatına geçilir.
+- **12 ay boyunca sabit %30 indirim oranı.** Sabitlenen TL fiyat değil, orandır: liste fiyatı yıllık TÜFE ile güncellenirse kurucu üye de yeni liste fiyatının %30 eksiğini öder ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8). Bugünkü liste fiyatlarıyla: Esnaf 693, Pro 1.253, Zincir 2.093 TL/şube. "Biz kuralım" kurulumu ücretsiz (normalde 1.990 TL + KDV). 12 ayın sonunda indirim biter, o günkü liste fiyatına geçilir.
 - Sayaç: ücretli aboneliğe geçen ilk 100 işletme; pilotlar dahil (öneri). Yıllık peşin indirimiyle birleşmez (öneri; açık konu).
 
 **Pilot (ilk 10 işletme, Hafta 10–18)**
@@ -361,7 +370,7 @@ Rol kodları [00 Kararlar ve sözlük](00-kararlar-ve-sozluk.md) ile aynıdır. 
 **Model:** Doğrudan Meta Tech Provider + Embedded Signup. İşletmenin portföyü, WABA'sı ve numarası **işletmenindir**. Meta mesaj ücretini doğrudan işletmenin Meta'ya tanımladığı karttan (USD) çeker. Biz yalnız aboneliğimizi faturalarız (arastirma/01 §1.2, §4.4).
 
 **Sonuçları**
-- Aboneliğe "WhatsApp mesajları dahil" vaadi verilmez, mesaj kredisi satılmaz. Bu ancak **[Faz 3]** Multi-Partner Solution (kredi hattı) ile mümkün olur.
+- Aboneliğe "WhatsApp mesajları dahil" vaadi verilmez, mesaj kredisi satılmaz. Bu ancak **[Faz 3]** Multi-Partner Solution (kredi hattı) ile mümkün olur; Türk Solution Partner görüşmeleri Faz 1'de başlar ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.2).
 - Meta ücreti **bizim maliyet kalemimiz değildir** (§7.1). Meta tarifesi artarsa marjımız etkilenmez; işletmenin toplam maliyeti artar. Bu yüzden panelde görünür tutulur.
 - Meta faturası USD'dir. Türkiye'deki KDV ve muhasebe işlemi mali müşavirle doğrulanmalıdır ([08](08-mevzuat-kvkk-odeme-fatura.md)).
 
@@ -369,7 +378,7 @@ Rol kodları [00 Kararlar ve sözlük](00-kararlar-ve-sozluk.md) ile aynıdır. 
 - Service (pencere içi serbest mesaj) ve utility ≈ $0,0009 (~0,044 TL); marketing ≈ $0,0109 (~0,53 TL).
 - **Numara başına ayda ilk 1.000 service mesajı ücretsiz**; template'ler bu kotaya girmez. Gelen mesajlar ücretsiz. Click-to-WhatsApp (CTWA) reklamından gelen sohbette 72 saat boyunca tüm mesajlar ücretsiz.
 
-**İşletmenin Meta'ya ödeyeceği tahmini tutar** [T] (sipariş başına 4 durum mesajı; Akış A'da + 1 karşılama mesajı = 4–5 mesaj; tümü pencere içinde)
+**İşletmenin Meta'ya ödeyeceği tahmini tutar** [T] (sipariş başına en fazla 4 durum mesajı; Akış A'da + 1 karşılama mesajı = 4–5 mesaj; tümü pencere içinde; gecikme/iptal gibi olağan dışı bilgilendirmeler bütçe dışıdır, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.5)
 
 | İşletme | Sipariş/ay | İşletme mesajı | Ücretli (1.000 düşülmüş) | Meta'ya aylık |
 |---|---|---|---|---|
@@ -379,7 +388,7 @@ Rol kodları [00 Kararlar ve sözlük](00-kararlar-ve-sozluk.md) ile aynıdır. 
 | 1.000 kişiye 1 kampanya | — | 1.000 marketing | 1.000 | $10,90 ≈ **528 TL** |
 
 - **Hassasiyet:** Utility fiyatı Nisan–Temmuz 2026 seviyesine ($0,0053) dönerse günde 30 siparişli işletmenin tutarı ≈ 667–898 TL/ay olur. Bu risk işletmede kalır; biz sipariş başı mesaj sayısını düşük tutarak azaltırız.
-- **Maliyet disiplini (ayrıntı [02](02-whatsapp-entegrasyonu.md)):** sipariş başına en fazla 4 işletme mesajı; "Hazırlanıyor" bildirimi varsayılan kapalı; web siparişinde pencereyi müşteri açar (Akış B).
+- **Maliyet disiplini (ayrıntı [02](02-whatsapp-entegrasyonu.md)):** sipariş başına en fazla 4 durum mesajı (Akış A'da + 1 karşılama, toplam ≤ 5); Akış A'da "alındı" ve "onaylandı" 60 sn içinde olursa tek mesaj (debounce); "Hazırlanıyor" bildirimi varsayılan kapalı; web siparişinde pencereyi müşteri açar (Akış B).
 
 **İş modeli gereksinimleri (kabul kriterleri)**
 - Pazarlama sitesinde, fiyat sayfasında ve abonelik sözleşmesinde şu ifade bulunur: *"WhatsApp (Meta) mesaj ücretleri abonelik fiyatına dahil değildir; işletmenin kendi Meta hesabından tahsil edilir."*
@@ -434,12 +443,17 @@ Bugün
 Geçişten sonra
   Taşınan sipariş               N   = S × g × p
   Taşınan ciro                  Cp  = N × B
+  Meta tahmini                  M   = max(0, N × m − 1.000) × r × kur
+                                      (m = 5: 4 durum + 1 karşılama; r = service/utility rate card, $0,0009)
   Net aylık kazanç              Net = Cp×k − Cp×t − Cp×o×c − N×K − U − M
-  Başa baş sipariş sayısı       N*  = (U + M) / (B × (k − t − o×c) − K)
+  Başa baş sipariş sayısı       N*  = (U + M) / (B × (k − t − o×c) − K)      (yukarı yuvarlanır)
 ```
 
-- KDV mükellefi işletmede **gerçek maliyet KDV hariç kesintidir**; nakit akışı etkisi KDV dahildir. Hesaplayıcı ikisini de gösterir. Basit usul mükellefinde KDV dahil tutar gerçek maliyettir.
+- KDV mükellefi işletmede **gerçek maliyet KDV hariç kesintidir**; nakit akışı etkisi KDV dahildir. Hesaplayıcı ikisini de gösterir. Basit usul mükellefinde KDV dahil tutar gerçek maliyettir ("KDV indirebiliyorum" anahtarı kapalıysa kaçınılan komisyon ve abonelik KDV dahil hesaplanır).
 - `k`, panelden kopyalanan kalem kalem kesinti toplamının ciroya bölünmesiyle de girilebilir (Nisan 2026 düzenlemesi); Joker, reklam ve kampanya kalemleri eklenince gerçek oran genelde yüksektir. `M` çoğu senaryoda ~0'dır (180 sipariş × 5 mesaj = 900 < 1.000 ücretsiz kota).
+- `N*` hesaplanırken `M`, önce `M = 0` ile bulunan `N*` değeri için hesaplanır, sonra `N*` bir kez yeniden hesaplanır.
+- **Payda sıfır veya negatifse** (`B × (k − t − o×c) − K ≤ 0`) başa baş gösterilmez; "bu varsayımlarla kendi kanal kendini amorti etmez, teşviki düşür" uyarısı çıkar.
+- **Yuvarlama (kanonik):** hesap kuruş hassasiyetinde yapılır; ≥ 1.000 TL tutarlar tam TL'ye yuvarlanarak gösterilir; **`N*` her zaman yukarı yuvarlanır** (amorti için gereken en az tam sipariş sayısı). Bu bölümdeki tüm başa baş değerleri bu kuralla yazılmıştır.
 
 **Örnek (arastirma/02 §7.4):** S = 30, B = 350 TL, g = 30 → C = **315.000 TL/ay**.
 
