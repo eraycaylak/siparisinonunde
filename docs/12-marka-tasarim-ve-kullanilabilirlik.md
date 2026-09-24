@@ -3,13 +3,13 @@
 > **Amaç:** Siparişin Önünde'nin marka platformunu, görsel kimliğini, `packages/ui` tasarım sistemini, alarm seslerini ve basılı şablonları tek yerde tanımlamak. Ayrıca kasiyerin ve son müşterinin ürünü gerçekten kullanabildiğini pilottan önce kanıtlayacak araştırma, test, cihaz kabulü ve eğitim içeriği planını vermek.
 > **Tarih:** 2026-09-24 (Hafta 0) · **Durum:** Taslak v1 · **Bağlayıcı kaynak:** [00](00-kararlar-ve-sozluk.md) §1 (konumlandırma, ana mesaj), §2 (alan adları), §4 (roller, P1 hattı), §5 (durum kodları), §6 (WhatsApp kararları), §9 (marka başvurusu), §10 (kademeli alarm, stack), §11 (fazlar, pilot). Çelişkide 00 geçerlidir.
 
-**Kapsam:** Marka platformu (misyon, kişilik, ses tonu, isim riski, alan adı, Meta/WhatsApp marka kuralları); görsel kimlik (logo brifi, renk, durum renkleri, tipografi, ikon, fotoğraf); tasarım token'ları, tema ve bileşen envanteri; storefront tema kuralı; ses tasarımı; basılı materyal şablonları; UX araştırması ve kullanılabilirlik testi (D13 önerisi); cihaz/tarayıcı destek matrisi ve kabul testi (UAT); eğitim ve destek içeriği üretimi; erişilebilirlik ve yerelleştirme ilkeleri.
+**Kapsam:** Marka platformu (misyon, kişilik, ses tonu, isim riski, alan adı, Meta/WhatsApp marka kuralları); görsel kimlik (logo brifi, renk, durum renkleri, tipografi, ikon, fotoğraf); tasarım token'ları, tema ve bileşen envanteri; storefront tema kuralı; ses tasarımı; basılı materyal şablonları; UX araştırması ve kullanılabilirlik testi (D13, [10](10-riskler-operasyon-ve-metrikler.md) §4.3); cihaz/tarayıcı destek matrisi ve kabul testi (UAT); eğitim ve destek içeriği üretimi; erişilebilirlik ve yerelleştirme ilkeleri.
 
 **Kapsam dışı (bağlantı verilir):** Ekranların içeriği ve akışları → [03](03-musteri-deneyimi-ve-storefront.md) (S-xx), [04](04-isletme-paneli.md) (P-xx, K-xx), [05](05-admin-paneli-ve-pazarlama-sitesi.md) (A-xx, site). Müşteri mesaj metinleri → [03](03-musteri-deneyimi-ve-storefront.md) §9. Pazarlama sitesi metinleri ve reklam kuralları → [05](05-admin-paneli-ve-pazarlama-sitesi.md) C.3, C.8. Alarm zincirinin altyapısı, test altyapısı, yazdırma → [06](06-teknik-mimari.md) §7, §9, §16. Tablo alanları → [07](07-veri-modeli-ve-api.md). Aydınlatma metinleri → [08](08-mevzuat-kvkk-odeme-fatura.md). Sprint takvimi ve bütçe → [09](09-yol-haritasi-ve-sprint-plani.md). Deneylerin kanonik listesi, bilgi bankası ve concierge kurulum → [10](10-riskler-operasyon-ve-metrikler.md) §4, §5.4, §5.5.
 
 **Atıf ve işaretler:** `A05 §8` = [arastirma/05-urun-ux.md](arastirma/05-urun-ux.md) bölüm 8 (URL'ler araştırma dosyalarında). `A03` = [arastirma/03-mevzuat-odeme-fatura.md](arastirma/03-mevzuat-odeme-fatura.md). `D04 §4.5` = 04 numaralı plan dokümanı. **[T]** = bizim önerimiz veya tahminimiz (pilotta kalibre edilir). **(teyit edilmeli)** = birincil kaynaktan doğrulanmadı. Faz etiketleri: **[Faz 1]** MVP, **[Faz 2]** ticari lansman, **[Faz 3]** ölçek ([00](00-kararlar-ve-sozluk.md) §11).
 
-**Okuma notları:** "H3" 09'daki gibi **Hafta 3**'tür (H1 = 28 Eylül 2026). 10'daki hipotezler (H1–H14) ile karışmasın diye önerilen hipotez "hipotez H15" diye yazılır. Bu dokümanın kimlikleri: `UI-xx` bileşen, `SES-xx` ses, `BM-xx` basılı materyal, `PT-xx`/`MT-xx` panel/müşteri test görevi, `EK-xx` elle keşif maddesi, `UAT-xx` kabul senaryosu, `EG-xx` eğitim içeriği. Renk kontrast oranları WCAG 2.x göreli parlaklık formülüyle hesaplandı.
+**Okuma notları:** "H3" 09'daki gibi **Hafta 3**'tür (H1 = 28 Eylül 2026). 10'daki hipotezlerle (H1–H15) karışmasın diye hipotez "hipotez H15" diye yazılır; H15 bu dokümanın önerisiyle [10](10-riskler-operasyon-ve-metrikler.md) §4.2'ye eklendi. Bu dokümanın kimlikleri: `UI-xx` bileşen, `SES-xx` ses, `BM-xx` basılı materyal, `PT-xx`/`MT-xx` panel/müşteri test görevi, `EK-xx` elle keşif maddesi, `UAT-xx` kabul senaryosu, `EG-xx` eğitim içeriği. Renk kontrast oranları WCAG 2.x göreli parlaklık formülüyle hesaplandı.
 
 ---
 
@@ -91,7 +91,7 @@ Aramalar A03 §7.4'teki yöntemle yapılır: TÜRKPATENT araştırması, EPATS, 
 - **Ana:** `siparisinonunde.com` ([00](00-kararlar-ve-sozluk.md) §2). **Savunma:** `siparisinonunde.com.tr` (TRABİS ile belgesiz alınabiliyor, A03 §7.4) ve en olası 2 yazım hatası (ör. `siparisonunde.com`). Bunlar 301 ile ana adrese yönlenir [T]. Türkçe karakterli IDN (`siparişinönünde.com`) yalnız yönlendirme olarak kullanılabilir. Basılıda ve linklerde asla yer almaz, çünkü önizlemede punycode görünür.
 - **Yedek isimler:** Aday isimlerin `.com.tr` adresleri Gün 1'de düşük maliyetle alınır [T]. Marka görüşü olumsuz çıkarsa gün kaybedilmez.
 - **Kısa alan adı (opsiyonel) [T]:** ≤ 10 karakterlik ikinci bir alan adı `/q/{kod}` yönlendirmesi ve takip linki için kullanılabilir. İki kazancı vardır: QR içeriği kısalır, modüller büyür ve eski telefonlar daha kolay okur; SMS kısalır. Türkçe karakterli SMS 70 karakterlik segmentlere bölünür ve uzun link segment sayısını, dolayısıyla maliyeti artırır ([03](03-musteri-deneyimi-ve-storefront.md) açık konu 13, **teyit edilmeli**).
-- **Koruma:** Kayıt kuruluşu kilidi, otomatik yenileme, en az 2 yönetici ve donanım anahtarı (iş sürekliliği önerisi; [10](10-riskler-operasyon-ve-metrikler.md) §10'a eklenmesi önerilir). E-posta alanında SPF, DKIM ve DMARC (`p=reject` hedefi) kurulur. Esnafa "Meta kartınızı güncelleyin" gibi sahte e-posta gelmesi marka riski olduğundan pazarlama sitesinde bir **"Resmi kanallarımız"** sayfası bulunur: platform WhatsApp numarası, P1 hattı, e-posta alan adı ve "Sizden asla parola veya kart bilgisi istemeyiz" notu [T].
+- **Koruma:** Kayıt kuruluşu kilidi, otomatik yenileme, en az 2 yönetici ve donanım anahtarı (iş sürekliliği; eklendi: [10](10-riskler-operasyon-ve-metrikler.md) §10.1 kritik hesap envanteri "Alan adı kayıt kuruluşu" satırı, risk R42). E-posta alanında SPF, DKIM ve DMARC (`p=reject` hedefi) kurulur. Esnafa "Meta kartınızı güncelleyin" gibi sahte e-posta gelmesi marka riski olduğundan pazarlama sitesinde bir **"Resmi kanallarımız"** sayfası bulunur: platform WhatsApp numarası, P1 hattı, e-posta alan adı ve "Sizden asla parola veya kart bilgisi istemeyiz" notu [T].
 
 ### 2.6 Meta/WhatsApp marka kullanım kuralları (genel ilkeler, **teyit edilmeli**)
 Kaynak: WhatsApp Brand Resources ve Meta marka yönergeleri. Güncel sürüm yayından önce okunur ve avukat kontrolünden geçer ([05](05-admin-paneli-ve-pazarlama-sitesi.md) C.8 #7, açık konu 20).
@@ -132,7 +132,7 @@ Kaynak: WhatsApp Brand Resources ve Meta marka yönergeleri. Güncel sürüm yay
 **Neden mürekkep + safran [T]:** Panelde renkler durumlara ayrılmıştır (§3.3). Marka rengi hiçbir durum rengiyle çakışmamalı. Koyu, doygunluğu düşük bir birincil renk güneş alan vitrinde en yüksek okunurluğu verir. Ayrıca pazaryerlerinin kırmızı/pembe, mor/sarı ve turuncu renk alanlarından uzak durur (rakip logoların güncel renkleri **teyit edilmeli**). Nihai değerler TAS ile kesinleşir. Kesinleşen değerler bu kontrast eşiklerini korumalıdır.
 
 ### 3.3 Durum renkleri (renk + ikon + kelime)
-Kural: Rozet her zaman **ikon + Türkçe etiket** taşır, renk yalnız pekiştirir (WCAG 1.4.1). Etiketler [04](04-isletme-paneli.md) §14.3 mikro metin sözlüğündendir. İkonlar Lucide setindendir (§3.5; adlar sürümde **teyit edilmeli**). Açık tema: yazı rengi (fg) açık zemin (bg) üzerinde. Koyu tema: açık tonlu yazı, koyu renkli zemin üzerinde.
+Kural: Rozet her zaman **ikon + Türkçe etiket** taşır, renk yalnız pekiştirir (WCAG 1.4.1). Etiketler [04](04-isletme-paneli.md) §14.3 mikro metin sözlüğündendir. İkonlar Lucide setindendir (§3.5, eşleme [04](04-isletme-paneli.md) §14.5; adlar sürümde **teyit edilmeli**, [13](13-varsayim-ve-teyit-kaydi.md) V-089). Açık tema: yazı rengi (fg) açık zemin (bg) üzerinde. Koyu tema: açık tonlu yazı, koyu renkli zemin üzerinde.
 
 | Kod ([00](00-kararlar-ve-sozluk.md) §5) | Etiket | İkon | Açık fg / bg | Kontrast | Koyu fg / bg | Kontrast | Not |
 |---|---|---|---|---|---|---|---|
@@ -159,7 +159,7 @@ Kural: Rozet her zaman **ikon + Türkçe etiket** taşır, renk yalnız pekişti
 
 ### 3.5 İkonografi
 - **Set:** Lucide (shadcn/ui varsayılanı): 24 px ızgara, 2 px çizgi, yuvarlak uç. Panelde ikon **her zaman kelimeyle** birliktedir. Yalnız ikonlu tek istisna "⋯ Diğer işlemler"dir ve `aria-label` taşır. Hover olmadığı için ipucu (tooltip) ile anlam taşınmaz ([04](04-isletme-paneli.md) §1.1 #10).
-- **Emoji yok:** 04'teki tel kafeslerde görülen emojiler (🟢, ⏱, 🛵) üretimde SVG ikonla değiştirilir. Emoji çizimi Android sürümleri arasında farklıdır; eski cihazlar yeni emojileri kutu olarak gösterir.
+- **Emoji yok** ([00](00-kararlar-ve-sozluk.md) §7): Arayüzde emoji değil Lucide SVG ikonu kullanılır. 04'teki tel kafes ve mikro metinler `[… ikonu]` / `[… nokta]` gösterimine çevrildi; gösterim → Lucide eşlemesi [04](04-isletme-paneli.md) §14.5'tedir. Emoji çizimi Android sürümleri arasında farklıdır; eski cihazlar yeni emojileri kutu olarak gösterir.
 - **Kanal rozetleri:** `message-circle` + "WhatsApp", `globe` + "Web · QR", `phone` + "Telefon", **[Faz 2]** `sparkles` + "AI ile" ve `repeat` + "Sohbetten tekrar", **[Faz 3]** `list` + "Flows" ve `utensils` + "Masa". Teslim türü: `bike` Paket, `shopping-bag` Gel-al.
 
 ### 3.6 Fotoğraf ve illüstrasyon dili
@@ -232,14 +232,14 @@ Her bileşenin Storybook'ta **tüm durumları × iki tema × gerçek Türkçe me
 ### 4.5 Storybook ve görsel regresyon önerisi
 - **Storybook** (Vite oluşturucu; sürüm **teyit edilmeli**) `packages/ui` içinde durur. Her hikâye bir durumdur. Hikâyeler hem tasarım incelemesinin hem testin tek kaynağıdır. Erişilebilirlik eklentisi (axe) her hikâyede çalışır ([09](09-yol-haritasi-ve-sprint-plani.md) §6.3 "Erişilebilirlik" kapısı).
 - **Görsel regresyon:** Harici SaaS yerine Playwright ekran görüntüsü karşılaştırması (`toHaveScreenshot`) Storybook hikâyeleri üzerinde koşar. Böylece ek bir yurt dışı alt işleyen gerekmez. Sabit yazı tipi ve render için CI'da Docker kullanılır. Görüntü alanları: 360×640 (storefront), 800×1280 ve 1280×800 (tablet), 1366×768 (PC). Eşik: piksel farkı > %0,1 → PR incelemesi zorunlu [T]. [04](04-isletme-paneli.md) §4.19'daki "ana aksiyon ≥ 56 px" kriteri burada ayrıca DOM ölçümüyle test edilir.
-- **Kapı:** `packages/ui`'a dokunan PR'da görsel fark onaylanmadan birleştirme yapılmaz (09 §6.3'e eklenmesi önerilir).
+- **Kapı:** `packages/ui`'a dokunan PR'da görsel fark onaylanmadan birleştirme yapılmaz (eklendi: [09](09-yol-haritasi-ve-sprint-plani.md) §6.3 "Görsel regresyon" kalite kapısı).
 
 ---
 
 ## 5. Storefront tema kuralı
 
 ### 5.1 İşletme ana rengi ve otomatik kontrast düzeltmesi **[Faz 1]**
-**Girdi:** P-26'da (ve onboarding 2. adımında isteğe bağlı) "Ana renk" alanı bulunur. Alan şu anda 04'te yoktur, eklenmesi önerilir (§13 #3). Seçenekler: 12 hazır renk (her biri önceden doğrulanmış) veya serbest renk seçici. Logo yüklenmişse logodaki baskın renk önerilir [T]. Seçim yapılmazsa hazır paletteki ilk renk kullanılır. Mürekkep kullanılmaz, çünkü storefront bizim markamız gibi görünmemeli.
+**Girdi:** P-26'da (ve onboarding 2. adımında isteğe bağlı) "Ana renk" alanı bulunur: [04](04-isletme-paneli.md) §7.2 "Marka görünümü" ve §3.3 adım 2; veri [07](07-veri-modeli-ve-api.md) `tenants.brand_color` (türetilmiş palet `brand_palette`; şube geçersiz kılması `branches`, Faz 2) (§13 #3). Seçenekler: 12 hazır renk (her biri önceden doğrulanmış) veya serbest renk seçici. Logo yüklenmişse logodaki baskın renk önerilir [T]. Seçim yapılmazsa hazır paletteki ilk renk kullanılır. Mürekkep kullanılmaz, çünkü storefront bizim markamız gibi görünmemeli.
 
 **Algoritma (`packages/ui/theme/brandPalette()`, saf fonksiyon; OKLCH uzayında ton ve kroma korunur, yalnız açıklık L değişir):**
 1. `--brand` = girdi. Beyaz ve `#111827` (ink metin) ile kontrastı hesaplanır.
@@ -251,7 +251,7 @@ Her bileşenin Storybook'ta **tüm durumları × iki tema × gerçek Türkçe me
 7. **Ayrım:** Marka rengi durum rozetinde, hata ve uyarıda kullanılmaz. Marka tonu kırmızıya yakınsa (ör. OKLCH ton 15–40°) hata durumları ikon, kenarlık ve metinle ayrışır [T].
 8. **WhatsApp CTA** (S-06B "WhatsApp'ta onayla") işletme renginden bağımsızdır. WhatsApp yeşili `#25D366` zemin + `#111827` metin (8,94:1) + resmi glif kullanılır (§2.6). Beyaz metin bu yeşilde 1,98:1 kalır ve kullanılamaz.
 
-**Uygulama:** Palet P-26 kaydında sunucuda hesaplanır ve saklanır. SSR sırasında `<style>:root{…}</style>` olarak satır içine yazılır; istemci JS'i gerekmez, performans bütçesi korunur ([06](06-teknik-mimari.md) §12). Koyulaştırma yapıldıysa panelde önizleme ve not gösterilir: "Renginiz okunabilirlik için hafif koyulaştırıldı." Aynı fonksiyon P-36 baskı üreticisinde de kullanılır.
+**Uygulama:** Palet P-26 kaydında sunucuda hesaplanır ve `brand_palette` alanında saklanır ([07](07-veri-modeli-ve-api.md) `tenants`). SSR sırasında `<style>:root{…}</style>` olarak satır içine yazılır; istemci JS'i gerekmez, performans bütçesi korunur ([06](06-teknik-mimari.md) §12). Koyulaştırma yapıldıysa panelde önizleme ve not gösterilir: "Renginiz okunabilirlik için hafif koyulaştırıldı." Aynı fonksiyon P-36 baskı üreticisinde de kullanılır.
 **Kabul kriterleri:** (1) 200 rastgele renkle özellik tabanlı test: tüm çıktılar 2–6. adımlardaki eşikleri sağlar. (2) Storefront'ta axe kontrast ihlali 0. (3) Renk değişikliği storefront'a 10 sn içinde yansır ([06](06-teknik-mimari.md) §12 kabul kriteri).
 
 ### 5.2 Logo, kapak görseli ve ürün görseli
@@ -265,7 +265,7 @@ Her bileşenin Storybook'ta **tüm durumları × iki tema × gerçek Türkçe me
 Yüklemede boyut yetersizse görsel reddedilmez, "Bu görsel bulanık görünebilir" uyarısı çıkar. Esnaf engellenmez [T].
 
 ### 5.3 "Altyapı: Siparişin Önünde" imzası kuralı
-- **Metin:** [03](03-musteri-deneyimi-ve-storefront.md) §1 İ5'teki gibi "Altyapı: Siparişin Önünde" kullanılır. A05 §6.4 ve görev tanımı "Siparişin Önünde ile" diyor; 03'teki metin uygulandı (§13 #1).
+- **Metin (kanonik):** "Altyapı: Siparişin Önünde" ([00](00-kararlar-ve-sozluk.md) §7 "Storefront imzası"; [03](03-musteri-deneyimi-ve-storefront.md) §1 İ5 ve §4.0). A05 §6.4 ve görev tanımındaki "Siparişin Önünde ile" kullanılmaz (§13 #1).
 - **Yer:** Yalnız storefront altbilgisinde ve takip sayfasının altbilgisinde. Checkout başlığında, onay butonu çevresinde, WhatsApp mesajlarında ve müşteriye giden SMS'te yer almaz. Gerekçe: "sipariş ekranında platform markasının öne çıkması" ETAHS (pazaryeri) sayılma riskini artıran bir sinyaldir (A03 §4.2).
 - **Biçim:** 12–13 px, `text-muted` (≥ 4,5:1), logosuz, tek satır. Pazarlama sitesine `rel="nofollow"` bağlantıyla gider ve `?src=sf_footer` taşır. Toplu link şeması görüntüsü verilmez (A05 §6.4).
 - **Basılı materyalde imza yoktur.** Kart, magnet, afiş ve fişte platform adı Faz 1'de ve pilotta **kullanılmaz** (§7.2). Gerekçeler: isim henüz güvende değil (R36), işletmenin markası önde olmalı (T3), isim değişirse yeniden baskı maliyeti doğar.
@@ -302,7 +302,7 @@ Zamanlamalar kanonik alarm zinciridir ([00](00-kararlar-ve-sozluk.md) §10, [04]
 ### 6.3 Titreşim ve görsel eşlik
 - **Titreşim:** Telefon düzeninde ve kurye görünümünde `navigator.vibrate` kullanılır (Android Chrome'da çalışır, iOS Safari'de yoktur; **teyit edilmeli**). Desenler: yeni sipariş `[400,200,400,200,800]`, kurye ataması `[300,150,300]` [T]. Tabletlerin çoğunda titreşim motoru yoktur, bu yüzden titreşime güvenilmez.
 - **Her sesin görsel karşılığı vardır** ([04](04-isletme-paneli.md) §1.3). Yeni sipariş: kırmızı bant + kart çerçevesi + `document.title` önekli sayaç ("(2) Yeni sipariş") + favicon rozeti + `setAppBadge`. Yanıp sönme ≤ 1 Hz'dir; `prefers-reduced-motion` açıkken yanıp sönme olmaz, sabit bant kalır.
-- **Ses kapalı uyarısı:** Kırmızı UI-09 bandı gösterilir: "Ses kapalı — yeni siparişleri duyamazsınız. [Sesi aç]". Üst barda `volume-x` + "Ses: Kapalı" görünür, sekme başlığı "🔇" önekini alır. 5 dk sürerse aynı uyarı `owner`'a gider ([06](06-teknik-mimari.md) §7.7). PWA güncellemesi veya sayfa yenilemesi sonrası ses kilidi düşerse aynı bant anında görünür (EK-06).
+- **Ses kapalı uyarısı:** Kırmızı UI-09 bandı gösterilir: "Ses kapalı — yeni siparişleri duyamazsınız. [Sesi aç]". Üst barda `volume-x` + "Ses: Kapalı" görünür, sekme başlığı metin önekini alır: "Ses kapalı · …" (UI'da emoji kullanılmaz, [00](00-kararlar-ve-sozluk.md) §7). 5 dk sürerse aynı uyarı `owner`'a gider ([06](06-teknik-mimari.md) §7.7). PWA güncellemesi veya sayfa yenilemesi sonrası ses kilidi düşerse aynı bant anında görünür; güncelleme politikası ve kurtarma adımları [06](06-teknik-mimari.md) §16.7'dedir (elle kontrol EK-06).
 
 ### 6.4 Duyulabilirlik test protokolü (gürültülü mutfak)
 
@@ -358,11 +358,11 @@ Boyutlar [04](04-isletme-paneli.md) §12.1 ile aynıdır. Seviye 0 deneyi (D3) i
  Arka yüz (isteğe bağlı): öne çıkan 3 ürün ya da kâğıt damga kartı (D4-c, 10 kutu)
 ```
 
-### 7.4 Fiş üst/alt bilgisi (BM-06; şablon [06](06-teknik-mimari.md) §9.2'ye eklenmesi önerilir)
+### 7.4 Fiş üst/alt bilgisi (BM-06; fiş şablonu [06](06-teknik-mimari.md) §9.2)
 - **Üst bilgi:** İşletme logosu (1 bit, en çok 384 px genişlik 58 mm için, 576 px 80 mm için; tipik baskı genişliği, yazıcıya göre değişir), işletme adı (kalın), şube, telefon. Satır genişliği tipik olarak 58 mm'de ~32, 80 mm'de ~48 karakterdir (**yazıcı profiliyle teyit edilmeli**).
 - **Alt bilgi (kasa/kurye fişi):** "Bir sonraki siparişinizi WhatsApp'tan verin: 0 5xx …" satırı. 80 mm'de isteğe bağlı `wa.me` QR'ı eklenir; 58 mm'de QR yoktur, çünkü kurye harita QR'ıyla karışır ve yer dar. Ardından KVKK kısa notu (1–2 satır), zorunlu "Mali değeri yoktur" satırı (mali müşavir teyidi, [00](00-kararlar-ve-sozluk.md) §10) ve yeniden baskıda "KOPYA".
-- **Mutfak fişi:** Alt bilgi yoktur (yalnız kanal rozeti ve KOPYA).
-- **Gizlilik önerisi [T]:** Kasa/kurye fişi tam telefon ve adres içerir ve pakete girerse üçüncü kişilerin eline geçebilir. Pakete konacak "müşteri nüshası" varyantında telefon maskeli yazılır ("0 5•• ••• 45 12"). 06'ya önerilir (§13 #10).
+- **Mutfak fişi:** Alt bilgi yoktur (yalnız kanal rozeti ve KOPYA). Müşteri adı, telefonu ve adresi mutfak fişinde **hiç yer almaz** ([00](00-kararlar-ve-sozluk.md) §7 "Fişte kişisel veri"; [06](06-teknik-mimari.md) §9.2).
+- **Fişte kişisel veri (kanonik, [00](00-kararlar-ve-sozluk.md) §7; [06](06-teknik-mimari.md) §9.2):** Paket (kurye) fişi pakete iliştirilir ve üçüncü kişilerin eline geçebilir. Bu yüzden telefon, ayrı bir "müşteri nüshası" varyantına gerek kalmadan, paket fişinde **her zaman** maskelidir (son 4 hane, ör. "0 5•• ••• •• 12"); kurye tam numarayı yalnız kurye görünümünden arar. Adres ve adres tarifi teslimat için tam basılır. Gel-al fişinde adres yoktur. (Önceki taslaktaki "müşteri nüshası" önerisi bu kuralla karşılandı, §13 #10.)
 
 ### 7.5 Baskı ipuçları
 - PDF/X (matbaanın istediği profille; **teyit edilmeli**), CMYK, 300 dpi, 3 mm taşma, 4 mm güvenli kenar. Yazılar eğriye çevrilir; Türkçe karakterler böylece korunur.
@@ -376,7 +376,7 @@ Boyutlar [04](04-isletme-paneli.md) §12.1 ile aynıdır. Seviye 0 deneyi (D3) i
 ## 8. UX araştırması ve kullanılabilirlik testi planı
 
 ### 8.1 Tasarım kapasitesi (09 bütçesine öneri)
-09'da tasarım yalnız "serbest tasarımcı (TAS): logo, basılı materyal, site görseli"dir ([09](09-yol-haritasi-ve-sprint-plani.md) §10.2 satır 5). Öneri: **S1–S6 boyunca yarı zamanlı/serbest bir ürün tasarımcısı** (TAS rolü genişletilir ya da ikinci bir kişi alınır).
+09'da tasarım yalnız "serbest tasarımcı (TAS): logo, basılı materyal, site görseli"dir ([09](09-yol-haritasi-ve-sprint-plani.md) §10.2 satır 5). Öneri: **S1–S6 boyunca yarı zamanlı/serbest bir ürün tasarımcısı** (TAS rolü genişletilir ya da ikinci bir kişi alınır). Eklendi: [09](09-yol-haritasi-ve-sprint-plani.md) §10.2 satır 20 (teklif), F0-D04 (sözleşme) ve §9.4 iş tanımı.
 
 | Dönem | Yoğunluk [T] | Çıktılar |
 |---|---|---|
@@ -470,6 +470,8 @@ Beş kullanıcıyla kullanılabilirlik sorunlarının büyük kısmı yakalanır
 - **[Faz 2]** Üç ayda bir SUS (panel), yeni ekran başına 5 kişilik hızlı test.
 
 ### 8.9 10'a önerilen deney: D13 (10'u bu doküman düzenlemez)
+**Eklendi:** H15 [10](10-riskler-operasyon-ve-metrikler.md) §4.2'de, D13 §4.3'te, takvim §4.1'de, "Tasarım kontrolü" §4.10'da; R05 azaltmasına bağlandı (10 §11 #23). Aşağıdaki satırlar kaynak olarak korunur; kanonik metin 10'dakidir.
+
 **Hipotez satırı ([10](10-riskler-operasyon-ve-metrikler.md) §4.2'ye önerilen):**
 
 | # | Hipotez | Bağlı risk | Öldürme / pivot eşiği [T] | Deney |
@@ -482,7 +484,7 @@ Beş kullanıcıyla kullanılabilirlik sorunlarının büyük kısmı yakalanır
 |---|---|---|---|---|---|---|---|
 | **D13** Kullanılabilirlik ve alarm duyulabilirlik testi | H15 | 3–5 restoranda bağlamsal gözlem; tıklanabilir prototiple 5 kasiyer (P-04, P-06) ve 8 son müşteri (S-01…S-06, ≥ 2'si 55+); laboratuvar ve saha alarm testi; pilotta yerinde SUS (12 §8) | Alarm→onay süresi, görev başarısı, kritik hata, SUS, alarm fark etme oranı | Onay medyanı < 10 sn; storefront siparişi < 3 dk; SUS ≥ 70; kritik hata 0; saha alarmı ≥ 9/10 | Hafta 1–4; laboratuvar H5–H6; pilot H11–H14 | TAS ~25–30 kişi-gün + katılımcı teşviki (teklif) | Kurucu-İş (ürün sahibi) + TAS |
 
-**Takvim ve kapı önerisi:** [10](10-riskler-operasyon-ve-metrikler.md) §4.1 tablosunun "1–4" satırına D13 eklenir. §4.10'a ara kontrol eklenir: "Tasarım kontrolü (26 Ekim, S3 planlaması): H15'in prototip ölçütleri". P0 kontrol listesine ([09](09-yol-haritasi-ve-sprint-plani.md) §11.1) "Alarm laboratuvar testi geçti" maddesi eklenir.
+**Takvim ve kapı önerisi:** [10](10-riskler-operasyon-ve-metrikler.md) §4.1 tablosunun "1–4" satırına D13 eklenir. §4.10'a ara kontrol eklenir: "Tasarım kontrolü (26 Ekim, S3 planlaması): H15'in prototip ölçütleri". P0 kontrol listesine ([09](09-yol-haritasi-ve-sprint-plani.md) §11.1) "Alarm laboratuvar testi geçti" maddesi eklenir. (Üçü de eklendi: 10 §4.1, §4.10; 09 §11.1.)
 
 ---
 
@@ -499,7 +501,7 @@ Beş kullanıcıyla kullanılabilirlik sorunlarının büyük kısmı yakalanır
 | **Sunmi POS** | — | Chrome, Google servisleri ve dolayısıyla Web Push varlığı modele göre değişir (**teyit edilmeli**). Faz 1'de "sınırlı"; Faz 2 Capacitor uygulamasıyla tam destek | — |
 | **Yazıcı** | Windows + USB/LAN 80/58 mm termal (tarayıcı yazdırma, kiosk-printing **teyit edilmeli**) | Android + Bluetooth termal: sistem yazdırma hizmeti eklentisi gerekir (**teyit edilmeli**) | — |
 
-### 9.2 Fiziksel test cihaz parkı [T] (bütçe: [09](09-yol-haritasi-ve-sprint-plani.md) §10.2 satır 15'e eklenir, teklif)
+### 9.2 Fiziksel test cihaz parkı [T] (bütçe: [09](09-yol-haritasi-ve-sprint-plani.md) §10.2 satır 21, teklif; görev S3-15)
 
 | # | Cihaz | Neden |
 |---|---|---|
@@ -520,9 +522,9 @@ Beş kullanıcıyla kullanılabilirlik sorunlarının büyük kısmı yakalanır
 | EK-03 | Başka uygulamaya geçip dönme: Wake Lock yeniden alınır, ses kilidi bandı doğru görünür | Tüm tabletler |
 | EK-04 | Wi-Fi kopması (akıllı prizle 60 sn): bant ≤ 45 sn'de çıkar, SES-09 çalar; geri gelince "N yeni sipariş" görünür ve alarm çalar | Android tablet |
 | EK-05 | Wi-Fi → 4G hotspot geçişi: SSE yeniden bağlanır, kayıp olay yoktur | Android tablet |
-| EK-06 | Sayfa yenileme ve PWA güncellemesi sonrası ses kilitli bandı + [Sesi aç] görünür (sürüm yönetimi riski, [06](06-teknik-mimari.md) §16.5) | Tüm |
+| EK-06 | Sayfa yenileme ve PWA güncellemesi sonrası ses kilitli bandı + [Sesi aç] görünür; güncelleme yalnız güvenli anda veya vardiya başlat ekranında uygulanır, açık `new` sipariş varken sayfa yenilenmez (sürüm yönetimi, [06](06-teknik-mimari.md) §16.7) | Tüm |
 | EK-07 | Çift cihaz: yalnız lider sekme çalar; onay yarışında biri geçer, diğeri "Elif onayladı" görür | 2 tablet |
-| EK-08 | Yazdırma: 58 ve 80 mm test fişi, "ĞÜŞİÖÇ ğüşıöç", KOPYA, mutfak fişinde fiyat yok | PC + yazıcılar |
+| EK-08 | Yazdırma: 58 ve 80 mm test fişi, "ĞÜŞİÖÇ ğüşıöç", KOPYA, mutfak fişinde fiyat ve kişisel veri yok, paket fişinde telefon maskeli (§7.4) | PC + yazıcılar |
 | EK-09 | Açık/koyu tema, %200 yazı büyütme, 320 px genişlik: yatay kaydırma yok | Telefon, tablet |
 | EK-10 | TalkBack ve VoiceOver ile menü → sipariş → takip akışı ([03](03-musteri-deneyimi-ve-storefront.md) §10.3) | Android telefon, iPhone |
 | EK-11 | Storefront WhatsApp ve Instagram uygulama içi tarayıcısında: token, "Ben değilim", çerez; 3G kısıtlamasında checkout | Ucuz Android, iPhone |
@@ -545,7 +547,7 @@ Kurulum günü ([10](10-riskler-operasyon-ve-metrikler.md) §5.5 Kapı 1–2, [0
 | UAT-08 | Modem 60 sn kapatılır | Bant çıkar; geri gelince kaçan sipariş alarmı çalar |
 | UAT-09 | Tablet ekranı kapatılır, sipariş verilir | Push gelir, açılınca alarm çalar |
 | UAT-10 | Sipariş almayı 15 dk durdur | Storefront kapalı görünür, süre sonunda açılır |
-| UAT-11 | Bir test siparişi 2 dk bekletilir | Sahibin telefonuna platform WhatsApp uyarısı gelir (test siparişinde eskalasyonun açık olması **teyit edilmeli**, [06](06-teknik-mimari.md) §7.6) |
+| UAT-11 | Bir test siparişi 2 dk bekletilir | Sahibin telefonuna platform WhatsApp uyarısı "TEST #1001" etiketiyle gelir. `onboarding_test` siparişinde kısaltılmış zincir çalışır: ses, Web Push ve 2 dk platform WhatsApp uyarısı (yalnız `owner`'ın platform WhatsApp onayı varsa); SMS, müşteri adımları ve otomatik iptal yoktur ([00](00-kararlar-ve-sozluk.md) §7, [06](06-teknik-mimari.md) §7.6, [07](07-veri-modeli-ve-api.md) §4.1, [02](02-whatsapp-entegrasyonu.md) §5.3) |
 | UAT-12 | Kasiyer 3 dk videoyu izlemiş, mini yoklamadan ≥ 4/5 almış; kasa kartı asılı; P1 test araması 5 dk içinde yanıtlanmış | Hepsi evet |
 
 ```text
@@ -578,7 +580,7 @@ UAT-01…05, 07, 08 ve 12 "M"dir (geçmezse canlıya geçilmez). Diğerleri "S"d
 | 20:00–20:30 (zirve) | 10 (A 4, B 3 [1'i SMS OTP], E 2, 1 bölge dışı) | 20:05 kasa tableti yeniden başlatılır (ses kilidi); 20:20 yazıcı kâğıdı biter |
 | 20:30–21:00 | 6 (A 2, B 1 [SMS OTP], E 1, 1 mükerrer → `duplicate` ret, 1 müşteri iptal talebi) | 20:35 bir sipariş 3 dk bekletilir (60 sn ve 2 dk uyarıları); 20:50 iki cihazdan eşzamanlı onay |
 
-- **Geçme ölçütleri:** Kaçan sipariş 0. Webhook→panel p95 < 3 sn. Her siparişte durum mesajı ≤ 4 (+ Akış A karşılaması). 2 dk uyarısı ± 15 sn içinde. 30 fişin tamamı basıldı. Onay medyanı < 60 sn. Açık P1/P2 hata yok. Sonuç P0 kontrol listesine madde olarak yazılır ([09](09-yol-haritasi-ve-sprint-plani.md) §11.1'e önerilir). Kalınırsa P0 kapısı aynı gün "koşullu" değerlendirilir.
+- **Geçme ölçütleri:** Kaçan sipariş 0. Webhook→panel p95 < 3 sn. Her siparişte durum mesajı ≤ 4 (+ Akış A karşılaması). 2 dk uyarısı ± 15 sn içinde. 30 fişin tamamı basıldı. Onay medyanı < 60 sn. Açık P1/P2 hata yok. Sonuç P0 kontrol listesine madde olarak yazılır (eklendi: [09](09-yol-haritasi-ve-sprint-plani.md) §11.1 "30 siparişli Cuma akşamı provası geçti"; görev S5-14). Kalınırsa P0 kapısı aynı gün "koşullu" değerlendirilir.
 - **21:15 değerlendirme (30 dk):** Bulgular `ux-finding` ve hata olarak açılır, H13'e ya da P0 engeline atanır.
 
 ---
@@ -643,7 +645,7 @@ P1 saatleri ve destek numarası [00](00-kararlar-ve-sozluk.md) §4'e göredir: p
 
 ### 10.4 Güncelleme kuralı
 - Her içerik bir **ekran ID'sine** (S-/P-/K-) bağlıdır. Eşleme `packages/i18n/help-map.ts` dosyasında tutulur [T].
-- Bir PR bağlı ekranın metnini, buton yerini veya akışını değiştirirse PR şablonunda **"Yardım içeriği etkisi"** kutusu işaretlenir ([09](09-yol-haritasi-ve-sprint-plani.md) §6.2 "Doküman" maddesine eklenmesi önerilir). Etkilenen içerik aynı sürümde metin olarak, **en geç bir sonraki sprintte** video olarak güncellenir.
+- Bir PR bağlı ekranın metnini, buton yerini veya akışını değiştirirse PR şablonunda **"Yardım içeriği etkisi"** kutusu işaretlenir (eklendi: [09](09-yol-haritasi-ve-sprint-plani.md) §6.2 Definition of Done, "Doküman" maddesi). Etkilenen içerik aynı sürümde metin olarak, **en geç bir sonraki sprintte** video olarak güncellenir.
 - Her içerikte "son doğrulandığı sürüm" alanı bulunur. OPS ayda bir Meta'nın ödeme ve Embedded Signup ekranlarını kontrol eder (EG-06 en hızlı eskiyen içeriktir).
 - Destekte aynı soru bir haftada ≥ 3 kez gelirse yeni makale açılır ya da mevcut makale düzeltilir ([10](10-riskler-operasyon-ve-metrikler.md) §5.3 etiketleriyle).
 
@@ -681,7 +683,7 @@ Storefront tablosu [03](03-musteri-deneyimi-ve-storefront.md) §10.3'tedir. Pane
 - **[Faz 1]** Tüm UI metinleri koddan ayıklanır. ICU mesaj biçimi ve FormatJS (`react-intl`, Next.js'te aynı katalog) kullanılır [T]. Kaynak katalog `tr.json`'dur; anahtar biçimi `panel.orders.accept_button`. Metin birleştirme (`"Sepette " + n + " ürün"`) yasaktır. JSX içinde çıplak metin lint ile yakalanır (ilgili eslint kuralının adı **teyit edilmeli**).
 - **Çoğul:** Türkçede sayıdan sonra ad tekildir ("3 ürün"); CLDR Türkçe kategorileri `one`/`other`'dır. Yine de her sayılı metin ICU `plural` ile yazılır. Faz 3 dilleri daha zengin çoğul kategorileri ister: Rusça `one/few/many/other`, Arapça `zero/one/two/few/many/other`.
 - **Sözde yerel ayar testi [T]:** CI'da `tr-XA` (uzatılmış, aksanlı) sözde dili ile Storybook görüntüsü alınır; taşan ve kesilen metin yakalanır. Almanca metinlerin daha uzun olmasına hazırlıktır.
-- **[Faz 3]** EN, RU, AR, DE: önce storefront ve müşteri mesajları, panel Türkçe kalır. Ürün çevirileri `product_translations` tablosunda tutulur ([07](07-veri-modeli-ve-api.md)'ye önerilir). Dil seçimi tarayıcı diline göre yapılır, elle değiştirilebilir. WhatsApp şablonları dil koduyla ayrı onaylanır ([02](02-whatsapp-entegrasyonu.md)). Arapça için `dir="rtl"`: mantıksal CSS özellikleri Faz 1'den beri kullanıldığı için maliyet düşüktür (§4.1). Yabancı numaralara SMS maliyeti ve limitleri [06](06-teknik-mimari.md)'da değerlendirilir.
+- **[Faz 3]** EN, RU, AR, DE: önce storefront ve müşteri mesajları, panel Türkçe kalır. Ürün çevirileri `product_translations` tablosunda tutulur ([07](07-veri-modeli-ve-api.md) §3.8, Faz 3; kategori ve seçenek adları için desen 07 §11 #28'de açık). Dil seçimi tarayıcı diline göre yapılır, elle değiştirilebilir. WhatsApp şablonları dil koduyla ayrı onaylanır ([02](02-whatsapp-entegrasyonu.md)). Arapça için `dir="rtl"`: mantıksal CSS özellikleri Faz 1'den beri kullanıldığı için maliyet düşüktür (§4.1). Yabancı numaralara SMS: Faz 1'de SMS OTP yalnız `+90` numaralara gider; yurt dışı teslim ve fiyat Faz 3'te teyit edilir ([06](06-teknik-mimari.md) §4.3, [13](13-varsayim-ve-teyit-kaydi.md) V-087).
 
 ---
 
@@ -693,6 +695,8 @@ Storefront tablosu [03](03-musteri-deneyimi-ve-storefront.md) §10.3'tedir. Pane
 - **[Faz 3]** EN/RU/AR/DE storefront + RTL; özel alan adında imza ve Zincir paketinde imza kaldırma kararı; ücretsiz "Menü" katmanında zorunlu imza.
 
 ### 12.2 Önerilen görevler (kimlikler 09'un biçimindedir; 09'u bu doküman düzenlemez)
+**Eklendi:** Aşağıdaki görevler [09](09-yol-haritasi-ve-sprint-plani.md)'a birebir işlendi (F0-D01…D06 §3.6'da; S1-11…S6-20 sprint tablolarında UX epiği olarak, §5.2 kapasite notu; F2-20, F2-21, F3-16 §8'de). Kanonik görev tanımı ve takvim 09'dadır.
+
 
 | Önerilen ID | Görev | Sahip | Zaman | Bağımlılık | Ö. |
 |---|---|---|---|---|---|
@@ -718,10 +722,10 @@ Storefront tablosu [03](03-musteri-deneyimi-ve-storefront.md) §10.3'tedir. Pane
 | F2-21 | i18n: ICU kapsamı %100, sözde yerel ayar CI testi, yardım içeriği eşlemesi | FE | Faz 2 | — | — |
 | F3-16 | EN/RU/AR/DE storefront, RTL, `product_translations` | FE, TL | Faz 3 | F2-21 | — |
 
-**P0 kontrol listesine ([09](09-yol-haritasi-ve-sprint-plani.md) §11.1) eklenmesi önerilen maddeler:** alarm laboratuvar testi geçti (S3-14); "Cuma akşamı" provası geçti (S5-14); Dalga 1 için UAT formu hazır; EG-02/03/04/07 hazır. **09 §6.3 kalite kapılarına:** görsel regresyon (PR, `packages/ui`).
+**P0 kontrol listesine ([09](09-yol-haritasi-ve-sprint-plani.md) §11.1) eklenmesi önerilen maddeler:** alarm laboratuvar testi geçti (S3-14); "Cuma akşamı" provası geçti (S5-14); Dalga 1 için UAT formu hazır; EG-02/03/04/07 hazır. **09 §6.3 kalite kapılarına:** görsel regresyon (PR, `packages/ui`). (Alarm laboratuvar testi ve prova 09 §11.1'e, görsel regresyon kapısı 09 §6.3'e eklendi.)
 
 ### 12.3 09 bütçesine öneri ([09](09-yol-haritasi-ve-sprint-plani.md) §10.2)
-Üç yeni satır, üçü de **teklif**le belirlenir (rakam uydurulmadı): (1) Ürün tasarımcısı, yarı zamanlı/serbest, S1–S6, ~25–30 kişi-gün [T]. (2) Test cihaz parkı (§9.2); satır 15 "pilot cihaz desteği" ile birleştirilebilir. (3) Kullanılabilirlik testi katılımcı teşviki (13 kişi). Mevcut satır 5 (logo, basılı materyal, site görseli) marka tasarımını kapsamaya devam eder.
+Üç yeni satır, üçü de **teklif**le belirlenir (rakam uydurulmadı). **Eklendi:** 09 §10.2 satır 20–22. (1) Ürün tasarımcısı, yarı zamanlı/serbest, S1–S6, ~25–30 kişi-gün [T] (satır 20). (2) Test cihaz parkı (§9.2; satır 21, satır 15 "pilot cihaz desteği" ile birleştirilebilir). (3) Kullanılabilirlik testi katılımcı teşviki, 13 kişi (satır 22). Mevcut satır 5 (logo, basılı materyal, site görseli) marka tasarımını kapsamaya devam eder.
 
 ---
 
@@ -729,17 +733,17 @@ Storefront tablosu [03](03-musteri-deneyimi-ve-storefront.md) §10.3'tedir. Pane
 
 | # | Konu | Bu dokümandaki varsayım / öneri |
 |---|---|---|
-| 1 | **İmza metni:** Görev tanımı ve A05 §6.4 "Siparişin Önünde ile", 03 §1 İ5 ve §4.0 "Altyapı: Siparişin Önünde" diyor. | 03'teki metin uygulandı (§5.3). Tek metne karar verilmeli; ETAHS sinyali açısından "Altyapı:" daha nötrdür [T]. |
+| 1 | ~~**İmza metni:** Görev tanımı ve A05 §6.4 "Siparişin Önünde ile", 03 §1 İ5 ve §4.0 "Altyapı: Siparişin Önünde" diyor.~~ | **Karara bağlandı:** tek metin "Altyapı: Siparişin Önünde" ([00](00-kararlar-ve-sozluk.md) §7 "Storefront imzası"; [03](03-musteri-deneyimi-ve-storefront.md) §4.0). İşletme ayarıyla kaldırılamaz ([04](04-isletme-paneli.md) §7.2). §5.3 buna göre güncellendi. |
 | 2 | **Marka ve alan adı müsaitliği** (00 §13 #6, R36). "Sipariş" unsuru tanımlayıcı; ret riski var. | İsim kilidi H1 sonu. Yedek adaylar (Tıkır, Tamamdır, Sipaş) **teyit edilmeli**. Sonuç 00'a işlenir; isim değişirse platform WABA görünen adı, SMS başlığı, alan adı ve künye birlikte değişir. |
-| 3 | **Marka rengi alanı yok:** [04](04-isletme-paneli.md) §3.3 adım 2 ve P-26'da "Ana renk" alanı, [07](07-veri-modeli-ve-api.md) `tenants`'ta marka rengi, türetilmiş palet, logo ve kapak görseli alanları tanımlı değil. | 04'e alan, 07'ye `brand_color`, `brand_palette jsonb`, `logo_image_id`, `cover_image_id` (adlar 07 sahibince) eklenmesi önerilir. |
-| 4 | **D13 ve hipotez H15** 10'da yok; §8.9'daki satırlar 10'a eklenmeli. 09'a §12.2'deki görevler ve §12.3'teki bütçe satırları eklenmeli. | Öneri olarak yazıldı; 09 ve 10 düzenlenmedi. |
+| 3 | ~~**Marka rengi alanı yok:** [04](04-isletme-paneli.md) §3.3 adım 2 ve P-26'da "Ana renk" alanı, [07](07-veri-modeli-ve-api.md) `tenants`'ta marka rengi, türetilmiş palet, logo ve kapak görseli alanları tanımlı değil.~~ | **Eklendi:** P-26 "Marka görünümü" (ana renk, logo, kapak) [04](04-isletme-paneli.md) §7.2'de; [07](07-veri-modeli-ve-api.md) `tenants` ve `branches` (şube geçersiz kılması, Faz 2) tablolarında `brand_color`, `brand_palette` (jsonb), `logo_url`, `cover_url`. Bu dokümanın eski önerisindeki `logo_image_id`/`cover_image_id` adları kullanılmaz. Açık kalan: R2 anahtarı mı URL mi saklanacağı deseni ([07](07-veri-modeli-ve-api.md) §11 #24). |
+| 4 | ~~**D13 ve hipotez H15** 10'da yok; §8.9'daki satırlar 10'a eklenmeli. 09'a §12.2'deki görevler ve §12.3'teki bütçe satırları eklenmeli.~~ | **Eklendi:** H15 ve D13 [10](10-riskler-operasyon-ve-metrikler.md) §4.2, §4.3, §4.1 takvimi ve §4.10 "Tasarım kontrolü"nde; R05 azaltmasına bağlandı. Görevler [09](09-yol-haritasi-ve-sprint-plani.md) §3.6 (F0-D01…D06), sprint tablolarındaki UX epiği (S1-11…S6-20) ve §8'de (F2-20, F2-21, F3-16); bütçe §10.2 satır 20–22; alarm laboratuvar testi ve prova §11.1 P0 listesinde. |
 | 5 | **Meta/WhatsApp marka yönergeleri** (§2.6), WhatsApp CTA buton biçimi, WhatsApp profil ve üst görsel oranları. | Genel ilkeler **(teyit edilmeli)**; yayından önce avukat kontrolü ([05](05-admin-paneli-ve-pazarlama-sitesi.md) açık konu 20). |
 | 6 | **"Onayla" butonunun rengi:** Mürekkep (sabit birincil renk) mi, yeşil mi? | Mürekkep varsayıldı (renk durumlara ayrılmış). PT-01'de iki varyant denenebilir [T]; karar 26 Ekim'de. |
-| 7 | **Emoji → ikon:** 04'teki tel kafes ve mikro metinlerde emoji var (🟢, ⏱, 🔔). | Üretimde Lucide ikonu (§3.5). 04 §14.3 metinlerinden emojinin çıkarılması önerilir. |
+| 7 | ~~**Emoji → ikon:** 04'teki tel kafes ve mikro metinlerde emoji vardı.~~ | **Karara bağlandı:** UI'da emoji yok ([00](00-kararlar-ve-sozluk.md) §7). 04 metinleri `[… ikonu]` gösterimine çevrildi; Lucide eşlemesi [04](04-isletme-paneli.md) §14.5'te (§3.5). Sekme başlığındaki ses kapalı öneki de metindir (§6.3). İkon adlarının Lucide sürümünde teyidi: [13](13-varsayim-ve-teyit-kaydi.md) V-089. |
 | 8 | **Hitap dili:** Site "sen", panel ve müşteri "siz" ([05](05-admin-paneli-ve-pazarlama-sitesi.md) açık konu 18). | §2.3'teki matris önerildi; proje sahibi onayı gerekir. |
 | 9 | **İmza ve paketler:** Zincir paketinde imzayı kaldırma hakkı, Menü katmanında zorunlu imza ([01](01-vizyon-pazar-is-modeli.md) §6.3 paket matrisi). | Faz 3 kararı. |
-| 10 | **Fişte kişisel veri:** Kasa/kurye fişi tam telefon ve adres içeriyor; pakete girerse üçüncü kişiye ulaşabilir. | Maskeli "müşteri nüshası" varyantı ve fiş alt bilgisindeki KVKK notu [06](06-teknik-mimari.md) §9.2'ye önerilir; avukat görüşü. |
-| 11 | **Test siparişinde alarm zinciri:** UAT-11 ve prova, `onboarding_test` siparişinde 2 dk platform WhatsApp uyarısının çalışmasını varsayıyor. | 06 §7.6 ve 07 ile **teyit edilmeli**; çalışmıyorsa tatbikat için ayrı bayrak gerekir. |
+| 10 | ~~**Fişte kişisel veri:** Kasa/kurye fişi tam telefon ve adres içeriyor; pakete girerse üçüncü kişiye ulaşabilir.~~ | **Karara bağlandı:** mutfak fişinde kişisel veri yok; paket (kurye) fişinde adres ve tarif tam, telefon her zaman maskeli (son 4 hane) ([00](00-kararlar-ve-sozluk.md) §7 "Fişte kişisel veri"; [06](06-teknik-mimari.md) §9.2, snapshot testiyle). Ayrı "müşteri nüshası" gerekmez (§7.4). Açık kalan: fiş alt bilgisindeki KVKK kısa notunun metni avukat onayına bağlıdır. |
+| 11 | ~~**Test siparişinde alarm zinciri:** UAT-11 ve prova, `onboarding_test` siparişinde 2 dk platform WhatsApp uyarısının çalışmasını varsayıyor.~~ | **Karara bağlandı:** `onboarding_test` siparişinde kısaltılmış zincir çalışır: ses + Web Push + 60 sn tekrar + 2 dk platform WhatsApp uyarısı "TEST #1001" etiketiyle (yalnız `owner`'ın platform WhatsApp onayı varsa); SMS, müşteri adımları ve otomatik iptal yok ([00](00-kararlar-ve-sozluk.md) §7; [06](06-teknik-mimari.md) §7.6, [07](07-veri-modeli-ve-api.md) §4.1, [02](02-whatsapp-entegrasyonu.md) §5.3). Ayrı bayrak gerekmez; UAT-11'in ve provanın (§9.5) 60 sn ve 2 dk kontrolleri bu zincirle karşılanır. Açık kalan: şablon parametresinin "TEST #1001" biçimine izin verdiği (02 §5.3, teyit edilmeli). |
 | 12 | **Teknik teyitler:** Sunmi'de Chrome ve Web Push, Android Bluetooth termal yazıcıya tarayıcı yazdırma, `navigator.vibrate` iOS desteği, Firefox Wake Lock, ISO 7731 eşiği, Türkçe SUS çevirisi, Storybook ve eslint kural adları. | S1–S3'te cihaz parkıyla doğrulanır; sonuç ilgili bölüme işlenir. |
 | 13 | **Tasarımcı bütçesi ve katılımcı teşviki** tutarları kaynaklarda yok. | Teklif ve kurucu kararı (§12.3). |
-| 14 | **PWA güncellemesinde ses kilidinin düşmesi** (eleştiri #5) bu dokümanda yalnız test edilir (EK-06). | Güncelleme politikası [06](06-teknik-mimari.md) §16.5 ve [04](04-isletme-paneli.md) §4.1'de tanımlanmalı. |
+| 14 | ~~**PWA güncellemesinde ses kilidinin düşmesi** (eleştiri #5) bu dokümanda yalnız test edilir (EK-06).~~ | **Karara bağlandı:** güncelleme politikası [06](06-teknik-mimari.md) §16.7'de (güvenli an / vardiya başlat, açık `new` sipariş varken yenileme yok, kilitli ses için bant + Web Push + 5 dk sonra `owner` uyarısı, `app_releases` ile asgari sürüm, sürüm treni ve öncü halka) ve işletme tarafı görünümü [04](04-isletme-paneli.md) §4.1'de tanımlandı. Bu doküman EK-06 ile elle kontrol eder. Açık kalan teknik teyitler (service worker "prompt" modu, iOS ana ekran PWA davranışı): [13](13-varsayim-ve-teyit-kaydi.md) V-086. |

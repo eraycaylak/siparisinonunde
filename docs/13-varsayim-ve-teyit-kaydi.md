@@ -1,9 +1,9 @@
 # 13 — Varsayım ve Teyit Kaydı
 
 > **Amaç:** Plan setinde "(teyit edilmeli)", `[D?]`, `[?]`, `[E]`, "DOĞRULANAMADI" ve karar etkileyen `[T]` ile işaretlenmiş iddiaları tek listede toplamak. Her maddenin bir sahibi, son tarihi ve bağlı olduğu kapı var. Böylece hiçbir kapı kararı teyit edilmemiş bir varsayıma dayanarak sessizce verilmez.
-> **Kapsam:** Kaydın kullanım kuralları, engelleyici teyitler (V-001–V-028), yüksek, orta ve düşük öneme sahip varsayımlar (V-029–V-084), [00](00-kararlar-ve-sozluk.md) §13'teki açık kararlar için sahip ve son tarih önerisi, işaret istatistiği, haftalık gözden geçirme şablonu ve değişiklik günlüğü.
+> **Kapsam:** Kaydın kullanım kuralları, engelleyici teyitler (V-001–V-028), yüksek, orta ve düşük öneme sahip varsayımlar (V-029–V-090), [00](00-kararlar-ve-sozluk.md) §13'teki açık kararlar için sahip ve son tarih önerisi, işaret istatistiği, haftalık gözden geçirme şablonu ve değişiklik günlüğü.
 > **Kapsam dışı:** Risklerin puanlanması ([10](10-riskler-operasyon-ve-metrikler.md) §3), iş hipotezleri ve deney eşikleri ([10](10-riskler-operasyon-ve-metrikler.md) §4.2–4.5; bu kayıt yalnız bağlantı verir), hukuki içerik ([08](08-mevzuat-kvkk-odeme-fatura.md)).
-> **İlgili dokümanlar:** [00 Kararlar](00-kararlar-ve-sozluk.md) · [01 İş modeli](01-vizyon-pazar-is-modeli.md) · [02 WhatsApp](02-whatsapp-entegrasyonu.md) · [03 Storefront](03-musteri-deneyimi-ve-storefront.md) · [04 Panel](04-isletme-paneli.md) · [05 Admin ve site](05-admin-paneli-ve-pazarlama-sitesi.md) · [06 Mimari](06-teknik-mimari.md) · [07 Veri modeli](07-veri-modeli-ve-api.md) · [08 Mevzuat](08-mevzuat-kvkk-odeme-fatura.md) · [09 Yol haritası](09-yol-haritasi-ve-sprint-plani.md) · [10 Riskler](10-riskler-operasyon-ve-metrikler.md)
+> **İlgili dokümanlar:** [00 Kararlar](00-kararlar-ve-sozluk.md) · [01 İş modeli](01-vizyon-pazar-is-modeli.md) · [02 WhatsApp](02-whatsapp-entegrasyonu.md) · [03 Storefront](03-musteri-deneyimi-ve-storefront.md) · [04 Panel](04-isletme-paneli.md) · [05 Admin ve site](05-admin-paneli-ve-pazarlama-sitesi.md) · [06 Mimari](06-teknik-mimari.md) · [07 Veri modeli](07-veri-modeli-ve-api.md) · [08 Mevzuat](08-mevzuat-kvkk-odeme-fatura.md) · [09 Yol haritası](09-yol-haritasi-ve-sprint-plani.md) · [10 Riskler](10-riskler-operasyon-ve-metrikler.md) · [12 Marka ve tasarım](12-marka-tasarim-ve-kullanilabilirlik.md)
 > **Atıf biçimi:** `02 §5.3` = 02 numaralı plan dokümanının 5.3 bölümü. `A01 §4.3` = `arastirma/01-….md` raporunun 4.3 bölümü (URL'ler raporlarda). Satır numarası kullanılmaz, çünkü dokümanlar düzenlenmeye devam ediyor.
 > **Tarih:** 2026-09-24 · **Durum:** Taslak v1 · **Kayıt sahibi:** KUR (hesap veren), TL (teknik maddelerin bakımı)
 
@@ -62,7 +62,7 @@
 | P0 | Pilot öncesi kapı ("sipariş kaçmaz" paketi dahil) | 4 Ara 2026 (H10) |
 | F2 | Faz 2 başı (ticari altyapı) | 28 Ara 2026 (H14) |
 | K4 | Ticari lansman kapısı | Ön-onay 29 Oca 2027 (H18) · kesinleşme 12 Şub 2027 (H20) · lansman 15 Şub 2027 (H21) |
-| İÜM | İlk ücretli müşteri | İlk fatura: D6'da iade garantili ön ödeme gelirse H4–H8 ([09](09-yol-haritasi-ve-sprint-plani.md) F0-H16), gelmezse ticari lansman (15 Şub 2027). Pilotlar ≈ 8–22 Mar 2027'de ücretliye geçer |
+| İÜM | İlk ücretli müşteri | ≈ Mar 2027 ([09](09-yol-haritasi-ve-sprint-plani.md) §1.1 "İÜM" satırıyla aynı tanım): pilotların ücretliye geçişi (≈ 8–22 Mar 2027) **ya da** ticari lansmandan (15 Şub 2027) sonraki ilk self-servis ücretli kayıt, hangisi önce gelirse. **İstisna:** D6'da iade garantili ön ödeme gelirse ilk fatura H4–H8'de kesilir ([09](09-yol-haritasi-ve-sprint-plani.md) F0-H16) ve İÜM'ye bağlı mali teyitler o tarihe çekilir |
 | F3 | Faz 3 planlaması | ≈ Haz 2027 |
 
 ### 1.6 Güncelleme kuralları
@@ -109,7 +109,7 @@ Sıralama son tarihe göredir. Tüm maddelerin durumu 24.09.2026 itibarıyla `ac
 | V-011 | **Platform şablonları utility kategorisinde onaylanıyor:** `isletme_yeni_siparis_v1`, `isletme_panel_cevrimdisi_v1`, `kurye_giris_v1`, `platform_planli_bakim_v1`, `platform_hizmet_bildirimi_v1`, `platform_hizmet_duzeldi_v1` | 02 §5.3 Platform WABA'sı şablonları, §12 #16; 09 §2.4, F0-M08; 10 §6.3, §11 #10 | Kademeli alarmın 2. dakika adımı, kurye girişi ve olay duyuruları pilotta çalışmaz. `kurye_giris_v1` authentication sayılırsa kod tabanlı şablona veya SMS'e geçilir | Şablonlar H3–H4'te Meta'ya gönderilir; `message_template_status_update` sonucu ve atanan kategori kaydedilir | TL | 23 Eki 2026 | P0 | engelleyici | `acik` |
 | V-012 | **SMS/OTP fiyatı:** toplu SMS ≈ 0,16–0,43 TL. OTP özel tarifesi, Türkçe karakter ve segment etkisi bilinmiyor | 00 §4 SMS maliyeti; 01 §7.1, §11 #18; 03 §9.5 SMS metinleri; 06 §17; 10 §6.3; A04 (DOĞRULANAMADI) | Esnaf 100 / Pro 300 SMS kotasının COGS'u değişir. Metinler 2 segmenti aşabilir | Netgsm, İleti Merkezi ve Verimor'dan yazılı teklif (08 §11.3-8) + Türkçe karakterli gönderim testi | TL | 23 Eki 2026 | P0, K4 (Esnaf marjı) | yüksek | `acik` |
 | V-013 | **Teknokent KDV istisnası:** KDV geçici m.20 SaaS aboneliğine uygulanabilir; 4691 kazanç istisnası 31.12.2028'e kadar sürüyor | 00 §9 Vergi/şirket, §13.3; 08 §8.5 Teknokent, §10 #19, §11.2-1; 09 §10.3, F0-H14 | Fiyat sayfasındaki KDV dahil tutar, nakit planı, şirket adresi ve NACE seçimi değişir | Mali müşavir + Teknokent yönetimi; ilgili özelgelerin taranması | KUR (MM) | NACE seçiminden önce ön görüş (tescil, en geç 9 Eki); karar notu 23 Eki 2026 | K4 (fiyat sayfası) | yüksek | `acik` |
-| V-014 | **SambaPOS ve Adisyo** sipariş aktarımı için API ve sandbox erişimi veriyor; ticari koşullar Pro paketine dahil edilebilecek düzeyde | 01 §4.2 POS ekosistemi; 09 §1.1 (Mar 2027), §8.1 F2-05; A02 §4 | F2-05 ve GloriaFood geçiş kampanyası (son tarih 30.04.2027) yapılamaz. "POS-agnostik kanal" konumlandırması zayıflar | Faz 0 görüşmeleri: API dokümanı, sandbox, ticari koşul, NDA (SambaPOS, Adisyo; ek olarak robotPOS, Simpra) | KUR (TL) | İlk görüşme 23 Eki 2026 (öneri); yazılı erişim 28 Ara 2026 | F2 | yüksek | `acik` |
+| V-014 | **SambaPOS ve Adisyo** sipariş aktarımı için API ve sandbox erişimi veriyor; ticari koşullar Pro paketine dahil edilebilecek düzeyde | 01 §4.2 POS ekosistemi, §8.8 Faz 0 görüşmeleri ve entegrasyon karar matrisi; 09 §1.1 (Mar 2027), F0-G10, §8.1 F2-05; A02 §4. Diğer POS adayları ve partner sözleşmesi: V-090 | F2-05 ve GloriaFood geçiş kampanyası (son tarih 30.04.2027) yapılamaz. "POS-agnostik kanal" konumlandırması zayıflar | Faz 0 görüşmeleri: API dokümanı, sandbox, ticari koşul, NDA (SambaPOS, Adisyo; ek olarak robotPOS, Simpra) | KUR (TL) | İlk görüşme 23 Eki 2026 (öneri); yazılı erişim 28 Ara 2026 | F2 | yüksek | `acik` |
 | V-015 | **App Review:** inceleme birkaç gün ile birkaç hafta sürer, ret olursa +1–2 hafta eklenir. BV onayının App Review'dan önce şart olup olmadığı ve `business_management` izninin gerekip gerekmediği bilinmiyor | 02 §2.2, §12 #7; 09 §2.1 Kritik yol, §2.5 T2, §12 #23; A01 §1.3 [?] | 2 haftalık bolluk yalnız tek bir reddi karşılar. İkinci ret ya da yanlış sıralama Plan B'yi (T4) tetikler | Meta App Review dokümanı + başvuru sonucu; gerekirse Meta destek kaydı | TL | Başvuru 27 Eki 2026 (en geç 6 Kas) | K3 | engelleyici | `acik` |
 | V-016 | **Plan A':** pilot işletme sahipleri uygulamaya "tester" rolüyle eklenince standart erişimle onlar adına mesaj gönderilebiliyor | 02 §2.5 Geliştirme modu kısıtı; 09 §2.5 T3–T4; 10 §4.3 D7 | App Review gecikirse tek seçenek Solution Partner (Plan B) kalır | D7 kuru koşusunda 3 dost işletmeyle gerçek gönderim testi | TL (OPS) | 20 Kas 2026 (T4); test D7 içinde (H5–H8) | K3 | engelleyici | `acik` |
 | V-017 | **Solution Partner (Plan B):** Türk bir BSP Cloud API uyumlu uç nokta, yeterli onboarding kapasitesi ve kabul edilebilir fiyat sunuyor (Türk BSP fiyatları doğrulanamadı) | 00 §6.2; 02 §7.10 Taşıyıcı soyutlaması; 09 §2.5, F0-M11, §11.2; A01 §1.4 [?] | T4'te pilot partner üzerinden kurulamaz. K4'te 200/7 gün kotası yoksa lansman durur | 3–4 Türk BSP'den yazılı teklif + teknik not + kapasite taahhüdü | KUR (TL) | Ön anlaşma 6 Kas 2026 | K3, K4 | engelleyici | `acik` |
@@ -132,15 +132,15 @@ Sıralama son tarihe göredir. Tüm maddelerin durumu 24.09.2026 itibarıyla `ac
 | K1 | 16 Eki 2026 | V-007, V-008 | — |
 | K2 | 20 Kas 2026 | V-001 (hesaplayıcı), V-006, V-007 | V-034, V-040, V-056, V-079, V-083 |
 | K3 | 20 Kas 2026 | V-002, V-003, V-004, V-005, V-010, V-015, V-016, V-017, V-018, V-019 (10/7) | V-030, V-044, V-045 |
-| P0 | 4 Ara 2026 | V-001, V-009, V-011, V-012, V-018, V-020, V-021, V-022, V-023, V-024, V-025, V-026 (risk değerlendirmesi) | V-031–V-033, V-035–V-038, V-046–V-052, V-058, V-068, V-069, V-084 |
-| F2 | 28 Ara 2026 | V-014 | V-041, V-053, V-061, V-062, V-071–V-073, V-075–V-077, V-084 |
+| P0 | 4 Ara 2026 | V-001, V-009, V-011, V-012, V-018, V-020, V-021, V-022, V-023, V-024, V-025, V-026 (risk değerlendirmesi) | V-031–V-033, V-035–V-038, V-046–V-052, V-058, V-068, V-069, V-084, V-085, V-086 |
+| F2 | 28 Ara 2026 | V-014 | V-041, V-053, V-061, V-062, V-071–V-073, V-075–V-077, V-084, V-090 |
 | K4 | 29 Oca / 12 Şub 2027 | V-012, V-013, V-017, V-019 (200/7), V-025 (rehber), V-026 (görüş), V-027, V-028 | V-039, V-053–V-055, V-057, V-059, V-064–V-066, V-076, V-081, V-082 |
 | İÜM | §1.5 | — | V-060–V-063 |
-| F3 | ≈ Haz 2027 | — | V-042, V-043 |
+| F3 | ≈ Haz 2027 | — | V-042, V-043, V-087, V-088, V-090 |
 
 ---
 
-## 3. Yüksek, orta ve düşük öneme sahip varsayımlar (V-029–V-084)
+## 3. Yüksek, orta ve düşük öneme sahip varsayımlar (V-029–V-090)
 
 Aynı sütunlar, daha kısa yazım. Tümünün durumu `acik`tır.
 
@@ -182,6 +182,7 @@ Aynı sütunlar, daha kısa yazım. Tümünün durumu `acik`tır.
 | V-055 | Müşterinin sipariş notuna kendisinin yazdığı alerji bilgisi 30 gün işlenebilir; maskelenmiş metin LLM'e gidebilir | 08 §2.7, §10 #6–7, §11.1-5 | Not alanı ve AI akışı değişir | Avukat | AV | 15 Oca 2027 | K4 | orta | `acik` |
 | V-056 | "Komisyonsuz" iddiası ve rakip adlarıyla karşılaştırma mevzuata uygun. Rakiplerin altyapı türü (resmi API mı, WhatsApp Web oturumu mu) doğrulanamadı | 01 §4.1; 08 §4.5, §10 #17; 09 §2.3; A01 §8.3 (DOĞRULANAMADI) | D5 sayfası, hesaplayıcı ve "resmi altyapı" farkı iddiası değişir | Avukatın metin kontrolü + rakip beyanları + Meta partner dizini | AV (KUR) | 12 Eki 2026 | K2 | yüksek | `acik` |
 | V-057 | 2026 yılı KVKK ve 6563 idari para cezası tutarları biliniyor | 08 §2.14, §3.8; A06 | Risk puanlaması değişir | Resmi Gazete'deki yeniden değerleme | AV | 15 Oca 2027 | K4 | düşük | `acik` |
+| V-085 | **Çerezsiz ürün analitiğinde `sessionStorage` oturum kimliği rıza gerektirmiyor:** storefront ve panel olayları (`POST /api/v1/store/events`, `analytics_events`; PII yok, 90 gün) sekme ömürlü rastgele bir kimlikle gruplanıyor; bu kimlik Çerez Rehberi'ndeki "benzeri teknolojiler" kapsamında açık rıza gerektirmiyor | 03 §11 Ölçüm planı, §12 #23; 07 §3.5 `analytics_events`, §11 #25; 08 §2.13 Çerezler, §11.1-11, §12 #19; V-006 ile ilişkili | Storefront olayları rıza paneline bağlanır ya da oturum kimliği kaldırılıp yalnız sayfa içi toplu sayım yapılır; storefront hunisi (03 §11) kabalaşır | Avukatın yazılı görüşü (08 §11.1-11) + KVKK Çerez Uygulamaları Hakkında Rehber metni; V-006 sorusuyla aynı yazıda sorulur | AV (FE) | Soru 12 Eki 2026 (V-006 ile); yazılı görüş 27 Kas 2026 | P0 | orta | `acik` |
 
 ### 3.3 Vergi, faturalama ve ödeme
 
@@ -209,10 +210,13 @@ Aynı sütunlar, daha kısa yazım. Tümünün durumu `acik`tır.
 | V-072 | Otomatik sesli arama (TTS) için uygun API ve fiyat var | 06 §7.6, §18 #10; A04 (DOĞRULANAMADI) | Faz 2'deki alarm adımı değerlendirmesi değişir | Sağlayıcı teklifi | TL | 28 Ara 2026 | F2 | düşük | `acik` |
 | V-073 | Açık mahalle sınırı verisinin lisansı ve güncelliği uygun; UAVT'nin ticari API'si yok | 06 §10.1, §10.3; A04 (DOĞRULANAMADI) | Ters geocoding self-host planı değişir | Veri lisansları + NVİ | TL | 28 Ara 2026 | F2 | düşük | `acik` |
 | V-074 | Meta test numarasının alıcı sınırı smoke test ve demolar için yeterli | 02 §11 Test stratejisi; 09 §5.3 S1 riskleri | Demo ve smoke testte alıcı eksik kalır | App Dashboard | TL | 9 Eki 2026 | — | düşük | `acik` |
+| V-086 | **Panel güncelleme politikasının tarayıcı davranışı:** yeni service worker vite-plugin-pwa/Serwist "prompt" modunda `waiting` durumunda bekletilebiliyor ve yalnız uygulama kararıyla (güvenli an ya da vardiya başlat) etkinleşiyor; iOS/iPadOS ana ekran PWA'sı güncellemeyi kendiliğinden uygulayıp sayfayı yenilemiyor; hash'li dosyaların son 2 sürümü tutulunca eski sekme dosya kaybetmiyor | 06 §16.7 Sürüm yönetimi, §18 #23; 04 §4.1; 12 §6.3, §9.3 EK-06 | Yoğun saatte kendiliğinden yenilenen panel sonraki siparişi sessiz karşılar (R05); güncelleme politikası ve "açık sipariş varken güncelleme" e2e testi yeniden tasarlanır | Kütüphane dokümanı + fiziksel cihaz parkında (12 §9.2) Android Chrome ve iPadOS 16.4–18.3 / 18.4+ ana ekran PWA'sıyla deneme; EK-06 ve 06 §16.7 e2e testi | TL (FE) | 6 Kas 2026 (S3) | P0 | yüksek | `acik` |
+| V-087 | **Yurt dışı numaraya SMS:** Faz 1'de SMS OTP ve WhatsApp'sız mod SMS'leri yalnız `+90` numaralara gider [T]. Yurt dışı SMS'in birim fiyatı ve teslim koşulları seçilen sağlayıcıda bilinmiyor; pompalama (uluslararası ücret dolandırıcılığı) riskini büyütüyor | 06 §4.3, §18 #26; 03 §3.2.1; 08 §11.3-8; 12 §11.3 | Faz 3 dil desteğiyle açılırsa SMS maliyeti ve kota hesabı (00 §4) sapar; ülke izin listesi, OTP sınırı ve maliyet tavanı olmadan açılamaz | SMS sağlayıcılarından yazılı fiyat ve teslim koşulları (V-012 teklif turunda ayrı satır olarak istenir) | TL | Soru 23 Eki 2026 (V-012 ile); karar Faz 3 planlaması | F3 | düşük | `acik` |
+| V-089 | **Lucide ikon adları** (ör. `bell-ring`, `package-check`, `triangle-alert`, `chef-hat`, `check-check`, `undo-2`) kullanılan Lucide sürümünde bu adlarla mevcut | 04 §14.5 İkon eşlemesi; 12 §3.3, §3.5 | Durum rozeti ve ikon eşlemesi derlemede kırılır, eşleme tablosu güncellenir; kullanıcıya etkisi yok | `packages/ui` iskeletinde Lucide sürümü sabitlenir; eşleme tablosundaki her ad için derleme testi | FE (TAS) | 9 Eki 2026 (S1, S1-11) | — | düşük | `acik` |
 
 ### 3.5 İş, pazar ve takvim varsayımları
 
-İş hipotezleri (H1–H14) ve deney eşikleri [10](10-riskler-operasyon-ve-metrikler.md) §4.2–4.5'te izlenir. Aşağıdakiler bu listede olmayan ya da planın rakamlarını doğrudan taşıyan varsayımlardır.
+İş hipotezleri (H1–H15) ve deney eşikleri [10](10-riskler-operasyon-ve-metrikler.md) §4.2–4.5'te izlenir. Aşağıdakiler bu listede olmayan ya da planın rakamlarını doğrudan taşıyan varsayımlardır.
 
 | ID | İddia | Kaynak | Yanlışsa etkisi | Nasıl teyit edilir | Sahip | Son tarih | Kapı | Önem | Durum |
 |---|---|---|---|---|---|---|---|---|---|
@@ -226,6 +230,8 @@ Aynı sütunlar, daha kısa yazım. Tümünün durumu `acik`tır.
 | V-082 | Ramazan ve Kurban Bayramı 2027 tarihleri (Ramazan yaklaşık Şubat–Mart) | 05 C.7 Blog takvimi; 09 okuma notları, §11.2, §12 #26 | Lansman kampanyası, kurulum ziyaretleri ve deploy dondurma pencereleri kayar | Diyanet takvimi | OPS | 4 Ara 2026 | K4 | orta | `acik` |
 | V-083 | Seviye 0 deneyi için baskı maliyetleri ve teşvik bedelleri düşük | 10 §4.3 D3, §11 #19 | D3 bütçesi aşılır | 2–3 matbaa teklifi | OPS | 2 Eki 2026 | K2 | düşük | `acik` |
 | V-084 | Instagram "Yemek siparişi" butonu yalnız anlaşmalı sağlayıcılarla çalışıyor; Google İşletme Profili'nde sipariş linki seçenekleri var; Google "review gating" yasağı geçerli | 03 §2, §7.5; 04 §12.2; 05 C.7 | Link rehberi, kanal planı ve Faz 2 değerlendirme akışı değişir | Resmi yardım ve politika sayfaları + pilotta deneme | OPS (FE) | 7 Ara 2026 (Dalga 1); review gating F2 | P0, F2 | düşük | `acik` |
+| V-088 | **Pazaryeri sipariş API'leri:** Yemeksepeti, Uber Eats Trendyol Go ve Migros Yemek sipariş API'lerine erişim onaylı POS/entegratör ortaklığı gerektiriyor; bağımsız bir SaaS'a açık entegrasyon programı yok | 01 §8.8 "Pazaryeri siparişlerini tek ekranda toplamak: yapılmaz" | Faz 3'teki "tek ekran" yeniden değerlendirmesinin (01 §8.8 koşul c) zemini değişir: doğrudan entegrasyon seçeneği açılabilir ya da yalnız POS aktarımı (F2-05) kalır | Pazaryerlerinin geliştirici/partner sayfaları + POS partnerlerinden (V-014, V-090 görüşmeleri) yazılı bilgi; sözleşmenin hukuki uygunluğu için avukat | KUR (TL, AV) | Faz 3 planlaması (≈ Haz 2027) | F3 | düşük | `acik` |
+| V-090 | **POS partner programları ve sözleşme koşulları:** SambaPOS ve Adisyo dışındaki adaylar (robotPOS, Simpra) da açık/partner API ile sipariş aktarımına izin veriyor; partner sözleşmesi (API kullanım koşulları, KVKK rolleri, API değişikliğinde önceden bildirim, gelir paylaşımı veya yönlendirme ücreti) makul koşullarla imzalanabiliyor. SambaPOS/Adisyo API ve sandbox erişimi V-014'tedir; bu madde onun devamıdır | 01 §8.8 Entegrasyon ve iş ortaklığı stratejisi; 06 §4.5; 08 §11.1-12, §12 #20; 09 F0-G10; V-014 | F2-05 partner sözleşmesi olmadan başlayamaz; Faz 3 robotPOS/Simpra entegrasyonu ve "POS-agnostik kanal" konumlandırması zayıflar; POS bayileri dağıtım kanalına dönüşmez | Faz 0 görüşmelerinde (F0-G10) yazılı API dokümanı ve partner sözleşme taslağı; avukatın sözleşme incelemesi (08 §11.1-12) | KUR (TL, AV) | NDA görüşmelerden önce; SambaPOS/Adisyo partner sözleşmesi F2-05 başlamadan (28 Ara 2026, V-014 ile); robotPOS/Simpra Faz 3 planlaması | F2, F3 | orta | `acik` |
 
 ---
 
@@ -307,7 +313,7 @@ Aşağıdaki bölüm sıralamasında `[T]` hariç tüm işaretler ("(teyit edilm
 
 ### 5.3 Kaydın kapsamı
 
-Bu kayıttaki 84 madde, 01–10'daki işaretlerden karar, kapı, fiyat, maliyet veya hukuki metni etkileyenleri birleştirir. Bir madde çoğu zaman birden fazla işareti karşılar (ör. V-001, 01, 02 ve 05'teki rate card işaretlerini tek maddede toplar). Şunlar kayda alınmadı ve ilgili dokümanın açık konularında kalır: tasarım önerisi niteliğindeki `[T]`'ler, SEO arama hacimleri (05 C.6.2), tekil API alan adı teyitleri (02 §3.5 alan adları, 07 §6.1 `RateLimit` başlık biçimi), araç seçimi niteliğindeki maddeler (06 §16.2 deploy aracı, 06 §2.4 Supabase bölgesi).
+Bu kayıttaki 90 madde (V-085–V-090 son temizlik turunda eklendi, §7), 01–12'deki işaretlerden karar, kapı, fiyat, maliyet veya hukuki metni etkileyenleri birleştirir. Bir madde çoğu zaman birden fazla işareti karşılar (ör. V-001, 01, 02 ve 05'teki rate card işaretlerini tek maddede toplar). Şunlar kayda alınmadı ve ilgili dokümanın açık konularında kalır: tasarım önerisi niteliğindeki `[T]`'ler, SEO arama hacimleri (05 C.6.2), tekil API alan adı teyitleri (02 §3.5 alan adları, 07 §6.1 `RateLimit` başlık biçimi), araç seçimi niteliğindeki maddeler (06 §16.2 deploy aracı, 06 §2.4 Supabase bölgesi).
 
 ---
 
@@ -343,18 +349,19 @@ Durum değişiklikleri buraya **eklenir**, silinmez. En yeni satır en üstte ye
 
 | Tarih | ID | Eski → yeni durum | Kanıt (kaynak, tarih) | Güncellenen dokümanlar | Kim |
 |---|---|---|---|---|---|
+| 2026-09-24 | V-085–V-090 | — → `acik` | Son temizlik turu: 03 §11, 04 §14.5, 06 §4.3 ve §16.7, 01 §8.8, 08 §2.13 ve §12 #19'daki yeni işaretler kayda alındı; V-014 kaynağına 01 §8.8 eklendi; §1.5 İÜM tanımı 09 §1.1 ile hizalandı; §8 #1–#3 kapatıldı | 13 | AI (inceleme: KUR) |
 | 2026-09-24 | V-001–V-084 | — → `acik` | Kayıt oluşturuldu; 01–10 ve `arastirma/*.md` taraması | — | AI (inceleme: KUR) |
 
 ---
 
 ## 8. Açık konular
 
-1. **D11 zamanlaması çelişkili.** [10](10-riskler-operasyon-ve-metrikler.md) §4.3'te D11 "Hafta 1–6", [09](09-yol-haritasi-ve-sprint-plani.md) §4.1'de H5–H8. 09 §12 #10 bunu plan tercihi olarak açıklıyor. Bu kayıt 09'u izledi (V-018 son tarihi 20 Kas). 10 §4.3'ün hizalanması önerilir.
-2. **Onboarding kotasının ifadesi farklı.** 00 §6.3 ve 02 "10/hafta → 200/hafta", 09 "10/7 gün → 200/7 gün" diyor. Meta'nın kayan 7 günlük pencere mi, takvim haftası mı kullandığı V-019 kapsamında teyit edilir, sonra ifade tekleştirilir.
-3. **"İlk ücretli müşteri" 09'da ayrı bir kapı değil.** Fatura düzeni (F0-H16) D6'daki ön ödemeye bağlı olarak H4'e kadar öne gelebilir. [09](09-yol-haritasi-ve-sprint-plani.md) §1.1'e İÜM satırının eklenmesi önerilir.
+1. ~~**D11 zamanlaması çelişkili.**~~ **Karara bağlandı:** [10](10-riskler-operasyon-ve-metrikler.md) §4.1 ve §4.3 D11'i artık [09](09-yol-haritasi-ve-sprint-plani.md) §4.1 ile aynı biçimde **Hafta 5–8** (15 günlük hareketsizlik testi dahil, K3'e yetişir) veriyor. V-018 son tarihi (20 Kas) değişmez.
+2. ~~**Onboarding kotasının ifadesi farklı.**~~ **Karara bağlandı:** [00](00-kararlar-ve-sozluk.md) §6.3 artık "kayan 7 günde 10 → doğrulama sonrası kayan 7 günde 200" diyor; 02 bu ifadeye hizalandı, 09'daki "10/7 gün → 200/7 gün" kısaltması aynı anlamdadır. Meta'nın pencereyi fiilen nasıl saydığı V-019 kapsamında teyit edilmeye devam eder.
+3. ~~**"İlk ücretli müşteri" 09'da ayrı bir kapı değil.**~~ **Eklendi:** [09](09-yol-haritasi-ve-sprint-plani.md) §1.1'de "İÜM — İlk ücretli müşteri kapısı" satırı ve §11.2'de bağlı mali teyitler (V-060–V-063) maddesi var; §1.5'teki tanım 09 ile hizalandı (pilotların ücretliye geçişi ya da ilk self-servis ücretli kayıt, hangisi önce; D6 ön ödemesi istisna).
 4. **Hukuki ve vergisel maddelerin darboğazı AV ve MM'dir.** 25'ten fazla madde yazılı görüş bekliyor. 09 §2.3'teki sabit ücretli uyum paketinin kapsamına bu kayıttaki AV ve MM maddelerinin (V-006, V-007, V-013, V-023–V-026, V-044, V-046–V-060, V-063–V-065, V-079) eklenmesi önerilir.
 5. **Finansal model.** Esnaf marjı, churn, CAC, kur ve asgari ücret maddeleri (V-027, V-075–V-081) ileride ayrı bir finansal model dokümanı yazılırsa oraya bağlanmalı; duyarlılık analizi bu maddelerin aralıklarını kullanmalıdır.
-6. **Kaydın aracı.** 84 madde markdown tabloda yönetilebilir. Faz 2'de madde sayısı 100'ü geçerse kaydın GitHub Projects'e ([09](09-yol-haritasi-ve-sprint-plani.md) §5.2) `teyit` etiketiyle taşınması ve bu dokümanın özet görünüme dönüşmesi önerilir.
+6. **Kaydın aracı.** 90 madde markdown tabloda yönetilebilir. Faz 2'de madde sayısı 100'ü geçerse kaydın GitHub Projects'e ([09](09-yol-haritasi-ve-sprint-plani.md) §5.2) `teyit` etiketiyle taşınması ve bu dokümanın özet görünüme dönüşmesi önerilir.
 7. **Önem ölçeği risk skoruyla eşlenmedi.** Engelleyici bir madde `yanlis_cikti` olduğunda [10](10-riskler-operasyon-ve-metrikler.md) §3.3'te yeni risk açılıp açılmayacağı madde sahibinin kararıdır. İleride iki ölçeğin eşlenmesi değerlendirilebilir.
 8. **§4'teki öneriler 00'a işlenmedi.** Proje sahibi kabul ederse 00 §13'e "sahip / son tarih" sütunu eklenebilir.
 9. **Sayımlar anlık görüntüdür.** 01–10 bu kayıt yazılırken düzenleniyordu. İlk haftalık gözden geçirmede §5.1 yeniden sayılır ve farklar bu bölüme not edilir.
