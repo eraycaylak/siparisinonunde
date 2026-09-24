@@ -97,9 +97,9 @@ Meta iki kanıt istiyor: (a) uygulamamızdan gönderilen mesajın WhatsApp istem
 ### 2.5 Geliştirme modu kısıtı ve pilot riski
 
 - Uygulama Live olmadan ES'yi yalnız **uygulama rolü olan kullanıcılar veya test kullanıcıları** tamamlayabilir (A01 §1.3).
-- Pilot takvimi (Hafta 10–18) App Review'a bağlı. Alternatifler:
+- Pilot takvimi (Hafta 10–20; 3 dalga, ilk canlı sipariş Hafta 11; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11) App Review'a bağlı. Alternatifler:
   1. **Plan A':** pilot işletme sahiplerinin Facebook hesaplarını uygulamaya "tester" rolüyle eklemek. Standart erişimle bu işletmeler adına mesaj gönderiminin çalışıp çalışmadığı **teyit edilmeli**.
-  2. **Plan B:** Solution Partner'ın onboarding'i ve Cloud API uyumlu uç noktası (§7.10). **Karar noktası:** Hafta 8'de Advanced Access yoksa Plan B devreye girer.
+  2. **Plan B:** Solution Partner'ın onboarding'i ve Cloud API uyumlu uç noktası (§7.10). **Karar noktası:** Plan B Hafta 6'da hazırlanır; Hafta 8'de Advanced Access (App Review onayı) hâlâ yoksa devreye girer ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11).
 
 ## 3. İşletme onboarding'i **[Faz 1]**
 
@@ -304,7 +304,7 @@ fx: { USDTRY: 48.4, as_of: 2026-09-24, source: TCMB }   # yalnız TL gösterimi;
 
 ### 4.3 Sipariş başına mesaj bütçesi (4 durum + 1 karşılama)
 
-Sipariş başına en fazla **4 otomatik durum mesajı**; Akış A'daki karşılama + "Menüyü aç" mesajı bunlara ek 1 mesajdır (toplam ≤ 5, [00](00-kararlar-ve-sozluk.md) §6.5). Gecikme/iptal bilgilendirmesi gibi olağan dışı durum mesajları bütçe dışıdır: kademeli alarmdaki müşteriye gecikme bilgisi (§10.3, sipariş başına en fazla 1) ve `tenant_no_response` iptalindeki özür mesajı. Sayaç `orders.wa_status_msg_count` alanındadır ([07](07-veri-modeli-ve-api.md)). Müşteriye giden serbest metinler ve kodları (M05…M13) [03](03-musteri-deneyimi-ve-storefront.md) §9'dadır.
+Sipariş başına en fazla **4 otomatik durum mesajı**; Akış A'daki karşılama + "Menüyü aç" mesajı bunlara ek 1 mesajdır (toplam ≤ 5, [00](00-kararlar-ve-sozluk.md) §6.5). Gecikme/iptal bilgilendirmesi gibi olağan dışı durum mesajları bütçe dışıdır: kademeli alarmdaki müşteriye gecikme bilgisi (§10.3, sipariş başına en fazla 1), işletmenin paneldeki "Gecikme bildir" mesajı (sipariş başına en fazla 2, aşağıdaki kurallar) ve `tenant_no_response` iptalindeki özür mesajı. Sayaç `orders.wa_status_msg_count` alanındadır ([07](07-veri-modeli-ve-api.md)). Müşteriye giden serbest metinler ve kodları (M05…M13) [03](03-musteri-deneyimi-ve-storefront.md) §9'dadır.
 
 | Olay (sipariş durumu) | Mesaj | Varsayılan | Not |
 |---|---|---|---|
@@ -323,7 +323,7 @@ Sipariş başına en fazla **4 otomatik durum mesajı**; Akış A'daki karşıla
 - **Bekleyen ret (30 sn):** işletme "Reddet" dediğinde sipariş `new` kalır, `rejection_reason` ve `rejection_scheduled_at` yazılır; `order.finalize_rejection` outbox kaydı `available_at = +30 sn` ile açılır, kademeli alarm duraklar. 30 sn içinde "Geri al" basılırsa kayıt iptal edilir, müşteriye hiçbir şey gitmez, alarm kaldığı yerden sürer. Süre dolunca `new → rejected` geçişi ve ret mesajı aynı transaction'da outbox'a yazılır. `rejected → new` geçişi yoktur ([00](00-kararlar-ve-sozluk.md) §7).
 - **Yerine geçme (supersede):** aynı sipariş için henüz gönderilmemiş eski durum mesajı, yeni durum geldiğinde atılır (örn. "onaylandı" kuyrukta beklerken "yolda" gelirse yalnız "yolda" gider).
 - Operatörün panelden elle yazdığı mesajlar ve müşterinin tetiklediği yanıtlar (değerlendirme cevabı, "Beklerim", sipariş kodu hataları) bütçeye girmez, ayrı sayılır.
-- Süre değişikliği (örn. "10 dk gecikecek") otomatik gönderilmez; panelde hazır yanıt olarak sunulur ([04](04-isletme-paneli.md)).
+- **Gecikme bildirimi:** onay sonrası süre değişikliği sistem tarafından kendiliğinden gönderilmez; işletme panelde "Gecikme bildir" dediğinde ([04](04-isletme-paneli.md) §4.10) yeni tahmini saat takip sayfasına yansır ve müşteriye gecikme mesajı ([03](03-musteri-deneyimi-ve-storefront.md) M34) gider. Bu olağan dışı durum mesajıdır, 4 mesajlık bütçenin dışındadır, sipariş başına en çok 2 kez gönderilir (`orders.delay_notice_count`) ve yalnız pencere açıksa serbest mesaj olarak gider (şablonu yoktur; pencere kapalıysa panel "müşteriyi arayın" önerir).
 
 ### 4.4 Pencere içi/dışı karar mantığı
 
@@ -378,7 +378,7 @@ Varsayım: Akış A, sipariş başına 5 service mesajı (karşılama + 4 durum;
 | Çok yoğun | 5.000 | 25.000 | 24.000 | $21,60 ≈ **1.045 TL** | $127,20 ≈ 6.156 TL |
 
 - Akış B siparişi en fazla 4 mesajdır (karşılama yok). Pencere dışı utility şablonu ücretsiz kotaya girmez: 3 şablon × $0,0009 = $0,0027/sipariş. **Pazarlama** [Faz 2] asıl değişken kalemdir: 1.000 kişiye bir kampanya ≈ $10,90 ≈ 528 TL.
-- WhatsApp'sız moddaki sipariş 0 WhatsApp mesajıdır; SMS (OTP + en fazla 2 kritik durum SMS'i) platform maliyetidir ve aboneliğe adil kullanım kotasıyla dahildir (Esnaf 100, Pro 300 SMS/ay; [00](00-kararlar-ve-sozluk.md) §4).
+- WhatsApp'sız moddaki sipariş 0 WhatsApp mesajıdır; SMS (OTP + en fazla 2 kritik durum SMS'i) platform maliyetidir ve aboneliğe adil kullanım kotasıyla dahildir (Esnaf 100, Pro 300, Zincir şube başına 300 SMS/ay; [00](00-kararlar-ve-sozluk.md) §4).
 
 **Kabul kriterleri (maliyet):** Rate card değişikliği deploy gerektirmez; her gönderilen mesajın `wamid`'i için en geç 24 saat içinde defter kaydı oluşur; panel tahmini ile deftere yazılan ücretli mesaj sayısı birebir tutar; kampanya ekranı gönderimden önce "≈ N mesaj × fiyat = X TL" gösterir ve onaysız gönderim yapılamaz [Faz 2].
 
@@ -410,6 +410,7 @@ Bu şablonlar **yalnız pencere dışında** kullanılır (§4.4). Pencere için
 | `siparis_iptal_yanitsiz_v1` | Utility | 1 sipariş no, 2 işletme adı, 3 işletme telefonu | — | `new → cancelled`, `cancelled_by = system`, `tenant_no_response` (§10.3 basamak 6) |
 | `yanit_bekliyor_v1` | Utility (risk: marketing'e çevrilebilir) | 1 müşteri adı, 2 işletme adı | Hızlı yanıt "Devam et" | Panelden 24 saatten eski sohbete yanıt |
 | `kampanya_genel_v1` **[Faz 2]** | Marketing | 1 işletme adı, 2 kampanya metni, 3 bitiş tarihi | URL "Menüyü aç", hızlı yanıt "Kampanyaları durdur" | Yalnız kampanya modülünden, opt-in'li müşteriye; otomatik oluşturulmaz |
+| `sepet_hatirlatma_v1` **[Faz 2]** | Marketing | 1 işletme adı, 2 ürün özeti | URL "Sepete dön" → `/?wa={{1}}` (BSUID'ye bağlı imzalı storefront token'ı; sepet sunucuda saklıdır), hızlı yanıt "Kampanyaları durdur" | Sepeti terk hatırlatması ([03](03-musteri-deneyimi-ve-storefront.md) M23): terkten 30–60 dk sonra, müşteri başına tek sefer, varsayılan kapalı. Yalnız işletmenin İYS kaydı varsa, müşterinin ticari ileti onayı (opt-in) varsa, gönderim öncesi İYS sorgusu geçerse ve işletme özelliği açarken maliyet önizlemesini onayladıysa gider ([00](00-kararlar-ve-sozluk.md) §9). İşletme özelliği açınca oluşturulur; Faz 1'de oluşturulmaz |
 
 **Metinler (Meta'ya gönderilecek resmi gövdeler):**
 - **`siparis_alindi_v1`** — "Merhaba {{1}}, {{2}} siparişinizi aldı. Sipariş no: {{3}}, tutar: {{4}}. İşletme onayladığında size buradan haber vereceğiz."
@@ -422,6 +423,7 @@ Bu şablonlar **yalnız pencere dışında** kullanılır (§4.4). Pencere için
 - **`siparis_iptal_yanitsiz_v1`** — "Üzgünüz, {{1}} numaralı siparişiniz {{2}} tarafından zamanında onaylanamadığı için iptal edildi. Siparişinizi telefonla vermek isterseniz {{3}} numarasını arayabilirsiniz. Sizi beklettiğimiz için özür dileriz."
 - **`yanit_bekliyor_v1`** — "Merhaba {{1}}, {{2}} olarak mesajınızı gördük ve yanıtlamak istiyoruz. Devam etmek için aşağıdaki butona dokunmanız yeterli."
 - **`kampanya_genel_v1`** — "Merhaba, {{1}} size özel bir fırsat hazırladı: {{2}}. Kampanya {{3}} tarihine kadar geçerli. Kampanya mesajı almak istemiyorsanız \"Kampanyaları durdur\"a dokunun."
+- **`sepet_hatirlatma_v1`** [Faz 2] — "Merhaba, {{1}} menüsündeki sepetinizde {{2}} bekliyor. Siparişinizi tamamlamak isterseniz aşağıdaki butona dokunabilirsiniz. Kampanya mesajı almak istemiyorsanız \"Kampanyaları durdur\"a dokunun."
 
 **Sebep değişkeni metinleri.** `{{2}}`, [00](00-kararlar-ve-sozluk.md) §5'teki sebep kodunun kısa Türkçe karşılığıdır; aynı kısa metin WhatsApp'sız moddaki SMS-03a/03b'de de kullanılır. Pencere içinde giden serbest mesajın tam metni (sebebe göre buton dahil) [03](03-musteri-deneyimi-ve-storefront.md) §9.2 M11/M12'dedir; kanonik kısa metin bu tablodur. Değişkende satır sonu olmaz, promosyon filtresinden geçer (§5.1).
 
@@ -463,8 +465,9 @@ Bu şablonlar **yalnız pencere dışında** kullanılır (§4.4). Pencere için
 | `platform_hizmet_bildirimi_v1` | Utility (risk: teyit edilmeli) | 1 başlangıç saati, 2 sorun, 3 siparişlere etkisi, 4 sonraki bilgi saati | URL "Durumu gör" → durum sayfası | Olay/kesinti ilk duyurusu ve güncellemeleri (SEV1–SEV2, yalnız etkilenen tenant'lar; [10](10-riskler-operasyon-ve-metrikler.md) §6.3) |
 | `platform_hizmet_duzeldi_v1` | Utility (risk: teyit edilmeli) | 1 sorun, 2 çözülme saati, 3 yapılması gereken | URL "Paneli aç" | Olay çözüldü duyurusu |
 | `abonelik_odeme_hatirlatma_v1` | Utility | 1 paket adı, 2 tutar, 3 tarih | URL "Faturalarım" | Yenilemeden 3 gün önce [Faz 2] |
-| `abonelik_odeme_basarisiz_v1` | Utility | 1 paket adı, 2 tutar, 3 son tarih | URL "Ödeme bilgisini güncelle" | Tahsilat başarısız (dunning G, G+3, G+7; [00](00-kararlar-ve-sozluk.md) §9) [Faz 2] |
+| `abonelik_odeme_basarisiz_v1` | Utility | 1 paket adı, 2 tutar, 3 son tarih | URL "Ödeme bilgisini güncelle" | Tahsilat başarısız: G (ödeme günü) ve G+1/G+3/G+7 yeniden denemeleri başarısız oldukça; `{{3}}` = salt-okunur moda geçiş tarihi (G+10). Sonraki adımlar: G+21 askıya alma, G+75 hesap kapatma ([00](00-kararlar-ve-sozluk.md) §9) [Faz 2] |
 | `deneme_bitiyor_v1` | Utility (risk: marketing'e çevrilebilir) | 1 bitiş tarihi, 2 alınan sipariş sayısı | URL "Paketimi seç" | Denemenin 12. günü [Faz 2] |
+| `hesap_sonucu_v1` [T] | Utility (risk: marketing'e çevrilebilir, teyit edilmeli) | 1 aylık kesinti (TL), 2 başa baş sipariş sayısı | URL "Hesabı gör" → `siparisinonunde.com/komisyon-hesaplayici?…` (kişisel veri içermeyen parametreli link) | Pazarlama sitesindeki hesaplayıcıda aday işletmenin "Bu hesabı WhatsApp'ıma gönder" isteği ve işaretsiz WhatsApp opt-in kutusu ([05](05-admin-paneli-ve-pazarlama-sitesi.md) §C.4.5) [Faz 1]; marketing'e çevrilirse gönderilmez, e-posta varsayılan olur |
 
 Metinler:
 - **`isletme_yeni_siparis_v1`** — "Yeni sipariş onay bekliyor. İşletme: {{1}}, sipariş no: {{2}}, bekleme: {{3}} dakika, tutar: {{4}}. Müşteriniz beklemesin, panelden onaylayın ya da reddedin."
@@ -479,9 +482,10 @@ Metinler:
 - **`abonelik_odeme_hatirlatma_v1`** — "Siparişin Önünde {{1}} paketinizin {{2}} tutarındaki ödemesi {{3}} tarihinde alınacak. Fatura ve ödeme bilgilerinizi panelden görebilirsiniz."
 - **`abonelik_odeme_basarisiz_v1`** — "Ödemeniz alınamadı. {{1}} paketinizin {{2}} tutarındaki ödemesi başarısız oldu. Hizmetinizin kesintisiz sürmesi için {{3}} tarihine kadar ödeme bilginizi güncelleyin."
 - **`deneme_bitiyor_v1`** — "Deneme süreniz {{1}} tarihinde bitiyor. Bu sürede kendi kanalınızdan {{2}} sipariş aldınız. Kesintisiz devam etmek için panelden paketinizi seçin."
+- **`hesap_sonucu_v1`** — "İstediğiniz komisyon hesabı hazır. Girdiğiniz bilgilere göre pazaryerine aylık kesintiniz yaklaşık {{1}} TL; ayda {{2}} sipariş kendi kanalınıza geçerse abonelik kendini amorti eder. Ayrıntılar aşağıdaki bağlantıda."
 
 **Notlar:**
-- **Kurye giriş linki:** Meta, giriş/doğrulama amaçlı içeriği authentication kategorisine çevirebilir; authentication şablonları URL butonu taşımaz, yalnız kod gönderir. Şablon reddedilir veya kategori değişirse yedek: kurye ekranında 6 haneli kod girişi ile authentication şablonu (telefona gönderilir) ya da doğrudan SMS (`sms_messages.purpose = 'courier_login'`). Linkin geçerlilik süresi ve tek kullanımlık token kuralı [06](06-teknik-mimari.md) §6.4'tedir.
+- **Kurye giriş linki:** Meta, giriş/doğrulama amaçlı içeriği authentication kategorisine çevirebilir; authentication şablonları URL butonu taşımaz, yalnız kod gönderir. Şablon reddedilir veya kategori değişirse yedek: kurye ekranında 6 haneli kod girişi ile authentication şablonu (telefona gönderilir) ya da doğrudan SMS (`sms_messages.purpose = 'courier_login'`). Link tek kullanımlıktır ve 15 dk içinde açılmalıdır; açılan kurye oturumu 12 saat (vardiya) sürer ([00](00-kararlar-ve-sozluk.md) §4, [06](06-teknik-mimari.md) §6.4).
 - **Olay duyuruları:** Admin panelindeki olay kaydından tetiklenir, yalnız etkilenen tenant'lara ve platform bildirim onayı olan `owner`'lara gider; aynı olay için ilk duyuru + en fazla bir güncelleme + "çözüldü" (spam ve kalite koruması). SEV1'de SMS her durumda ek olarak gider. Paralel olarak panelde duyuru bandı (SSE `announcement` olayı) ve e-posta çıkar. "Durumu gör" butonu `status.siparisinonunde.com` durum sayfasına açılır; sayfa Faz 2'de tam haliyle gelir, pilot öncesi basit sürüm önerisi [10](10-riskler-operasyon-ve-metrikler.md) §6.4'tedir. Tanıtım/sürüm notu duyuruları WhatsApp'tan gönderilmez ([05](05-admin-paneli-ve-pazarlama-sitesi.md)).
 - Duyuru ve bakım şablonları ile kurye şablonu pilot öncesi `APPROVED` olmalıdır; kategori kararı Meta'dadır (Açık konular #16).
 
@@ -551,15 +555,22 @@ async function onInbound(m: InboundMessage) {
   if (m.buttonId) return routeButton(conv, m.buttonId);                       // "handoff", "order:<id>:confirm|edit|cancel", gecikme mesajındaki "Beklerim"/"İptal"…
   if (isHandoffRequest(m)) return startHandoff(conv);                         // "yetkili", "insan", "operatör"
   if (conv.mode === 'human' || conv.botMutedUntil > now() || !tenant.botEnabled) return; // bot susar
-  if (!tenant.isOpenNow(conv.branchId)) return replyOnce(conv, 'closed', 6 * HOUR);
-  if (conv.activeOrderId) return replyOnce(conv, 'order_status_with_link', 15 * MIN);
+  if (conv.customer.blocked || !tenant.canTakeOnlineOrders) return replyOnce(conv, 'ordering_unavailable', 12 * HOUR); // M33: kara liste, askı, deneme bitti, ordering_enabled kapalı
+  if (conv.activeOrderId) return replyOnce(conv, 'order_status_with_link', 15 * MIN); // açık sipariş: karşılama yerine durum kartı (M26); şube kapalıyken de gider
+  const state = tenant.orderingState(conv.branchId);                          // open | busy | paused | closed (00 §7)
+  if (state === 'closed') return replyOnce(conv, 'closed', 6 * HOUR);          // M03; kapalılık kontrolü açık sipariş kontrolünden SONRA
+  if (state === 'paused') return replyOnce(conv, 'paused', 12 * HOUR);         // M04
   if (isMediaOrUnsupported(m)) return handleMedia(conv, m);
   if (tenant.aiEnabled && flags.llm_parsing && looksLikeOrder(m)) return aiOrdering(conv, m); // Faz 2; kill-switch llm_parsing
-  return replyOnce(conv, 'greeting_with_menu_cta', 30 * MIN);                 // konu dışı dahil
+  if (autoReplySentWithin(conv, ['greeting_full', 'greeting_short'], 30 * MIN)) return;      // 30 dk'da en fazla 1 otomatik yanıt; panelde "yanıt bekliyor"
+  if (autoReplySentWithin(conv, ['greeting_full'], 12 * HOUR)) return send(conv, 'greeting_short'); // M01K: kısa yanıt + "Menüyü aç"
+  return send(conv, 'greeting_full');                                          // M01/M02 tam karşılama (menü linkli), 12 saatte 1; konu dışı dahil; busy'de yoğunluk satırı eklenir
 }
 ```
 
 `replyOnce(key, cooldown)`: aynı konuşmada aynı tip otomatik yanıt soğuma süresi içinde tekrar gönderilmez (spam ve maliyet koruması). Soğuma sürelerinin tamamı işletme ayarı değil, platform konfigürasyonudur.
+
+**Karşılama sıklığı ve sıra (kanonik, [00](00-kararlar-ve-sozluk.md) §7; varyant tablosu [03](03-musteri-deneyimi-ve-storefront.md) §8.1):** (1) açık siparişi olan müşteriye karşılama yerine sipariş durumu kartı gider (15 dk'da 1), şube kapalı veya `paused` olsa bile; (2) kapalılık/`paused` kontrolü bundan sonra yapılır; (3) tam karşılama (M01/M02, menü linkli) aynı müşteriye en fazla **12 saatte bir** gider; (4) arada gelen mesajlara kısa yanıt + "Menüyü aç" (M01K) en fazla **30 dk'da bir** gider. `request_welcome` olayıyla (kullanıcı sohbeti ilk açtığında) gönderilen karşılama da tam karşılama sayılır. **Kabul kriteri:** aynı müşteri 12 saat içinde ikinci tam karşılamayı, 30 dk içinde ikinci otomatik karşılama/kısa yanıtı almaz; açık siparişi varken kapalı şubeye yazan müşteri M03 değil M26 alır (birim test).
 
 ### 6.3 Karşılama ve menü linki (Akış A) **[Faz 1]**
 
@@ -601,11 +612,12 @@ function matchOrderCode(m: InboundMessage): string | null {
 
 - **[Faz 2] Akış C:** serbest metin ("2 lahmacun 1 ayran") → LLM ile menü adaylarına eşleme (yapılandırılmış çıktı; model ve token bütçesi [06](06-teknik-mimari.md); `llm` kuyruğu; kill-switch `llm_parsing`) → sunucu doğrulaması; **fiyat ve toplamı sunucu hesaplar, LLM asla** → sipariş `awaiting_customer` (`channel = wa_ai`) → mesafeli satış onay özeti → [Onayla] → `new`. Hangi paketlerde ve kotayla sunulacağı açık karardır ([00](00-kararlar-ve-sozluk.md) §13 madde 8; varsayılan: Pro ve üstü, adil kullanım kotası). Belirsizlikte (düşük güven, menüde olmayan ürün, 2 başarısız tur) panelde "insan onayı" ve sohbet devralma.
   - **Onay özeti (reply buttons mesajı, [03](03-musteri-deneyimi-ve-storefront.md) M18):** gövdede kalemler (adet, seçenekler, satır tutarı), teslimat ücreti, **KDV dahil toplam**, ödeme yöntemi, adres özeti, cayma hakkı istisnası notu (çabuk bozulan gıda), ön bilgilendirme formu linki (storefront'ta, sipariş token'lı) ve son satır: "“Onayla”ya bastığınızda siparişiniz kesinleşir ve ödeme yükümlülüğü doğar." Bu ibare **butonda değil mesaj gövdesindedir** (reply button başlığı ≤ 20 karakter). Kanonik butonlar ([00](00-kararlar-ve-sozluk.md) §7 Akış C): **[Onayla] [Düzenle] [İptal]**; buton kimlikleri `order:{id}:confirm|edit|cancel`.
-    - **[Onayla]** → `awaiting_customer → new`, `confirmation_method = wa_button` (ref = wamid); kademeli alarm başlar, "alındı" gider.
+    - **[Onayla]** → `awaiting_customer → new`, `verification_method = wa_button` ([00](00-kararlar-ve-sozluk.md) §5; ref = wamid); kademeli alarm başlar, "alındı" gider.
     - **[Düzenle]** → sepeti dolu storefront linki gönderilir (CTA URL, "Menüyü aç"; `storefront_link_tokens.prefill_cart`); müşteri sepeti storefront'ta düzeltip checkout'ta onaylar. Storefront siparişi yeni kayıt olarak Akış A kuralıyla (`wa_link`) `new` olunca AI taslağı sessizce kapatılır (`cancelled`, `customer_request`, mesaj gönderilmez); checkout yapılmazsa taslak 30 dk sonra `customer_timeout` ile kapanır.
     - **[İptal]** → `awaiting_customer → cancelled` (`cancelled_by = customer`, `customer_request`), kısa teyit mesajı; 30 dk yanıt gelmezse `cancelled` (`customer_timeout`).
     - İçerik storefront checkout'la aynıdır (hukuk metni [08](08-mevzuat-kvkk-odeme-fatura.md)). Gövde sınırı (~1.024 karakter, teyit edilmeli) aşılırsa ilk kalemler + "ve N ürün daha" + tam özet linki. Onay anı, özet metni ve sürümü `audit_log`'a ve `legal_acceptances`'a yazılır.
   - **LLM'e giden metinde telefon ve adres maskelenir** (`<TEL>`, `<ADRES>`); adres eşlemesi sunucuda yapılır.
+- **[Faz 2] Akış D, sohbet içi tekrar:** M02'deki [Aynısından] reply butonu → son `delivered` sipariş güncel fiyat ve stokla sunucuda yeniden kurulur (LLM kullanılmaz) → sipariş `awaiting_customer` (`channel = wa_reorder`) → yukarıdaki onay özetiyle aynı mesaj ve **[Onayla] [Düzenle] [İptal]** → [Onayla]'da `new`, `verification_method = wa_button` ([00](00-kararlar-ve-sozluk.md) §5; [03](03-musteri-deneyimi-ve-storefront.md) §3.4). Storefront'taki "Son siparişin" kartı [Faz 1] ayrı kanal değildir (`wa_link`/`web`).
 - İşlem sırasında "yazıyor…" göstergesi ve okundu işareti (`status: "read"` + `typing_indicator`, en fazla 25 sn) (A01 §5).
 - **İnsana devir [Faz 1]:** "yetkili / insan / operatör / müşteri hizmetleri" anahtar kelimeleri veya "Yetkiliyle görüş" butonu → `conversations.mode = 'human'`, panelde sohbet kırmızı rozetle en üste çıkar ve sesli uyarı çalar; müşteriye "Sizi yetkilimize aktardık" yanıtı. İşletme kapalıysa: "Şu an kapalıyız, açıldığımızda dönüş yapılacak." Panelden "Bota devret" veya 60 dk mesajlaşma olmaması → `mode = 'bot'`.
 - İşletme botu tamamen kapatabilir (`tenant.botEnabled = false`): mesajlar yalnız panele düşer, durum bildirimleri devam eder. Bot kapalıyken de "Sipariş kodu" mesajları Akış B için işlenir (§6.2 sırası) ve "alındı" yanıtı gider.
@@ -613,14 +625,15 @@ function matchOrderCode(m: InboundMessage): string | null {
 ### 6.6 İşletme kapalıyken
 
 - Kapalı = şubenin `ordering_state` değeri `closed` (çalışma saati dışı; hesaplanır) veya `paused` (panelde "Sipariş almayı durdur"). `busy` (yoğun) sipariş almaya devam eder; karşılama uzatılmış tahmini süreyi gösterir ([00](00-kararlar-ve-sozluk.md) §7).
-- Abonelik askıdaysa (`suspended`, dunning G+21 veya deneme bitişi) ya da admin tenant için `ordering_enabled` anahtarını kapattıysa bot karşılama yerine "Şu an online sipariş alınamıyor, lütfen arayın: {telefon}" yanıtını verir (6 saatte bir); açık siparişlerin durum bildirimleri sürer ([00](00-kararlar-ve-sozluk.md) §9).
-- Yanıt (6 saatte bir): kapalı olduğu, açılış saati, planlı sipariş açıksa "İleri saate sipariş ver" CTA'sı (storefront `scheduled_for` seçimiyle açılır). Kapalıyken storefront planlı sipariş dışında sipariş kabul etmez ([03](03-musteri-deneyimi-ve-storefront.md)).
+- Abonelik askıdaysa (`suspended`, dunning G+21 veya deneme bitişi) ya da admin tenant için `ordering_enabled` anahtarını kapattıysa bot karşılama yerine "Şu an online sipariş alınamıyor, lütfen arayın: {telefon}" yanıtını verir (M33, 12 saatte bir); açık siparişlerin durum bildirimleri sürer ([00](00-kararlar-ve-sozluk.md) §9).
+- Açık siparişi olan müşteri kapalı şubeye yazarsa kapalı yanıtı değil sipariş durumu kartı gider (§6.2 sırası; [00](00-kararlar-ve-sozluk.md) §7).
+- Yanıt (`closed` için 6 saatte bir, M03; `paused` için 12 saatte bir, M04): kapalı olduğu, açılış saati, planlı sipariş açıksa "İleri saate sipariş ver" CTA'sı (storefront `scheduled_for` seçimiyle açılır). Kapalıyken storefront planlı sipariş dışında sipariş kabul etmez ([03](03-musteri-deneyimi-ve-storefront.md)).
 
 ### 6.7 Konu dışı, medya, ses, konum
 
 | Gelen | Faz 1 davranışı | Sonraki faz |
 |---|---|---|
-| Konu dışı metin | Karşılama + "Menüyü aç" (30 dk soğuma); tekrar ederse sessiz, panelde okunmamış | [Faz 2] AI kibar ret + menü butonu; genel sohbete girmez |
+| Konu dışı metin | Tam karşılama + "Menüyü aç" (12 saatte 1), arada kısa yanıt + "Menüyü aç" (30 dk'da 1); tekrar ederse sessiz, panelde okunmamış (§6.2) | [Faz 2] AI kibar ret + menü butonu; genel sohbete girmez |
 | Görsel / video / belge | Medya indirilir (§7.7), panelde gösterilir; bot yanıtı yok | — |
 | Sesli mesaj | Panelde oynatılır; bot: "Sesli mesajınızı işletmeye ilettik. Hızlı sipariş için menüyü açabilirsiniz." (1 kez/30 dk) | [Faz 2–3] konuşmadan metne + AI (KVKK saklama kuralıyla, teyit edilmeli) |
 | Konum | Konuşmaya iliştirilir, panelde harita pini; aktif siparişte "müşteri konum paylaştı" notu | [Faz 2] storefront adres adımında "WhatsApp'ta paylaştığınız konumu kullan" |
@@ -657,7 +670,7 @@ Amaç: Meta tek nokta arızası olmasın ve işletme Meta adımları bitmeden **
 | İşletmenin WhatsApp bağlantısı henüz tamamlanmadı | Şubenin `wa_phone_numbers.connection_status` değeri `live` değil veya numara yok | Akış B doğrudan SMS OTP ile çalışır; Akış A (sohbetten link) yoktur |
 | WhatsApp kanalı arızalı | `wa_accounts.sending_paused_reason` dolu (131042, 190, kopma) veya platform geneli Meta kesintisi (admin olay kaydından toplu açılır, [10](10-riskler-operasyon-ve-metrikler.md) §6.2) | Yeni web siparişleri SMS OTP ile doğrulanır; kanal düzelince WhatsApp doğrulamasına kendiliğinden dönülür |
 
-**Koşullar:** tenant ayarı `tenants.sms_fallback_enabled = true` (varsayılan) ve platform kill-switch'i `sms_fallback` açık. Biri kapalıysa ve WhatsApp doğrulaması da mümkün değilse storefront "Şu an online sipariş alınamıyor, lütfen arayın" gösterir (sipariş Akış E ile telefondan alınır).
+**Koşullar:** tenant ayarı `tenants.sms_fallback_enabled = true` (varsayılan) ve platform kill-switch'i `sms_fallback` açık (kill-switch'ler varsayılan açıktır; [00](00-kararlar-ve-sozluk.md) §4). WhatsApp'sız mod tenant bazında otomatik devreye girer (bağlantı yok, token 190, ödeme 131042) ya da Meta kesintisinde admin olay kaydından toplu açılır. `sms_fallback` kill-switch'i kapatılırsa (ör. SMS pompalama saldırısı) SMS yedeği **tamamen durur**: OTP ve kritik durum SMS'leri gitmez, "SMS ile doğrula" seçeneği gizlenir ve Akış B yalnız WhatsApp ile çalışır. Bu durumda (ya da tenant ayarı kapalıyken) WhatsApp doğrulaması da mümkün değilse storefront "Şu an online sipariş alınamıyor, lütfen arayın" gösterir (sipariş Akış E ile telefondan alınır).
 
 **Akış:** sipariş `awaiting_customer` → SMS-01 (6 haneli kod, 5 dk geçerli) → kod doğrulanır → `awaiting_customer → new`, `verification_method = sms_otp`, `orders.status_notify_channel = 'sms'` → panelde ses ve kademeli alarm (WhatsApp siparişiyle aynı, §10.3) → durum bilgisi takip sayfasından → **kritik durumlarda SMS:** onaylandı (SMS-02), ret (SMS-03a; bekleyen ret kesinleşince, 30 sn sonra), iptal (SMS-03b; `tenant_no_response` dahil, özür + işletme telefonu). "Alındı", "yolda", "hazır" ve "teslim edildi" için SMS gitmez; gecikme bilgisi (t=10 dk) yalnız takip sayfasında görünür. Kodun 30 dk içinde girilmemesi `cancelled` (`customer_timeout`) olur, mesaj gitmez.
 
@@ -666,7 +679,7 @@ Amaç: Meta tek nokta arızası olmasın ve işletme Meta adımları bitmeden **
 - Müşteri daha sonra WhatsApp'tan yazarsa normal konuşma akışı çalışır. SMS ile doğrulanan telefonla oluşan BSUID'siz müşteri kaydı (`phone_source = 'sms_otp'`), webhook'ta `wa_id` gelirse §8.3 kural 2 ile birleşir; açık sipariş sorulursa "durum + takip linki" yanıtı verilir. Açık siparişin bildirim kanalı değişmez (SMS'te kalır, çift bildirim olmaz).
 - WhatsApp kanalı arızalıyken gelen mesajlar yine işlenir ve panele düşer; sipariş kodu mesajı siparişi `new` yapar, ama bot yanıtları ve "alındı" gönderilemez (`planSend` → `skip`, §4.4). Kanal dönünce 24 saatten eski bekleyen yanıtlar atılır (§3.9).
 - Arıza sırasında açık olan Akış A/B siparişlerinin durumu takip sayfasındadır; kritik durum mesajı atlanacaksa ve siparişte teslimat telefonu varsa SMS'e düşer (`sms_fallback` sonucu, §4.4).
-- **Maliyet:** SMS OTP ve kritik durum SMS'leri platform maliyetidir; aboneliğe adil kullanım kotasıyla dahildir (Esnaf 100, Pro 300 SMS/ay). Kota aşımında işletme uyarılır; Faz 2'de ek SMS paketi ([00](00-kararlar-ve-sozluk.md) §4).
+- **Maliyet:** SMS OTP ve kritik durum SMS'leri platform maliyetidir; aboneliğe adil kullanım kotasıyla dahildir (Esnaf 100, Pro 300, Zincir şube başına 300 SMS/ay). Kota aşımında işletme uyarılır; Faz 2'de ek SMS paketi ([00](00-kararlar-ve-sozluk.md) §4).
 
 **Kabul kriterleri (WhatsApp'sız mod):**
 - WhatsApp bağlantısı olmayan tenant'ta web siparişi SMS koduyla `new` olur ve panelde sesli uyarı çalar.
@@ -675,7 +688,7 @@ Amaç: Meta tek nokta arızası olmasın ve işletme Meta adımları bitmeden **
 - `sms_fallback` kill-switch'i kapatıldığında OTP gönderilmez ve storefront telefonla sipariş yönlendirmesini gösterir.
 
 **Kabul kriterleri (konuşma motoru):**
-- İlk mesaja ≤ 3 sn içinde tek karşılama + CTA; aynı müşteri 30 dk içinde tekrar yazarsa ikinci karşılama gitmez.
+- İlk mesaja ≤ 3 sn içinde tek karşılama + CTA; aynı müşteri 30 dk içinde tekrar yazarsa ikinci otomatik yanıt gitmez, 12 saat içinde ikinci tam karşılama gitmez (arada yalnız kısa yanıt + "Menüyü aç"); açık siparişi varsa karşılama yerine durum kartı gider.
 - Echo alındıktan sonra X dk boyunca hiçbir otomatik konuşma yanıtı gitmez; durum bildirimleri gider (entegrasyon testi).
 - Geçerli sipariş kodu mesajı siparişi `new` yapar, panelde sesli uyarı çalar ve müşteriye "alındı" yanıtı debounce beklemeden (≤ 3 sn) gider; aynı mesajın tekrar teslimi (duplicate webhook) ikinci işlem üretmez.
 - AI özetinde (Faz 2) butonlar yalnız [Onayla] [Düzenle] [İptal]'dir; "ödeme yükümlülüğü doğar" ibaresi gövdededir; [Düzenle] sepeti dolu storefront linkini açar (sözleşme testi).
@@ -983,7 +996,7 @@ Proje sahibine sorulacak kararlar [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozl
 | 1 | **Araştırma–karar farkları ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) uygulandı):** A02 §6 MVP'de BSP kredi hattı + pazarlama kredisi satışı öneriyor → Tech Provider + pass-through, MPS Faz 3. Mesaj bütçesi A01 "≤5", A02 "2–3" → 4 durum + 1 karşılama. Flows A01'de Faz 2 → Faz 3. A02 "su/tüp bayileri" → tüp hedeflenmez. Kur A02'de 48,8 → 48,4. | Bilgi amaçlı; karar gerekmez. |
 | 2 | ~~00 iç tutarsızlıkları (MPS fazı, AI özet butonları, su bayi fazı)~~ | **Karara bağlandı:** MPS/kredi hattı Faz 3 ([00](00-kararlar-ve-sozluk.md) §6.2, §6.6, §11); AI özet butonları [Onayla] [Düzenle] [İptal], ibare gövdede, [Düzenle] sepeti dolu storefront linki (00 §7 Akış C, §9, §10); su bayileri segment 2, Faz 2 (00 §11). Bu doküman buna göre güncellendi (§6.1, §6.5). |
 | 3 | ~~Onay butonu metni ve ibarenin yeri~~ | **Karara bağlandı:** buton "Onayla" (≤ 20 karakter); "“Onayla”ya bastığınızda siparişiniz kesinleşir ve ödeme yükümlülüğü doğar" ibaresi mesaj gövdesinde (00 §7, §9). Nihai hukuk metni avukat onayıyla [08](08-mevzuat-kvkk-odeme-fatura.md)'de. |
-| 4 | ~~Müşteriye gecikme bilgisinin bütçe dışı sayılması~~ | **Karara bağlandı:** gecikme/iptal bilgilendirmesi gibi olağan dışı mesajlar bütçe dışıdır (00 §6.5); gecikme bilgisi sipariş başına ≤ 1 (§4.3, §10.3). |
+| 4 | ~~Müşteriye gecikme bilgisinin bütçe dışı sayılması~~ | **Karara bağlandı:** gecikme/iptal bilgilendirmesi gibi olağan dışı mesajlar bütçe dışıdır (00 §6.5); kademeli alarmdaki müşteriye gecikme bilgisi sipariş başına ≤ 1 (§10.3), işletmenin "Gecikme bildir" mesajı ([04](04-isletme-paneli.md) §4.10, [03](03-musteri-deneyimi-ve-storefront.md) M34) sipariş başına ≤ 2 (§4.3). |
 | 5 | **Kişi senkronu kapalıyken Coexistence:** Geçmiş ve kişi senkronunun varsayılan kapalı olması karara bağlandı (00 §6.4). | Senkron hiç çağrılmazsa Coexistence'ın başka bir işlevinin etkilenip etkilenmediği pilot öncesi saha testinde teyit edilmeli (§11). |
 | 6 | **Token modeli:** tenant başına BISU token mı, kendi System User token'ımız mı (hibrit)? ES token süresi (süresiz / 60 gün)? | Faz 1: tenant başına token. Meta'nın güncel önerisi teyit edilmeli (A01 §2.3). |
 | 7 | **`business_management` izni** gerekli mi? **Access Verification** hâlâ şart mı? | App Review başvurusunda netleşecek (A01 §1.3 [?]). |
@@ -994,6 +1007,6 @@ Proje sahibine sorulacak kararlar [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozl
 | 12 | **Meta faturasının** (USD, yurt dışı kart) muhasebesi ve KDV'si. | [08](08-mevzuat-kvkk-odeme-fatura.md), mali müşavir görüşü. |
 | 13 | **Çok şubeli zincir:** şube başına numara mı, tek numara + şube seçimi mi; parent BSUID gerekecek mi? | Faz 2 çoklu şube tasarımında karar. |
 | 14 | **Meta Business Agent** ile ilişki (rakip mi, işletmenin açabileceği seçenek mi)? | Ürün kararı; Coexistence'ta ikisinin aynı numarada çakışması test edilmeli. |
-| 15 | **Pilot takvimi riski:** App Review/Business Verification Hafta 8'e kadar yoksa Plan A' (tester rolü) veya Plan B (Solution Partner). | Proje sahibi kararı: 00 §13 madde 5 (varsayılan: Tech Provider + Plan B). Plan A' seçeneğinin standart erişimle çalıştığı teyit edilmeli (§2.5). |
+| 15 | **Pilot takvimi riski:** App Review/Business Verification Hafta 8'e kadar yoksa Plan A' (tester rolü) veya Plan B (Solution Partner; Hafta 6'da hazırlanır, [00](00-kararlar-ve-sozluk.md) §11). Pilot Hafta 10–20. | Proje sahibi kararı: 00 §13 madde 5 (varsayılan: Tech Provider + Plan B). Plan A' seçeneğinin standart erişimle çalıştığı teyit edilmeli (§2.5). |
 | 16 | **Platform şablonlarının kategorisi:** `kurye_giris_v1` (giriş linki) Meta tarafından authentication sayılabilir; `platform_planli_bakim_v1`, `platform_hizmet_bildirimi_v1`, `platform_hizmet_duzeldi_v1` marketing'e çevrilebilir. | Pilot öncesi onaya gönderilir; kurye şablonu reddedilirse kod tabanlı authentication şablonu veya SMS (§5.3 notları). |
 | 17 | **Durum sayfası:** olay duyurularındaki "Durumu gör" butonu `status.siparisinonunde.com`'a bağlanır; tam sayfa Faz 2. | Pilot öncesi basit sürüm önerisi [10](10-riskler-operasyon-ve-metrikler.md) §6.4; açılmazsa buton "Paneli aç" sürümüyle onaylatılır. |

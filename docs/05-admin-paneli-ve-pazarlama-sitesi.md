@@ -28,7 +28,7 @@ Admin paneli sıradan bir CRUD ekranı değildir. Üç soruya saniyeler içinde 
 | 4 | **Taze doğrulama** | Hassas aksiyonlar son 5 dk içinde yeniden TOTP ister: yazma modlu impersonation, askıya alma, kill-switch, rol değişikliği, iade, tenant verisi silme, toplu dışa aktarma. |
 | 5 | **En az yetki** | İzinler `resource:action` kümeleridir (§A.3). Varsayılan salt-okunur. DB'de `app_admin` rolü RLS'yi atlamaz; tenant adına yazma yalnız impersonation bağlamında `app_user` ile yapılır ([06](06-teknik-mimari.md) §5.3). |
 | 6 | **Her şey audit'li** | Tüm yazmalar ve hassas okumalar (tenant detayı, sipariş listesi, telefon açma, dışa aktarma) `audit_log`'a yazılır: `actor_type` = `admin` veya `admin_impersonation`, gerekçe, önce/sonra (PII maskeli), IP. Audit kaydı yazılamazsa işlem tamamlanmaz (aynı transaction). |
-| 7 | **Dört göz** | Tenant verisi silme, platform kullanıcısına PO/PA rolü verme, plan liste fiyatı değişikliği ve eşik üstü iade ikinci bir PO/PA onayı ister. Kill-switch hız gerektirdiği için tek kişiyle açılır, 1 saat içinde ikinci kişi gözden geçirir. |
+| 7 | **Dört göz** | Tenant verisi silme, platform kullanıcısına PO/PA rolü verme, plan liste fiyatı değişikliği ve eşik üstü iade ikinci bir PO/PA onayı ister. Kill-switch hız gerektirdiği için tek kişiyle değiştirilir (kapatılır veya yeniden açılır), 1 saat içinde ikinci kişi gözden geçirir. |
 | 8 | **Sırlar görünmez** | Meta token'ı, PSP anahtarı, App Secret hiçbir rolde düz metin gösterilmez; API yanıtında alan olarak da bulunmaz. Yalnız durum (geçerli, bitiş tarihi) ve "iptal et / yenile" aksiyonu (PO) vardır. (A05 §5.3 "yalnız PO görür" diyordu; daha sıkı kural uygulandı.) |
 | 9 | **Son müşteri verisi ihtiyaç kadar** | Son müşteri verisinde biz veri işleyeniz. Admin listelerinde sipariş sayısı ve tutarı görünür; müşteri adı, telefonu, adresi görünmez. Destek için yalnız impersonation içinde, maskeli ve loglu açılır (§A.4 A-09). |
 
@@ -171,7 +171,7 @@ Tek ekranda "şu an ne bozuk" ve "iş nasıl gidiyor".
 - **Sütunlar:** işletme adı + slug, `lifecycle_stage`, plan, şehir/ilçe, sağlık skoru (renk), onboarding adımı, WhatsApp modu (`cloud`/`coexistence`), son 7 gün kanal siparişi, son sipariş zamanı, pilot/kurucu üye rozeti, satış sorumlusu, bayi **[Faz 2]**.
 - **Filtreler:** her sütun; ayrıca "takılan", "dunning'de", "aktivasyon riski" (canlı ≥ 7 gün ve < 5 kanal siparişi [T]) hazır görünümleri.
 - **Arama:** ad, slug, VKN, owner telefonu (tam eşleşme; sonuç maskeli).
-- **Sağlık skoru (kural tabanlı [T], A06 §9.3 KRI'larından):**
+- **Sağlık skoru (0–100; tanım, ağırlıklar ve bantlar [10](10-riskler-operasyon-ve-metrikler.md) §5.6'da kanoniktir):** günlük hesaplanır (`tenant_health_scores`, son değer `tenants.health_score` / `health_band`, [07](07-veri-modeli-ve-api.md) §3.7). Listede sayı + bant rengi gösterilir: **≥ 75 yeşil · 50–74 sarı · < 50 kırmızı**; 10 §5.6'daki skordan bağımsız kırmızı tetikleyiciler bandı doğrudan kırmızı yapar. Aşağıdaki sinyaller (A06 §9.3 KRI'larından) skorun bileşenlerini besler ve A-04'te "nedenler" olarak gösterilir; ayrı bir renk kuralı değildir:
   - **Kırmızı:** WhatsApp kırmızı (131042, 190, kopuk, kalite `RED`); canlı ≥ 14 gün ve 7 günde < 2 kanal siparişi; `read_only`/`suspended`; son 7 günde ≥ 3 panel çevrimdışı alarmı.
   - **Sarı:** 7 günde < 5 kanal siparişi; son 4 haftanın ortalamasına göre %40'tan fazla düşüş; `new → accepted` p95 > 2 dk; ayda > 3 destek teması; `past_due`; kalite `YELLOW`; canlıya geçişin 8. haftasında kanal payı < %5 [T].
   - **Yeşil:** diğerleri.
@@ -181,16 +181,16 @@ Destek uzmanının bir işletmenin sorununu tek sayfada teşhis etmesi için.
 
 | Sekme | İçerik |
 |---|---|
-| **Özet** | Lifecycle ve geçmişi, plan, sağlık skoru ve nedenleri, son 30 gün sipariş grafiği, kanal karması (`wa_link`, `wa_ai`, `web`, `manual`), açık alarmlar, son destek notu |
+| **Özet** | Lifecycle ve geçmişi, plan, sağlık skoru ve nedenleri, son 30 gün sipariş grafiği, kanal karması (`wa_link`, `wa_ai`, `wa_reorder`, `web`, `table_qr`, `wa_flow`, `manual`; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5), açık alarmlar, son destek notu |
 | **Profil** | Künye, VKN, adres, dikey, slug, `food_registration_no`, sözleşme kabul sürümleri, platform WhatsApp uyarı izni |
 | **Şubeler** | `ordering_state` (`open`, `busy`, `paused`, `closed`), çalışma saatleri, çevrimiçi panel cihazları, ses kilidi durumu, son nabız |
 | **Onboarding** | Adımlar ve zaman damgaları, takılı adım ve süresi, Embedded Signup olayları, concierge görevleri |
 | **WhatsApp** | [02](02-whatsapp-entegrasyonu.md) §10.2 sağlık kartı: mod, kalite, messaging limit, görünen ad, token ve bitişi, son gelen/giden webhook, son echo, şablon durumları, duraklatma sebebi |
 | **Siparişler** | Son 50 sipariş: no, kanal, durum, tutar, onay süresi, ret/iptal sebebi, mesaj teslim durumu. Müşteri bilgisi maskeli; ayrıntı yalnız impersonation ile |
-| **Kullanım ve maliyet** | Bu ay ve önceki aylar: tahmini Meta maliyeti (kategori kırılımı), ücretsiz 1.000 servis mesajı kullanımı, SMS adedi ve **SMS kotası kullanımı** (Esnaf 100, Pro 300 SMS/ay; amaç kırılımı: OTP / kritik durum / alarm), platform WABA uyarıları, LLM **[Faz 2]** |
+| **Kullanım ve maliyet** | Bu ay ve önceki aylar: tahmini Meta maliyeti (kategori kırılımı), ücretsiz 1.000 servis mesajı kullanımı, SMS adedi ve **SMS kotası kullanımı** (Esnaf 100, Pro 300, Zincir şube başına 300 SMS/ay; amaç kırılımı: OTP / kritik durum / alarm), platform WABA uyarıları, LLM **[Faz 2]** |
 | **Abonelik** | Durum, plan, dönem, indirimler, faturalar, ödemeler, dunning aşaması, hesap alacağı |
 | **Kullanıcılar** | Üyeler, roller, 2FA durumu, son giriş. "Owner 2FA sıfırlama" yalnız kimlik doğrulama prosedürüyle (görüntülü veya kayıtlı telefondan arama [T]) ve dört gözle |
-| **Destek** | Notlar, etiketler, temas geçmişi, talepler **[Faz 2]** |
+| **Destek** | Notlar, etiketler, temas geçmişi (`admin_notes`), görevler (`admin_tasks`); talepler (`support_tickets`) **[Faz 2]** |
 | **Zaman çizelgesi** | Lifecycle, onboarding, WhatsApp olayları, abonelik olayları, admin aksiyonları tek akışta |
 
 **Kabul kriterleri:** WhatsApp durumu, son webhook zamanı, çevrimiçi cihaz, son 10 siparişin durumu ve abonelik durumu Özet sekmesinde kaydırmadan görünür. Siparişler sekmesinde hiçbir API yanıtı tam telefon veya adres içermez (sözleşme testi).
@@ -231,7 +231,7 @@ Tüm numaralar; kırmızılar üstte (A05 §5.5). Sinyallerin kaynağı ve eşik
 - **Rate card yönetimi:** `wa_rate_cards` satırları değişmez; yeni satır ileri tarihli `effective_from` ile eklenir ve kaynak alanı zorunludur (Meta rate card CSV'si). Geçmiş defter satırları kendi `rate_card_id`'lerini korur. Güncel TR değerleri: service/utility/authentication ≈ $0,0009, marketing ≈ $0,0109 (teyit edilmeli, [02](02-whatsapp-entegrasyonu.md) §4.2).
 - **Kur:** `fx_rates` günlük TCMB işi; son güncelleme 26 saati geçerse sarı.
 - **Bizim maliyetlerimiz** (`tenant_usage_daily`): platform WABA uyarı şablonları, SMS, LLM **[Faz 2]**; tenant ve paket bazında. Paketleme ve adil kullanım kararları bu veriye dayanır ([06](06-teknik-mimari.md) §17).
-- **SMS kotası ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4):** SMS OTP ve kritik durum SMS'leri platform maliyetidir; aboneliğe adil kullanım kotasıyla dahildir: **Esnaf 100, Pro 300 SMS/ay**. Kota aşımında işletme panelde ve e-postayla uyarılır (sipariş doğrulaması durmasın diye gönderim kesilmez [T]); aşım listesi bu ekranda görünür. Ek SMS paketi **[Faz 2]**. Kısa sürede olağandışı SMS artışı (SMS pompalama şüphesi) A-16'ya düşer [T].
+- **SMS kotası ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4):** SMS OTP ve kritik durum SMS'leri platform maliyetidir; aboneliğe adil kullanım kotasıyla dahildir: **Esnaf 100, Pro 300, Zincir şube başına 300 SMS/ay**. Kota aşımında işletme panelde ve e-postayla uyarılır (sipariş doğrulaması durmasın diye gönderim kesilmez [T]); aşım listesi bu ekranda görünür. Ek SMS paketi **[Faz 2]**. Kısa sürede olağandışı SMS artışı (SMS pompalama şüphesi) A-16'ya düşer [T].
 
 ### A-08 Abonelikler, faturalar, tahsilat ve dunning **[Faz 1 manuel · Faz 2 otomatik]**
 **[Faz 1] (pilot, tahsilat motoru yok, [08](08-mevzuat-kvkk-odeme-fatura.md) §6.1):**
@@ -258,7 +258,7 @@ Kurallar [06](06-teknik-mimari.md) §6.7 ile aynıdır; UI ve süreç burada.
 | İşletmeye görünürlük | Panelde kırmızı üst bant: **"Destek ekibi hesabınızı görüntülüyor (Can, 14.05–14.35)"**. Başlangıçta owner'a e-posta ve panel bildirimi. Owner kendi audit ekranında kaydı görür |
 | PII | Müşteri telefonu ve adresi maskeli. "Telefonu göster" ayrı aksiyondur; gerekçe ister, her açma loglanır |
 | Yasak işlemler | Abonelik ve ödeme işlemleri, WhatsApp bağlantısını değiştirme (Embedded Signup), kullanıcı/rol değişikliği, parola/2FA, müşteri dışa aktarma veya silme, toplu işlemler |
-| Kayıt | Her istek `audit_log`'a `actor_type = admin_impersonation`, `impersonator_user_id` ile yazılır |
+| Kayıt | Her istek `audit_log`'a `actor_type = admin_impersonation`, `actor_platform_user_id` (impersonation yapan platform kullanıcısı) ile yazılır; oturum `impersonation_sessions` tablosunda tutulur ([07](07-veri-modeli-ve-api.md) §3.7) |
 
 - **[Faz 2] "Onaylı erişim" ayarı:** Owner isterse destek erişimini "her seferinde onayımı iste" yapar; talep panelde ve e-postayla onaylanır. P1 (sipariş alamıyorum) durumunda salt-okunur erişim onaysız açılabilir; bu istisna DPA'da yazılır (teyit edilmeli).
 
@@ -266,14 +266,19 @@ Kurallar [06](06-teknik-mimari.md) §6.7 ile aynıdır; UI ve süreç burada.
 
 ### A-10 Destek **[Faz 1 basit · Faz 2 tam]**
 **[Faz 1]:**
-- İşletme detayında **not + etiket + temas kaydı**. Temas kanalı: telefon, WhatsApp destek hattı, e-posta, saha. Etiket sözlüğü: `wa_connect`, `meta_payment`, `coexistence`, `sound_alarm`, `printer`, `menu`, `zone`, `billing`, `bug`, `feature_request`, `training`, `p1`.
+- İşletme detayında **not + etiket + temas kaydı** (`admin_notes`; `kind` = `note` / `contact`) ve görevler (`admin_tasks`) ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 "Destek kayıtları"; [07](07-veri-modeli-ve-api.md) §3.7). **Etiket sözlüğü tektir ve İngilizce snake_case'tir** (tek kaynak `packages/core/support-tags.ts`; [10](10-riskler-operasyon-ve-metrikler.md) §5.3 aynı değerleri kullanır):
+  - Temas kanalı (`contact_channel`): `p1_line`, `whatsapp`, `panel_form`, `email`, `visit`.
+  - Konu (`tags`): `order_not_received`, `sound_alarm`, `device_network`, `wa_connect`, `meta_payment`, `coexistence`, `template_quality`, `menu_pricing`, `zone_fee`, `courier`, `printer`, `status_message`, `fake_order`, `billing`, `kvkk`, `training`, `feature_request`, `bug`.
+  - Kök neden (`root_cause`): `product_bug`, `usage_knowledge`, `device_network`, `meta`, `third_party`, `infrastructure`, `tenant_config`.
+  - Önlenebilir mi (`preventable`): `yes_product`, `yes_training`, `no`.
+  - Öncelik etiket değil, ayrı alandır (`priority`: `p1`–`p4`).
 - Destek WhatsApp hattı Faz 1'de ekip telefonunda ayrı bir WhatsApp Business numarasıdır; admin'e entegre değildir. Temas elle not düşülür.
-- **Harici helpdesk aracı kullanılmaz** [T]: yurt dışı alt işleyen (m.9) ve maliyet getirir; destek aracına son müşteri verisi aktarılmaz ([08](08-mevzuat-kvkk-odeme-fatura.md) §2.11).
+- **Harici helpdesk aracı kullanılmaz** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7): yurt dışı alt işleyen (m.9) ve maliyet getirir; destek aracına son müşteri verisi aktarılmaz ([08](08-mevzuat-kvkk-odeme-fatura.md) §2.11).
 - **P1** = "sipariş alamıyorum / panel çalışmıyor". Pilot boyunca kurucular 7/24 nöbetleşir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11, A06 §5.6). Diğer her şey mesai saatinde.
 - Haftalık rapor: en sık 5 etiket; her sprintte bir ürün iyileştirmesine dönüşür (A06 §5.6).
 
 **[Faz 2]:**
-- `support_tickets` tabanlı talep sistemi: durum, öncelik, atanan, SLA sayacı, hazır cevaplar.
+- `support_tickets` tabanlı talep sistemi: durum, öncelik, atanan, SLA sayacı, hazır cevaplar. Etiketler Faz 1 sözlüğüyle aynıdır; Faz 1'deki `admin_notes` temas kayıtları talep geçmişine bağlanır.
 - **Paket bazında SLA** ([01](01-vizyon-pazar-is-modeli.md) §6.3): Esnaf panel içi yardım + WhatsApp hattı; Pro akşam yoğun saatlerinde canlı destek; Zincir öncelikli yanıt ve atanmış hesap sorumlusu. Süre hedefleri [10](10-riskler-operasyon-ve-metrikler.md)'da.
 - Destek WhatsApp hattı kendi WABA'mıza taşınır; gelen kutusu admin içinde, ürünün gelen kutusu bileşeniyle (dogfooding [T]).
 - Bayi 1. seviye destek eskalasyonları (Bölüm B) aynı kuyruğa düşer.
@@ -306,13 +311,14 @@ Kurallar [06](06-teknik-mimari.md) §6.7 ile aynıdır; UI ve süreç burada.
 |---|---|---|---|
 | `signup_open` | Platform | Kapatılınca kayıt formu "bekleme listesi" moduna geçer (örn. Meta onboarding kotası dolunca, sahte kayıt dalgasında) | 1 |
 | `wa_onboarding` | Platform | Kapatılınca yeni Embedded Signup başlatılamaz; mevcut bağlantılar etkilenmez. İşletme web siparişiyle (Kapı 1) devam eder | 1 |
-| `sms_fallback` | Platform | "WhatsApp'sız mod" anahtarı: WhatsApp kanalı arızasında tüm işletmelerde web siparişi SMS OTP ile doğrulanır, kritik durumlar (onaylandı/iptal) SMS ile gider ([03](03-musteri-deneyimi-ve-storefront.md)); SMS sağlayıcısı arızası veya SMS kötüye kullanımında SMS yedeği kapatılır | 1 |
+| `sms_fallback` | Platform | SMS yedeğinin ana anahtarı (varsayılan açık). **Kapatılırsa SMS yedeği tamamen durur** (ör. SMS pompalama saldırısı, SMS sağlayıcısı arızası): SMS OTP ve kritik durum SMS'leri gitmez, Akış B yalnız WhatsApp ile çalışır; WhatsApp'ı bağlı olmayan işletmede storefront "lütfen arayın" gösterir ([02](02-whatsapp-entegrasyonu.md) §6.11, [03](03-musteri-deneyimi-ve-storefront.md) §3.2.1). "WhatsApp'sız mod"un kendisi bu anahtar değildir: tenant bazında otomatik devreye girer (bağlantı yok, token 190, ödeme 131042) ya da Meta kesintisinde olay kaydından (A-12, [10](10-riskler-operasyon-ve-metrikler.md) §6.2) toplu açılır | 1 |
 | `ordering_enabled` | Tenant bazında | Kapatılınca o işletmenin storefront'u ve botu "şu an online sipariş alınmıyor, lütfen arayın" moduna geçer; `lifecycle_stage` değişmez (olay, kötüye kullanım, hukuki talep) | 1 |
 | `llm_parsing` | Platform | AI serbest metin ayrıştırmayı (Akış C) kapatır; müşteri menü linki akışına düşer. LLM devre kesicisi bunu otomatik kapatabilir | 2 |
 | `campaigns_global` | Platform | Tüm kampanya/toplu mesaj gönderimlerini durdurur (kalite düşüşü, İYS sorgusu arızası) | 2 |
 
+- **Kill-switch'ler varsayılan açıktır; kapatmak ilgili yeteneği durdurur** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4).
 - Bot, otomatik yazdırma, platform WABA uyarıları gibi diğer operasyonel anahtarlar kill-switch değil, normal feature flag'dir (yukarıdaki flag kuralları geçerli).
-- **Kill-switch arayüzü:** ayrı sekmede büyük anahtarlar. Açmadan önce etki özeti gösterilir ("412 işletmede AI sipariş kapanacak, menü linki akışına düşülecek"). Gerekçe zorunlu, taze doğrulama, açılışta ekip kanalına otomatik bildirim, 1 saat sonra "hâlâ gerekli mi?" hatırlatması.
+- **Kill-switch arayüzü:** ayrı sekmede büyük anahtarlar. Kapatmadan önce etki özeti gösterilir ("412 işletmede AI sipariş kapanacak, menü linki akışına düşülecek"). Gerekçe zorunlu, taze doğrulama, her değişiklikte ekip kanalına otomatik bildirim, kapatıldıktan 1 saat sonra "hâlâ kapalı kalmalı mı?" hatırlatması.
 
 **Kabul kriterleri:** Kill-switch değişikliği ≤ 60 sn içinde tüm süreçlerde etkili olur (30 sn cache + yayılma). Her değişiklik önce/sonra değeriyle `audit_log`'dadır. LLM devre kesicisi `llm_parsing`'i otomatik kapattığında bu da aynı ekranda "sistem tarafından" etiketiyle görünür.
 
@@ -408,16 +414,16 @@ KPI hedefleri ve eşikler [10](10-riskler-operasyon-ve-metrikler.md)'dadır; bur
 | **Net yeni MRR** | Yeni + genişleme (plan yükseltme, şube ekleme) + yeniden kazanım − daralma (plan düşürme) − churn MRR |
 | **Logo churn (aylık)** | Ay içinde `churned` olan ücretli işletme ÷ ay başındaki ücretli işletme. Pilot ve deneme hariç (ayrı izlenir: deneme → ücretli dönüşüm) |
 | **Gelir churn (brüt / net)** | Brüt: (churn MRR + daralma MRR) ÷ ay başı MRR. Net: (churn + daralma − genişleme − yeniden kazanım) ÷ ay başı MRR |
-| **Kanal siparişi** | `channel ∈ {wa_link, wa_ai, web, table_qr, wa_flow}` olan ve `rejected` veya `cancelled` ile bitmeyen sipariş. `manual` ayrı izlenir. Test siparişleri (`test_kind` = `onboarding_test` veya `canary`) tüm metriklerden hariçtir. Kuzey yıldızı = platform genelinde aylık kanal siparişi ([01](01-vizyon-pazar-is-modeli.md) §2.1) |
+| **Kanal siparişi** | `channel ∈ {wa_link, wa_ai, wa_reorder, web, table_qr, wa_flow}` olan ve `rejected` veya `cancelled` ile bitmeyen sipariş. `manual` ayrı izlenir. Test siparişleri (`test_kind` = `onboarding_test` veya `canary`) tüm metriklerden hariçtir. Kuzey yıldızı = platform genelinde aylık kanal siparişi ([01](01-vizyon-pazar-is-modeli.md) §2.1) |
 | **Aktivasyon** | `live` tarihinden sonraki ilk 14 günde ≥ 10 kanal siparişi ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12). Oran = aktive olan ÷ o dönemde canlıya geçen |
 | **Aktif işletme** | Son 7 günde ≥ 1 kanal siparişi olan `pilot`, `trial`, `active`, `past_due` veya `read_only` işletme |
-| **Kendi kanal payı** | Kanal siparişi ÷ (kanal + `manual` + işletmenin beyan ettiği pazaryeri siparişi). Beyan yoksa hesaplanmaz. Pilot hedefi: pilotun 8. haftasında (pilot sonu) ≥ %10 ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12) |
+| **Kendi kanal payı** | Kanal siparişi ÷ (kanal + `manual` + işletmenin beyan ettiği pazaryeri siparişi). Beyan yoksa hesaplanmaz. Pilot hedefi: her işletmenin kendi pilotunun 8. haftasında ≥ %10 ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12) |
 | **Geç onay oranı** | `new` durumunda 2 dk'dan uzun bekleyen sipariş ÷ tüm `new` sipariş |
 | **Kaçırılan sipariş** | `cancelled` + `cancel_reason = tenant_no_response` olan sipariş sayısı. Hedef %0 |
 | **Onay süresi** | `new → accepted` medyanı ve p95 (planlı siparişler hariç) |
 | **Panel DAU** | Gün içinde ses kilidi açık en az bir cihazla ≥ 1 saat nabız gönderen şube ÷ o gün açık olan şube [T]. Pilot kriteri "panel günlük aktif" bununla ölçülür |
 | **Meta maliyeti / sipariş** | Tenant'ın aylık tahmini Meta maliyeti ÷ aylık sipariş (bilgi amaçlı; ödeyen işletmedir) |
-| **SMS maliyeti** | SMS adedi × birim fiyat (tenant, amaç: OTP / alarm / WhatsApp'sız mod kritik durum). Platform maliyetidir; kota kullanımı = işletme SMS'i ÷ paket kotası (Esnaf 100, Pro 300/ay) |
+| **SMS maliyeti** | SMS adedi × birim fiyat (tenant, amaç: OTP / alarm / WhatsApp'sız mod kritik durum). Platform maliyetidir; kota kullanımı = işletme SMS'i ÷ paket kotası (Esnaf 100, Pro 300, Zincir şube başına 300/ay) |
 | **LLM maliyeti [Faz 2]** | `llm_usage.cost_usd` toplamı; tenant, paket ve sipariş başına |
 | **Destek teması** | İşletme başına aylık destek kaydı (ilk ay hariç). KRI > 3 (A06 §9.3) |
 | **Deneme → ücretli** | Deneme bitişinden sonraki 3 gün içinde ücretli plana geçen ÷ bitişi gelen deneme. Erken uyarı eşiği < %40 (A06 R04) |
@@ -647,7 +653,7 @@ Aylık/yıllık anahtarı. Büyük rakam KDV hariç, hemen altında KDV dahil ([
 | Aylık (KDV hariç / dahil) | **990 TL** / 1.188 TL | **1.790 TL** / 2.148 TL | **2.990 TL** / 3.588 TL (şube başı) |
 | Yıllık peşin, %20 indirim (KDV hariç / dahil) | **9.504 TL** / 11.404,80 TL (aylık 792 TL) | **17.184 TL** / 20.620,80 TL (aylık 1.432 TL) | **28.704 TL** / 34.444,80 TL (şube başı; aylık 2.392 TL) |
 | Kurucu üye (%30 indirim, 12 ay), bugünkü liste fiyatıyla (KDV hariç / dahil) | 693 TL / 831,60 TL | 1.253 TL / 1.503,60 TL | 2.093 TL / 2.511,60 TL |
-| SMS doğrulama ve kritik durum SMS'leri (adil kullanım, aboneliğe dahil) | Ayda 100 SMS | Ayda 300 SMS | Satışa çıkınca belirlenir **[Faz 2]** |
+| SMS doğrulama ve kritik durum SMS'leri (adil kullanım, aboneliğe dahil) | Ayda 100 SMS | Ayda 300 SMS | Şube başına ayda 300 SMS (paket **[Faz 2]**'de satışa çıkar) |
 | Öne çıkanlar ([01](01-vizyon-pazar-is-modeli.md) §6.3, öneri) | WhatsApp sipariş hattı, web menü, sesli uyarı, bildirimler, fiş, 3 teslimat bölgesi, 2 kullanıcı | Esnaf'ın tümü + kurye ekranı, sınırsız bölge ve kullanıcı; yakında: online ödeme, AI sipariş, kupon ve sadakat, POS entegrasyonu | Pro'nun tümü + merkezi menü ve şube raporları |
 
 **Tablo altı zorunlu notlar**
@@ -656,7 +662,7 @@ Aylık/yıllık anahtarı. Büyük rakam KDV hariç, hemen altında KDV dahil ([
 - "**Kurucu üye (ilk 100 işletme):** 12 ay boyunca liste fiyatından %30 indirim. İndirim oranı sabittir; liste fiyatı yıllık TÜFE güncellemesine tabidir." ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8; sabit TL fiyat vaadi verilmez.) Kalan kontenjan yalnız gerçek sayaçtan (A-08) gösterilir; sahte aciliyet kullanılmaz.
 - "**Biz kuralım:** menün, WhatsApp bağlantın, QR stand ve paket kartı tasarımın bizden. 1.990 TL + KDV (2.388 TL) tek sefer; ilk 100 işletmeye ücretsiz."
 - "Sipariş başına ücret, ciro yüzdesi, ödemelerinden pay yok. Aylık planda taahhüt yok. Fiyatlar yıllık TÜFE'ye göre güncellenir."
-- "**SMS:** Müşteri doğrulama (SMS kodu) ve kritik durum SMS'leri aboneliğe dahildir: Esnaf'ta ayda 100, Pro'da 300 SMS'e kadar (adil kullanım). Aşımda seni uyarırız." ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4)
+- "**SMS:** Müşteri doğrulama (SMS kodu) ve kritik durum SMS'leri aboneliğe dahildir: Esnaf'ta ayda 100, Pro'da 300, Zincir'de şube başına 300 SMS'e kadar (adil kullanım). Aşımda seni uyarırız." ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4)
 - Faz 2: "14 gün ücretsiz dene, bize kart verme. WhatsApp mesajlarının gitmesi için Meta hesabına kart eklemen gerekir; bu Meta'nın kuralıdır."
 - **Faz 1 CTA:** [Kurucu üye listesine katıl] (onaylı kayıt) · [Demo iste]. **Faz 2 CTA:** [14 gün ücretsiz dene].
 
@@ -667,9 +673,9 @@ Aylık/yıllık anahtarı. Büyük rakam KDV hariç, hemen altında KDV dahil ([
 4. **WhatsApp mesaj ücreti var mı, kim öder?** Var. Meta, müşterine giden mesajlar için küçük bir ücret alır ve bunu senin Meta hesabına tanımladığın karttan çeker; aboneliğe dahil değildir. Her numarada ayda ilk 1.000 servis mesajı ücretsizdir. Tutarı panelinde her ay görürsün.
 5. **Neden Meta'ya kart eklemem gerekiyor? Denemede de mi?** Evet, denemede de. 1 Ekim 2026'dan itibaren Meta, müşterilerine WhatsApp mesajı gönderen her işletmeden kendi Meta hesabına ödeme yöntemi eklemesini istiyor. Bu yüzden WhatsApp bağlantısını kurarken kart ekleme adımı zorunludur. Kartı Meta'ya sen tanımlarsın; biz görmeyiz, bize kart vermezsin. WhatsApp bağlantın tamamlanana kadar web siparişlerini SMS doğrulamasıyla almaya başlayabilirsin.
 6. **Müşterim uygulama indirmek ya da üye olmak zorunda mı?** Hayır. WhatsApp'tan yazar ya da QR'ı okutur; menü telefonunun tarayıcısında açılır.
-7. **Müşterimin WhatsApp'ı yoksa?** Web menüden sipariş verir, telefonuna gelen SMS koduyla siparişini doğrular. Siparişin durumunu takip linkinden izler; "onaylandı" ve "iptal" gibi önemli durumlar ona SMS ile de gider. WhatsApp bağlantın henüz tamamlanmadıysa ya da WhatsApp'ta bir arıza olursa aynı yol kendiliğinden devreye girer (WhatsApp'sız mod), yani siparişin durmaz. Bu SMS'ler aboneliğine dahildir (Esnaf'ta ayda 100, Pro'da 300 SMS'e kadar).
+7. **Müşterimin WhatsApp'ı yoksa?** Web menüden sipariş verir, telefonuna gelen SMS koduyla siparişini doğrular. Siparişin durumunu takip linkinden izler; "onaylandı" ve "iptal" gibi önemli durumlar ona SMS ile de gider. WhatsApp bağlantın henüz tamamlanmadıysa ya da WhatsApp'ta bir arıza olursa aynı yol kendiliğinden devreye girer (WhatsApp'sız mod), yani siparişin durmaz. Bu SMS'ler aboneliğine dahildir (Esnaf'ta ayda 100, Pro'da 300, Zincir'de şube başına 300 SMS'e kadar).
 8. **Pazaryerinden çıkmam mı gerekiyor?** Hayır. Keşif pazaryerinde kalsın; seni zaten tanıyan müşterin kendi kanalından sipariş versin. Paketine kart koymadan önce pazaryeri sözleşmendeki yönlendirme maddelerine bakmanı öneririz.
-9. **Siparişi kaçırırsam ne olur?** Yeni sipariş panelde sesli uyarıyla düşer. 2 dakikada onaylanmazsa telefonuna WhatsApp'tan, 5. dakikada SMS'le uyarı gelir. 10. dakikada müşterine "işletme henüz onaylamadı" bilgisi gider; 15 dakikada yanıt verilmezse sipariş iptal edilir ve müşterine özürle birlikte telefon numaran iletilir.
+9. **Siparişi kaçırırsam ne olur?** Yeni sipariş panelde sesli uyarıyla düşer. 2 dakikada onaylanmazsa telefonuna WhatsApp'tan, 5. dakikada SMS'le uyarı gelir. 10. dakikada müşterine "işletme henüz onaylamadı" bilgisi gider; 15 dakikada yanıt verilmezse sipariş iptal edilir ve müşterine özürle birlikte telefon numaran iletilir. İptal süresini 10–30 dakika arasında ayarlayabilirsin; müşteriye bilgi her zaman iptalden en az 5 dakika önce gider.
 10. **Ödemeyi nasıl alırım?** Kapıda nakit, kapıda kart (kendi POS cihazınla) ve kapıda yemek kartı; gel-alda kasada. Online kartla ödeme yakında, kendi ödeme kuruluşu hesabınla. Müşterinin parası bize hiç uğramaz.
 11. **Kurye veriyor musunuz?** Hayır, kurye senin. Kuryen uygulama indirmeden siparişlerini görür, "Yola çıktım" ve "Teslim ettim"e basar; müşterine mesaj kendiliğinden gider.
 12. **Kurulum ne kadar sürer?** WhatsApp bağlantısı kısa bir adımdır; asıl süreyi menünün büyüklüğü belirler. Web siparişini WhatsApp bağlantısı bitmeden de almaya başlayabilirsin. İstersen biz kurarız. (Süre rakamı pilot ölçümünden sonra eklenir.)
@@ -928,13 +934,13 @@ Rakip marka adları yalnız bilgi amaçlı blog içeriğinde ve §C.8 kuralları
 **Karar bekleyenler**
 11. **Bayi komisyonu:** %30 × 12 ay mı, tek seferlik 2 aylık ücret mi (ikisi birlikte sunulacak mı)? Bayinin "biz kuralım" kurulum bedelinden pay alıp almayacağı. Tavsiye ortağı (muhasebeci, esnaf odası) ödül modeli.
 12. **Referans ödülünün tetiklenme koşulu** (ilk ödeme + 30 gün aktif) ve yıllık üst sınır (12 ay) önerisi onaylanmalı.
-13. **Kill-switch listesi — Karara bağlandı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4):** `signup_open`, `wa_onboarding`, `campaigns_global`, `llm_parsing`, `sms_fallback`, tenant bazında `ordering_enabled` (A-13). [07](07-veri-modeli-ve-api.md) `feature_flags` bu listeyle hizalı; [06](06-teknik-mimari.md) §16.6 ve [09](09-yol-haritasi-ve-sprint-plani.md)'daki eski liste (`ai_ordering`, `bot_global`, `auto_print`, `akis_b_wa_verification`, `platform_wa_alerts`) buna göre güncellenmeli.
-14. **Hesaplayıcı sonucunu WhatsApp'tan gönderme şablonu** (`hesap_sonucu_v1`) Meta'da utility mi marketing mi sınıflanır? Marketing olursa e-posta varsayılan yapılır. [02](02-whatsapp-entegrasyonu.md) §5.3 listesine eklenmeli.
+13. **Kill-switch listesi — Karara bağlandı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4):** `signup_open`, `wa_onboarding`, `campaigns_global`, `llm_parsing`, `sms_fallback`, tenant bazında `ordering_enabled` (A-13). Kill-switch'ler varsayılan açıktır, kapatmak ilgili yeteneği durdurur. [07](07-veri-modeli-ve-api.md) `feature_flags` bu listeyle hizalı; [06](06-teknik-mimari.md) §16.6 ve [09](09-yol-haritasi-ve-sprint-plani.md) da hizalandı: eski adlardan `bot_global` ve `auto_print` artık kill-switch değil olağan feature flag'dir; `ai_ordering` kill-switch anlamında kullanılmaz (yalnız konuşma durumu adıdır, [02](02-whatsapp-entegrasyonu.md) §6.1); `platform_wa_alerts` yalnız izin amacı (`consents.purpose`) olarak kalır.
+14. **Hesaplayıcı sonucunu WhatsApp'tan gönderme şablonu** (`hesap_sonucu_v1`) [02](02-whatsapp-entegrasyonu.md) §5.3 platform şablonları listesine eklendi. Açık kalan: Meta'da utility mi marketing mi sınıflanacağı; marketing olursa e-posta varsayılan yapılır.
 15. **Faz 2 onaylı destek erişimi** ("her seferinde onayımı iste") ve P1 istisnası DPA'ya nasıl yazılacak?
 16. **Harici CRM ve helpdesk:** Faz 2'de satış ekibi büyürse hangi araç ve hangi m.9 dayanağıyla?
-17. **Sağlık skoru ve takılan adım eşikleri** ([T] 48 saat, %40 düşüş vb.) pilot verisiyle kalibre edilip [10](10-riskler-operasyon-ve-metrikler.md)'a taşınmalı.
+17. **Sağlık skoru ve takılan adım eşikleri:** Sağlık skoru karara bağlandı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7): 0–100 skor ve bantlar [10](10-riskler-operasyon-ve-metrikler.md) §5.6'da tanımlı, A-03 buna bağlandı. Açık kalan: ağırlıklar ve A-03'teki sinyal eşikleri ile takılan adım eşiği ([T] 48 saat, %40 düşüş vb.) pilot verisiyle kalibre edilir.
 18. **Site hitap dili:** Pazarlama sitesinde "sen", yasal metinlerde "siz" önerildi; panelin hitap dili ([04](04-isletme-paneli.md)) ile birlikte onaylanmalı.
-19. **SMS OTP fazı ve SMS kotası — Karara bağlandı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4, §7):** müşteri SMS OTP yedeği ("WhatsApp'sız mod") **Faz 1**; SMS platform maliyetidir, aboneliğe adil kullanım kotasıyla dahildir (Esnaf 100, Pro 300 SMS/ay; ek paket Faz 2). SSS #7, fiyat sayfası ve `web_live` kapısı buna göre yazıldı. [06](06-teknik-mimari.md) §13.6'daki "SMS OTP [Faz 2]" ifadesi hizalanmalı.
+19. **SMS OTP fazı ve SMS kotası — Karara bağlandı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4, §7):** müşteri SMS OTP yedeği ("WhatsApp'sız mod") **Faz 1**; SMS platform maliyetidir, aboneliğe adil kullanım kotasıyla dahildir (Esnaf 100, Pro 300, Zincir şube başına 300 SMS/ay; ek paket Faz 2). SSS #7, fiyat sayfası ve `web_live` kapısı buna göre yazıldı. [06](06-teknik-mimari.md) de SMS OTP'yi Faz 1 olarak hizaladı. `sms_fallback` kill-switch'i kapatılırsa SMS yedeği tamamen durur (A-13).
 
 **Teyit edilecekler**
 20. Meta marka kullanım yönergeleri (WhatsApp adı/logosu), Tech Provider statüsünün sitede nasıl ifade edilebileceği (Meta modeli açık kararı: [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13 #5).

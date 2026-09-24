@@ -5,7 +5,7 @@
 > **Kapsam dışı:** WhatsApp teknik ayrıntıları ve mesaj akışları ([02](02-whatsapp-entegrasyonu.md)), ekran ve özellik tasarımı ([03](03-musteri-deneyimi-ve-storefront.md), [04](04-isletme-paneli.md), [05](05-admin-paneli-ve-pazarlama-sitesi.md)), sözleşme, vergi ve tahsilat ([08](08-mevzuat-kvkk-odeme-fatura.md)), takvim ([09](09-yol-haritasi-ve-sprint-plani.md)), risk matrisi ve KPI'lar ([10](10-riskler-operasyon-ve-metrikler.md)).
 > **İlgili dokümanlar:** [00 Kararlar ve sözlük](00-kararlar-ve-sozluk.md) (bağlayıcı) · [02 WhatsApp entegrasyonu](02-whatsapp-entegrasyonu.md) · [04 İşletme paneli](04-isletme-paneli.md) · [05 Admin paneli ve pazarlama sitesi](05-admin-paneli-ve-pazarlama-sitesi.md) · [06 Teknik mimari](06-teknik-mimari.md) · [08 Mevzuat](08-mevzuat-kvkk-odeme-fatura.md) · [09 Yol haritası](09-yol-haritasi-ve-sprint-plani.md) · [10 Riskler ve metrikler](10-riskler-operasyon-ve-metrikler.md)
 > **Kaynaklar:** [arastirma/02-pazar-rakipler-is-modeli.md](arastirma/02-pazar-rakipler-is-modeli.md) (ana kaynak), [arastirma/01-whatsapp-platform.md](arastirma/01-whatsapp-platform.md) (maliyet ve rakip altyapıları).
-> **Tarih:** 2026-09-24 · **Durum:** Taslak v1
+> **Tarih:** 2026-09-24 · **Durum:** Taslak (1. sürüm)
 
 **Okuma notları**
 - Rakamlar araştırma raporlarından alındı; kaynak sayfalar arama özetleri üzerinden okundu. Dışarıya sunulmadan önce kritik rakamlar birincil kaynaktan teyit edilmelidir. **[T]** bizim tahminimiz veya hesabımızdır; **(teyit edilmeli)** doğrulanmamış bilgidir.
@@ -85,7 +85,7 @@ flowchart LR
 ### 2.1 Vizyon, misyon, kuzey yıldızı
 - **Vizyon:** Türkiye'deki her mahalle işletmesinin, müşterisiyle arasına kimse girmeden, **kendi kanalından** sipariş alabildiği bir düzen.
 - **Misyon:** Esnafın zaten kullandığı WhatsApp'ı komisyonsuz ve güvenli bir sipariş ve müşteri kanalına çevirmek; kurulumu bir günde bitirmek, maliyeti sabit ve öngörülebilir tutmak.
-- **Kuzey yıldızı metriği:** İşletmelerin kendi kanalından aldığı aylık sipariş sayısı (`wa_link`, `wa_ai`, `web`, `table_qr`, `wa_flow`; `manual` ayrı izlenir). Tanım ve hedefler: [10](10-riskler-operasyon-ve-metrikler.md).
+- **Kuzey yıldızı metriği:** İşletmelerin kendi kanalından aldığı aylık sipariş sayısı (`wa_link`, `wa_ai`, `wa_reorder`, `web`, `table_qr`, `wa_flow`; `manual` ayrı izlenir; kanal kodları [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5). Tanım ve hedefler: [10](10-riskler-operasyon-ve-metrikler.md).
 
 ### 2.2 Konumlandırma cümlesi
 
@@ -244,7 +244,7 @@ Rol kodları [00 Kararlar ve sözlük](00-kararlar-ve-sozluk.md) ile aynıdır. 
 - **Profil:** 40–55 yaşında; dönerci veya pideci; 1 şube, 3–8 çalışan. Günde 20–60 paket, yarıdan fazlası pazaryerinden. 1–2 kendi kuryesi var. Telefonu WhatsApp Business sohbetleriyle dolu. Teknolojiye mesafeli, ama ekranda "para" görünce ikna oluyor. Satın alma kriteri: tanıdık tavsiyesi, somut TL hesabı, taahhütsüz plan.
 - **İhtiyaç:** Bir günde kurulum (biz yapalım); numarasını ve WhatsApp uygulamasını kaybetmemek; sesli uyarı ve tek tuşla onay; aylık "ne kadar tasarruf ettim" raporu; sabit, öngörülebilir ücret; istediğinde bırakabilmek.
 - **Acı:** Aylık kesinti dökümünü anlamamak (Joker, reklam, KDV kalemleri); algoritmada görünmez olma korkusu; fiyatını pazaryerine göre şişirmek zorunda kalmak; kâğıda yazılan siparişler, adres hataları, unutulan sipariş; "bir sistem daha" yorgunluğu.
-- **Başarı ölçütü:** İlk 14 günde ≥ 10 kanal siparişi; 8. haftada (pilot sonu) siparişlerin ≥ %10'u kendi kanalından ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12); aylık raporda tasarrufun abonelik ücretini geçmesi.
+- **Başarı ölçütü:** İlk 14 günde ≥ 10 kanal siparişi; kendi pilotunun 8. haftasında siparişlerin ≥ %10'u kendi kanalından ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12); aylık raporda tasarrufun abonelik ücretini geçmesi.
 
 ### 5.2 Kasiyer / operatör: "Elif" (`cashier`)
 - **Profil:** 20–30 yaşında. Yoğun saatte hem kasaya, hem telefona, hem 3–4 pazaryeri tabletine bakıyor.
@@ -282,7 +282,7 @@ Rol kodları [00 Kararlar ve sözlük](00-kararlar-ve-sozluk.md) ile aynıdır. 
 ### 6.1 İlkeler
 - **Sabit aylık abonelik.** Sipariş başı ücret yok, ciro yüzdesi yok, ödeme işlemlerinden pay yok.
 - **Meta mesaj ücretleri pass-through.** İşletmenin kendi Meta hesabından çekilir; aboneliğe dahil değildir (§6.5).
-- **SMS maliyeti platformda.** Müşteri SMS OTP yedeği ve kritik durum SMS'leri aboneliğe adil kullanım kotasıyla dahildir: **Esnaf 100, Pro 300 SMS/ay**. Kota aşılınca işletme uyarılır; ek SMS paketi **[Faz 2]** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4). Maliyeti birim ekonomide COGS'tadır (§7.1).
+- **SMS maliyeti platformda.** Müşteri SMS OTP yedeği ve kritik durum SMS'leri aboneliğe adil kullanım kotasıyla dahildir: **Esnaf 100, Pro 300, Zincir şube başına 300 SMS/ay**. Kota aşılınca işletme uyarılır; ek SMS paketi **[Faz 2]** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4). Maliyeti birim ekonomide COGS'tadır (§7.1).
 - **Liste fiyatı KDV hariç** yazılır, yanında KDV dahil tutar gösterilir. Esnaf "ne ödeyeceğim?" sorusunu KDV dahil düşünür.
 - **Taahhütsüz aylık plan**, yıllık peşinde %20 indirim. **Fiyatlar yıllık TÜFE endeksli** güncellenir. Paketler sipariş kotasıyla değil **özellikle** ayrışır (öneri).
 
@@ -317,10 +317,10 @@ Rol kodları [00 Kararlar ve sözlük](00-kararlar-ve-sozluk.md) ile aynıdır. 
 | Masa QR (`dine_in`) | [Faz 3] | — | ✓ | ✓ |
 | WhatsApp Flows ile sohbet içi sipariş | [Faz 3] | — | ✓ | ✓ |
 | **Operasyon** | | | | |
-| Canlı sipariş ekranı, sesli uyarı ve kademeli alarm (t=0 ses + Web Push, 60 sn ses tekrarı, 2 dk WhatsApp uyarısı, 5 dk SMS, 10 dk müşteriye bilgi, 15 dk `cancelled` / `tenant_no_response`) | [Faz 1] | ✓ | ✓ | ✓ |
+| Canlı sipariş ekranı, sesli uyarı ve kademeli alarm (t=0 ses + Web Push, 60 sn ses tekrarı, 2 dk WhatsApp uyarısı, 5 dk SMS, 10 dk müşteriye bilgi, 15 dk `cancelled` / `tenant_no_response`; otomatik iptal işletme ayarıyla 10–30 dk, müşteri bilgisi iptalden en az 5 dk önce) | [Faz 1] | ✓ | ✓ | ✓ |
 | Otomatik WhatsApp durum bildirimleri + sipariş takip sayfası | [Faz 1] | ✓ | ✓ | ✓ |
 | WhatsApp gelen kutusu: sohbeti görme, yanıtlama, bot/insan modu | [Faz 1] | ✓ | ✓ | ✓ |
-| SMS kotası (müşteri OTP yedeği + kritik durum SMS'leri; platform öder, aşımda uyarı) | [Faz 1] | 100 SMS/ay | 300 SMS/ay | Öneri: şube başına 300 SMS/ay |
+| SMS kotası (müşteri OTP yedeği + kritik durum SMS'leri; platform öder, aşımda uyarı) | [Faz 1] | 100 SMS/ay | 300 SMS/ay | Şube başına 300 SMS/ay (00 §4) |
 | Ek SMS paketi (kota aşımı için) | [Faz 2] | ✓ | ✓ | ✓ |
 | Teslimat bölgeleri (poligon, min sepet, ücret, tahmini süre) | [Faz 1] | En fazla 3 bölge | Sınırsız | Sınırsız |
 | Kapıda ödeme (nakit, kart, yemek kartı), gel-alda kasada | [Faz 1] | ✓ | ✓ | ✓ |
@@ -358,7 +358,7 @@ Rol kodları [00 Kararlar ve sözlük](00-kararlar-ve-sozluk.md) ile aynıdır. 
 - **12 ay boyunca sabit %30 indirim oranı.** Sabitlenen TL fiyat değil, orandır: liste fiyatı yıllık TÜFE ile güncellenirse kurucu üye de yeni liste fiyatının %30 eksiğini öder ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8). Bugünkü liste fiyatlarıyla: Esnaf 693, Pro 1.253, Zincir 2.093 TL/şube. "Biz kuralım" kurulumu ücretsiz (normalde 1.990 TL + KDV). 12 ayın sonunda indirim biter, o günkü liste fiyatına geçilir.
 - Sayaç: ücretli aboneliğe geçen ilk 100 işletme; pilotlar dahil (öneri). Yıllık peşin indirimiyle birleşmez (öneri; açık konu).
 
-**Pilot (ilk 10 işletme, Hafta 10–18)**
+**Pilot (ilk 10 işletme, Hafta 10–20; 3 dalga: 3 + 4 + 3)**
 - 3 ay ücretsiz + concierge kurulum; karşılığında haftalık geri bildirim görüşmesi ve vaka izni (isim, video, rakamlar). Pilot bitince kurucu üye koşullarıyla devam edilir.
 
 **Diğer kurallar**
@@ -561,12 +561,12 @@ LTV = ARPU × brüt marj / aylık churn (marj %70 hedef varsayımı; Esnaf'ta §
 
 ## 8. Go-to-market
 
-Sıra: **Talep doğrulama deneyi** (Seviye 0 concierge, Hafta 0–8) ile paralel **Faz 0** (Hafta 0–4; 20+ esnaf görüşmesi, Meta doğrulama) ve Faz 1 geliştirmesi → **go/no-go kapısı (Hafta 8)** → **Pilot** (ilk 10, Hafta 10–18) → **Faz 2** (ilk 100, kurucu üye) → **Faz 3** (1.000, ikinci şehir).
+Sıra: **Talep doğrulama deneyi** (Seviye 0 concierge, Hafta 0–8) ile paralel **Faz 0** (Hafta 0–4; 20+ esnaf görüşmesi, Meta doğrulama) ve Faz 1 geliştirmesi → **go/no-go kapısı (Hafta 8)** → **Pilot** (ilk 10, Hafta 10–20, 3 dalga; K4 ön-onay Hafta 18, kesin karar Hafta 20) → **ticari lansman** (hedef 15 Şubat 2027, Hafta 21) → **Faz 2** (ilk 100, kurucu üye) → **Faz 3** (1.000, ikinci şehir).
 
 **İlk adım: talep doğrulama deneyi ve go/no-go kapısı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11)
 - **Neden önce:** En büyük risk talep tarafındadır (R01): pazaryeri müşterisi işletmenin kendi kanalına geçiyor mu? Bu, yazılım bitmeden ölçülür.
 - **Nasıl (Hafta 0–8, geliştirmeyle paralel):** Pilot ilçelerindeki 5–10 işletmede yazılım beklemeden `wa.me` linkli paket içi QR kartı, buzdolabı magneti ve doğrudan kanala özel teşvik dağıtılır. Siparişler işletmenin mevcut WhatsApp'ına düşer; ekip kodlu QR/UTM ile sayar. Resmi olmayan hiçbir WhatsApp aracı kullanılmaz; pazaryeri müşterisinin maskeli numarasına mesaj atılmaz.
-- **Go/no-go kapısı (Hafta 8):** işletme başına haftalık kendi kanal siparişi, kart→sipariş dönüşümü, tekrar oranı ve ödeme niyeti (niyet mektubu / ön ödeme) ölçütleri. NO-GO çıkarsa pilot başlamaz, ağır geliştirme durur ve pivot seçenekleri değerlendirilir. Eşikler ve deney tasarımı [10](10-riskler-operasyon-ve-metrikler.md) §4.4–4.5'te (kanonik), takvim ve sonuç senaryoları [09](09-yol-haritasi-ve-sprint-plani.md) §4'te.
+- **Go/no-go kapısı (Hafta 8):** işletme başına haftalık kendi kanal siparişi, kart→sipariş dönüşümü, tekrar oranı ve ödeme niyeti (niyet mektubu / ön ödeme) ölçütleri. NO-GO çıkarsa pilot başlamaz, Faz 1'in kalan ağır geliştirmesi (Sprint 5–6 kapsamı) durdurulur ve ekip pivot seçeneklerini (segment/şehir/teklif değişikliği) 2 hafta içinde değerlendirir; KOŞULLU GO'da pilot yalnız eşikleri karşılayan segmentle sürer ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11). Eşikler ve deney tasarımı [10](10-riskler-operasyon-ve-metrikler.md) §4.4–4.5'te (kanonik), takvim ve sonuç senaryoları [09](09-yol-haritasi-ve-sprint-plani.md) §4'te.
 - **GTM'e katkısı:** Deneyde en iyi çalışan teşvik varyantı pilot kitine, en iyi değer önerisi mesajı satış konuşmasına (§8.6) girer; deneye katılan işletmeler öncelikli pilot adayıdır ve ilk vaka hikâyeleri buradan çıkar.
 
 ### 8.1 Başlangıç şehri ve segment kriterleri
@@ -584,13 +584,14 @@ Sıra: **Talep doğrulama deneyi** (Seviye 0 concierge, Hafta 0–8) ile paralel
 - **Aday kümeler (arastirma/02 §9.1):** İstanbul Anadolu yakasında bir ilçe kümesi; İzmir (Bornova/Karşıyaka); Anadolu'da güçlü esnaf kültürü olan bir şehir (Eskişehir, Konya, Kayseri) veya oda protokolü emsali olan Edirne. Karar ekibin konumuna bağlıdır (proje sahibi kararı, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13.2; varsayılan: ekibin bulunduğu şehirde 2–3 ilçe). Şehirlere göre pazaryeri penetrasyonu **(teyit edilmeli)**.
 - **Segment:** §3.3'teki Öncelik 1. İlk aşamada zincirlerden ve tamamen platform kuryesine bağlı işletmelerden kaçınılır.
 
-### 8.2 İlk 10 işletme: Pilot (Hafta 10–18)
-- **Ön koşul:** Hafta 8 go/no-go kapısı GO veya KOŞULLU GO (KOŞULLU'da pilot 6 işletmeyle sınırlanır; [10](10-riskler-operasyon-ve-metrikler.md) §4.5).
+### 8.2 İlk 10 işletme: Pilot (Hafta 10–20)
+- **Ön koşul:** Hafta 8 go/no-go kapısı GO veya KOŞULLU GO (KOŞULLU'da pilot yalnız eşikleri karşılayan segmentle, en fazla 6 işletmeyle sürer; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11, [10](10-riskler-operasyon-ve-metrikler.md) §4.5).
+- **Takvim ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11, [09](09-yol-haritasi-ve-sprint-plani.md) §7):** 3 dalgada kurulum (3 + 4 + 3 işletme); ilk canlı sipariş Hafta 11 (7 Aralık 2026). Ticari lansman kararı Hafta 18 kapısında (K4 ön-onay, 29 Ocak 2027) ilk dalganın verisiyle ön-onaylanır, son dalganın 8. haftasıyla (Hafta 20, 12 Şubat 2027) kesinleşir; **ticari lansman hedefi 15 Şubat 2027 (Hafta 21)**.
 - **Havuz:** Seviye 0 deneyine katılan işletmeler (öncelikli), Faz 0'daki 20+ esnaf görüşmesi ve pilot ilçelerdeki 30–40 işletmeyle yüz yüze görüşme. Hedef 10 pilot. Teklif §6.4'teki pilot koşullarıdır.
 - **Pilot seçim kriterleri:** Öncelik 1 segmenti; kendi kuryesi var; pazaryerinde aktif; karar vericiye ulaşılabiliyor; menü Commerce Policy'ye uygun. Karma: çoğunluk WhatsApp Business kullanan (Coexistence testi), 1–2 normal WhatsApp veya yeni numara kullanan; POS'u olan ve olmayan; Esnaf ve Pro ölçeğinde.
 - **Biz yaparız:** Menü girişi; Embedded Signup ve Coexistence kurulumu; Meta ödeme yöntemi ekleme desteği; paket içi QR kartı, buzdolabı magneti ve kasa QR standı basımı; Google İşletme Profili ve Instagram bio'suna sipariş linki.
 - **Ritim:** İlk iki hafta her gün kısa ziyaret veya arama; ürün hataları aynı gün düzeltilir.
-- **Başarı ölçütleri ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12):** işletme başına ilk 14 günde ≥ 10 kanal siparişi; pilotun 8. haftasında (pilot sonu) siparişlerin ≥ %10'u kendi kanalından; panel günlük aktif.
+- **Başarı ölçütleri ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12):** işletme başına ilk 14 günde ≥ 10 kanal siparişi; her işletmenin kendi pilotunun 8. haftasında (dalgasına göre Hafta 18, 19 veya 20) siparişlerin ≥ %10'u kendi kanalından; panel günlük aktif.
 - **Meta kısıtı:** Uygulama canlı moda geçmeden Embedded Signup yalnız test kullanıcılarıyla çalışır. App Review gecikirse pilot bir Solution Partner üzerinden başlatılabilir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.2). Meta bağlantısı tamamlanmayan pilot işletme "WhatsApp'sız mod"la (SMS OTP doğrulamalı web siparişi) sipariş almaya başlar.
 
 ### 8.3 İlk 100 işletme: Faz 2 (Ay 4–9)
@@ -697,14 +698,14 @@ Yazılımın kendisi kopyalanabilir. Savunma aşağıdaki katmanlarda kurulur:
 
 **[00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) ile hizalama** (numaralar diğer dokümanlardaki atıflar için korunmuştur)
 1. **MPS / kredi hattının fazı — Karara bağlandı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.2, §6.6, §11):** MPS / kredi hattı **Faz 3**; Türk Solution Partner görüşmeleri Faz 1'de başlar. Bu dokümanda uygulandı (§6.3, §6.5, §7.1, §8.4).
-2. **Mesaj maliyeti ve kredi — Karara bağlandı (00 §6.6):** Araştırmanın (arastirma/02 §7.2, §8) "servis/utility mesajları adil kullanımla pakete dahil", "Pro'da 300, Zincir'de 1.000 pazarlama mesajı kredisi" ve kredi satışı önerileri uygulanmadı; Meta ücreti pass-through. **SMS** ise platform maliyetidir ve aboneliğe adil kullanım kotasıyla dahildir (Esnaf 100, Pro 300 SMS/ay; 00 §4); birim ekonomi buna göre yeniden hesaplandı (§7.1).
+2. **Mesaj maliyeti ve kredi — Karara bağlandı (00 §6.6):** Araştırmanın (arastirma/02 §7.2, §8) "servis/utility mesajları adil kullanımla pakete dahil", "Pro'da 300, Zincir'de 1.000 pazarlama mesajı kredisi" ve kredi satışı önerileri uygulanmadı; Meta ücreti pass-through. **SMS** ise platform maliyetidir ve aboneliğe adil kullanım kotasıyla dahildir (Esnaf 100, Pro 300, Zincir şube başına 300 SMS/ay; 00 §4); birim ekonomi buna göre yeniden hesaplandı (§7.1).
 3. **Ücretsiz "Menü" katmanı — Karara bağlandı (00 §8, §11):** Araştırma Faz 2 öneriyordu; **Faz 3**'te değerlendirilir.
 4. **Sipariş başı mesaj hedefi — Karara bağlandı (00 §6.5):** en fazla 4 durum mesajı; Akış A'daki karşılama + "Menüyü aç" mesajı bunlara ek 1 mesajdır (toplam ≤ 5); gecikme/iptal gibi olağan dışı bilgilendirmeler bütçe dışıdır. Maliyet tablosu (§6.5) 4–5 mesajla hesaplandı.
 5. **İkinci segment — Karara bağlandı (00 §11 segment sırası):** tüp/LPG hedef dışı (Commerce Policy); su bayi ve pastane **Faz 2**, market/şarküteri/çiçekçi **Faz 3**. §3.3, §8.4 ve §10 buna göre düzeltildi.
 6. **Şube indirimi (açık):** Araştırma 2. ve sonraki şubelerde %20 indirim öneriyor; 00 §8 Zincir'i düz 2.990 TL/şube tanımlıyor, 5+ şube için özel teklif veriyor. İndirim uygulanmadı. Proje sahibi kararıdır; 00 §13'te yok, eklenmesi önerilir.
 
 **Karar bekleyenler**
-7. **Paket içerik matrisi (§6.3):** 00 §8 dağılımı bu dokümana bırakıyor; özelliklerin fazı 00 §7, §11 ile hizalandı (kurye görünümü, "Son siparişin" kartı, SMS OTP yedeği ve basit rapor Faz 1; AI, kampanya, sohbet içi tekrar ve Zincir Faz 2). AI'nın Pro ve üstünde, kotalı olması 00 §13.8 varsayılanıdır. Onay bekleyen paket kapıları: Esnaf'ta kurye görünümü olmaması, "en fazla 3 teslimat bölgesi", 2 kullanıcı limiti, POS entegrasyonunun Pro'ya da verilmesi, Zincir'in SMS kotası (öneri: şube başına 300; 00 §4 yalnız Esnaf ve Pro'yu tanımlıyor). Matris [04](04-isletme-paneli.md) ile senkron tutulmalı.
+7. **Paket içerik matrisi (§6.3):** 00 §8 dağılımı bu dokümana bırakıyor; özelliklerin fazı 00 §7, §11 ile hizalandı (kurye görünümü, "Son siparişin" kartı, SMS OTP yedeği ve basit rapor Faz 1; AI, kampanya, sohbet içi tekrar ve Zincir Faz 2). AI'nın Pro ve üstünde, kotalı olması 00 §13.8 varsayılanıdır. Onay bekleyen paket kapıları: Esnaf'ta kurye görünümü olmaması, "en fazla 3 teslimat bölgesi", 2 kullanıcı limiti, POS entegrasyonunun Pro'ya da verilmesi. Zincir'in SMS kotası karara bağlandı: şube başına 300 SMS/ay (00 §4). Matris [04](04-isletme-paneli.md) ile senkron tutulmalı.
 8. **Zincir paketi Faz 1'de satılmaz** (00 §8; çoklu şube Faz 2). Pilot veya Faz 1'de 2+ şubeli işletmeye ne teklif edileceği karara bağlanmalı. Varsayılan: pilota alınmaz ([09](09-yol-haritasi-ve-sprint-plani.md)); hesaplayıcı "Bize ulaş" gösterir; alternatif şube başına ayrı Pro.
 9. **Sipariş kotası:** Paket hedef hacimleri yalnız yönlendirme mi, yoksa limit mi? "Sipariş başı ücret yok" ilkesiyle uyum için kota uygulanmaması önerildi.
 10. **İndirimlerin birleşmesi ve sayaç:** Kurucu üye (12 ay sabit %30 indirim oranı) ile yıllık peşin (%20) birleşir mi, pilotlar kurucu üye sayacına dahil mi? Öneri: birleşmez; pilotlar dahil.

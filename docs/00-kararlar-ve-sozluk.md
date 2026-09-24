@@ -44,12 +44,15 @@ Türkiye'deki yerel işletmelerin (öncelik restoran/paket servis) **kendi Whats
 | Bayi | `reseller` | Faz 2 |
 | Denetim kaydı | `audit_log` | Tüm kritik işlemler |
 
-## 4. Roller (RBAC) — kanonik liste
+## 4. Roller (RBAC), oturumlar ve operasyonel anahtarlar — kanonik liste
+> Bu bölüm rollerin yanında şu kanonik kuralları da içerir: KVKK talebi yetkisi, SMS kotası, oturum süreleri, kill-switch'ler ve WhatsApp'sız mod. (Diğer dokümanlar bunlara "00 §4" diye atıf yapar.)
+
 **Platform (admin paneli):** `platform_owner` (tam yetki), `platform_admin` (operasyon), `support_agent` (destek, loglu impersonation), `finance` (abonelik/fatura/tahsilat), `sales_rep` (lead ve deneme yönetimi). **Bayi (Faz 2):** `reseller_admin` (bayi yöneticisi — kendi işletmeleri, komisyon raporu) ve `reseller_technician` (kurulum teknisyeni — yalnız atandığı işletmelerin kurulum kontrol listesi); ikisi de yalnız kendi getirdiği işletmeleri görür.
 **Müşteri verisi dışa aktarma/silme (KVKK talepleri):** `owner` ve `manager`. **Manuel (telefon) siparişte bölge dışı istisnası:** personel uyarıyı görerek bölge dışına sipariş girebilir (kayıt altına alınır).
 **SMS maliyeti:** SMS OTP ve kritik durum SMS'leri platform maliyetidir, aboneliğe adil kullanım kotasıyla dahildir (Esnaf 100, Pro 300, Zincir şube başına 300 SMS/ay; kota aşımında işletme uyarılır, Faz 2'de ek SMS paketi).
 **Oturum süreleri (kanonik):** platform (admin) oturumu 8 saat + 30 dk hareketsizlikte kilit; impersonation en fazla 30 dk, varsayılan salt-okunur, gerekçe zorunlu, işletmeye bildirim gider; işletme paneli kişisel kullanıcı oturumu 30 gün (kayıtlı cihaz); paylaşımlı kasa/mutfak tableti **cihaz kaydı** 90 gün, personel bu cihazda PIN ile girer; kurye magic link 12 saat (vardiya).
 **Kill-switch'ler (admin):** `signup_open`, `wa_onboarding`, `campaigns_global`, `llm_parsing`, `sms_fallback`, tenant bazında `ordering_enabled`. Kill-switch'ler varsayılan **açıktır**; kapatmak ilgili yeteneği durdurur. **WhatsApp'sız mod** tenant bazında otomatik devreye girer (WhatsApp bağlantısı yok, token 190, ödeme 131042 hatası) ya da admin olay kaydından (Meta kesintisi) toplu açılır; `sms_fallback` kill-switch'i kapatılırsa SMS yedeği tamamen durur (ör. SMS pompalama saldırısı) ve bu durumda Akış B yalnız WhatsApp ile çalışır.
+**Destek hattı ve P1 (kanonik):** İşletmelere destek WhatsApp'ı **platform WhatsApp numarasıdır** (uyarı şablonlarını gönderen aynı platform WABA). Gelen mesajlar ve işletme sahibinin uyarı şablonlarına verdiği yanıtlar admin panelindeki **destek gelen kutusuna** düşer; bu kutu işletme panelindeki gelen kutusunun aynı konuşma motorunu kullanır (platform kendi "platform" tenant'ıdır). P1 hattı: pilot boyunca 10:00–02:00 canlı yanıt, gece sesli mesaj + en geç 30 dk içinde geri dönüş; kurucular nöbetçidir.
 **İşletme (işletme paneli):** `owner` (İşletme Sahibi — her şey + abonelik + WhatsApp bağlantısı), `manager` (Yönetici/Şube Müdürü — menü, ayarlar, raporlar, personel; abonelik hariç), `cashier` (Kasiyer/Operatör — sipariş ekranı, sohbet, müşteri), `kitchen` (Mutfak — yalnız sipariş/hazırlık ekranı, fiyat görmez), `courier` (Kurye — yalnız kendine atanan siparişler).
 
 ## 5. Sipariş durum makinesi (kanonik — tüm dokümanlarda aynen)
@@ -181,6 +184,6 @@ Geçişler: `awaiting_customer→new|cancelled`; `new→accepted|rejected|cancel
 7. **Kurye:** yalnız işletmenin kendi kuryesi mi (varsayılan), ileride kurye firması entegrasyonu stratejik mi?
 8. **AI serbest metin siparişi** hangi paketlerde / kotalı mı? (Varsayılan: Pro ve üstü, adil kullanım kotası.)
 9. **Yemek kartı** online tahsilat ne zaman? (Varsayılan: Faz 1 yalnız kapıda.)
+10. **SLO hedefleri:** aylık erişilebilirlik %99,9 (varsayılan), RPO ≤ 5 dk, RTO ≤ 1 saat.
 11. **Esnaf paketi ekonomisi:** Mevcut varsayımlarla Esnaf (990 TL) brüt marjı %29–67; seçenekler: fiyatı artırmak, SMS/AI kotasını düşürmek, Esnaf'ı yalnız yıllık satmak ya da giriş paketi olarak düşük marjı kabul etmek. (Varsayılan: pilot verisiyle Faz 2 fiyat revizyonunda karar.)
 12. **Hesap dondurma (sezonluk işletmeler):** Yazlık/sezonluk işletmeye aylık küçük ücretle dondurma seçeneği sunulsun mu? (Varsayılan: Faz 2'de değerlendirilir; Faz 1'de iptal + 90 gün veri saklama.)
-10. **SLO hedefleri:** aylık erişilebilirlik %99,9 (varsayılan), RPO ≤ 5 dk, RTO ≤ 1 saat.

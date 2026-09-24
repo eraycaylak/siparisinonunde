@@ -18,7 +18,7 @@ Türkiye'deki işletmeler için komisyonsuz, WhatsApp üzerinden sipariş alma S
 5. **Durum makineleri** (sipariş ve konuşma) `packages/core` içinde, tablo güdümlü ve %100 birim testlidir. Geçişler kararlar dosyasındaki tabloyla birebir aynıdır.
 6. **Idempotency:** WhatsApp `wamid` UNIQUE'tir. Webhook işleyici ham olayı kaydeder, hemen 200 döner, kuyruğa atar. Dış çağrılarda idempotency anahtarı kullanılır.
 7. **Kişisel veri:** Loglarda telefon ve adres maskelenir. Sentry'de PII temizlenir. LLM'e giden metinde telefon ve adres maskelenir. Kişisel veri Türkiye'deki altyapıda tutulur.
-8. **Mesaj bütçesi:** Sipariş başına en fazla 4 durum mesajı gönderilir (60 sn debounce ile). Sipariş durum şablonlarına promosyon veya indirim kodu eklenmez; bunlar İYS kapsamındaki ticari ileti sayılır.
+8. **Mesaj bütçesi:** Sipariş başına en fazla 4 durum mesajı gönderilir (gecikme/iptal gibi olağan dışı bilgilendirmeler bütçe dışıdır; Akış A'daki karşılama + "Menüyü aç" ek 1 mesajdır). 60 sn debounce ("alındı" + "onaylandı" tek mesaj) **yalnız Akış A'da** uygulanır; Akış B'de kod mesajına "alındı" yanıtı anında gider. Sipariş durum şablonlarına promosyon veya indirim kodu eklenmez; bunlar İYS kapsamındaki ticari ileti sayılır.
 9. **Para** integer kuruş + `currency` olarak tutulur. Zaman `timestamptz` (UTC) olarak saklanır, `Europe/Istanbul` ile gösterilir.
 10. Müşteri parası hiçbir akışta platform hesabından geçmez (6493 sayılı Kanun).
 

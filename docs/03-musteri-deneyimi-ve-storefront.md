@@ -67,7 +67,7 @@ flowchart LR
 **Kanal belirleme kuralı (sunucuda):**
 1. Storefront oturumunda geçerli bir WhatsApp bağlamı varsa (2 saatten genç token ve "Ben değilim" denmemiş) sipariş `channel = wa_link` olur ve doğrudan `new` durumuna geçer.
 2. Aksi halde `channel = web`, `status = awaiting_customer` olur ve Akış B doğrulaması başlar (WhatsApp ya da SMS OTP).
-3. Masa QR'dan gelen sipariş `table_qr` olur [Faz 3]. Panelden girilen `manual`, sohbette AI ile alınan `wa_ai` [Faz 2], Flows ile alınan `wa_flow` [Faz 3] kodunu alır.
+3. Masa QR'dan gelen sipariş `table_qr` olur [Faz 3]. Panelden girilen `manual`, sohbette AI ile alınan `wa_ai` [Faz 2], sohbet içinde "Aynısından" ile tek dokunuşla tekrarlanan `wa_reorder` [Faz 2], Flows ile alınan `wa_flow` [Faz 3] kodunu alır. Storefront'taki "Son siparişin" kartından (§3.4) verilen sipariş ayrı kanal değildir; kural 1–2'ye göre `wa_link` ya da `web` olur ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5).
 
 ---
 
@@ -143,7 +143,7 @@ sequenceDiagram
 | `request_welcome` ile karşılama gönderildi ama müşteri hiç yazmadı | Pencere davranışı teyit edilene kadar: API gönderimi reddederse (131047) ilk mesaj beklenir. |
 
 **Kabul kriterleri (Akış A):**
-- İlk mesaja ≤ 3 sn içinde tek karşılama ve CTA gider ([D02 §6.10](02-whatsapp-entegrasyonu.md)).
+- İlk mesaja ≤ 3 sn içinde tek karşılama ve CTA gider ([D02 §6.2–6.3](02-whatsapp-entegrasyonu.md)).
 - Linkin önizlenmesi veya iki kez açılması token'ı geçersiz kılmaz. 2 saatten eski token siparişi BSUID'ye bağlamaz.
 - İlk yüklemeden sonra adres çubuğunda token görünmez, sunucu loglarında maskelenir.
 - Geçerli token'la verilen sipariş doğrulama beklemeden `new` olur, panelde ses çalar ve müşteri kaydına bağlanır.
@@ -178,7 +178,7 @@ sequenceDiagram
 
 **Adımlar:**
 1. Müşteri storefront'a doğrudan gelir. Checkout'ta **teslimat telefonu zorunludur** (SMS yedeği ve kurye için). Checkout'ta şu ifade görünür: "Sipariş durumunu Lezzet Dürüm WhatsApp'tan bildirecek." ([D02 §9.1](02-whatsapp-entegrasyonu.md)).
-2. "Siparişi onayla" sonrası sipariş `awaiting_customer` olur. 6 karakterli kod (alfabe `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`, en az 1 rakam) ve `public_token` üretilir ([D02 §6.4](02-whatsapp-entegrasyonu.md), [D07 §1.2](07-veri-modeli-ve-api.md)).
+2. "Siparişi onayla" sonrası sipariş `awaiting_customer` olur. 6 karakterli kod (alfabe `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`, en az 1 rakam) üretilir ve takip linki için HMAC ile türetilen takip token'ı (`tracking_token`) hazırlanır ([D02 §6.4](02-whatsapp-entegrasyonu.md), [D07 §1.2](07-veri-modeli-ve-api.md)).
 3. **S-06B** (§4.5) tek büyük yeşil buton gösterir: **"WhatsApp'ta onayla"** → `https://wa.me/<işletme numarası>?text=Sipariş%20kodu%3A%20K7M2Q9`. Masaüstünde aynı link QR olarak da verilir.
 4. Kod eşleşince sipariş `new` olur, BSUID bağlanır, panelde ses çalar. Müşterinin kod mesajına M05 "Siparişiniz alındı" **anında** yanıt olarak gider: 60 sn debounce **yalnız Akış A'dadır**, çünkü Akış B'de müşteri sohbette yanıt bekler ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7, [D02 §4.3](02-whatsapp-entegrasyonu.md)). Onay sonradan gelirse ayrı M06 gider (M06c birleşik mesajı Akış B'de kullanılmaz). S-06B doğrulanana kadar 3 sn'de bir yoklar [T], sonra takip görünümüne döner. Pencereyi müşteri açtığı için durum mesajları service mesajı olarak gider.
 
@@ -188,7 +188,7 @@ sequenceDiagram
 
 **Tetikler:** (a) müşteri S-06B'de "WhatsApp'ınız yok mu? SMS ile doğrulayın" seçeneğine dokunur; (b) işletmenin WhatsApp bağlantısı henüz tamamlanmamıştır ya da gönderim duraklatılmıştır (131042, 190, kopma) — bu durumda S-06B hiç gösterilmez, doğrudan S-06C açılır; (c) WhatsApp kanalı platform genelinde arızalıdır (Meta kesintisi; admin olay kaydından toplu açılır, [D02 §6.11](02-whatsapp-entegrasyonu.md), [05](05-admin-paneli-ve-pazarlama-sitesi.md)).
 
-**Koşul:** tenant ayarı `sms_fallback_enabled` açık (varsayılan) ve platform kill-switch'i `sms_fallback` açık ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4). Biri kapalıysa ve WhatsApp doğrulaması da mümkün değilse storefront "Şu an online sipariş alınamıyor, lütfen arayın" + [Ara] gösterir; sipariş Akış E ile telefondan alınır. İşletme ayrıca `awaiting_customer` siparişi arayıp "Telefonla doğruladım" diyebilir (`verification_method = staff`).
+**Koşul:** tenant ayarı `sms_fallback_enabled` açık (varsayılan) ve platform kill-switch'i `sms_fallback` açık ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4; kill-switch'ler varsayılan açıktır). `sms_fallback` kapatılırsa (ör. SMS pompalama saldırısı) SMS yedeği tamamen durur: SMS-01…03 gitmez, S-06B'deki "SMS ile doğrulayın" seçeneği gizlenir ve Akış B yalnız WhatsApp ile çalışır. Biri kapalıysa ve WhatsApp doğrulaması da mümkün değilse storefront "Şu an online sipariş alınamıyor, lütfen arayın" + [Ara] gösterir; sipariş Akış E ile telefondan alınır. İşletme ayrıca `awaiting_customer` siparişi arayıp "Telefonla doğruladım" diyebilir (`verification_method = staff`).
 
 **Akış:** "Siparişi onayla" → `awaiting_customer` → SMS-01 (6 haneli kod) → S-06C'de kod girilir → `new` + sesli uyarı → S-07 takip sayfası → onayda SMS-02, ret/iptalde SMS-03.
 
@@ -236,7 +236,7 @@ sequenceDiagram
 ```
 
 - Fiyat ve toplamı her zaman sunucu hesaplar. LLM'e yalnız sipariş metni gider; ad, telefon, adres ve sağlık ifadeleri maskelenir ([D02 §6.5](02-whatsapp-entegrasyonu.md), [D08 §2.7](08-mevzuat-kvkk-odeme-fatura.md)).
-- **Kanonik butonlar: [Onayla] [Düzenle] [İptal]** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7). Onay ibaresi ve ön bilgilendirme linki mesaj gövdesindedir (M18). Konu dışı mesaja kibar ret gider (M21); "yetkili" her an çalışır, işletme AI'ı kapatabilir.
+- **Kanonik butonlar: [Onayla] [Düzenle] [İptal]** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7). Onay ibaresi ve ön bilgilendirme linki mesaj gövdesindedir (M18). Sipariş `channel = wa_ai` ile açılır; [Onayla] basılınca `awaiting_customer → new` ve `verification_method = wa_button` yazılır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5, [D02 §6.5](02-whatsapp-entegrasyonu.md)). Konu dışı mesaja kibar ret gider (M21); "yetkili" her an çalışır, işletme AI'ı kapatabilir.
 
 **Kabul kriterleri:** Onaysız sipariş panele `new` olarak düşmez. M18 gövdesi KDV dahil toplamı, teslimat ücretini, cayma notunu, ön bilgilendirme linkini ve onay ibaresini içerir. Eşleşmeyen kalem tahmin edilmez, soru sorulur. Onay anı `wamid` ve metin sürümüyle `audit_log`'a yazılır.
 
@@ -264,6 +264,8 @@ sequenceDiagram
     M->>B: Onayla
     B->>P: status=new
 ```
+
+- Sohbet içi tekrar siparişi `channel = wa_reorder` ile `awaiting_customer` olarak açılır; [Onayla] ile `new` olur ve `verification_method = wa_button` yazılır. [Düzenle] sepeti dolu storefront linkini gönderir; storefront'tan tamamlanan sipariş `wa_link` kanalını alır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5, §7).
 
 **Kabul kriterleri:** Karttaki toplam, sepete eklenince görünen toplamla aynıdır. Tükenen ürün sepete eklenmez ve kullanıcıya bildirilir. Tekrar gelen müşteri WhatsApp'tan başlayarak 3 dokunuşta sipariş verebilir (İ2).
 
@@ -354,11 +356,11 @@ sequenceDiagram
 | S-03 | Sepet | `/sepet` | 1 (kupon 2) |
 | S-04 | Checkout: teslimat ve iletişim | `/siparis` (bölüm 1–3) | 1 |
 | S-05 | Checkout: ödeme, özet ve onay | `/siparis` (bölüm 4–5) | 1 |
-| S-06A | Sonuç, Akış A: "Siparişiniz alındı" | `/t/{public_token}` ilk görünüm | 1 |
-| S-06B | Sonuç, Akış B: "WhatsApp'ta onaylayın" | `/t/{public_token}` (`awaiting_customer`) | 1 |
-| S-06C | Sonuç, SMS ile doğrula | `/t/{public_token}` (`awaiting_customer`, SMS modu) | 1 |
-| S-07 | Sipariş takip sayfası | `/t/{public_token}` | 1 |
-| S-08 | Değerlendirme (S-07 içinde) | `/t/{public_token}#degerlendir` | 1 |
+| S-06A | Sonuç, Akış A: "Siparişiniz alındı" | `/t/{tracking_token}` ilk görünüm | 1 |
+| S-06B | Sonuç, Akış B: "WhatsApp'ta onaylayın" | `/t/{tracking_token}` (`awaiting_customer`) | 1 |
+| S-06C | Sonuç, SMS ile doğrula | `/t/{tracking_token}` (`awaiting_customer`, SMS modu) | 1 |
+| S-07 | Sipariş takip sayfası | `/t/{tracking_token}` | 1 |
+| S-08 | Değerlendirme (S-07 içinde) | `/t/{tracking_token}#degerlendir` | 1 |
 | S-09 | Kapalı / durduruldu / yoğun / askıda varyantları | S-01 varyantı | 1 |
 | S-10 | Yasal metinler | `/yasal/{aydinlatma, on-bilgilendirme, mesafeli-satis, cerez}` | 1 |
 | S-14 | İşletme bilgisi (künye, saatler, bölgeler) | `/bilgi` | 1 |
@@ -647,11 +649,11 @@ Sunucu, istemciden gelen ücret ve bölge bilgisini yok sayar ve hesabı yeniden
 
 ### 7.1 Adres, token ve güvenlik
 
-- **Adres:** `https://{slug}.siparisinonunde.com/t/{public_token}`. Token 128 bit rastgeledir, base62 ile 22 karakterdir ([D07 §1.2](07-veri-modeli-ve-api.md)). Takip sayfası salt okunurdur.
+- **Adres:** `https://{slug}.siparisinonunde.com/t/{tracking_token}`. Takip token'ı rastgele üretilip saklanmaz; sipariş kimliğinden HMAC ile türetilir: `base62(HMAC-SHA256(tracking_key[kid], order_id))[:22]` (~128 bit, tahmin edilemez). Gerektiğinde (sonraki durum mesajlarındaki link için) yeniden üretilebilir; DB'de yalnız hash'i (`orders.tracking_token_hash`) ve geçersizlik anı (`orders.tracking_expires_at`) tutulur ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7, [D07 §1.2](07-veri-modeli-ve-api.md)). Takip sayfası salt okunurdur.
 - **Yanıt başlıkları:** `Cache-Control: no-store`, `noindex`, `Referrer-Policy: no-referrer` [T]; sonuncusu token'ın dış bağlantılara sızmasını önler.
 - **Güncelleme:** Sayfa ön plandayken 15 sn'de bir yoklanır ([D06 §12](06-teknik-mimari.md)). `awaiting_customer` durumunda (S-06B/C) aralık 3 sn'dir [T]. Durum değişince `aria-live` ile duyurulur.
 - **Gizlilik:** Adres maskelidir: yalnız adres adı ve mahalle ("Ev · Caferağa Mah."). Tam adres ve telefon yalnız siparişi veren oturumda (aynı cihaz çerezi) "Göster" ile açılır [T].
-- **Geçerlilik:** Takip linki teslimden **7 gün** sonra geçersizleşir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7); ret veya iptal edilen siparişte süre final durumdan başlar ([D08 §2.8](08-mevzuat-kvkk-odeme-fatura.md) satır 5, `retention.tracking_pages`). Süresi dolan link kişisel alan ve sipariş ayrıntısı göstermez; yalnız "Bu takip bağlantısının süresi doldu." + [Menüyü aç] [İşletmeyi ara] ve siparişin ön bilgilendirme/sözleşme sürümüne giden kalıcı bağlantı (`legal_documents` URL'si, kişisel veri içermez) görünür.
+- **Geçerlilik:** Takip linki teslimden **7 gün** sonra geçersizleşir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7); ret veya iptal edilen siparişte süre final durumdan başlar (`tracking_expires_at` = teslim/final durum + 7 gün; [D08 §2.8](08-mevzuat-kvkk-odeme-fatura.md) satır 5, `retention.tracking_pages`). Süresi dolan link HTTP 410 (`tracking_link_expired`) döner, kişisel alan ve sipariş ayrıntısı göstermez; yalnız "Bu takip bağlantısının süresi doldu." + [Menüyü aç] [İşletmeyi ara] ve siparişin ön bilgilendirme/sözleşme sürümüne giden kalıcı bağlantı (`legal_documents` URL'si, kişisel veri içermez) görünür.
 
 ### 7.2 İçerik (yukarıdan aşağı)
 
@@ -923,7 +925,7 @@ Kapsam: [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5'teki `cancel_re
 | M20 | "yetkili" · metin · F1 | Mesai içi: "Sizi yetkilimize aktardık 🙋 Birazdan buradan yanıt verecek." / Mesai dışı: "Şu an ekibimiz yanıt veremiyor. Mesajınızı aldık, {acilis} itibarıyla dönüş yapacağız." | — |
 | M21 | AI, konu dışı · CTA URL · F2 | Ben yalnızca {isletme} menüsü ve siparişlerinizle ilgili yardımcı olabiliyorum 🙂 Sipariş vermek için menümüzü açabilir ya da "yetkili" yazarak ekibimize ulaşabilirsiniz. | Menüyü aç |
 | M22 | M10a içinde · reply · F2 | {isletme} kampanya ve duyurularını WhatsApp'tan almak ister misiniz? İstediğiniz zaman "DUR" yazarak ayrılabilirsiniz. — Kayıt: zaman, kanal, `wamid`, metin sürümü; 3 iş günü içinde İYS ([D08 §3.4](08-mevzuat-kvkk-odeme-fatura.md)). "Hayır" diyene 90 gün sorulmaz [T]. Nihai metin avukattan. | Evet, isterim · Hayır, teşekkürler |
-| M23 | Sepeti terkten 30–60 dk sonra · marketing şablonu (adı [D02 §5.2](02-whatsapp-entegrasyonu.md)'de henüz tanımlı değil) · F2 | Sepetinizde {urun_ozet} bekliyor. Siparişinizi tamamlamak ister misiniz? — Yalnız ETK onaylı ve opt-in'li müşteriye, tek sefer, varsayılan kapalı. İşletmenin kampanya mesajları (M24–M25 ayrılmış) kampanya modülünden `kampanya_genel_v1` ile gider ([04](04-isletme-paneli.md)). | Sepete dön · Kampanyaları durdur |
+| M23 | Sepeti terkten 30–60 dk sonra · marketing şablonu `sepet_hatirlatma_v1` ([D02 §5.2](02-whatsapp-entegrasyonu.md); gövde orada kanoniktir) · F2 | Sepetinizde {urun_ozet} bekliyor. Siparişinizi tamamlamak ister misiniz? — Yalnız ETK onaylı ve opt-in'li müşteriye, işletmenin İYS kaydı ve gönderim öncesi İYS sorgusu şartıyla, maliyet önizlemesi onaylanmışsa; tek sefer, varsayılan kapalı. İşletmenin kampanya mesajları (M24–M25 ayrılmış) kampanya modülünden `kampanya_genel_v1` ile gider ([04](04-isletme-paneli.md)). | Sepete dön · Kampanyaları durdur |
 | M26 | Aktif siparişte gelen mesaj (15 dk'da 1) · CTA URL · F1 | {no} numaralı siparişinizin durumu: {durum_etiketi}{eta_ek} ⏎ Mesajınızı işletmeye de ilettik. Bir yetkiliyle görüşmek isterseniz "yetkili" yazın. — Etiket §3.0'dan; `{eta_ek}` = " · Tahmini {saat}" | Siparişi takip et |
 | M27a | "iptal", `awaiting_customer`/`new` · reply · F1 | {no} numaralı siparişinizi iptal etmek istiyor musunuz? | Siparişi iptal et · Vazgeçtim |
 | M27b | "iptal", `accepted` ve sonrası · metin · F1 | Siparişiniz onaylandığı için iptal talebinizi işletmeye ilettik. İşletme onaylarsa siparişiniz iptal edilir ve size buradan haber veririz. (Panelde iptal talebi açılır, sohbet insana devredilir; onayda M12b gider.) | — |
@@ -942,7 +944,7 @@ Kapsam: [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5'teki `cancel_re
 
 ### 9.4 Pencere dışı: utility şablonları
 
-Pencere kapalıyken aynı içerik [D02 §5.2](02-whatsapp-entegrasyonu.md)'deki utility şablonlarıyla gider; **gövdeler orada kanoniktir.** Eşleme: M05 → `siparis_alindi_v1`, M06 → `siparis_onaylandi_v1`, M08 → `siparis_hazir_v1`, M09 → `siparis_yolda_v1`, M10 → `siparis_teslim_v1` ("Değerlendir" URL butonu `/t/{token}#degerlendir`'e açılır), M11 → `siparis_reddedildi_v1`, M12a–c, e–g → `siparis_iptal_v1`, M12d (`tenant_no_response`) → `siparis_iptal_yanitsiz_v1`. Panelden 24 saatten eski sohbete yanıt için `yanit_bekliyor_v1`, kampanya için [Faz 2] `kampanya_genel_v1` kullanılır. Şablon adları D02 §5.2 kataloğuyla birebir aynıdır; M23 (sepeti terk, [Faz 2]) için katalogda henüz şablon yoktur.
+Pencere kapalıyken aynı içerik [D02 §5.2](02-whatsapp-entegrasyonu.md)'deki utility şablonlarıyla gider; **gövdeler orada kanoniktir.** Eşleme: M05 → `siparis_alindi_v1`, M06 → `siparis_onaylandi_v1`, M08 → `siparis_hazir_v1`, M09 → `siparis_yolda_v1`, M10 → `siparis_teslim_v1` ("Değerlendir" URL butonu `/t/{token}#degerlendir`'e açılır), M11 → `siparis_reddedildi_v1`, M12a–c, e–g → `siparis_iptal_v1`, M12d (`tenant_no_response`) → `siparis_iptal_yanitsiz_v1`. Panelden 24 saatten eski sohbete yanıt için `yanit_bekliyor_v1`, kampanya için [Faz 2] `kampanya_genel_v1` kullanılır. Şablon adları D02 §5.2 kataloğuyla birebir aynıdır; M23 (sepeti terk, [Faz 2]) marketing şablonu `sepet_hatirlatma_v1` ile gider (yalnız opt-in'li müşteriye, İYS sorgusu ve maliyet önizlemesi şartıyla).
 - Müşteri adı bilinmiyorsa `{{1}}` = "değerli müşterimiz". M10a–d, M13, M17, M26–M32 ve M34 pencere dışında **hiç** gönderilmez (şablonları yoktur); M34 gidemezse panel "müşteriyi arayın" önerir.
 - Zamana duyarlı şablonlara kısa TTL verilmesi önerilir (örn. `siparis_yolda_v1` 30 dk), böylece geç teslim edilmezler (A05 §7.4; izin verilen aralık teyit edilmeli).
 
@@ -961,7 +963,7 @@ Pencere kapalıyken aynı içerik [D02 §5.2](02-whatsapp-entegrasyonu.md)'deki 
 - Türkçe karakterler SMS segment sayısını artırabilir. Sağlayıcının Türkçe karakter desteği ve segment hesabı teyit edilmeli; metinler kısa tutulmuştur (§12).
 - SMS'ler işlemseldir, promosyon içermez.
 - **Gönderici başlığı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7):** Faz 1'de platformun onaylı alfanümerik başlığı kullanılır (≤ 11 karakter, ör. "SIPARISNDE" — teyit edilmeli). Müşteri mesajın kimden geldiğini gövdeden anlar: işletme adı her SMS'in başındadır (`{isletme}:` / "{isletme} sipariş doğrulama kodunuz"). İşletmeye özel başlık Faz 3.
-- **Maliyet ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4):** SMS OTP ve kritik durum SMS'leri platform maliyetidir; aboneliğe adil kullanım kotasıyla dahildir (Esnaf 100, Pro 300 SMS/ay). Kota aşımında işletme uyarılır, müşteriye giden SMS kesilmez [T]; Faz 2'de ek SMS paketi. Müşteri SMS için hiçbir ücret ödemez.
+- **Maliyet ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4):** SMS OTP ve kritik durum SMS'leri platform maliyetidir; aboneliğe adil kullanım kotasıyla dahildir (Esnaf 100, Pro 300, Zincir şube başına 300 SMS/ay). Kota aşımında işletme uyarılır, müşteriye giden SMS kesilmez [T]; Faz 2'de ek SMS paketi. Müşteri SMS için hiçbir ücret ödemez.
 
 ### 9.6 Mesaj bütçesi
 
@@ -1069,7 +1071,7 @@ Hedefler [D06 §12](06-teknik-mimari.md)'dedir (mobil, p75): LCP ≤ 2,5 sn (hed
 | `sf_order_error` | İstemci | POST hatası | `code` (`cart_changed`/`branch_closed`/`out_of_zone`/`rate_limited`/`network`) |
 | `order_created` | Sunucu | Sipariş oluştu | `channel`, `status`, `fulfillment_type`, `payment_method`, `src` |
 | `order_verify_wa_tap` / `order_verify_sms_start` | İstemci | S-06B butonu / SMS seçimi | — |
-| `order_verified` / `order_verify_expired` | Sunucu | `awaiting_customer → new` / 30 dk zaman aşımı | `method` = `verification_method` (`wa_link`/`wa_code`/`sms_otp`/`staff`; `staff` = panelde "Telefonla doğruladım"; `wa_link` Akış A siparişinde oluşturma anında yazılır), `latency_s` |
+| `order_verified` / `order_verify_expired` | Sunucu | `awaiting_customer → new` / 30 dk zaman aşımı | `method` = `verification_method` (`wa_link`/`wa_code`/`wa_button`/`sms_otp`/`staff`; `staff` = panelde "Telefonla doğruladım"; `wa_link` Akış A siparişinde oluşturma anında yazılır; `wa_button` = Akış C/D'de WhatsApp [Onayla] butonu [Faz 2]), `latency_s` |
 | `order_status_changed` | Sunucu | Her geçiş | `from`, `to`, `latency_s` |
 | `order_cancelled` / `order_rejected` | Sunucu | Terminal | `cancelled_by`, `reason` |
 | `wa_inbound` | Sunucu | Gelen mesaj | `type`, `intent` (§8.2), `has_referral` |
@@ -1095,7 +1097,7 @@ Hedefler [D06 §12](06-teknik-mimari.md)'dedir (mobil, p75): LCP ≤ 2,5 sn (hed
 | Onay süresi medyanı (`new→accepted`) | < 60 sn | A05 [T] |
 | "Siparişim nerede?" mesajı / sipariş (`intent=where_is_my_order`) | < %5 | A05 [T] |
 | Sipariş başına otomatik durum mesajı | ≤ 4 (sert sınır), karşılamayla ≤ 5 | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6.5 |
-| Pilot: işletme başına ilk 14 günde kanal siparişi · pilotun 8. haftasında (pilot sonu) kendi kanal payı · sipariş kaçırma | ≥ 10 · ≥ %10 · %0 | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12 |
+| Pilot: işletme başına ilk 14 günde kanal siparişi · her işletmenin kendi pilotunun 8. haftasında kendi kanal payı · sipariş kaçırma | ≥ 10 · ≥ %10 · %0 | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §12 |
 | Storefront LCP (p75, mobil) | ≤ 2,5 sn | D06 §12 |
 | Bölge dışı sonuç oranı, tekrar sipariş oranı, değerlendirme yanıt oranı | Hedef yok, izlenir | — |
 
@@ -1112,14 +1114,14 @@ Karara bağlanan maddeler "Karara bağlandı" diye kapatılmıştır; numaralar 
 | 3 | **SMS OTP fazı.** | **Karara bağlandı:** Faz 1 ("WhatsApp'sız mod", [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 Akış B); D08 §2.11 de Faz 1 (§3.2.1). |
 | 4 | **Araştırma ile küçük farklar (bilgi).** Ret mesajı gecikmesi A05'te 60 sn; token URL'si A05'te `/s/{token}`; Akış B ön dolu metni A05'te "Merhaba, sipariş kodum: X"; JS bütçesi A05'te < 150 KB. | Kapandı: 00 §7 (30 sn bekleyen ret), D02 (`?wa=`), 00 §7/D02 ("Sipariş kodu: X") ve D06 (≤ 120 KB) uygulandı. |
 | 5 | **Sebep kodları ve müşteri metinleri.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5): yedi `rejection_reason` kodunun her birinin müşteri metni M11'de, tüm `cancel_reason` kodlarınınki M12a–g'de, kısa sebep metinleri D02 §5.2'de. Açık kalan: müşterinin serbest iptal gerekçesinin alan adı D07'de tanımlanmalı. |
-| 6 | **Karşılama sıklığı.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7): tam karşılama 12 saatte 1, kısa yanıt + "Menüyü aç" 30 dk'da 1, açık siparişte durum kartı (§8.1). D02 §6.2 `onInbound` yalnız 30 dk soğuma kullanıyor ve kapalılık kontrolünü açık sipariş kontrolünden önce yapıyor; 12 saat kuralı ve bu sıra D02'de hizalanmalı. |
+| 6 | **Karşılama sıklığı.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7): tam karşılama 12 saatte 1, kısa yanıt + "Menüyü aç" 30 dk'da 1, açık siparişte durum kartı (§8.1). D02 §6.2 `onInbound` bu sırayla hizalandı: açık sipariş kontrolü kapalılık kontrolünden önce, 12 saat / 30 dk kuralı uygulanıyor. |
 | 7 | **"Hazırlanıyor" açıkken bütçe.** | Kapandı: M07 yalnız M06c gittiyse gönderilir (§9.6 kural 4); D02 §4.3 ile aynı. |
 | 8 | **Değerlendirmenin fazı.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7): Faz 1'de M10 butonlarıyla 3 seçenekli puan + isteğe bağlı kısa yorum, yalnız işletme panelinde; `reviews` tablosu Faz 1 (D07 hizalı). Herkese açık yayın ve işletme yanıtı Faz 2 (§7.5). |
-| 9 | **`wa_flow` kanal kodu.** | **Karara bağlandı:** [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5 `channel` listesinde (Faz 3). Açık kalan: sohbet içi tekrar sipariş [Faz 2] için kanal kodu (A05 önerisi `wa_link`); 00 §5'e eklenmeli. |
+| 9 | **`wa_flow` kanal kodu.** | **Karara bağlandı:** [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5 `channel` listesinde (Faz 3). Sohbet içi tekrar sipariş [Faz 2] için kanal kodu da karara bağlandı: `wa_reorder` (00 §5); storefront "Son siparişin" kartı `wa_link`/`web` kanalını korur (§2, §3.4). |
 | 10 | **İptal talebinin kabulünde `cancelled_by`.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 "Müşteri iptali"): `new`'de doğrudan iptal; `accepted` ve sonrasında iptal talebi, onaylanırsa `cancelled_by = customer`, `customer_request`, onaylayan personel `audit_log`'da (§7.4). |
-| 11 | **M13 zamanlaması ve sistem iptali.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10 alarm zinciri; süre sınırları proje kararıdır): otomatik iptal süresi işletme ayarı, 10–30 dk aralığında, varsayılan 15 dk; müşteriye bilgi (M13 + takip sayfası satırı) varsayılan t=10 dk'da ve her durumda iptalden **en az 5 dk önce** gider (§9.2 M13, K17). "Beklerim" süreyi uzatmaz. 00 §10'a "10–30 dk" ve "en az 5 dk önce" sınırları eklenmeli. |
+| 11 | **M13 zamanlaması ve sistem iptali.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10 alarm zinciri; süre sınırları proje kararıdır): otomatik iptal süresi işletme ayarı, 10–30 dk aralığında, varsayılan 15 dk; müşteriye bilgi (M13 + takip sayfası satırı) varsayılan t=10 dk'da ve her durumda iptalden **en az 5 dk önce** gider (§9.2 M13, K17). "Beklerim" süreyi uzatmaz. Bu sınırlar 00 §10'da kanonik olarak yer alıyor. |
 | 12 | **"Bu cihazda hatırla" çerezinin varsayılanı.** | Açık: işaretsiz (opt-in) uygulandı. Varsayılan açık olabilir mi ve 90 günlük süre avukata sorulacak (D08 §11). |
-| 13 | **SMS maliyeti ve gönderici.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4, §7): maliyet platformda, adil kullanım kotası (Esnaf 100, Pro 300 SMS/ay; aşımda işletme uyarılır, Faz 2'de ek paket); platformun alfanümerik başlığı, gövdede işletme adı; işletmeye özel başlık Faz 3 (§9.5). Açık kalan: başlık adının ("SIPARISNDE") alınabilirliği, işlemsel SMS'in İYS istisnası ve Türkçe karakterlerin segment etkisi (sağlayıcı ve avukattan teyit); SMS maliyeti 01 birim ekonomisinde yer almalı. |
+| 13 | **SMS maliyeti ve gönderici.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4, §7): maliyet platformda, adil kullanım kotası (Esnaf 100, Pro 300, Zincir şube başına 300 SMS/ay; aşımda işletme uyarılır, Faz 2'de ek paket); platformun alfanümerik başlığı, gövdede işletme adı; işletmeye özel başlık Faz 3 (§9.5). Açık kalan: başlık adının ("SIPARISNDE") alınabilirliği, işlemsel SMS'in İYS istisnası ve Türkçe karakterlerin segment etkisi (sağlayıcı ve avukattan teyit). SMS maliyeti 01 §7.1 birim ekonomisinde COGS kalemi olarak yer alıyor. |
 | 14 | **Kurye maskeli arama.** | Açık, Faz 3'te değerlendirilir (sağlayıcı, maliyet, KVKK). Faz 1'de kurye telefonu gösterilmez, "İşletmeyi ara" kullanılır. |
 | 15 | **Akış B'de debounce sessizliği.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7): debounce yalnız Akış A'da; Akış B'de kod mesajına M05 anında gider (§3.2, §9.6). Sorun ortadan kalktı. |
 | 16 | **Online ödenen web siparişinin doğrulaması [Faz 2].** | Açık. Öneri: ödeme doğrulama sayılır, WhatsApp adımı atlanır, bildirimler utility şablonuyla gider. Faz 2 tasarımında karar gerekir. |
@@ -1128,4 +1130,4 @@ Karara bağlanan maddeler "Karara bağlandı" diye kapatılmıştır; numaralar 
 | 19 | **Google/Instagram sipariş butonları ve review gating politikası** (A05 [E]). Pazaryeri sözleşmelerinde paket içi QR kısıtı. | Açık. Pilotta denenir; avukat/ürün kontrolü. |
 | 20 | **Takip linki süresi.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7; D08 §2.8 satır 5): teslimden (ret/iptalde final durumdan) 7 gün sonra geçersiz; belgeler kişisel veri içermeyen kalıcı adreste kalır (§7.1). Bunun "kalıcı veri saklayıcı" için yeterliliği D08 §4.4'te gri alan olarak avukata soruluyor. |
 | 21 | **Online yemek kartı tahsilatı.** | Proje sahibi kararı: [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13 #9 (varsayılan: Faz 1'de yalnız kapıda). Bu doküman online yemek kartını Faz 3 varsaydı (§6). |
-| 22 | **Sepeti terk şablonu (M23) [Faz 2].** | Açık: D02 §5.2 kataloğunda karşılık gelen marketing şablonu yok; Faz 2 kampanya modülüyle birlikte D02'ye eklenmeli. |
+| 22 | **Sepeti terk şablonu (M23) [Faz 2].** | **Karara bağlandı:** D02 §5.2 kataloğuna marketing şablonu `sepet_hatirlatma_v1` [Faz 2] eklendi (İYS kaydı + opt-in + gönderim öncesi İYS sorgusu + maliyet önizlemesi şartıyla, tek sefer, varsayılan kapalı). |

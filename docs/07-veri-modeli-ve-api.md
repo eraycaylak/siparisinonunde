@@ -355,14 +355,14 @@ Faz 1 tabloları tam ayrıntılı; küçük tablolarda alanlar satır içinde li
 | `rejection_reason` | `closed`, `out_of_zone`, `item_unavailable`, `too_busy`, `duplicate`, `suspected_fake`, `other` (not zorunlu) | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5 |
 | `cancelled_by` / `cancel_reason` | `customer`, `tenant`, `system` / `customer_request`, `customer_timeout`, `tenant_no_response`, `item_unavailable`, `courier_issue`, `duplicate`, `suspected_fake`, `payment_timeout` (Faz 2 online ödeme), `other` | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5 |
 | `payment_status` / `payment_method` | `unpaid`, `pending`, `paid`, `failed`, `refunded`, `partially_refunded` / `cash_on_delivery`, `card_on_delivery`, `meal_card_on_delivery`, `online_card` (Faz 2), `pay_at_counter` | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5 |
-| `fulfillment_type` / `order_channel` | `delivery`, `pickup`, `dine_in` (Faz 3) / `wa_link`, `wa_ai` (Faz 2), `web`, `table_qr` (Faz 3), `manual`, `wa_flow` (Faz 3) | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5, §7 |
+| `fulfillment_type` / `order_channel` | `delivery`, `pickup`, `dine_in` (Faz 3) / `wa_link`, `wa_ai` (Faz 2), `web`, `table_qr` (Faz 3), `wa_flow` (Faz 3), `wa_reorder` (Faz 2: sohbet içinde "aynısından" tek dokunuş tekrar; storefront'taki "Son siparişin" kartından gelen sipariş `web`/`wa_link` kanalını korur), `manual` | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5, §7 |
 | `meal_card_brand` | `multinet`, `pluxee`, `edenred`, `setcard`, `metropol`, `other` | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5 |
 | `tenant_role` / `platform_role` / `reseller_role` | `owner`, `manager`, `cashier`, `kitchen`, `courier` / `platform_owner`, `platform_admin`, `support_agent`, `finance`, `sales_rep` / `reseller_admin`, `reseller_technician` (Faz 2) | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4 |
 | `subscription_status` / `lifecycle_stage` | `trialing`, `active`, `past_due`, `read_only`, `suspended`, `cancelled` / `lead`, `onboarding`, `pilot`, `trial`, `active`, `past_due`, `read_only`, `suspended`, `churned` | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 |
 | `onboarding_step` | `account_created`, `profile_done`, `menu_done`, `ops_done`, `web_live` (Kapı 1), `wa_connected`, `meta_payment_ok`, `wa_test_done`, `live` (Kapı 2) | D05 §A.2.2, D04 §3.3 |
 | `suspension_reason` | Otomatik: `payment` (dunning G+21), `trial_ended`, `pilot_ended`; admin: `policy`, `abuse`, `legal` | D05 §A.2.1 |
 | `ordering_state` | Saklanan: `open`, `busy`, `paused`; hesaplanan: `closed` (çalışma saati dışı) | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 |
-| `verification_method` / `status_notify_channel` | `wa_link` (Akış A token), `wa_code` (Akış B kod), `sms_otp`, `staff` (manuel sipariş, "Telefonla doğruladım") / `whatsapp`, `sms`, `none` | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5 |
+| `verification_method` / `status_notify_channel` | `wa_link` (Akış A token), `wa_code` (Akış B kod), `wa_button` (Akış C/D'de WhatsApp [Onayla] butonu, Faz 2), `sms_otp`, `staff` (manuel sipariş, "Telefonla doğruladım") / `whatsapp`, `sms`, `none` | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5 |
 | `test_kind` | `onboarding_test`, `canary`; `NULL` = gerçek sipariş. Test siparişleri rapor, metrik ve faturalamadan hariçtir | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5 |
 | `message_intent` | `greeting`, `menu_request`, `order_code`, `order_status_query` ("siparişim nerede"), `cancel_request`, `handoff_request`, `complaint`, `hours_address`, `free_text_order` (Faz 2), `review_reply`, `stop`, `off_topic`, `other` | D10 §8.4, D02 §6 |
 | `acquisition_source` | `marketplace_card` (pazaryeri paketine konan kart/QR), `marketplace_declared` (müşteri/işletme "pazaryerinden geldi" dedi), `in_store_qr`, `google`, `instagram`, `word_of_mouth`, `referral`, `returning`, `unknown` | D10 §8.3, D03 §2 |
@@ -395,7 +395,7 @@ Faz 1 tabloları tam ayrıntılı; küçük tablolarda alanlar satır içinde li
 | `signup_ref_code` | text | ✓ | **[Faz 2]** Kayıttaki ilk geçerli bayi (`?b=`) veya referans (`?r=`) kodu (D05 §B.3) |
 | `bot_enabled` / `ai_enabled` | bool | NN | Konuşma botu (true) / AI sipariş (Faz 2, false) |
 | `bot_mute_minutes` | smallint | NN | Echo/panel yanıtından sonra bot susması; 10–120, varsayılan 30 (D02 §6.10) |
-| `sms_fallback_enabled` | bool | NN | "WhatsApp'sız mod" (SMS OTP) izni; varsayılan true |
+| `sms_fallback_enabled` | bool | NN | Tenant'ın SMS yedeği (SMS OTP + kritik durum SMS'i) izni; varsayılan true. "WhatsApp'sız mod" tenant bazında otomatik devreye girer (WhatsApp bağlantısı yok, token 190, ödeme 131042) ya da admin olay kaydından toplu açılır; platform `sms_fallback` kill-switch'i kapatılırsa bu alan ne olursa olsun SMS yedeği durur ve Akış B yalnız WhatsApp ile çalışır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4) |
 | `message_settings` | jsonb | NN | Karşılama metni (promosyon filtresinden geçer), durum bildirimi aç/kapa (`preparing` false), debounce süresi |
 | `savings_commission_bp` | int | ✓ | İşletmenin girdiği pazaryeri kesinti oranı; tasarruf kartı ve aylık değer raporu (§8, D10 §5.6) |
 | `retention_customer_months` | smallint | NN | 6–24, varsayılan 24 (D08 §2.8 satır 6) |
@@ -585,8 +585,8 @@ std, `customer_id`, `label` ("Ev", "İş"), `city`, `district`, `neighbourhood`,
 | `tracking_token_hash`, `tracking_kid`, `tracking_expires_at` | text, smallint, timestamptz | NN, NN, ✓ | Takip token'ının SHA-256'sı (UK), anahtar sürümü (§1.2); geçersizlik anı = teslim (veya ret/iptal) + 7 gün ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7) |
 | `status`, `channel`, `fulfillment_type` | enum | NN | §3.0 |
 | `test_kind` | text | ✓ | `onboarding_test` (sihirbaz test siparişi, D04 §3.3), `canary` (sentetik, §4.1); `NULL` = gerçek sipariş. Rapor, KPI, kullanım sayaçları ve faturalamada yalnız `test_kind IS NULL` sayılır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5) |
-| `customer_id`, `conversation_id`, `link_token_id` | uuid | ✓ | Akış B'de doğrulanana kadar `customer_id` boş olabilir; CHECK `channel IN ('wa_link','wa_ai') → customer_id IS NOT NULL` |
-| `verification_method`, `verified_at`, `verification_ref` | text, timestamptz, text | ✓ | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5: `wa_link` (Akış A link oturumu), `wa_code` (Akış B sipariş kodu), `sms_otp` (WhatsApp'sız mod), `staff` (Akış E manuel sipariş ve "Telefonla doğruladım"); `awaiting_customer`'da boş, `new`'e geçişte NN. Ref = link token id / wamid / OTP id / user id. Akış C [Onayla] (Faz 2) kodu Açık konular #11 |
+| `customer_id`, `conversation_id`, `link_token_id` | uuid | ✓ | Akış B'de doğrulanana kadar `customer_id` boş olabilir; CHECK `channel IN ('wa_link','wa_ai','wa_reorder','wa_flow') → customer_id IS NOT NULL` |
+| `verification_method`, `verified_at`, `verification_ref` | text, timestamptz, text | ✓ | [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5: `wa_link` (Akış A link oturumu), `wa_code` (Akış B sipariş kodu), `wa_button` (Akış C/D WhatsApp [Onayla] butonu, Faz 2), `sms_otp` (WhatsApp'sız mod), `staff` (Akış E manuel sipariş ve "Telefonla doğruladım"); `awaiting_customer`'da boş, `new`'e geçişte NN. Ref = link token id / wamid (kod mesajı veya [Onayla] buton yanıtı) / OTP id / user id |
 | `status_notify_channel` | text | NN | `whatsapp`, `sms` (WhatsApp'sız mod: yalnız onaylandı/red/iptal SMS'i), `none` |
 | `wa_notify`, `wa_status_msg_count` | bool, smallint | NN | Sipariş bazında bildirim izni; otomatik durum mesajı sayacı (≤ 4) |
 | `source_meta` | jsonb | ✓ | `src` (D03 §2: `Q1` paket kartı, `Q2` magnet, `Q3` afiş; ig/google), `utm`, CTWA `referral` |
@@ -604,7 +604,7 @@ std, `customer_id`, `label` ("Ev", "İş"), `city`, `district`, `neighbourhood`,
 | `payment_method`, `payment_status`, `meal_card_brand`, `paid_at` | | | Marka `meal_card_on_delivery` ise NN |
 | `cash_tendered_kurus` | int | ✓ | "Kaç TL ile ödeyeceksiniz?" → para üstü (fişe basılır) |
 | `placed_at`, `business_date` | timestamptz, date | NN | Müşteri onay anı / iş günü |
-| `first_acked_at` | timestamptz | ✓ | İlk ack (`order_acks`); D10 S4'teki "görüldü" (`first_seen_at`) bu alandır |
+| `first_acked_at` | timestamptz | ✓ | İlk ack (`order_acks`); D10 S4 (ack süresi, "görüldü") bu alanı kullanır |
 | `accepted_at`, `preparing_at`, `ready_at`, `on_the_way_at`, `delivered_at`, `rejected_at`, `cancelled_at` | timestamptz | ✓ | FSM yazar |
 | `accepted_by_user_id`, `created_by_user_id` | uuid | ✓ | |
 | `prep_eta_minutes`, `estimated_ready_at`, `estimated_delivery_at` | | ✓ | `accept`'te zorunlu (D04'teki `eta_at` = `estimated_delivery_at`, gel-alda `estimated_ready_at`) |
@@ -633,7 +633,7 @@ PK `(order_id, device_id)`; `tenant_id`, `user_id ✓`, `acked_at`. İlk kayıt 
 std, `order_id UK`, `branch_id`, `code char(6) NN` (alfabe `ABCDEFGHJKLMNPQRSTUVWXYZ23456789`, ≥ 1 rakam), `status` (`pending`, `used`, `expired`), `expires_at` (+30 dk), `used_at`, `used_by_customer_id`, `used_wamid`. `UNIQUE(tenant_id, code) WHERE status = 'pending'`. BSUID başına hatalı deneme sayacı (10 dk'da 5) Redis'te. Saklama 7 gün.
 
 #### `otp_verifications` **[Faz 1]** (Akış B yedeği, "WhatsApp'sız mod")
-Kullanım: müşterinin WhatsApp'ı yoksa, işletmenin WhatsApp bağlantısı tamamlanmadıysa veya kanal arızalıysa (`sms_fallback` kill-switch'i açık, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4, §7). Faz 1 kapsamındadır.
+Kullanım: müşterinin WhatsApp'ı yoksa, işletmenin WhatsApp bağlantısı tamamlanmadıysa veya kanal arızalıysa ("WhatsApp'sız mod": tenant bazında otomatik ya da admin olay kaydından toplu). Koşul: `sms_fallback` kill-switch'i açık (varsayılan) ve `tenants.sms_fallback_enabled = true`; kill-switch kapatılırsa OTP üretilmez ve Akış B yalnız WhatsApp ile çalışır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4, §7). Faz 1 kapsamındadır.
 
 | Alan | Tip | Null | Açıklama |
 |---|---|---|---|
@@ -761,7 +761,7 @@ Gönderim yanıtından önce gelen status'lar (D02 §7.4): `wamid PK`, `tenant_i
 | `aggregate_type`, `aggregate_id` | text, uuid | NN | `order`, `conversation`, `tenant`… |
 | `payload` | jsonb | NN | `wa.send` için `OutboundIntent` (D02 §4.4) |
 | `status` | text | NN | `pending`, `dispatched`, `done`, `dead`, `cancelled` |
-| `available_at` | timestamptz | NN | İleri tarih: 60 sn debounce, 30 sn ret geri alma, planlı hatırlatma |
+| `available_at` | timestamptz | NN | İleri tarih: 60 sn debounce (yalnız Akış A), 30 sn ret geri alma, planlı hatırlatma |
 | `attempts`, `last_error` | | | |
 | `result`, `skip_reason`, `wamid`, `provider_ref`, `done_at` | | ✓ | `sent`, `skipped`, `superseded`, `stale`, `unknown`, `failed` (D02 §7.5) |
 
@@ -831,7 +831,7 @@ std, `subject_type` (`customer`, `user`), `customer_id ✓` / `user_id ✓`, `pu
 
 | Tablo | Faz | Alanlar ve kurallar |
 |---|---|---|
-| `feature_flags` + `tenant_feature_overrides` | 1 | `key PK`, `description`, `kind` (`kill_switch`, `release`, `ops`), `default_enabled`, `rules jsonb` (plan, yüzde, tenant listesi), `owner`, `expires_at`, `changed_by_platform_user_id`, `change_reason`; override `(tenant_id, flag_key, enabled, reason, expires_at)`. **Kanonik kill-switch'ler ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4, `platform` seed'inde):** `signup_open`, `wa_onboarding`, `campaigns_global` (Faz 2 modülü; anahtar Faz 1'den var), `llm_parsing`, `sms_fallback`; tenant bazındaki `ordering_enabled` kill-switch'i `tenants.ordering_enabled` kolonudur. D06 §16.6'daki diğer anahtarlar (`bot_global`, `auto_print`, `akis_b_wa_verification`, `platform_wa_alerts`) `kind = ops` flag'idir. Değişiklik gerekçeli, taze doğrulamalı ve `audit_log`'da (`killswitch.toggle`); ≤ 60 sn'de yayılır (D05 A-13) |
+| `feature_flags` + `tenant_feature_overrides` | 1 | `key PK`, `description`, `kind` (`kill_switch`, `release`, `ops`), `default_enabled`, `rules jsonb` (plan, yüzde, tenant listesi), `owner`, `expires_at`, `changed_by_platform_user_id`, `change_reason`; override `(tenant_id, flag_key, enabled, reason, expires_at)`. **Kanonik kill-switch'ler ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4, `platform` seed'inde; `default_enabled = true`, kapatmak ilgili yeteneği durdurur):** `signup_open`, `wa_onboarding`, `campaigns_global` (Faz 2 modülü; anahtar Faz 1'den var), `llm_parsing`, `sms_fallback` (kapatılırsa SMS yedeği tamamen durur, Akış B yalnız WhatsApp ile çalışır; WhatsApp'sız modu açıp kapatmaz); tenant bazındaki `ordering_enabled` kill-switch'i `tenants.ordering_enabled` kolonudur. D06 §16.6'daki diğer anahtarlar (`bot_global`, `auto_print`, `akis_b_wa_verification`, `platform_wa_alerts`) `kind = ops` flag'idir. Değişiklik gerekçeli, taze doğrulamalı ve `audit_log`'da (`killswitch.toggle`); ≤ 60 sn'de yayılır (D05 A-13) |
 | `announcements` + `announcement_reads` | 1 | `title`, `body_md`, `severity` (`info`, `warning`, `critical`), `audience jsonb` (tümü, plan, tenant listesi, rol), `starts_at`, `ends_at`, `incident_id ✓`; okuma `(user_id, announcement_id, read_at)` |
 | `wa_rate_cards` | 1 | Değişmez satır (D02 §4.2): `market` (`TR`), `effective_from`, `currency` (`USD`), `free_service_per_number_per_month` (1000), `marketing_usd_micros` (10900), `utility_usd_micros` (900), `authentication_usd_micros` (900), `service_usd_micros` (900), `source`; `UNIQUE(market, effective_from)` |
 | `fx_rates` | 1 | `pair` (`USDTRY`), `rate numeric(12,4)`, `as_of`, `source` (`TCMB`); günlük |
@@ -895,9 +895,9 @@ stateDiagram-v2
 
 | # | Geçiş | Tetikleyen | Koşul / zorunlu alan | Yan etkiler (mesaj · olay · yazdırma · alarm) |
 |---|---|---|---|---|
-| 1 | ∅ → `awaiting_customer` | Storefront (Akış B: `web` veya link oturumu yok/`disowned`); worker (Akış C, Faz 2) | Onay butonu + yasal kabul kayıtları | Sipariş kodu **veya** SMS OTP; `order.created` (panelde soluk "Doğrulama bekleniyor", ses yok); 30 dk zaman aşımı (`order-awaiting-timeout`) |
+| 1 | ∅ → `awaiting_customer` | Storefront (Akış B: `web` veya link oturumu yok/`disowned`); worker (Akış C `wa_ai` ve sohbet içi Akış D `wa_reorder`, Faz 2) | Onay butonu + yasal kabul kayıtları | Sipariş kodu **veya** SMS OTP; `order.created` (panelde soluk "Doğrulama bekleniyor", ses yok); 30 dk zaman aşımı (`order-awaiting-timeout`) |
 | 2 | ∅ → `new` | Storefront (Akış A, geçerli link oturumu → `wa_link`, `verification_method = wa_link`); panel (Akış E `manual`, O/M/C; "sohbetten sipariş"; `verification_method = staff`) | Akış E'de `wa_notify` için kasiyer onay kutusu (`consents`); bölge dışı ise `out_of_zone_override` | Akış A: `order.created` + ses; alarm zinciri; "alındı + takip" mesajı (60 sn debounce, yalnız Akış A). Akış E: ETA seçildiği için aynı transaction'da `new → accepted` (geçiş 5; alarm çalmaz, D04 §4.13); `wa_notify` açıksa tek "onaylandı + takip" mesajı (pencere açıksa serbest, kapalıysa `siparis_onaylandi_v1`). Yazdırma `auto_print_on = new` |
-| 3 | `awaiting_customer` → `new` | wa-inbound (geçerli sipariş kodu → `wa_code`), storefront (OTP doğrulandı → `sms_otp`), Akış C [Onayla] (Faz 2), panel "Telefonla doğruladım" (O/M/C, audit → `staff`) | Kod/OTP geçerli ve süresi dolmamış | `verification_method`, `verified_at`; müşteri ve sohbet bağlanır; ses + alarm; kod mesajına "Siparişiniz alındı" service yanıtı **anında** (debounce yok, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7); SMS modunda mesaj yok, takip sayfası |
+| 3 | `awaiting_customer` → `new` | wa-inbound (geçerli sipariş kodu → `wa_code`), storefront (OTP doğrulandı → `sms_otp`), Akış C/D [Onayla] butonu (Faz 2 → `wa_button`), panel "Telefonla doğruladım" (O/M/C, audit → `staff`) | Kod/OTP geçerli ve süresi dolmamış | `verification_method`, `verified_at`; müşteri ve sohbet bağlanır; ses + alarm; kod mesajına "Siparişiniz alındı" service yanıtı **anında** (debounce yok, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7); SMS modunda mesaj yok, takip sayfası |
 | 4 | `awaiting_customer` → `cancelled` | System (30 dk); müşteri (takip sayfası, Akış C [İptal]) | `system` + `customer_timeout` / `customer` + `customer_request` | Kod/OTP `expired`; mesaj yok |
 | 5 | `new` → `accepted` | O/M/C; system (otomatik kabul, Faz 2, kurallı ve varsayılan kapalı) | `eta_minutes` 5–180, `version`; bekleyen ret yok | "onaylandı + süre" (Akış A'da 60 sn içindeyse "alındı" ile tek mesaj); SMS modunda SMS; alarm iptal; yazdırma `auto_print_on = accepted` |
 | 6 | `new` → `rejected` | `notify` işçisi (bekleyen ret süresi doldu); isteği O/M/C verir | `rejection_reason`; `other` ise not; `rejection_scheduled_at` ≤ now (aşağıda) | "reddedildi + sebep" (kalan mesajların yerine); SMS modunda SMS; alarm iptal; audit |
@@ -956,7 +956,7 @@ stateDiagram-v2
 
 | Durum | Anlam | Giriş | Çıkış |
 |---|---|---|---|
-| `connecting` | Kod takası bitti; `wa-onboarding-continue` çalışıyor (abonelik, register, şablonlar) | ES `FINISH*` + token doğrulandı | Adımlar bitti → `verifying`; kalıcı hata → `action_required` |
+| `connecting` | Kod takası bitti; `wa-outbound` kuyruğunda `onboarding_continue` işi çalışıyor (abonelik, register, şablonlar; D02 §3.5, D06 §8.1) | ES `FINISH*` + token doğrulandı | Adımlar bitti → `verifying`; kalıcı hata → `action_required` |
 | `verifying` | Sağlık kontrolü: test gelen/giden, ödeme yöntemi, görünen ad | | Tümü geçti → `live`; eksik → `action_required` |
 | `action_required` | Esnaf adımı gerekli (131042, `DECLINED` ad, PIN) | | Düzeltme + "kontrol et" → `verifying` |
 | `live` | Canlı | | Kalite `RED`, şablon reddi, sessizlik → `degraded`; 190/131042/kopma → `paused` |
@@ -964,7 +964,7 @@ stateDiagram-v2
 | `paused` | Otomatik gönderim durdu (`wa_accounts.sending_paused_reason`); gelen mesajlar işlenir | | Yeniden bağlan / kart → `live`; bekleyen kuyruk 24 saatten eskiler atılarak boşaltılır |
 | `disconnected` | İşletme veya Meta bağlantıyı kaldırdı | Her durumdan | Yeni ES → `connecting` |
 
-Numara `live` değilken tenant `sms_fallback_enabled` ise Akış B SMS OTP ile çalışır ("WhatsApp'sız mod").
+Numara `live` değilken (bağlantı yok, `paused` 190/131042, `disconnected`) tenant otomatik olarak "WhatsApp'sız mod"a geçer; Meta kesintisinde admin olay kaydından toplu açılır. Bu modda `sms_fallback` kill-switch'i açık ve `tenants.sms_fallback_enabled = true` ise Akış B SMS OTP ile çalışır; kill-switch kapalıysa SMS yedeği tamamen durur ve Akış B yalnız WhatsApp ile çalışır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4).
 
 ### 4.5 Yazdırma işi **[Faz 1]** (D06 §9.4)
 `queued → sent → printed | failed | cancelled`. Faz 1 tarayıcı yolunda `sent` = `print.job` SSE olayı `is_print_host` cihazına iletildi; `printed` = cihazın ack'i (yazdırma penceresi onayı). 30 sn içinde ack gelmezse en çok 3 kez yeniden gönderilir, sonra `failed` olur ve panelde "Yazıcı hatası, tekrar bas" görünür. Sipariş iptalinde bekleyen işler `cancelled` olur. Yeniden baskı `copy_no + 1` ile yeni iştir.
@@ -1245,7 +1245,7 @@ Faz 2 örneği: %10 kupon (üst sınır 50 TL) → indirim `round(47.500 × 0,10
   "eta": { "min_minutes": 35, "max_minutes": 45 },
   "tracking_url": "https://lezzet.siparisinonunde.com/t/7Hq2mZ…" }
 ```
-Akış B'de aynı istek `"status": "awaiting_customer"` ve `"verification": { "method": "wa_code", "required": true, "code": "K7M2Q9", "wa_url": "https://wa.me/90…?text=Merhaba%2C%20sipari%C5%9F%20kodum%3A%20K7M2Q9", "expires_at": "…", "sms_fallback": true }` döner.
+Akış B'de aynı istek `"status": "awaiting_customer"` ve `"verification": { "method": "wa_code", "required": true, "code": "K7M2Q9", "wa_url": "https://wa.me/90…?text=Sipari%C5%9F%20kodu%3A%20K7M2Q9", "expires_at": "…", "sms_fallback": true }` döner.
 
 **Hata** — `422 application/problem+json`:
 ```json
@@ -1279,7 +1279,7 @@ data: {"order_id":"0192a6f2-…","number":1047,"status":"new","channel":"wa_link
   "metadata": { "phone_number_id": "<PNID>" },
   "contacts": [{ "profile": { "name": "Ayşe" }, "user_id": "TR.1234567890abcdef" }],
   "messages": [{ "from_user_id": "TR.1234567890abcdef", "id": "wamid.HBgM…", "timestamp": "1790000000",
-                 "type": "text", "text": { "body": "Merhaba, sipariş kodum: K7M2Q9" } }] } }] }] }
+                 "type": "text", "text": { "body": "Sipariş kodu: K7M2Q9" } }] } }] }] }
 // 2) wa-inbound "message" işi (jobId = sha256(field|wamid))
 { "tenant_id": "…", "branch_id": "…", "wamid": "wamid.HBgM…", "wa_bsuid": "TR.1234567890abcdef",
   "phone_e164": null, "type": "text", "wa_timestamp": "2026-09-21T14:13:20Z" }
@@ -1349,7 +1349,7 @@ PostgreSQL materialized view'larına RLS uygulanamaz. Bu yüzden raporlar `tenan
 | `v_monthly_savings` (görünüm, rollup üzerinde) | `(tenant_id, month)` | `N` = teslim edilen sipariş, `Cp` = ciro | Tasarruf kartı (1) |
 | `wa_message_costs` üzerinde sorgu | `(tenant_id, billing_month, category)` | ücretli mesaj, `est_usd_micros`, `est_try_kurus` | "Bu ay Meta'ya tahmini ödeme" (1) |
 | `tenant_usage_daily` | `(tenant_id, date)` | §3.7 | Admin maliyet ve kullanım (1) |
-| `v_channel_share` (görünüm) | `(tenant_id, month)` | kanal siparişi (`wa_link`, `wa_ai`, `web`, `table_qr`, `wa_flow`; `manual` hariç), `marketplace_declarations.marketplace_orders`, `acquisition_source = marketplace_*` sayısı | Kendi kanal payı = kanal ÷ (kanal + beyan); beyan yoksa boş (D10 §8.3) (1) |
+| `v_channel_share` (görünüm) | `(tenant_id, month)` | kanal siparişi (`wa_link`, `wa_ai`, `wa_reorder`, `web`, `table_qr`, `wa_flow`; `manual` hariç), `marketplace_declarations.marketplace_orders`, `acquisition_source = marketplace_*` sayısı | Kendi kanal payı = kanal ÷ (kanal + beyan); beyan yoksa boş (D10 §8.3) (1) |
 | `tenant_health_scores` | `(tenant_id, score_date)` | skor, bant, bileşenler, kırmızı tetikleyiciler | Admin işletme listesi ve churn önleme (D10 §5.6) (1) |
 
 **Tasarruf kartı:** "Bu ay kendi kanalından **N** sipariş, tahmini **Cp × k** TL komisyon tasarrufu". `k = tenants.savings_commission_bp` işletmece girilir; boşsa kart oran ister. Net satırı `Cp × k − abonelik (aylık eşdeğer, KDV hariç) − Meta tahmini` olarak gösterilir. Formül ve örnekler D01 §6.7'dedir; örneğin 180 sipariş, `Cp` = 63.000 TL ve `k` = %25 ile brüt 15.750 TL. Admin metrikleri (MRR, aktivasyon, sipariş kaçırma oranı) `subscriptions`, `invoices` ve `report_daily_branch`'ten; net yeni MRR kırılımı `subscription_changes`'ten; huni ve churn `tenant_lifecycle_events` ve `tenant_onboarding_steps`'ten türetilir (A05 §5.4, D05 §A.5).
@@ -1417,17 +1417,17 @@ Kanonik süreler D08 §2.8'dedir; her satır bir `retention.*` işine bağlanır
 | 7 | **Dunning ayrıntısı.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9, D08 §6.3): G+1/G+3/G+7 yeniden deneme, G+10 `read_only`, G+21 `suspended`, **G+75 `cancelled` + silme**; G+45 yalnız kapanış ön bildirimi (30 günlük dışa aktarma penceresi başlar), durum değiştirmez (§4.3). |
 | 8 | **Kurucu üye.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §8): 12 ay sabit %30 indirim **oranı** (`discount_bp = 3000`, `discount_until`); liste fiyatı TÜFE ile güncellenebilir. |
 | 9 | **`messages` ölçeği:** partitionlı tabloda `wamid` UNIQUE partition anahtarını gerektirir. | Faz 1'de partition yok; ~1.000 işletmede ayrı `message_wamids(wamid PK)` + aylık partition. |
-| 10 | **Takip token'ı ömrü.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7, D08 §2.8 satır 5): link teslimden (ret/iptalde final andan) 7 gün sonra geçersiz (410), kişisel alanlar gösterilmez; sözleşme/ön bilgilendirme sürümü kalıcı `legal_documents.url`'de. Açık kalan: D03 token'ı "128 bit rastgele" tanımlıyor, bu doküman yeniden üretilebilir HMAC türetmesi kullanıyor (§1.2); ikisi de 22 karakter base62, DB'de yalnız hash — D03 ile hizalanmalı. |
-| 11 | **Kodlar.** `verification_method`, `test_kind`, `payment_timeout`, `duplicate`/`suspected_fake` ret sebepleri, 3 düzeyli değerlendirme | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5, §7). Açık kalan: Akış C [Onayla] (Faz 2) için `verification_method` kodu [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) listesinde yok; öneri `wa_button` — Faz 2 başlamadan [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5'e eklenmeli. |
+| 10 | **Takip token'ı ömrü.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7, D08 §2.8 satır 5): link teslimden (ret/iptalde final andan) 7 gün sonra geçersiz (410), kişisel alanlar gösterilmez; sözleşme/ön bilgilendirme sürümü kalıcı `legal_documents.url`'de. Token HMAC ile türetilir ve yeniden üretilebilir (§1.2; 00 §7'deki `orders.tracking_token` bu türetilmiş token'dır, DB'de yalnız `tracking_token_hash` saklanır). D03 §7.1 ve D06 §15.3 aynı tanımı (HMAC türetilmiş token + `tracking_token_hash` + `tracking_expires_at`, süresi dolunca 410) kullanır. |
+| 11 | **Kodlar.** `verification_method`, `test_kind`, `payment_timeout`, `duplicate`/`suspected_fake` ret sebepleri, 3 düzeyli değerlendirme | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5, §7). Akış C/D [Onayla] (Faz 2) için `verification_method = wa_button` artık 00 §5'te kanonik; §3.0, `orders` ve §4.1 geçiş 3'e işlendi. Kanal enum'u `wa_reorder` (Faz 2) ile tamamlandı (§3.0). |
 | 12 | **WhatsApp'sız mod bildirimleri:** Yalnız onay/red/iptal SMS'le gidiyor. | SMS maliyeti **karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4: platform öder, Esnaf 100 / Pro 300 SMS/ay adil kullanım, `tenant_usage_monthly`). Açık kalan: İYS işlemsel ileti istisnasının teyidi (D08). |
-| 13 | **Canary:** WhatsApp adımı dry-run mı, gerçek gönderim mi; kayıt ne kadar tutulur? | D06 §7.10 ile hizalandı: tenant canary Meta'sız (dry-run, 15 dk), `test_kind = 'canary'`, ack sonrası / en geç 10 dk'da silinir; Meta dahil uçtan uca test yalnız `sandbox` tenant'ında platform canary olarak. D10 §7.3 "`is_test`, 24 saat sonra silinir" diyor; 10 bu tanıma çekilmeli. Açık kalan: canary numaraları arası otomatik mesajlaşmanın Meta politikasına uygunluğu. |
+| 13 | **Canary:** WhatsApp adımı dry-run mı, gerçek gönderim mi; kayıt ne kadar tutulur? | D06 §7.10 ile hizalandı: tenant canary Meta'sız (dry-run, 15 dk), `test_kind = 'canary'`, ack sonrası / en geç 10 dk'da silinir; Meta dahil uçtan uca test yalnız `sandbox` tenant'ında platform canary olarak. D10 §7.3 de aynı tanımı kullanır (`test_kind = 'canary'`, ≤ 10 dk). Açık kalan: canary numaraları arası otomatik mesajlaşmanın Meta politikasına uygunluğu. |
 | 14 | **"Son siparişin" kartı** paylaşılan cihazda başkasının siparişini gösterebilir (`so_dev`). | Kart adres ve telefon göstermez, yalnız kalemleri; KVKK görüşü alınmalı. |
 | 15 | **Teyit edilecekler:** PostgreSQL 18 `uuidv7()`; Better Auth `generateId`, iki ayrı örnek ve telefonla (e-postasız) kurye kullanıcısı; teslimat ücreti KDV oranı; Meta ücretsiz kotasında ay sınırının saat dilimi (`billing_month`); `RateLimit` başlık biçimi; Paraşüt webhook desteği. | Faz 1 ilk sprintinde. |
 | 16 | **Çok şube (Faz 2):** Şube başına tek aktif numara (`UNIQUE(branch_id)`), müşteri tenant seviyesinde; tek numara + şube seçimi ihtiyacı. | D02 Açık konular #13 ile birlikte karar verilmeli. |
 | 17 | **Kurye girişi.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4): magic link tek kullanımlık ve 15 dk içinde açılmalı; açılınca oturum 12 saat (vardiya); D04 ve D06 hizalandı. |
 | 18 | **SMS kotasına sayılan SMS'ler ve Zincir kotası:** [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4 "SMS OTP ve kritik durum SMS'leri" diyor. | Varsayılan: müşteriye giden `otp` + `order_status` sayılır; işletmeye giden alarm/panel çevrimdışı/kurye girişi SMS'leri sayılmaz ve hiçbir koşulda kesilmez. Zincir kotası **karara bağlandı**: şube başına 300 SMS/ay ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4). |
-| 19 | **Sağlık skoru modeli:** D05 A-03 kural tabanlı kırmızı/sarı/yeşil, D10 §5.6 0–100 ağırlıklı skor + kırmızı tetikleyiciler tanımlıyor. | `tenant_health_scores` D10 modelini esas aldı; D05 kuralları `red_triggers` olarak girer. D05 A-03 D10'a atıfla sadeleştirilmeli; ağırlık ve eşikler [T] pilotla kalibre edilir. |
-| 20 | **Destek kaydı ve etiket sözlüğü:** D05 A-10 "harici helpdesk yok, not + etiket + temas" ve İngilizce etiketler (`wa_connect`, `printer`…); D10 §5.1/§5.3 "Faz 1'de harici basit araç" ve Türkçe kodlar (`siparis_dusmuyor`, `p1_hat`…). | Bu doküman D05'i uyguladı (`admin_notes`, Faz 2 `support_tickets`). Tek sözlük `packages/core/support-tags.ts`, değerler İngilizce snake_case ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5 adlandırma); D10 §5.3 kodları buna çevrilmeli. |
+| 19 | **Sağlık skoru modeli.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 "Destek kayıtları"): işletme sağlık skoru 0–100 ölçeğindedir, kanonik tanım D10 §5.6; `tenant_health_scores` bu modeli uygular, D05 A-03 kuralları `red_triggers` olarak girer. Ağırlık ve eşikler [T] pilotla kalibre edilir. |
+| 20 | **Destek kaydı ve etiket sözlüğü.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 "Destek kayıtları"): Faz 1'de harici helpdesk yok; destek notları, etiketleri ve temas kayıtları `admin_notes` + `admin_tasks`'ta (Faz 2 `support_tickets`). Etiket sözlüğü tektir (`packages/core/support-tags.ts`) ve İngilizce snake_case'tir; D05 A-10 ve D10 §5.3 aynı değerleri kullanır. |
 | 21 | **Impersonation süresi.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4): en fazla 30 dk, uzatma yok, gerekirse yeni gerekçeyle yeni oturum; D05 A-09 hizalandı. |
 | 22 | **Manuel siparişte bölge dışı istisnası.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4): personel (O/M/C) uyarıyı görerek kaydeder, audit'li `out_of_zone_override`; D04 §4.13 hizalandı. |
 | 23 | **Proje sahibi kararları ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13):** #1 stack (şema Drizzle/TypeScript varsayımıyla yazıldı; Laravel seçilirse tablo ve alan adları aynen kalır, yalnız ORM/migration aracı değişir), #4 barındırma (kişisel veri Türkiye'de; ürün görselleri R2), #8 AI sipariş paketleri (`plan_features.ai_ordering`, varsayılan Pro ve üstü), #9 yemek kartı online tahsilat (Faz 1'de yalnız `meal_card_on_delivery`), #10 SLO (RPO ≤ 5 dk yedek tasarımını etkiler). | Varsayılanlarla yazıldı; karar değişirse ilgili alanlar güncellenir. |

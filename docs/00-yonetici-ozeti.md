@@ -47,6 +47,8 @@ Türkiye'deki yerel işletmelere komisyonsuz bir sipariş kanalı sunuyoruz. Ön
 | 10 dk | Müşteriye bilgi |
 | 15 dk | Otomatik iptal |
 
+Otomatik iptal süresi işletme ayarıyla 10–30 dk arasında seçilir; müşteriye bilgi her zaman iptalden en az 5 dk önce gider. "Otomatik reddet" yoktur.
+
 Bunu destekleyen altyapı:
 - olay günlüğü + SSE ile yeniden oynatma
 - sentetik canary siparişler
@@ -65,13 +67,15 @@ Bunu destekleyen altyapı:
 - İlk 100 işletme "kurucu üye": 12 ay boyunca sabit %30 indirim oranı.
 - Pilot işletmeler: 3 ay ücretsiz + kurulumu biz yaparız.
 - **Başa baş:** %25 komisyonlu bir işletmenin ayda **~21 siparişi** kendi kanalına geçerse Pro paket kendini amorti eder.
-- Meta mesaj ücretleri doğrudan işletmenin Meta hesabından çekilir, bize uğramaz. SMS yedeği aboneliğe kotayla dahil.
+- Meta mesaj ücretleri doğrudan işletmenin Meta hesabından çekilir, bize uğramaz. SMS yedeği aboneliğe kotayla dahil (Esnaf 100, Pro 300, Zincir şube başına 300 SMS/ay).
+- **Deneme ve tahsilat:** Deneme bitince plan seçilmezse 3 gün uyarı bandı, ardından sipariş alma durur (90 gün içinde veriler aynen döner). Ödeme alınamazsa G+10 salt-okunur mod (sipariş alma sürer), G+21 askı, G+75 hesap kapatma.
 - **Birim ekonomi hedefleri:**
   - karma brüt marj ≥ %70 (1.000 işletme ölçeğinde)
   - CAC ≤ 4.000 TL
   - geri ödeme < 4 ay
   - ilk yıl aylık churn %5–7
   - **Uyarı:** Esnaf paketinin marjı mevcut varsayımlarla %29–67 arasında kalıyor. Bu açık karar olarak duruyor.
+- **Koruyucu metrikler:** döviz bazlı giderlerin (Meta hariç: LLM, bulut, SaaS araçları) gelire oranı ≤ %15; nakit pisti ≥ 9 ay (altına düşerse harcama gözden geçirilir).
 
 ## 5. Teknik ve hukuki temel
 
@@ -104,7 +108,7 @@ gantt
   Sprint 1–6                           :c1, 2026-09-28, 82d
   Pilot öncesi kapı (P0)               :milestone, 2026-12-04, 0d
   section Pilot ve lansman
-  Pilot 3 dalga (10 işletme)           :d1, 2026-12-07, 68d
+  Pilot H10-H20, 3 dalga (10 işletme)  :d1, 2026-11-30, 75d
   Ticari lansman (hedef)               :milestone, 2027-02-15, 0d
 ```
 
@@ -113,12 +117,13 @@ gantt
 | **Bu hafta** | Açık kararlar (stack, şirket türü, pilot şehir). Meta Business Portfolio. Marka başvurusu. |
 | 9 Ekim | Şirket tescili + Meta Business Verification başvurusu |
 | 27 Ekim | App Review başvurusu (en geç 6 Kasım) |
-| 20 Kasım | **Talep go/no-go kapısı:** işletme başı haftada ≥ 5 kendi kanal siparişi, kart→sipariş ≥ %3, ödeme niyeti. **NO-GO olursa ağır geliştirme durur.** |
+| 20 Kasım | **Talep go/no-go kapısı (Hafta 8):** işletme başı haftada ≥ 5 kendi kanal siparişi, kart→sipariş ≥ %3, ödeme niyeti. **NO-GO olursa Faz 1'in kalan ağır geliştirmesi (Sprint 5–6) durur ve pivot seçenekleri 2 hafta içinde değerlendirilir; KOŞULLU GO'da pilot yalnız eşikleri karşılayan segmentle sürer.** |
+| 30 Kasım | Pilot başlar (Hafta 10–20): Dalga 1 kurulumu |
 | 4 Aralık | Pilot öncesi kapı ("sipariş kaçmaz" paketi hazır) |
-| 7–21 Aralık | Pilot 3 dalgada canlı (3 + 4 + 3 işletme) |
-| 29 Ocak 2027 | Ticari lansman ön-onay kapısı (ilk dalganın verisiyle) |
-| 12 Şubat 2027 | Ticari lansman kesin kararı (son dalganın 8. haftası) |
-| 15 Şubat 2027 | Ticari lansman (hedef), kurucu üye programı açılır |
+| 7–21 Aralık | Pilot 3 dalgada canlı (3 + 4 + 3 işletme; ilk canlı sipariş 7 Aralık, Hafta 11) |
+| 29 Ocak 2027 | Ticari lansman ön-onay kapısı (K4, Hafta 18; ilk dalganın verisiyle) |
+| 12 Şubat 2027 | Ticari lansman kesin kararı (Hafta 20; son dalganın 8. haftası), pilot biter |
+| 15 Şubat 2027 | Ticari lansman (hedef, Hafta 21), kurucu üye programı açılır |
 | ≈ Haziran 2027 | Faz 2 sonu, ~100 işletme |
 | ≈ Mart 2028 | Faz 3 sonu, ikinci şehir, 1.000 işletmeye doğru |
 
@@ -126,7 +131,7 @@ gantt
 
 | Risk | Cevap |
 |---|---|
-| **Talep (R01):** müşteri kendi kanala geçmiyor, panel boş kalıyor | Yazılımdan önce 8 haftalık "Seviye 0" deneyi ve sayısal go/no-go. Paket içi QR kartı, magnet, doğrudan kanal avantajı. Aylık "tasarruf" raporu. |
+| **Talep (R01):** müşteri kendi kanala geçmiyor, panel boş kalıyor | Yazılımı beklemeden, geliştirmeyle paralel 8 haftalık "Seviye 0" deneyi ve sayısal go/no-go (NO-GO kuralı tanımlı). Paket içi QR kartı, magnet, doğrudan kanal avantajı. Aylık "tasarruf" raporu. |
 | **Ekip kapasitesi** (5 ürün, 1–3 geliştirici) | Faz 1 kapsamı katı. AI, kampanya ve online ödeme Faz 2'de. Kesme çizgisi tanımlı. |
 | **Onboarding sürtünmesi** (Meta hesabı, kart, doğrulama) | "Biz kuralım" hizmeti. Adım adım rehber. WhatsApp bağlanmadan SMS doğrulamalı web siparişiyle ilk gün başlama. |
 | **Meta tek nokta arızası / App Review gecikmesi** | Kritik yol bugün başlıyor. Hafta 6'da Plan B (Solution Partner) hazırlığı. WhatsApp'sız mod. |
