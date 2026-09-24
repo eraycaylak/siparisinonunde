@@ -48,16 +48,10 @@ ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
 COPY tsconfig.base.json ./
 COPY packages/core ./packages/core
 COPY apps/web ./apps/web
-# next.config.ts "output: 'standalone'" içermiyorsa yalnız bu derleme kopyasına eklenir (depodaki dosya değişmez).
-# Takip kökü depo köküdür (monorepo: @siparis/core ve kök node_modules izlenir).
+# Standalone çıktı NEXT_OUTPUT ile açılır (next.config.ts); takip kökü depo köküdür (monorepo).
 RUN cd apps/web \
-    && if ! grep -q "output:" next.config.ts; then \
-         grep -q "const nextConfig: NextConfig = {" next.config.ts \
-           || { echo "next.config.ts beklenen biçimde değil; output: 'standalone' eklenemedi" >&2; exit 1; }; \
-         sed -i "s|const nextConfig: NextConfig = {|const nextConfig: NextConfig = {\n  output: 'standalone',\n  outputFileTracingRoot: '/app',|" next.config.ts; \
-       fi \
     && rm -rf .next .next-* \
-    && NEXT_DIST_DIR=.next pnpm exec next build \
+    && NEXT_OUTPUT=standalone NEXT_DIST_DIR=.next pnpm exec next build \
     && test -f .next/standalone/apps/web/server.js
 
 # --- Çalışma imajı ------------------------------------------------------------------------------

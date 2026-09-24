@@ -17,3 +17,7 @@ playwright/.cache/
 *.tsbuildinfo
 # Yüklenen görseller (uploads/ her dizinde) ve rastgele ekran görüntüleri
 **/screenshots/
+# Yerel yedekler (scripts/backup.sh) — kişisel veri içerir, depoya girmez
+backups/
+*.dump
+*.sql.gz

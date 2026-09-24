@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "concurrently -k -n api,worker,web -c blue,magenta,green \"pnpm --filter @siparis/api dev\" \"pnpm --filter @siparis/api dev:worker\" \"pnpm --filter @siparis/web dev\"",
     "build": "pnpm -r --filter ./packages/* --filter ./apps/* build",
-    "typecheck": "pnpm -r typecheck",
+    "typecheck": "pnpm -r typecheck && tsc -p e2e/tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "e2e": "playwright test",
