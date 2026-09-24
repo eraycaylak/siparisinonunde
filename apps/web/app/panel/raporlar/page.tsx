@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
-import { ComingSoon } from '@/components/common/coming-soon';
+import { ReportsView } from '@/components/reports/reports-view';
 
-// Yer tutucu — Dilim #4: raporlar (P-32…P-34).
+// P-32–P-34: gün sonu kasa özeti, satış/kanal, ısı haritası, tasarruf (04 §11).
 export const metadata: Metadata = { title: 'Raporlar' };
 
 export default function Page() {
-  return <ComingSoon title="Raporlar" description="Gün sonu, kanal karması ve tahmini tasarruf." />;
+  return <ReportsView />;
 }

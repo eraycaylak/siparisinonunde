@@ -1,7 +1,7 @@
 // GET /api/v1/store/:slug — vitrin (14 §6.2): menü kuralları, sipariş alma durumu (sahte saat), 404.
 
 import type { StorefrontView } from '@siparis/core/menu/contracts';
-import { branches, openingHours, specialDays, tenants } from '@siparis/db';
+import { branches, openingHours, specialDays, tenants, waAccounts } from '@siparis/db';
 import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createTestContext, expectError, type TestContext, type TestTenant } from './helpers';
@@ -58,6 +58,17 @@ describe('GET /store/:slug — menü', () => {
       phone: '+903542120000',
       email: 'a@b.local',
     });
+  });
+
+  it('WhatsApp numarası yalnız bağlı (connected) hesapta döner', async () => {
+    expect((await getStore('vitrin-pide')).body.tenant.whatsappPhone).toBeNull();
+    const [acc] = await ctx.db
+      .insert(waAccounts)
+      .values({ tenantId: a.tenantId, branchId: a.branchId, provider: 'mock', displayPhone: '+905550000099', webhookToken: 'vitrin-test-token', status: 'disconnected' })
+      .returning();
+    expect((await getStore('vitrin-pide')).body.tenant.whatsappPhone).toBeNull();
+    await ctx.db.update(waAccounts).set({ status: 'connected' }).where(eq(waAccounts.id, acc!.id));
+    expect((await getStore('vitrin-pide')).body.tenant.whatsappPhone).toBe('+905550000099');
   });
 
   it('yalnız aktif bölgeler, sıralı', async () => {

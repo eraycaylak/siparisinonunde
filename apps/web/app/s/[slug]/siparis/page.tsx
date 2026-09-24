@@ -1,19 +1,22 @@
 import type { Metadata } from 'next';
-import { ShoppingBag } from 'lucide-react';
-import { EmptyState } from '@/components/ui/empty-state';
+import { notFound } from 'next/navigation';
+import { Alert } from '@/components/ui';
+import { getStorefront } from '@/components/storefront/data';
+import { CheckoutPage } from '@/components/storefront/checkout/checkout-page';
 
-// Yer tutucu — Dilim #2: checkout (teslim türü, iletişim, mahalle + adres, ödeme, ön bilgilendirme,
-// "Siparişi onayla" + "ödeme yükümlülüğü doğar"), Akış B sonuç ekranı (14 §9).
-export const metadata: Metadata = { title: 'Sipariş', robots: { index: false, follow: false } };
+// Checkout (S-04/S-05) + Akış B sonuç ekranı (S-06B/C) — dilim 2 (14 §9, 03 §4.4–4.5).
+export const metadata: Metadata = { title: 'Siparişi tamamla', robots: { index: false, follow: false } };
 
-export default async function CheckoutPage({ params }: { params: Promise<{ slug: string }> }) {
-  await params;
-  return (
-    <EmptyState
-      icon={ShoppingBag}
-      title="Sipariş sayfası hazırlanıyor"
-      description="Online sipariş çok yakında bu sayfadan verilebilecek."
-      className="mt-8"
-    />
-  );
+export default async function Page({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const result = await getStorefront(slug);
+  if (result.kind === 'not_found') notFound();
+  if (result.kind === 'error') {
+    return (
+      <Alert variant="danger" title="İşletme bilgileri yüklenemedi" className="mt-6">
+        Lütfen biraz sonra tekrar deneyin.
+      </Alert>
+    );
+  }
+  return <CheckoutPage slug={slug} store={result.store} />;
 }

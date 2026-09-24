@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
-import { ComingSoon } from '@/components/common/coming-soon';
+import { OnboardingWizard } from '@/components/onboarding/wizard';
 
-// Yer tutucu — Dilim #4: onboarding sihirbazı (P-38).
+// P-38: onboarding sihirbazı (04 §3). Kabuk bu yolda menüsüz, sade üst çubuk gösterir.
 export const metadata: Metadata = { title: 'Kurulum' };
 
 export default function Page() {
-  return <ComingSoon title="Kurulum" description="İşletmenizi birkaç adımda hazırlayın." />;
+  return <OnboardingWizard />;
 }

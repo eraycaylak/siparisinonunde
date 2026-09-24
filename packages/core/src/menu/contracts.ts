@@ -32,6 +32,10 @@ const storeBranchBase = storefrontResponseSchema.shape.branch;
 
 /** GET /store/:slug yanıtı: çekirdek şema + açık aralığın bitişi ve duraklatma bitişi (S-01 "Kapanış 23.30"). */
 export const storefrontViewSchema = storefrontResponseSchema.extend({
+  tenant: storefrontResponseSchema.shape.tenant.extend({
+    /** Bağlı (connected) WhatsApp numarası, E.164 — "WhatsApp'tan yaz" için; yoksa null. */
+    whatsappPhone: z.string().nullable().optional(),
+  }),
   branch: storeBranchBase.extend({
     closesAt: isoDateTimeSchema.nullable().optional(),
     pausedUntil: isoDateTimeSchema.nullable().optional(),

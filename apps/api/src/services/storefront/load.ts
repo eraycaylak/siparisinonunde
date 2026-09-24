@@ -15,6 +15,7 @@ import {
   products,
   specialDays,
   tenants,
+  waAccounts,
   type Database,
 } from '@siparis/db';
 import { and, asc, desc, eq, gte, inArray, isNull } from 'drizzle-orm';
@@ -110,7 +111,7 @@ export async function loadStorefront(db: Database, rawSlug: string, now: Date = 
   const branch = await storefrontBranch(db, tenant.id);
   if (!branch) return null;
 
-  const [ordering, zoneRows, catRows, prodRows] = await Promise.all([
+  const [ordering, zoneRows, catRows, prodRows, waRows] = await Promise.all([
     branchOrderingInfo(db, tenant, branch, now),
     db
       .select()
@@ -134,6 +135,11 @@ export async function loadStorefront(db: Database, rawSlug: string, now: Date = 
         ),
       )
       .orderBy(asc(products.sort), asc(products.name)),
+    db
+      .select({ displayPhone: waAccounts.displayPhone })
+      .from(waAccounts)
+      .where(and(eq(waAccounts.tenantId, tenant.id), eq(waAccounts.branchId, branch.id), eq(waAccounts.status, 'connected')))
+      .limit(1),
   ]);
 
   const productIds = prodRows.map((p) => p.id);
@@ -211,6 +217,7 @@ export async function loadStorefront(db: Database, rawSlug: string, now: Date = 
       logoUrl: tenant.logoUrl,
       coverUrl: tenant.coverUrl,
       phone: tenant.phone ?? branch.phone,
+      whatsappPhone: waRows[0]?.displayPhone ?? null,
     },
     branch: {
       id: branch.id,

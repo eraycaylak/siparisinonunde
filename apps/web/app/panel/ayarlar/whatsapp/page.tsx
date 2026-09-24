@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
-import { ComingSoon } from '@/components/common/coming-soon';
+import { WhatsappSettingsPage } from '@/components/whatsapp/whatsapp-settings';
 
-// Yer tutucu — Dilim #4 (UI) + #3 (API): WhatsApp bağlantısı (P-25).
+// WhatsApp bağlantısı (04 P-25) — dilim 3: sağlayıcı, numara, API anahtarı, webhook, test mesajı, sağlık.
 export const metadata: Metadata = { title: 'WhatsApp bağlantısı' };
 
 export default function Page() {
-  return <ComingSoon title="WhatsApp bağlantısı" description="Numara, bağlantı sağlığı ve test mesajı." />;
+  return <WhatsappSettingsPage />;
 }

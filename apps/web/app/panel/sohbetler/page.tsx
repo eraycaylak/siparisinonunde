@@ -1,9 +1,14 @@
 import type { Metadata } from 'next';
-import { ComingSoon } from '@/components/common/coming-soon';
+import { ChatInbox } from '@/components/chat/chat-inbox';
 
-// Yer tutucu — Dilim #3 (WhatsApp + SMS): gelen kutusu (P-08).
+// Gelen kutusu (04 P-08): WhatsApp sohbetleri, yanıt, devralma — dilim 3.
 export const metadata: Metadata = { title: 'Sohbetler' };
 
 export default function Page() {
-  return <ComingSoon title="Sohbetler" description="WhatsApp konuşmaları, yanıtlama ve devralma." />;
+  return (
+    <div className="flex flex-col gap-3">
+      <h1 className="sr-only">Sohbetler</h1>
+      <ChatInbox />
+    </div>
+  );
 }

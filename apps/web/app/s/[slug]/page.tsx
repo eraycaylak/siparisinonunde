@@ -4,8 +4,7 @@ import type { StorefrontView } from '@siparis/core/menu/contracts';
 import { JsonLd } from '@/components/common/json-ld';
 import { getStorefront } from '@/components/storefront/data';
 import { StorefrontMenu } from '@/components/storefront/storefront-menu';
-import { getSiteUrl } from '@/lib/site';
-import { storefrontHref } from '@/lib/storefront-url';
+import { storefrontPublicUrl } from '@/lib/storefront-url';
 
 // S-01 Menü (03 §4.1): işletme başlığı + durum, "Son siparişin", kategori sekmeleri, ürün çekmecesi, sepet.
 // ?l=<token> (Akış A) istemcide POST /store/:slug/session ile çereze çevrilir; GET isteği token'ı tüketmez.
@@ -22,7 +21,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     title: { absolute: title },
     description,
-    alternates: { canonical: storefrontHref(slug) },
+    alternates: { canonical: storefrontPublicUrl(slug) },
     openGraph: {
       type: 'website',
       locale: 'tr_TR',
@@ -37,7 +36,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
 
 /** schema.org Restaurant + hasMenu (03 §4.1 SEO). Fiyatlar TL (KDV dahil). */
 function restaurantJsonLd(store: StorefrontView, slug: string): Record<string, unknown> {
-  const url = `${getSiteUrl()}${storefrontHref(slug)}`;
+  const url = storefrontPublicUrl(slug);
   return {
     '@context': 'https://schema.org',
     '@type': 'Restaurant',

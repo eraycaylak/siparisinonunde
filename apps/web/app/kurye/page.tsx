@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
-import { ComingSoon } from '@/components/common/coming-soon';
+import { CourierOrders } from '@/components/courier/courier-orders';
 
-// Yer tutucu — Dilim #2: kurye görünümü (K-02, K-03).
+// Kurye görünümü (K-02, K-03; 04 §9) — dilim 2. Gün sonu özeti (K-04) Faz 2.
 export const metadata: Metadata = { title: 'Siparişlerim' };
 
 export default function Page() {
-  return <ComingSoon title="Siparişlerim" description="Size atanan siparişler." />;
+  return <CourierOrders />;
 }
