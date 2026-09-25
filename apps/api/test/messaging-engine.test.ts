@@ -1,9 +1,10 @@
 // Konuşma motoru: kanonik sıra ve sıklık kuralları (sahte saat), karşılama/menü linki, insana devir, opt-out,
 // kara liste/askı, kapalı/duraklatılmış, açık sipariş kartı, medya, echo, kimlik birleştirme.
 
-import { branches, branchEvents, conversations, customers, notifications, openingHours, storefrontLinkTokens, tenants } from '@siparis/db';
-import { and, eq } from 'drizzle-orm';
+import { branches, branchEvents, conversations, customers, messages, notifications, openingHours, storefrontLinkTokens, tenants } from '@siparis/db';
+import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { enqueueJob } from '../src/lib/jobs';
 import { sha256Hex } from '../src/lib/tokens';
 import type { OutboundPayload } from '../src/services/messaging/outbound';
 import { createTestContext, type TestContext } from './helpers';
@@ -17,6 +18,7 @@ import {
   lastOut,
   outCodes,
   plus,
+  runJobs,
   setupWaTenant,
   threadRows,
   type WaSetup,
@@ -299,6 +301,34 @@ describe('medya ve desteklenmeyen', () => {
     expect(await outCodes(ctx.db, conv!.id)).toEqual(['M29', 'M30']);
     const rows = await threadRows(ctx.db, conv!.id);
     expect(rows.filter((r) => r.direction === 'in').map((r) => r.kind)).toEqual(['audio', 'audio', 'image', 'system', 'system']);
+  });
+});
+
+describe('saklama (cron.retention): konum/medya 30 gün', () => {
+  it('31 günlük konum mesajının koordinat/adresi ve medya kimliği silinir; yeni mesaj ve metin dokunulmaz', async () => {
+    const phone = nextPhone();
+    await inbound(ctx, t.account, { phone }, { type: 'location', lat: 39.8201, lng: 34.8089, name: 'Ev', address: 'Yeni Mah. 5. Sok. No 3' });
+    await inbound(ctx, t.account, { phone }, { type: 'image', caption: 'kapı' });
+    await inbound(ctx, t.account, { phone }, { type: 'text', text: 'merhaba' });
+    await inbound(ctx, t.account, { phone }, { type: 'location', lat: 39.83, lng: 34.81 });
+    const conv = await conversationFor(ctx.db, t.account, phone);
+    const ins = (await threadRows(ctx.db, conv!.id)).filter((r) => r.direction === 'in');
+    const [oldLoc, oldImg, oldText, newLoc] = ins;
+    await ctx.db
+      .update(messages)
+      .set({ createdAt: new Date(Date.now() - 31 * 24 * HOUR) })
+      .where(inArray(messages.id, [oldLoc!.id, oldImg!.id, oldText!.id]));
+    await enqueueJob(ctx.db, { queue: 'cron', type: 'cron.retention' });
+    await runJobs(ctx, ['cron.retention']);
+    const rows = await ctx.db.select().from(messages).where(inArray(messages.id, ins.map((r) => r.id)));
+    const byId = new Map(rows.map((r) => [r.id, r]));
+    const loc = byId.get(oldLoc!.id)!;
+    expect(loc.body).toBe('Konum paylaşıldı');
+    expect(JSON.stringify(loc.payload)).not.toMatch(/39\.82|34\.80|Yeni Mah/);
+    expect(loc.payload).toMatchObject({ type: 'location' });
+    expect(byId.get(oldImg!.id)!.payload).not.toHaveProperty('mediaId');
+    expect(byId.get(oldText!.id)!.body).toBe('merhaba');
+    expect(byId.get(newLoc!.id)!.payload).toMatchObject({ lat: 39.83, lng: 34.81 });
   });
 });
 

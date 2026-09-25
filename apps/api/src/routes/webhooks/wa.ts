@@ -3,6 +3,8 @@
 // POST: WA_APP_SECRET varsa X-Hub-Signature-256 ham gövde üzerinden doğrulanır (bu eklentiye özel içerik ayrıştırıcı:
 // JSON parse edilmeden Buffer); ham olay wa_webhook_events + `wa.process_inbound` işi → hemen 200.
 // Tekrar teslim: wamid UNIQUE (işleme tarafında); durumlar monoton.
+// Bağlantısı kesilmiş (status 'disconnected') hesabın adresi bilinmeyen belirteç gibi 404 döner: olay kaydedilmez,
+// bot yanıt kuyruğa atmaz. Bağlantı kesilince ve adres yenilenince belirteç de değişir (routes/panel/whatsapp.ts).
 
 import { waAccounts } from '@siparis/db';
 import { eq } from 'drizzle-orm';
@@ -38,10 +40,10 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     async (request, reply) => {
       const q = request.query;
       const [account] = await app.db
-        .select({ id: waAccounts.id })
+        .select({ id: waAccounts.id, status: waAccounts.status })
         .from(waAccounts)
         .where(eq(waAccounts.webhookToken, request.params.webhookToken));
-      if (!account) throw notFound('Webhook bulunamadı.');
+      if (!account || account.status === 'disconnected') throw notFound('Webhook bulunamadı.');
       const ok = q['hub.mode'] === 'subscribe' && safeEqual(q['hub.verify_token'] ?? '', app.config.WA_VERIFY_TOKEN);
       if (!ok) throw forbidden('Doğrulama belirteci geçersiz.', 'invalid_verify_token');
       return reply.type('text/plain').send(q['hub.challenge'] ?? '');
@@ -52,7 +54,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     const token = request.params.webhookToken;
     enforceRateLimit(limiter, token);
     const [account] = await app.db.select().from(waAccounts).where(eq(waAccounts.webhookToken, token));
-    if (!account) throw notFound('Webhook bulunamadı.');
+    if (!account || account.status === 'disconnected') throw notFound('Webhook bulunamadı.');
 
     const raw = Buffer.isBuffer(request.body) ? request.body : Buffer.from(typeof request.body === 'string' ? request.body : '');
     // 360dialog Meta imzası göndermez; URL'deki gizli belirteç doğrulama yerine geçer (teyit edilmeli)

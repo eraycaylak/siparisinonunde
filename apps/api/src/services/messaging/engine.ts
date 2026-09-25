@@ -381,17 +381,20 @@ export async function handleInboundMessage(
       .where(eq(conversations.id, conv0.id))
       .returning();
     await tx.update(customers).set({ lastInboundAt: inboundAt }).where(eq(customers.id, customer.id));
+
+    const bot = await ensureBotState(tx, tenant.id, conv!.id);
+    const ctx: Ctx = { tx, deps, now, account, tenant, branch, customer, conv: conv!, bot, msg: ev.message, seq: 0 };
+    await respond(ctx);
+    // Gelen mesajın şube olayı en sonda: yanıt sırasında sipariş satırı (iptal, kod eşleşmesi) şube olay kilidinden
+    // ÖNCE kilitlenir — panel işlemleriyle aynı kilit sırası (satır → şube), kilitlenme (40P01) olmaz.
+    // Panel olayda listeyi yeniden çektiği için olay sırası görünümü etkilemez.
     await appendBranchEvent(tx, {
       tenantId: tenant.id,
       branchId: conv!.branchId,
       type: 'conversation.message',
       payload: { conversationId: conv!.id, messageId: inserted.id, direction: 'in', preview, unreadCount: conv!.unreadCount, at: now.toISOString() },
     });
-    if (expired) await emitConversationUpdated(tx, conv!);
-
-    const bot = await ensureBotState(tx, tenant.id, conv!.id);
-    const ctx: Ctx = { tx, deps, now, account, tenant, branch, customer, conv: conv!, bot, msg: ev.message, seq: 0 };
-    await respond(ctx);
+    if (expired) await emitConversationUpdated(tx, ctx.conv);
     return { status: 'processed', messageId: inserted.id, conversationId: conv!.id };
   });
 }
@@ -731,11 +734,16 @@ const RE_CANCEL = new RegExp(`^cancel:(${UUID})$`, 'i');
 const RE_KEEP = new RegExp(`^keep:(${UUID})$`, 'i');
 
 /** Butona bağlı sipariş: aynı tenant ve bu müşteri/konuşmanın siparişi olmalı. */
+/**
+ * Buton yanıtındaki sipariş (müşterinin kendi siparişi). Satır kilitlenir: karar güncel durumla verilir (işletme aynı
+ * anda onayladıysa doğrudan iptal değil iptal talebi) ve kilit sırası panelle aynı kalır (satır → şube olayı).
+ */
 async function ownOrder(ctx: Ctx, orderId: string): Promise<OrderRow | null> {
   const [o] = await ctx.tx
     .select()
     .from(orders)
-    .where(and(eq(orders.id, orderId), eq(orders.tenantId, ctx.tenant.id)));
+    .where(and(eq(orders.id, orderId), eq(orders.tenantId, ctx.tenant.id)))
+    .for('update');
   if (!o) return null;
   if (o.customerId !== ctx.customer.id && o.conversationId !== ctx.conv.id) return null;
   return o;

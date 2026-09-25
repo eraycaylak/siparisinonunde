@@ -7,8 +7,10 @@ import { createDb, type DbHandle } from '@siparis/db';
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastify';
 import { serializerCompiler, validatorCompiler, type ZodTypeProvider } from 'fastify-type-provider-zod';
 import { mkdirSync } from 'node:fs';
+import type { DestinationStream } from 'pino';
 import type { Config } from './config';
 import { registerAllJobs } from './jobs/index';
+import { logSerializers } from './lib/log';
 import { BranchEventHub } from './lib/sse';
 import { authPlugin } from './plugins/auth';
 import { registerErrorHandler } from './plugins/error-handler';
@@ -39,6 +41,8 @@ export interface BuildAppOptions {
   db?: DbHandle;
   /** false: log yok (testler); verilmezse config.LOG_LEVEL */
   logger?: FastifyServerOptions['logger'];
+  /** Log çıktısı (testler; verilmezse stdout) */
+  logStream?: DestinationStream;
 }
 
 export const API_PREFIX = '/api/v1';
@@ -54,6 +58,9 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
       : {
           level: config.LOG_LEVEL,
           redact: { paths: ['req.headers.cookie', 'req.headers.authorization', 'res.headers["set-cookie"]'], remove: true },
+          // URL'deki telefon/arama metni ve yol belirteçleri maskeli
+          serializers: logSerializers,
+          ...(opts.logStream ? { stream: opts.logStream } : {}),
           ...(config.NODE_ENV === 'development' ? { transport: { target: 'pino-pretty', options: { translateTime: 'SYS:HH:MM:ss' } } } : {}),
         };
 
@@ -114,7 +121,8 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   await app.register(adminRoutes, { prefix: `${API_PREFIX}/admin` });
   await app.register(publicRoutes, { prefix: `${API_PREFIX}/public` });
   await app.register(webhookWaRoutes, { prefix: `${API_PREFIX}/webhooks/wa` });
-  if (config.DEV_TOOLS) {
+  // Kimlik doğrulamasız geliştirici uçları üretimde hiçbir koşulda açılmaz (loadConfig de reddeder)
+  if (config.DEV_TOOLS && config.NODE_ENV !== 'production') {
     await app.register(devRoutes, { prefix: `${API_PREFIX}/dev` });
   }
 

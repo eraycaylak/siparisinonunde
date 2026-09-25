@@ -37,7 +37,12 @@ done
 
 DUMP="${1:-}"
 [[ -n "$DUMP" && -f "$DUMP" ]] || { echo "Döküm dosyası bulunamadı: ${DUMP:-<yok>}" >&2; usage 1; }
+[[ -r "$DUMP" ]] || { echo "Döküm dosyası okunamıyor ($(id -un)): $DUMP — yedeği alan kullanıcıyla çalıştırın ya da: sudo chown $(id -un): $DUMP" >&2; exit 1; }
 [[ -z "$UPLOADS" || -f "$UPLOADS" ]] || { echo "Görsel arşivi bulunamadı: $UPLOADS" >&2; exit 1; }
+[[ -z "$UPLOADS" || -r "$UPLOADS" ]] || { echo "Görsel arşivi okunamıyor ($(id -un)): $UPLOADS" >&2; exit 1; }
+
+# Güvenlik dökümü kişisel veri içerir: dosya 600, klasör 700
+umask 077
 
 if [[ -f .env ]]; then
   # shellcheck disable=SC1091
@@ -75,21 +80,56 @@ if [[ "$YES" != 1 ]]; then
   [[ "$answer" == "$PGDB" ]] || { echo "Vazgeçildi."; exit 1; }
 fi
 
+# Servisler durmadan ÖNCE: güvenlik dökümünün yazılacağı klasör yazılabilir mi? (Durduktan sonra yazma hatası
+# platformu kapalı bırakmasın.)
+mkdir -p backups 2>/dev/null || true
+if [[ ! -d backups || ! -w backups || ! -x backups ]]; then
+  echo "backups/ klasörüne yazılamıyor ($(id -un)). Düzeltin: sudo chown -R $(id -un): backups && chmod 700 backups" >&2
+  exit 1
+fi
+safety="backups/pre-restore-$PGDB-$(date -u +%Y%m%dT%H%M%SZ).dump"
+
+# Hata olursa: veritabanına dokunulmadıysa servisler yeniden açılır; dokunulduysa ne yapılacağı yazılır
+stage="stopping"
+on_error() {
+  local code=$? line=${1:-?}
+  log "HATA: geri yükleme durdu (satır $line, çıkış $code)."
+  case "$stage" in
+    stopping | safety_dump)
+      rm -f "$safety" 2>/dev/null || true
+      log "Veritabanı DEĞİŞMEDİ. Servisler yeniden başlatılıyor."
+      $COMPOSE up -d api worker web || log "Servisler başlatılamadı: $COMPOSE up -d api worker web"
+      ;;
+    restoring)
+      log "Veritabanı yarım kalmış olabilir; servisler KAPALI. Önceki hâle dönmek için:"
+      log "  ./scripts/restore.sh --yes $safety"
+      ;;
+    *)
+      log "Veritabanı geri yüklendi ama sonraki adım başarısız; servisler KAPALI olabilir."
+      log "  $COMPOSE logs migrate && $COMPOSE up -d   (önceki hâl: ./scripts/restore.sh --yes $safety)"
+      ;;
+  esac
+  exit "$code"
+}
+trap 'on_error $LINENO' ERR
+
 log "Servisler durduruluyor (api, worker, web)"
 $COMPOSE stop api worker web
 
 # Güvenlik ağı: geri yüklemeden hemen önceki durumun dökümü
-mkdir -p backups
-safety="backups/pre-restore-$PGDB-$(date -u +%Y%m%dT%H%M%SZ).dump"
+stage="safety_dump"
 log "Mevcut durumun dökümü alınıyor: $safety"
 $COMPOSE exec -T postgres pg_dump -U "$PGUSER" -d "$PGDB" -Fc --no-owner --no-privileges >"$safety"
+[[ -s "$safety" ]] || { log "Güvenlik dökümü boş: $safety"; false; }
 
+stage="restoring"
 log "Veritabanı yeniden oluşturuluyor: $PGDB"
 psql_c "select pg_terminate_backend(pid) from pg_stat_activity where datname = '$PGDB' and pid <> pg_backend_pid()" >/dev/null
 psql_c "drop database $PGDB" >/dev/null
 psql_c "create database $PGDB owner $PGUSER" >/dev/null
 $COMPOSE exec -T postgres pg_restore -U "$PGUSER" -d "$PGDB" --no-owner --no-privileges --exit-on-error <"$DUMP"
 
+stage="restored"
 if [[ -n "$UPLOADS" ]]; then
   log "Görseller geri yükleniyor: $UPLOADS"
   $COMPOSE run --rm --no-deps -T --entrypoint sh api -c 'rm -rf /data/uploads/* && tar -xzf - -C /data' <"$UPLOADS"
@@ -99,5 +139,7 @@ log "Migration (döküm eski sürümdense eksikler uygulanır)"
 $COMPOSE run --rm migrate
 
 log "Servisler başlatılıyor"
+stage="starting"
 $COMPOSE up -d api worker web
+trap - ERR
 log "Geri yükleme bitti. Kontrol: curl -fsS https://\$DOMAIN/api/v1/health ve admin paneli > İşler."

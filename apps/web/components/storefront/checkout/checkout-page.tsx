@@ -17,7 +17,7 @@ import { Alert, Button, Checkbox, Dialog, EmptyState, Field, Input, RadioGroup, 
 import { ApiError, apiFetch, errorMessage, fieldErrorsOf, isApiError, newIdempotencyKey } from '@/lib/api';
 import { useCart } from '@/lib/cart';
 import { cn } from '@/lib/cn';
-import { formatMoney } from '@/lib/format';
+import { formatMoney, formatPhone, parseTlToKurus } from '@/lib/format';
 import { storefrontHref } from '@/lib/storefront-url';
 import { brandButtonClass } from '@/components/storefront/brand';
 import { useStoreSession } from '@/components/storefront/use-store-session';
@@ -95,6 +95,42 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
   const items = cart.toItems();
   const itemsKey = JSON.stringify(items);
   const flowA = session.status === 'ready' && session.data?.linkStatus === 'active';
+  const prefill = session.status === 'ready' ? (session.data.prefill ?? null) : null;
+  // Akış A gel-al: telefon boş bırakılabilir, sunucu WhatsApp bağlantısındaki numarayı kullanır (03 §4.4)
+  const phoneOptional = flowA && fulfillment === 'pickup' && Boolean(prefill?.phoneKnown);
+
+  // Tekrar gelen müşteri (03 §4.4 "tüm bölümler dolu"): oturum ön dolumu boş alanlara bir kez yazılır
+  const seeded = useRef<{ name: string; phone: string; neighborhood: string; addressLine: string; directions: string } | null>(null);
+  useEffect(() => {
+    if (!prefill || seeded.current) return;
+    const a = prefill.address;
+    const values = {
+      name: prefill.name ?? '',
+      phone: prefill.phone ? formatPhone(prefill.phone) : '',
+      neighborhood: a?.neighborhood && neighborhoods.includes(a.neighborhood) ? a.neighborhood : '',
+      addressLine: a?.addressLine ?? '',
+      directions: a?.directions ?? '',
+    };
+    seeded.current = values;
+    if (values.name) setName((v) => v || values.name);
+    if (values.phone) setPhone((v) => v || values.phone);
+    if (values.neighborhood) setNeighborhood((v) => v || values.neighborhood);
+    if (values.addressLine) setAddressLine((v) => v || values.addressLine);
+    if (values.directions) setDirections((v) => v || values.directions);
+  }, [prefill, neighborhoods]);
+
+  /** "Ben değilim": oturum silinir, ön dolumdan gelip değiştirilmemiş alanlar boşaltılır. */
+  const forgetCustomer = () => {
+    const sv = seeded.current;
+    if (sv) {
+      setName((v) => (v === sv.name ? '' : v));
+      setPhone((v) => (v === sv.phone ? '' : v));
+      setNeighborhood((v) => (v === sv.neighborhood ? '' : v));
+      setAddressLine((v) => (v === sv.addressLine ? '' : v));
+      setDirections((v) => (v === sv.directions ? '' : v));
+    }
+    void session.forget();
+  };
   const orderingOpen = (store.orderingEnabled ?? true) && (store.branch.orderingState === 'open' || store.branch.orderingState === 'busy');
 
   // Canlı fiyat: sepet, teslim türü ve adres değişince (400 ms gecikmeli)
@@ -150,7 +186,7 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
     payment !== 'cash_on_delivery' || changeFor === null || changeFor === 'exact'
       ? undefined
       : changeFor === 'other'
-        ? Math.round(Number(changeOther.replace(',', '.')) * 100) || undefined
+        ? (parseTlToKurus(changeOther) ?? undefined)
         : changeFor * 100;
 
   const validate = (): Record<string, string> => {
@@ -160,11 +196,13 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
       if (addressLine.trim().length < 5) e.addressLine = 'Sokak, bina no ve daire bilgisini yazın.';
     }
     if (name.trim().length < 2) e.customerName = 'Adınızı yazın.';
-    if (phone.replace(/\D/g, '').length < 10) e.customerPhone = 'Telefon numarası 10 haneli olmalı (5xx xxx xx xx).';
+    const phoneDigits = phone.replace(/\D/g, '').length;
+    if (!(phoneOptional && phoneDigits === 0) && phoneDigits < 10) e.customerPhone = 'Telefon numarası 10 haneli olmalı (5xx xxx xx xx).';
     if (!payment) e.paymentMethod = 'Ödeme yöntemini seçin.';
     if (payment === 'meal_card_on_delivery' && !mealBrand) e.mealCardBrand = 'Yemek kartı markasını seçin.';
-    if (payment === 'cash_on_delivery' && changeFor === 'other' && (!changeForKurus || changeForKurus < total)) {
-      e.changeForKurus = 'Tutar sipariş toplamından az olamaz.';
+    if (payment === 'cash_on_delivery' && changeFor === 'other') {
+      if (!changeForKurus) e.changeForKurus = 'Tutarı rakamla yazın (ör. 1.000 ya da 250,50).';
+      else if (changeForKurus < total) e.changeForKurus = 'Tutar sipariş toplamından az olamaz.';
     }
     if (!accept) e.acceptPreInfo = 'Ön bilgilendirmeyi onaylayın.';
     return e;
@@ -187,7 +225,7 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
       ...(fulfillment === 'delivery' && neighborhood ? { neighborhood } : {}),
       ...(fulfillment === 'delivery' && zoneId ? { zoneId } : {}),
       customerName: name.trim(),
-      customerPhone: phone.trim(),
+      ...(phone.trim() ? { customerPhone: phone.trim() } : {}),
       ...(fulfillment === 'delivery' ? { addressLine: addressLine.trim(), ...(directions.trim() ? { directions: directions.trim() } : {}) } : {}),
       paymentMethod: payment,
       ...(payment === 'meal_card_on_delivery' ? { mealCardBrand: mealBrand } : {}),
@@ -377,7 +415,16 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
           </Field>
         </div>
         <div data-field="customerPhone">
-          <Field label="Teslimat telefonu" required hint="0 (5xx) xxx xx xx" error={fieldErrors.customerPhone}>
+          <Field
+            label="Teslimat telefonu"
+            required={!phoneOptional}
+            hint={
+              phoneOptional
+                ? `Boş bırakırsanız WhatsApp numaranız${prefill?.phoneMasked ? ` (${prefill.phoneMasked})` : ''} kullanılır.`
+                : '0 (5xx) xxx xx xx'
+            }
+            error={fieldErrors.customerPhone}
+          >
             <Input value={phone} type="tel" inputMode="tel" autoComplete="tel" maxLength={20} onChange={(e) => setPhone(e.target.value)} />
           </Field>
         </div>
@@ -387,14 +434,20 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
             <span>
               Bu sipariş WhatsApp&apos;ta {session.data.customer.name ?? 'sizin'}
               {session.data.customer.phoneMasked ? ` (${session.data.customer.phoneMasked})` : ''} adına verilecek ·{' '}
-              <button type="button" className="font-semibold underline underline-offset-4" onClick={() => void session.forget()}>
+              <button type="button" className="font-semibold underline underline-offset-4" onClick={forgetCustomer}>
                 Ben değilim
               </button>
             </span>
           </p>
-        ) : (
+        ) : store.tenant.whatsappPhone ? (
           <p className="flex items-start gap-2 text-sm text-fg-muted">
             <MessageCircle aria-hidden className="mt-0.5 size-4 shrink-0" /> Sipariş durumunu {store.tenant.name} WhatsApp&apos;tan bildirecek.
+          </p>
+        ) : (
+          // WhatsApp'sız mod (00 §4): durum takip sayfasında, kritik durumlar SMS ile
+          <p className="flex items-start gap-2 text-sm text-fg-muted">
+            <MessageCircle aria-hidden className="mt-0.5 size-4 shrink-0" /> Sipariş durumunu takip sayfasından izleyebilirsiniz; onay, ret ve iptal SMS ile
+            bildirilir.
           </p>
         )}
       </section>

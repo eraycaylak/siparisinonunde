@@ -1,7 +1,7 @@
 // POST/DELETE /api/v1/store/:slug/session — Akış A link token'ı → sf_link_<slug> çerezi, "Son siparişin" (03 §3.4).
 
 import type { StoreSessionView } from '@siparis/core/menu/contracts';
-import { customers, orderItemOptions, orderItems, products, storefrontLinkTokens } from '@siparis/db';
+import { customerAddresses, customers, orderItemOptions, orderItems, products, storefrontLinkTokens } from '@siparis/db';
 import { eq } from 'drizzle-orm';
 import type { LightMyRequestResponse } from 'fastify';
 import { createHmac } from 'node:crypto';
@@ -173,6 +173,29 @@ describe('POST /store/:slug/session', () => {
     const foreign = signCustomerCookie(ctx.config.SESSION_SECRET, otherCustomerId);
     const iso = await postSession({}, `sf_cust_${SLUG}=${foreign}`);
     expect(iso.body.lastOrder).toBeNull();
+  });
+
+  it('ön dolum: cihaz çerezinde ad, tam telefon ve son adres; WhatsApp bağlantısında maskeli telefon; başka tenant yok', async () => {
+    await ctx.db.insert(customerAddresses).values([
+      { tenantId: a.tenantId, customerId, neighborhood: 'Tekke', addressLine: 'Eski Sk. 1', directions: null, lastUsedAt: new Date(Date.now() - 86_400_000) },
+      { tenantId: a.tenantId, customerId, neighborhood: 'Medrese', addressLine: 'Lise Cad. 12 D:3', directions: 'Eczanenin üstü', lastUsedAt: new Date() },
+    ]);
+    const device = await postSession({}, `sf_cust_${SLUG}=${signCustomerCookie(ctx.config.SESSION_SECRET, customerId)}`);
+    expect(device.body.prefill).toEqual({
+      source: 'device',
+      name: 'Ayşe',
+      phone: '+905321234512',
+      phoneMasked: '0*** *** 45 12',
+      phoneKnown: true,
+      address: { neighborhood: 'Medrese', addressLine: 'Lise Cad. 12 D:3', directions: 'Eczanenin üstü' },
+    });
+    const { token } = await createLinkToken(a.tenantId, customerId);
+    const link = await postSession({ linkToken: token });
+    expect(link.body.prefill).toMatchObject({ source: 'link', name: 'Ayşe', phone: null, phoneMasked: '0*** *** 45 12', phoneKnown: true });
+    expect(link.body.prefill?.address?.neighborhood).toBe('Medrese');
+    expect((await postSession({})).body.prefill).toBeNull();
+    const foreign = await postSession({}, `sf_cust_${SLUG}=${signCustomerCookie(ctx.config.SESSION_SECRET, otherCustomerId)}`);
+    expect(foreign.body.prefill).toBeNull();
   });
 
   it('sf_cust doğrulayıcı olası imza varyantlarını kabul eder, sahtesini reddeder', () => {

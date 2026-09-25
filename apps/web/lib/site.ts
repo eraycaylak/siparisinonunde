@@ -14,6 +14,17 @@ export function getSiteUrl(): string {
 /** Storefront alt alan adı kökü (ör. siparisinonunde.com). Boşsa alt alan adı yönlendirmesi kapalı. */
 export const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? '';
 
+/**
+ * Platform destek hattı (WhatsApp), rakamlarla E.164: ör. 905321234567. Derleme anında gömülür
+ * (docker-compose SUPPORT_WHATSAPP → NEXT_PUBLIC_SUPPORT_WHATSAPP). Boşsa giriş ekranı iletişim formunu gösterir.
+ */
+export const SUPPORT_WHATSAPP = (process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP ?? '').replace(/\D/g, '');
+
+/** Destek hattına hazır mesajlı wa.me bağlantısı; numara tanımlı değilse null. */
+export function supportWhatsappHref(text: string): string | null {
+  return SUPPORT_WHATSAPP ? `https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent(text)}` : null;
+}
+
 /** Pilot bölge (00 §12a). */
 export const PILOT_AREA = { city: 'Yozgat', district: 'Merkez' } as const;
 

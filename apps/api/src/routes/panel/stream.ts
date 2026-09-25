@@ -6,6 +6,7 @@ import { notFound } from '../../lib/errors';
 import { openBranchStream, parseLastEventId } from '../../lib/sse';
 import { computeBranchOrderingState } from '../../services/orders/store-context';
 import { assertBranchAccess, defaultBranchId, requireTenantRole, tenantAuth } from '../../plugins/auth';
+import { recordImpersonationStreamOpen } from '../../plugins/impersonation-audit';
 
 const streamQuery = z.object({
   branchId: z.uuid().optional(),
@@ -46,6 +47,8 @@ const streamRoutes: FastifyPluginAsyncZod = async (app) => {
         };
         reply.raw.write(`data: ${JSON.stringify({ type: 'branch.state', data })}\n\n`);
       }
+      // Destek oturumu (impersonation): hijack edilen akışta onResponse kancası çalışmaz → açılış burada kaydedilir
+      await recordImpersonationStreamOpen(app, request);
     },
   );
 };

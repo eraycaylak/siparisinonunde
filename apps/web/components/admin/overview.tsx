@@ -198,7 +198,7 @@ function AlertList({
           {items.length ? <span className="text-base font-semibold text-fg-muted">({items.length})</span> : null}
         </CardTitle>
         {moreHref ? (
-          <Link href={moreHref} className="text-sm font-semibold text-fg underline underline-offset-4">
+          <Link href={moreHref} className="inline-flex min-h-hit min-w-hit items-center justify-center px-2 text-sm font-semibold text-fg underline underline-offset-4">
             Tümü
           </Link>
         ) : null}

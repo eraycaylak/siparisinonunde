@@ -41,7 +41,7 @@ Tek VPS üzerinde Docker Compose (00 §12a):
 - `{slug}.DOMAIN` (wildcard) → web; `proxy.ts` isteği `/s/{slug}` vitrinine yazar (`/t/`, `/api/`, `/_next/` olduğu gibi geçer).
 - `www.DOMAIN` → `DOMAIN`'e kalıcı yönlendirme. `hooks.DOMAIN/wa/<token>` → `api /api/v1/webhooks/wa/<token>` (00 §2; isteğe bağlı).
 
-Kalıcı veriler adlandırılmış Docker birimlerindedir: `pgdata` (veritabanı), `uploads` (menü görselleri), `caddy_data` (sertifikalar). Yedekler sunucuda `./backups` klasörüne yazılır.
+Kalıcı veriler adlandırılmış Docker birimlerindedir: `pgdata` (veritabanı), `uploads` (menü görselleri), `caddy_data` (sertifikalar), `caddy_logs` (HTTP erişim logları, 1 yıl). Yedekler sunucuda `./backups` klasörüne (`siparis` kullanıcısına ait, izin `700`) `scripts/backup.sh` tarafından yazılır; bu klasör hiçbir konteynere bağlanmaz.
 
 ## 2. Gereksinimler
 
@@ -110,9 +110,12 @@ Alan adı Cloudflare'de yönetilir (00 §10: Faz 1 wildcard alt alan adı). Kay�
 | `UPLOAD_DIR` | (compose kurar) | `/data/uploads` (`uploads` birimi) | — |
 | `ANTHROPIC_API_KEY` | hayır | Faz 2 (AI); boşsa kapalı | — |
 | `DEV_TOOLS` | evet | **Üretimde `0`**: `/dev/whatsapp` ve `/api/v1/dev/*` kapalı. Web'e derleme anında gömülür (değişince `docker compose build web`) | `0` |
+| `ADMIN_TOTP_REQUIRED` | (compose kurar) | Platform yöneticilerine iki adımlı doğrulama (TOTP) zorunlu. Compose `api` servisinde `true` sabittir; `.env` ile kapatılamaz. Yerelde boşsa kapalıdır (00 §12a madde 7) | `true` |
 | `LOG_LEVEL` | hayır | `info` (sorun ararken `debug`) | `info` |
 | `DEMO_STORE_SLUG` | hayır | Pazarlama sitesindeki "demo vitrin" bağlantısı | `bozok-pide` |
+| `SUPPORT_WHATSAPP` | önerilir | Platform destek hattı (WhatsApp), rakamlarla. Giriş ekranındaki "Parolamı unuttum" işletme sahibine bu numarayı (WhatsApp + arama) gösterir; boşsa iletişim formuna yönlendirir. Web'e derleme anında gömülür | `905321234567` |
 | `BACKUP_REMOTE`, `RETENTION_DAYS` | önerilir | Yedeğin ikinci konumu (rclone) ve saklama günü | §8 |
+| `BACKUP_PING_URL` | önerilir | Her başarılı yedekten sonra çağrılan dış izleme (push) adresi; 26 saat gelmezse alarm | §8 |
 
 Tüm gizli anahtarları bir kerede üretmek için:
 
@@ -122,7 +125,17 @@ printf 'POSTGRES_PASSWORD=%s\nSESSION_SECRET=%s\nTRACKING_SECRET=%s\nENCRYPTION_
   "$(openssl rand -base64 32)" "$(openssl rand -hex 16)"
 ```
 
-Web derleme argümanları (`NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_ROOT_DOMAIN`, `NEXT_PUBLIC_DEV_TOOLS`, `API_INTERNAL_URL`) compose'da `.env`'den türetilir ve **derleme anında** imaja gömülür; `DOMAIN` ya da `DEV_TOOLS` değişirse `docker compose build web && docker compose up -d web` gerekir.
+Web derleme argümanları (`NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_ROOT_DOMAIN`, `NEXT_PUBLIC_DEV_TOOLS`, `NEXT_PUBLIC_SUPPORT_WHATSAPP`, `API_INTERNAL_URL`) compose'da `.env`'den türetilir ve **derleme anında** imaja gömülür; `DOMAIN`, `DEV_TOOLS` ya da `SUPPORT_WHATSAPP` değişirse `docker compose build web && docker compose up -d web` gerekir.
+
+**Hatalı üretim yapılandırmasında API ve worker açılmaz.** Compose `NODE_ENV=production` verir; aşağıdakilerden biri varsa süreç başlamaz ve `docker compose logs api` içinde `Geçersiz üretim yapılandırması: …` yazar (`apps/api/src/config.ts`):
+
+- `DEV_TOOLS=1` (`/api/v1/dev/*` kimlik doğrulamasızdır),
+- `SESSION_SECRET` ya da `TRACKING_SECRET` 32 karakterden kısa ya da örnek (`dev-only…`) değer,
+- `WA_VERIFY_TOKEN` boş ya da `dev-verify`,
+- `SMS_PROVIDER=netgsm` iken `NETGSM_USERCODE`, `NETGSM_PASSWORD` ya da `NETGSM_HEADER` boş,
+- `PLATFORM_WA_PROVIDER=d360` ya da `cloud` iken `PLATFORM_WA_API_KEY` boş (`cloud` için ayrıca `PLATFORM_WA_PHONE_NUMBER_ID`).
+
+`docker/env.production.example` `SMS_PROVIDER=netgsm` ve `PLATFORM_WA_PROVIDER=d360` ile, anahtarlar boş olarak gelir; bu haliyle API açılmaz. Netgsm ve 360dialog hesapları hazır olmadan kurulum yapılacaksa ikisini geçici olarak `mock` yapın. Süreç açılır, logda uyarı yazar (`SMS_PROVIDER=mock: SMS OTP ve alarm SMS'leri gönderilmez` vb.). Bu durumda SMS ve platform WhatsApp uyarıları **gerçekten gitmez**: WhatsApp'sız moddaki işletmenin müşterisi SMS kodu alamaz ve sahibine alarm gitmez. Canlıya çıkmadan önce gerçek sağlayıcıya geçin (§6.8, §7, §12).
 
 ## 5. İlk kurulum
 
@@ -133,7 +146,7 @@ cp docker/env.production.example .env && chmod 600 .env && nano .env      # §4
 
 docker compose build                   # api (api+worker+migrate aynı imaj), web, caddy
 docker compose up -d                   # sıra: postgres (sağlıklı) → migrate (bir kez) → api, worker → web → caddy
-docker compose ps                      # migrate "Exited (0)", diğerleri "healthy"
+docker compose ps -a                   # migrate "Exited (0)" (-a olmadan listelenmez), diğerleri "healthy"
 docker compose logs migrate            # "Migration tamam: N yeni, 0 zaten uygulanmış."
 curl -fsS https://siparisinonunde.com/api/v1/health     # {"ok":true,"db":"up",...}
 ```
@@ -143,12 +156,40 @@ curl -fsS https://siparisinonunde.com/api/v1/health     # {"ok":true,"db":"up",.
 ```bash
 docker compose run --rm api node --import tsx /app/scripts/create-admin.ts \
   --email eray@siparisinonunde.com --name "Eray"               # rol varsayılan platform_owner
-# Parola verilmezse güçlü bir parola üretilip BİR KEZ gösterilir. Kendiniz vermek için (kabuk geçmişine düşmesin):
-#   read -rs ADMIN_PASSWORD && docker compose run --rm -e ADMIN_PASSWORD api node --import tsx /app/scripts/create-admin.ts --email ... --name ...
+# Parola verilmezse güçlü bir parola üretilip BİR KEZ gösterilir. Kendiniz vermek için (kabuk geçmişine düşmesin;
+# `read` değişkeni dışa aktarmaz, export edilmezse konteynere boş gider ve betik sessizce rastgele parola üretir):
+#   read -rs ADMIN_PASSWORD && export ADMIN_PASSWORD && docker compose run --rm -e ADMIN_PASSWORD api node --import tsx /app/scripts/create-admin.ts --email ... --name ...; unset ADMIN_PASSWORD
 # Başka roller: --role platform_admin | support_agent | finance | sales_rep. Mevcut kullanıcının parolası: --reset-password
 ```
 
-Ardından `https://DOMAIN/admin/giris` ile girin, **Bayraklar** ekranında kill-switch'lerin açık olduğunu görün (`signup_open`, `sms_fallback` …). İlk işletme `https://DOMAIN/panel/kayit` üzerinden kaydolur ve kurulum sihirbazına (`/panel/kurulum`) iner; WhatsApp bağlanmadan da "WhatsApp'sız başla" ile web siparişi alabilir (SMS doğrulamalı).
+Ardından `https://DOMAIN/admin/giris` ile girin. **İlk girişte iki adımlı doğrulama (TOTP) kurulur** — üretimde zorunludur ve kurulmadan diğer yönetim ekranları açılmaz:
+
+1. Giriş sonrası panel sizi **Yönetim › Güvenlik** (`/admin/guvenlik`) ekranına götürür; **Kurulumu başlat**'a basın.
+2. Telefondaki doğrulama uygulamasıyla (Google Authenticator, Microsoft Authenticator ya da parola yöneticinizin kod özelliği) QR kodu okutun; okutamıyorsanız ekrandaki anahtarı elle girin (zamana dayalı, 6 hane).
+3. Uygulamadaki 6 haneli kodu yazıp **Doğrula ve aç**'a basın.
+4. Ekranda **bir kez** gösterilen 8 kurtarma kodunu kaydedin (parola yöneticisi ya da yazdırıp kasada); **Kodları güvenli bir yere kaydettim** → **Tamam**. Her kod bir kez kullanılır; azalınca aynı ekrandan **Yeni kurtarma kodları** oluşturun.
+
+Sonraki girişlerde parolanın ardından uygulamadaki kod istenir; telefon yanınızda değilse giriş formunda **Kurtarma kodu kullan**'a basıp bir kurtarma kodu yazın.
+
+**Telefon ve kurtarma kodları kaybolduysa** (operatör kurtarması; kişinin kimliğini başka bir kanaldan doğrulamadan yapmayın):
+
+```bash
+docker compose run --rm api node --import tsx /app/scripts/create-admin.ts --email eray@siparisinonunde.com --reset-totp
+# TOTP sırrı ve kurtarma kodları silinir, kullanıcının tüm oturumları kapanır (audit: platform.totp_reset_cli).
+# Kişi yeniden girip /admin/guvenlik ekranında kurulumu tekrarlar.
+```
+
+Aynı komut, iki adımlı doğrulamayı panelden (Ayarlar › Güvenlik) açmış ve telefonunu kaybetmiş bir işletme kullanıcısı için de çalışır. İşletme kullanıcılarında TOTP isteğe bağlıdır (sahibe önerilir); kurye ve paylaşımlı cihaz oturumları kullanmaz.
+
+**İşletme sahibi parolasını unuttuysa:** panelde parola sıfırlama akışı yoktur. Personelin parolasını işletme sahibi Ayarlar › Personel'den değiştirir. Sahip, giriş ekranındaki "Parolamı unuttum" ile destek hattına (`SUPPORT_WHATSAPP`, §4) yazar; kimliğini kayıtlı telefonundan geri arayarak doğruladıktan sonra:
+
+```bash
+docker compose run --rm api node --import tsx /app/scripts/reset-password.ts --email sahip@ornek.com   # ya da --phone "0532 123 45 67"
+# Yeni parola BİR KEZ gösterilir (kişiye telefonda söyleyin); tüm oturumları kapanır, audit: user.password_reset_cli.
+# Parolayı kendiniz vermek için: read -rs NEW_PASSWORD && export NEW_PASSWORD && docker compose run --rm -e NEW_PASSWORD api ...; unset NEW_PASSWORD
+```
+
+Ardından **Bayraklar** ekranında kill-switch'lerin açık olduğunu görün (`signup_open`, `sms_fallback` …). İlk işletme `https://DOMAIN/panel/kayit` üzerinden kaydolur ve kurulum sihirbazına (`/panel/kurulum`) iner; WhatsApp bağlanmadan da "WhatsApp'sız başla" ile web siparişi alabilir (SMS doğrulamalı).
 
 Yedek cron'unu kurmayı unutmayın (§8).
 
@@ -169,7 +210,7 @@ Yedek cron'unu kurmayı unutmayın (§8).
    360dialog Meta'nın `X-Hub-Signature-256` imzasını göndermez; URL'deki gizli belirteç doğrulamanın yerine geçer (teyit edilmeli). Belirteci gizli tutun (loglarda, ekran görüntülerinde paylaşmayın). Webhook ham olayı kaydedip hemen 200 döner; işleme `wa-inbound` kuyruğundadır (00 §10).
 6. **Deneme:** Kendi telefonunuzdan işletme numarasına "merhaba" yazın → karşılama mesajı ve **Menüyü aç** butonu gelmeli; linkten sipariş verin, panelde sesli uyarıyı görün. Paneldeki "Test mesajı gönder" pencere kuralına tabidir: test numarası son 24 saatte işletme numarasına yazmış olmalıdır. Sağlık durumu: `Admin > WhatsApp` (son webhook zamanı, son 24 saat hata).
 7. **Şablonlar:** 24 saat penceresi dışındaki durum mesajları onaylı **utility** şablonlarla gider. Müşteri şablonları: `siparis_alindi_v1`, `siparis_onaylandi_v1`, `siparis_hazir_v1`, `siparis_yolda_v1`, `siparis_teslim_v1`, `siparis_reddedildi_v1`, `siparis_iptal_v1`, `siparis_iptal_yanitsiz_v1`, `yanit_bekliyor_v1` (metin ve parametre sırası `packages/core/src/messages/tr.ts` → `CUSTOMER_TEMPLATES`). Her işletmenin WABA'sında 360dialog Hub ya da API üzerinden oluşturulup onaylatılır (teyit edilmeli). Şablonlara promosyon eklenmez (İYS, 00 §7).
-8. **Platform uyarı numarası:** İşletme sahibine yeni sipariş alarmı (t=2 dk), panel çevrimdışı, WhatsApp bağlantı sorunu vb. platformun kendi numarasından gider: `.env`'de `PLATFORM_WA_PROVIDER=d360`, `PLATFORM_WA_API_KEY=...`. Platform şablonları: `isletme_yeni_siparis_v1`, `isletme_panel_cevrimdisi_v1`, `kurye_giris_v1`, `isletme_baglanti_sorunu_v1`, `isletme_meta_odeme_v1`, `isletme_kalite_uyari_v1` (utility kategorisinde onay — V-011). Gerekirse `Admin > Bayraklar > platform_wa_alerts` ile geçici kapatılır.
+8. **Platform uyarı numarası:** İşletme sahibine yeni sipariş alarmı (t=2 dk), WhatsApp bağlantı sorunu ve Meta ödeme uyarısı platformun kendi numarasından gider: `.env`'de `PLATFORM_WA_PROVIDER=d360`, `PLATFORM_WA_API_KEY=...`. Platform şablonları: `isletme_yeni_siparis_v1`, `isletme_panel_cevrimdisi_v1`, `kurye_giris_v1`, `isletme_baglanti_sorunu_v1`, `isletme_meta_odeme_v1`, `isletme_kalite_uyari_v1` (utility kategorisinde onay — V-011). `isletme_panel_cevrimdisi_v1` "panel çevrimdışı" dedektörü için ayrılmıştır; dedektör henüz yoktur (§10 "Henüz olmayanlar"), şablon yine de onaylatılır. Gerekirse `Admin > Bayraklar > platform_wa_alerts` ile geçici kapatılır.
 
 WhatsApp bağlantısı koparsa (hesap `error`, token/ödeme hatası) işletme otomatik olarak **WhatsApp'sız moda** düşer: Akış B SMS OTP ile doğrulanır, onay/ret/iptal SMS ile bildirilir (00 §4, §7).
 
@@ -186,12 +227,16 @@ SMS OTP (WhatsApp'sız mod), kritik durum SMS'leri ve 5. dakika alarm SMS'i plat
 
 ## 8. Yedekleme ve geri yükleme
 
-**Günlük yedek** (`scripts/backup.sh`): `pg_dump -Fc` (sıkıştırılmış, doğrulanmış) + `uploads` biriminin tar arşivi `./backups` klasörüne; **14 günden eskiler silinir**. Cron:
+**Günlük yedek** (`scripts/backup.sh`): `pg_dump -Fc` (sıkıştırılmış, doğrulanmış) + `uploads` biriminin tar arşivi `./backups` klasörüne; **14 günden eskiler silinir**. Döküm `docker compose exec` ile akıtılır; klasörü betik ilk çalışmada `700` izniyle oluşturur, dosyalar `600`'dür. Cron, depoyu ve compose'u yöneten **`siparis` kullanıcısının** crontab'ına kurulur (root'un değil: root'un aldığı dökümleri `siparis` olarak çalışan `restore.sh` okuyamaz). Log kullanıcının ev dizinine yazılır (`/var/log` altına normal kullanıcı yazamaz):
 
 ```bash
-crontab -e
-15 3 * * * cd /opt/siparisinonunde && ./scripts/backup.sh >> /var/log/siparis-backup.log 2>&1
+sudo -iu siparis crontab -e
+15 3 * * * cd /opt/siparisinonunde && ./scripts/backup.sh >> "$HOME/siparis-backup.log" 2>&1
 ```
+
+İlk kurulumda bir kez elle çalıştırıp dosyanın oluştuğunu görün: `./scripts/backup.sh && ls -l backups/`. Klasör root'a aitse (ör. eski bir compose sürümü oluşturduysa) betik yazmaya başlamadan durur ve düzeltme komutunu yazar: `sudo chown -R siparis: backups && chmod 700 backups`.
+
+**Yedek alınamazsa sessiz kalmaz:** betik sıfır dışı kodla çıkar, `~/siparis-backup.log`'a ve syslog'a yazar (`journalctl -t siparis-backup`). Cron'un e-postası çoğu sunucuda gitmediği için asıl uyarı dış izlemedir: Uptime Kuma'da (ikinci VPS, §10) **Push** türünde, 26 saat aralıklı bir monitör açın ve adresini `.env`'e `BACKUP_PING_URL=https://…/api/push/<anahtar>` olarak yazın. Betik her başarılı yedekten sonra bu adresi çağırır; 26 saat çağrı gelmezse nöbetçiye P2 alarmı gider (06 §14.1: yedek yaşı > 26 sa).
 
 **İkinci konum (zorunlu):** Yedeğin bir kopyası başka bir Türkiye lokasyonunda tutulur (00 §10; kişisel veri yurt dışına çıkmaz). `rclone` kurun (`apt-get install rclone`), yurt içi S3 uyumlu depoyu `rclone config` ile tanımlayın ve `.env`'e `BACKUP_REMOTE=yedek-ankara:siparis-yedek` yazın; betik her gece son 48 saatin dosyalarını kopyalar ve uzakta da 14 günü aşanları siler. `BACKUP_REMOTE` boşsa betik her çalıştığında uyarı yazar. Yedek dosyaları kişisel veri içerir: klasör izni `700`, uzak depoda şifreleme (rclone `crypt`) önerilir.
 
@@ -206,6 +251,8 @@ docker compose exec postgres dropdb -U siparis siparis_tatbikat
 # veritabanı yeniden oluşturulur, döküm yüklenir, migration çalışır, servisler başlar
 ./scripts/restore.sh --uploads backups/uploads-20261001T031500Z.tar.gz backups/db-siparis-20261001T031500Z.dump
 ```
+
+`restore.sh` de `siparis` kullanıcısıyla çalıştırılır. Servisleri durdurmadan önce dökümün okunabildiğini ve `backups/` klasörüne yazılabildiğini denetler. Güvenlik dökümü alınamazsa veritabanına dokunmadan servisleri yeniden başlatır; geri yükleme yarıda kalırsa servisler kapalı kalır ve önceki hâle dönüş komutunu (`./scripts/restore.sh --yes backups/pre-restore-….dump`) yazar.
 
 Kısıtlar: `pg_dump` günlük anlık görüntüdür, son yedekten sonraki siparişler geri dönüşte kaybolur. Saniye hassasiyetinde dönüş (PITR) için WAL arşivleme (pgBackRest ya da WAL-G, ikinci lokasyona) **pilot öncesi zorunlu paketin** parçasıdır (00 §11) ve ayrıca kurulmalıdır. Aylık geri yükleme tatbikatının tarihi ve sonucu bir yere not edilir.
 
@@ -233,10 +280,17 @@ docker compose ps && curl -fsS https://siparisinonunde.com/api/v1/health
 |---|---|
 | Servis durumu | `docker compose ps` — `api`, `web`, `worker` (vadesi 5 dk'yı geçmiş bekleyen iş varsa sağlıksız, `scripts/worker-health.ts`), `postgres` sağlık denetimleri |
 | Sağlık ucu | `GET /api/v1/health` → `{"ok":true,"db":"up"}`; veritabanı yoksa 503. Dışarıdan (ikinci VPS'te Uptime Kuma vb.) 1 dk aralıkla izlenir, P1 nöbetçiye bildirim gider |
-| Loglar | `docker compose logs -f --since 15m api worker` (JSON; telefon/adres maskeli). Caddy erişim logları: `docker compose logs caddy`. Log dosyaları konteyner başına 5×20 MB ile sınırlı |
+| Worker sağlık ucu | `GET /api/v1/health/worker` → `{"ok":true,"jobLagSec":0,"stuckJobs":0,…}`. Vadesi gelmiş bekleyen iş 300 sn'den fazla gecikmişse ya da 10 dk'dan uzun `running` iş varsa **503**. Worker süreci ayakta ama takılıysa yalnız bu uç yakalar (alarm zinciri, WhatsApp/SMS gönderimi işlerdedir); dış izlemeye `/api/v1/health` ile birlikte eklenir, P1 |
+| Loglar | `docker compose logs -f --since 15m api worker` (JSON; telefon/adres maskeli). Konteyner logları 5×20 MB ile sınırlıdır |
+| Erişim logları | Caddy her isteği JSON olarak iki yere yazar: `docker compose logs caddy` (son günler, sorun giderme) ve `caddy_logs` birimindeki `/var/log/caddy/access.log` (100 MB'ta döner, **366 gün** saklanır; 5651 trafik kaydı, 08 §2.8 satır 10). Okuma: `docker compose exec caddy tail -f /var/log/caddy/access.log`. Yoldaki gizli belirteçler (webhook, takip linki, kurye girişi `?t=`) `***` olarak yazılır; çerez ve `Authorization` başlıkları maskelidir. Disk: 1 yılda birkaç GB; `docker system df -v` ile izleyin |
 | Admin paneli | `Özet` (lifecycle'a göre işletmeler, bugünkü sipariş, açık alarm, başarısız iş), `İşler` (`/admin/isler`: başarısız işler = DLQ, tek tıkla yeniden dene), `WhatsApp` (hesap sağlığı; kırmızılar üstte), `Bayraklar` (kill-switch'ler), `Denetim` (audit log) |
 | Veritabanı | 500 ms'yi aşan sorgular postgres loguna düşer (`log_min_duration_statement`). Disk: `docker system df`, `df -h` |
 | Kuyruk | `docker compose exec postgres psql -U siparis -c "select status, count(*) from jobs group by 1"` |
+
+**Henüz olmayanlar (pilot sürümü).** 00 §10 ve 04 §4.5'teki alarm zincirinin iki halkası bu sürümde yoktur; nöbette bunlara güvenmeyin:
+
+- **Web Push (t=0):** Panel kapalıyken ya da tarayıcı arka plandayken cihaza bildirim gitmez. t=0'da ve 60 sn'de yalnız açık paneldeki ses ve bant çalışır; 2 dk platform WhatsApp uyarısı, 5 dk SMS, 10 dk müşteriye bilgi ve 15 dk otomatik iptal panelden bağımsız olarak worker işleriyle çalışır. Bu nedenle `PLATFORM_WA_PROVIDER` ve `SMS_PROVIDER` üretimde gerçek sağlayıcı olmalıdır (§4).
+- **"Panel çevrimdışı" dedektörü:** Açık saatte şubenin hiçbir panel bağlantısı olmasa da sahibine uyarı gitmez. Kaçan sipariş yine 2 dk'da platform WhatsApp uyarısıyla sahibine ulaşır. Pilot işletmelerde "Vardiyayı başlat" alışkanlığı kurulum sırasında gösterilir.
 
 ## 11. Sorun giderme
 
@@ -251,7 +305,7 @@ docker compose ps && curl -fsS https://siparisinonunde.com/api/v1/health
 
 1. `Admin > WhatsApp` → "son webhook" zamanı eski mi? 360dialog'a tanımlı URL paneldeki adresle birebir aynı mı (§6.5)?
 2. Dışarıdan erişim: `curl -i -X POST https://DOMAIN/api/v1/webhooks/wa/<belirteç> -H 'Content-Type: application/json' -d '{}'` → 200 beklenir (400 = gövde geçersiz ama yol çalışıyor; 404 = belirteç yanlış; 401 `invalid_signature` = cloud hesabında `WA_APP_SECRET` uyuşmuyor).
-3. Caddy loglarında `POST /api/v1/webhooks/wa/...` görünüyor mu? Görünmüyorsa DNS/TLS ya da sağlayıcı tarafı; görünüyorsa API loglarına bakın.
+3. Caddy erişim loglarında istek görünüyor mu? `docker compose logs --since 1h caddy | grep 'webhooks/wa'` (belirteç `***` olarak yazılır; `status` alanı yanıt kodudur). Görünmüyorsa DNS/TLS ya da sağlayıcı tarafı; görünüyorsa API loglarına bakın.
 4. Olay kaydedildi ama işlenmedi: `select count(*) from wa_webhook_events where processed_at is null` → worker'ı ve `wa-inbound` işlerini kontrol edin.
 5. Giden mesaj `failed`: sohbet ekranında hata kodu; 131047 = 24 saat penceresi dışı (şablon gerekir), token/ödeme hataları hesabı `error`'a çeker ve işletme WhatsApp'sız moda düşer.
 
@@ -266,6 +320,8 @@ docker compose ps && curl -fsS https://siparisinonunde.com/api/v1/health
 
 - *Sertifika alınamıyor:* `docker compose logs caddy | grep -i -E 'error|acme'`. Wildcard için `CLOUDFLARE_API_TOKEN` yetkisi; 80/443 açık mı; Let's Encrypt oran sınırına takıldıysa bekleyin.
 - *Giriş yapılıyor ama oturum düşüyor:* üretimde çerez `Secure`'dur; site mutlaka `https://` ile açılmalı, `APP_BASE_URL` https olmalı.
+- *İki adımlı doğrulama kodu hep "hatalı":* kodlar zamana dayalıdır, ±30 sn tolerans vardır. Telefonun saati "otomatik" olmalı; sunucu saatini `timedatectl` ile denetleyin (NTP senkron). Aynı kod ikinci kez kabul edilmez; 10 dk'da 5'ten fazla deneme 429 döner, birkaç dakika bekleyin. Hesap kilitliyse kurtarma kodu ya da `create-admin.ts --reset-totp` (§5).
+- *Yönetim ekranı açılmıyor, hep Güvenlik'e dönüyor:* platform yöneticisinin iki adımlı doğrulaması kurulmamış (API `403 totp_enrollment_required`); §5'teki adımlarla kurun.
 - *Takip linkleri "süresi doldu" diyor:* teslimden 7 gün sonra normaldir (00 §7); tümü birden bozulduysa `TRACKING_SECRET` değişmiştir.
 - *"WhatsApp/SMS anahtarı çözülemedi":* `ENCRYPTION_KEY` değişmiş ya da kaybolmuştur; eski anahtarı geri koyun ya da işletmeler anahtarlarını panelden yeniden girer.
 
@@ -273,12 +329,15 @@ docker compose ps && curl -fsS https://siparisinonunde.com/api/v1/health
 
 **Teknik**
 
+- [ ] `SUPPORT_WHATSAPP` dolu ve web bu değerle derlendi: `/panel/giris` › "Parolamı unuttum" destek numarasını gösteriyor. İşletme sahibinin parolası, kimlik başka kanaldan doğrulandıktan sonra admin panelinden sıfırlanır.
 - [ ] `.env`'de `DEV_TOOLS=0` ve web bu değerle derlendi: `curl -o /dev/null -w '%{http_code}' https://DOMAIN/dev/whatsapp` → 404, `https://DOMAIN/api/v1/dev/wa/accounts` → 404.
 - [ ] Seed çalıştırılmadı: `select email from users where email like '%@siparisinonunde.local'` boş; demo işletme (`bozok-pide`) yok.
 - [ ] Gizli anahtarlar rastgele üretildi (§4) ve `ENCRYPTION_KEY`, `TRACKING_SECRET` parola yöneticisinde + ayrı bir güvenli yerde saklı.
-- [ ] Platform yöneticileri `create-admin.ts` ile açıldı; **zorunlu TOTP (2FA)** etkin (00 §10, 14 §5 — bu sürümde henüz uygulanmadı; canlı öncesi engelleyicidir).
-- [ ] Yedek cron'u kurulu, `BACKUP_REMOTE` ikinci Türkiye lokasyonuna kopyalıyor, bir geri yükleme tatbikatı (`restore.sh --target`) başarıyla yapıldı; PITR (WAL arşivleme) kuruldu (00 §11).
-- [ ] Dış izleme `GET /api/v1/health`'i 1 dk aralıkla izliyor, P1 bildirimi nöbetçiye gidiyor; `Admin > İşler`'de başarısız iş yok.
+- [ ] Platform yöneticileri `create-admin.ts` ile açıldı ve her biri **iki adımlı doğrulamayı (TOTP) kurdu** (00 §12a madde 7, 14 §5): girişte `/admin/guvenlik` → QR'ı okut → 6 haneli kodla aç → 8 kurtarma kodunu kaydet (§5). Kontrol: `docker compose exec api printenv ADMIN_TOTP_REQUIRED` → `true`; `select email from users where is_platform_admin and totp_enabled_at is null` boş; kurtarma kodlarıyla giriş bir kez denendi (kullanılan kod yenilenerek yerine konur).
+- [ ] Yedek cron'u `siparis` kullanıcısının crontab'ında kurulu, ilk elle çalıştırmada `backups/` altında `600` izinli döküm oluştu, `BACKUP_REMOTE` ikinci Türkiye lokasyonuna kopyalıyor, `BACKUP_PING_URL` dış izlemede 26 saatlik push monitörüne bağlı, bir geri yükleme tatbikatı (`restore.sh --target`) başarıyla yapıldı; PITR (WAL arşivleme) kuruldu (00 §11).
+- [ ] Caddy erişim logu dosyaya yazılıyor: `docker compose exec caddy ls -l /var/log/caddy/` (5651, 1 yıl).
+- [ ] Dış izleme `GET /api/v1/health` ve `GET /api/v1/health/worker`'ı 1 dk aralıkla izliyor, P1 bildirimi nöbetçiye gidiyor; `Admin > İşler`'de başarısız iş yok.
+- [ ] Sağlayıcılar gerçek: `docker compose exec worker printenv SMS_PROVIDER PLATFORM_WA_PROVIDER WA_DEFAULT_PROVIDER` çıktısında `mock` yok (§4).
 - [ ] Sunucu: UFW açık (22/80/443), SSH yalnız anahtarla, otomatik güvenlik güncellemeleri açık, `.env` izni 600.
 - [ ] 360dialog numarası bağlı, webhook tanımlı, "merhaba" → "Menüyü aç" → sipariş → panel alarmı → onay mesajı uçtan uca gerçek telefonla denendi; müşteri ve platform şablonları onaylı (V-011).
 - [ ] Netgsm başlığı onaylı, OTP ve "onaylandı" SMS'i gerçek telefona geldi (V-012, V-020, V-023).

@@ -183,14 +183,19 @@ async function resolveTarget(tx: Database, order: OrderRow): Promise<Target | nu
     // Akış E: müşteri kaydı yoksa yalnız kasiyerin WhatsApp bildirim onayıyla telefon üzerinden (02 §9.1).
     // Biçim: services/orders/notify-consent.ts (status_notify_channel + source_meta.notifyConsent).
     const consent = hasNotifyConsent(order);
-    if (!customerId && consent && order.customerPhone) {
+    // Kurulum test siparişi (04 §3.4.3): sahibin telefonu işletmeye daha önce yazmışsa (ör. bağlantı denemesi) o
+    // konuşma kullanılır; test için yeni müşteri kaydı açılmaz.
+    const onboardingTest = order.testKind === 'onboarding_test';
+    if (!customerId && (consent || onboardingTest) && order.customerPhone) {
       const [existing] = await tx
         .select()
         .from(customers)
         .where(and(eq(customers.tenantId, order.tenantId), eq(customers.phoneE164, order.customerPhone)));
       customerId =
         existing?.id ??
-        (await tx.insert(customers).values({ tenantId: order.tenantId, phoneE164: order.customerPhone, name: order.customerName }).returning())[0]!.id;
+        (consent
+          ? (await tx.insert(customers).values({ tenantId: order.tenantId, phoneE164: order.customerPhone, name: order.customerName }).returning())[0]!.id
+          : null);
     }
     if (customerId) {
       const [c] = await tx
@@ -346,13 +351,17 @@ async function render(t: Target, to: OrderStatus, combined: boolean, config: Con
   }
 }
 
-/** Daha ileri ve mesaj üreten bir duruma geçildiyse eski durum mesajı atılır (02 §4.3 yerine geçme). */
+/**
+ * Daha ileri ve mesaj üreten bir duruma geçildiyse eski durum mesajı atılır (02 §4.3 yerine geçme).
+ * "Alındı" (new) sonraki her durumla geçersizleşir: onaylanmış siparişe ayrıca "alındı" gitmez (04 §4.13 adım 7).
+ */
 export function isSuperseded(event: OrderStatus, current: OrderStatus, pickup: boolean): boolean {
   if (event === 'rejected' || event === 'cancelled') return false;
   if (current === 'rejected' || current === 'cancelled') return true;
   const e = PROGRESS_RANK[event];
   const c = PROGRESS_RANK[current];
   if (e == null || c == null || c <= e) return false;
+  if (event === 'new') return true;
   const producesMessage = current === 'on_the_way' || current === 'delivered' || (current === 'ready' && pickup);
   return producesMessage;
 }
@@ -411,13 +420,24 @@ export async function notifyStatus(deps: NotifyDeps, orderId: string, to: OrderS
     if (!order) return { sent: 'none', reason: 'order_not_found' };
     if (order.testKind === 'canary') return { sent: 'none', reason: 'canary' };
     if (order.statusNotifyChannel === 'none') return { sent: 'none', reason: 'notify_off' };
+    // Kurulum test siparişi: sahibe yalnız "Onaylandı" gider (04 §3.4.3 adım 7); diğer müşteri adımları atlanır
+    if (order.testKind === 'onboarding_test' && to !== 'accepted') return { sent: 'none', reason: 'test_order' };
     if (isSuperseded(to, order.status, order.fulfillmentType === 'pickup')) return { sent: 'none', reason: 'superseded' };
+    // Ret bekliyor (30 sn geri alma penceresi): "alındı"nın hemen ardından "reddedildi" gitmesin
+    if (to === 'new' && order.rejectionScheduledAt) return { sent: 'none', reason: 'rejection_pending' };
+    // İdempotent (14 §7.2): iş yeniden çalışırsa (ör. `done` yazılamadan süreç düştü) aynı durum mesajı ikinci kez gitmez
+    const [already] = await tx
+      .select({ id: messages.id })
+      .from(messages)
+      .where(and(eq(messages.orderId, order.id), eq(messages.direction, 'out'), sql`${messages.payload}->>'orderEvent' = ${to}`))
+      .limit(1);
+    if (already) return { sent: 'none', reason: 'already_sent' };
     const t = await resolveTarget(tx, order);
     if (!t) return { sent: 'none', reason: 'tenant_not_found' };
 
     if (!waUsable(t)) {
-      // WhatsApp'sız mod: yalnız kritik durumlar SMS (02 §6.11)
-      if (SMS_CRITICAL.has(to) && (await smsFallbackAllowed(deps.db, t))) {
+      // WhatsApp'sız mod: yalnız kritik durumlar SMS (02 §6.11). Kurulum test siparişinde SMS atlanır (00 §5).
+      if (SMS_CRITICAL.has(to) && !order.testKind && (await smsFallbackAllowed(deps.db, t))) {
         const r = await render(t, to, false, deps.config, tx);
         if (r.sms) {
           await enqueueSms(tx, t, r.sms, to);
@@ -456,7 +476,7 @@ export async function notifyStatus(deps: NotifyDeps, orderId: string, to: OrderS
     const budgeted = BUDGETED.has(to);
     if (budgeted && !(await reserveStatusBudget(tx, order.id))) return { sent: 'none', reason: 'order_budget' };
     try {
-      const smsOk = SMS_CRITICAL.has(to) && r.sms && (await smsFallbackAllowed(deps.db, t));
+      const smsOk = SMS_CRITICAL.has(to) && !order.testKind && r.sms && (await smsFallbackAllowed(deps.db, t));
       const q = await queueOutbound(tx, {
         tenantId: order.tenantId,
         branchId: conv.branchId,

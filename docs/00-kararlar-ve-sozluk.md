@@ -191,6 +191,11 @@ Geçişler: `awaiting_customer→new|cancelled`; `new→accepted|rejected|cancel
    - Kimlik doğrulama: kendi oturum sistemimiz (scrypt parola, HttpOnly çerez oturumu); platform yöneticileri için TOTP.
    - Tenant yalıtımı: uygulama katmanında zorunlu kapsam + yalıtım testleri; PostgreSQL RLS sertleştirme adımı olarak eklenir.
    - Barındırma: Türkiye'de tek VPS, Docker Compose (postgres, api, worker, web, caddy).
+7. **İki adımlı doğrulama (TOTP) kapsamı** (10. bölümdeki "owner ve tüm platform kullanıcıları için zorunlu TOTP" maddesini pilot için sadeleştirir; ayrıntı 14 §5):
+   - **Platform yöneticileri için zorunlu.** `ADMIN_TOTP_REQUIRED` ile uygulanır: üretimde (`NODE_ENV=production`) varsayılan açık, diğer ortamlarda kapalı; `docker-compose.yml` api servisinde açıktır. TOTP'si kurulmamış yönetici giriş yapabilir ama yalnız Yönetim › Güvenlik (`/admin/guvenlik`) ekranını kullanır; diğer tüm `/api/v1/admin/*` uçları (destek erişimi başlatma dahil) 403 `totp_enrollment_required` döner. Zorunluyken kapatılamaz; telefon kaybında kurtarma kodu, o da yoksa operatör `create-admin.ts --reset-totp` ile sıfırlar (15 §5).
+   - **İşletme kullanıcıları (owner/manager/cashier/kitchen kişisel hesapları) için isteğe bağlı**, panelden açılır (Ayarlar › Güvenlik); işletme sahibine önerilir. Gerekçe: tek kişilik işletim ve esnafın ilk kurulumdaki sürtünmesi.
+   - **Kurye (magic link) ve paylaşımlı cihazın PIN oturumu TOTP kullanmaz.**
+   - Standart TOTP (RFC 6238, 30 sn, 6 hane, ±1 adım tolerans, aynı adımın kodu ikinci kez kabul edilmez); sır şifreli saklanır; 8 tek kullanımlık kurtarma kodu (yalnız özetleri saklanır); ikinci adım denemesi kullanıcı başına 5/10 dk.
 
 ## 13. Açık kararlar (proje sahibine sorulacak — dokümanlar varsayılanla yazılır, varsayılan belirtilir)
 1. **Ekip ve stack:** Geliştiriciler TypeScript/React mi, PHP/Laravel mi? (Varsayılan: TypeScript monorepo.)

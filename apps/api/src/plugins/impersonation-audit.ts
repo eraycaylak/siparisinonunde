@@ -5,6 +5,10 @@
 // method + yol + durum 10 sn içinde tekrarlanırsa yeni satır açılmaz; ilk satırın sayacı artar
 // (panel yoklamaları kaydı şişirmesin). Sorgu dizesi yazılmaz (arama metni kişisel veri içerebilir);
 // yalnız anahtar adları tutulur. Kayıt hatası isteği etkilemez (loglanır).
+//
+// SSE akışı (/panel/stream) reply.hijack() kullanır: onResponse yalnız sunucu akışı bitirince (istemci kopunca hiç)
+// tetiklenir. Bu yüzden akış açılışı rota içinde recordImpersonationStreamOpen ile bir kez kaydedilir ve kanca o
+// isteği atlar. /auth/me kayda girmez: yalnız oturumun kimlik bilgisini döner, işletme verisi okumaz.
 
 import { auditLog } from '@siparis/db';
 import { and, desc, eq, gt, sql } from 'drizzle-orm';
@@ -24,7 +28,12 @@ function splitUrl(url: string): { path: string; queryKeys: string[] } {
   return { path: url.slice(0, q), queryKeys: [...new Set(keys)].sort() };
 }
 
-export async function recordImpersonationRequest(app: FastifyInstance, request: FastifyRequest, reply: FastifyReply): Promise<void> {
+export async function recordImpersonationRequest(
+  app: FastifyInstance,
+  request: FastifyRequest,
+  reply: Pick<FastifyReply, 'statusCode'>,
+  extra: Record<string, unknown> = {},
+): Promise<void> {
   const auth = request.auth;
   if (!auth || auth.session.kind !== 'impersonation') return;
   const { path, queryKeys } = splitUrl(request.url);
@@ -79,6 +88,7 @@ export async function recordImpersonationRequest(app: FastifyInstance, request: 
         route: request.routeOptions?.url ?? null,
         status,
         ...(queryKeys.length ? { queryKeys } : {}),
+        ...extra,
         readOnly: auth.session.readOnly,
         count: 1,
         firstAt: now.toISOString(),
@@ -89,9 +99,24 @@ export async function recordImpersonationRequest(app: FastifyInstance, request: 
   });
 }
 
+/** Açılışı rota içinde kaydedilmiş akış istekleri (onResponse kancası ikinci kez yazmasın). */
+const streamRecorded = new WeakSet<FastifyRequest>();
+
+/** Destek oturumuyla açılan SSE akışı: tek kayıt (status 200, `stream: true`); aynı akış 10 sn içinde yeniden açılırsa sayaç artar. */
+export async function recordImpersonationStreamOpen(app: FastifyInstance, request: FastifyRequest): Promise<void> {
+  if (request.auth?.session.kind !== 'impersonation') return;
+  streamRecorded.add(request);
+  try {
+    await recordImpersonationRequest(app, request, { statusCode: 200 }, { stream: true });
+  } catch (err) {
+    request.log.error({ err }, 'impersonation audit yazılamadı');
+  }
+}
+
 export const impersonationAuditPlugin = fp(async (app: FastifyInstance) => {
   app.addHook('onResponse', async (request, reply) => {
     if (request.auth?.session.kind !== 'impersonation') return;
+    if (streamRecorded.has(request)) return;
     try {
       await recordImpersonationRequest(app, request, reply);
     } catch (err) {

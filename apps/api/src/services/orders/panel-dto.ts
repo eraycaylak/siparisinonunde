@@ -17,7 +17,7 @@ import {
   type Database,
 } from '@siparis/db';
 import { and, asc, desc, eq, inArray, ne, sql } from 'drizzle-orm';
-import { stripPrices } from '../../lib/sse';
+import { scrubPersonal, stripPrices } from '../../lib/sse';
 import { toOrderSummary, type OrderRow } from './summary';
 
 const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
@@ -135,6 +135,7 @@ export async function buildCards(db: Database, rows: OrderRow[]): Promise<OrderC
       cancelRequestId: reqMap.get(r.id) ?? null,
       alarmStep: alarmMap.get(r.id) ?? null,
       outOfZoneOverride: r.outOfZoneOverride,
+      zoneDeclared: (r.sourceMeta as { zoneDeclared?: unknown } | null)?.zoneDeclared === true,
       verifiedAt: iso(r.verifiedAt),
       preparingAt: iso(r.preparingAt),
       readyAt: iso(r.readyAt),
@@ -154,28 +155,7 @@ export async function buildCards(db: Database, rows: OrderRow[]): Promise<OrderC
  */
 export function projectForRole<T>(value: T, role: TenantRole): T {
   if (role !== 'kitchen') return value;
-  const stripped = stripPrices(value) as Record<string, unknown>;
-  return scrubPersonal(stripped) as T;
-}
-
-function scrubPersonal(v: unknown): unknown {
-  if (Array.isArray(v)) return v.map(scrubPersonal);
-  if (v && typeof v === 'object') {
-    const out: Record<string, unknown> = {};
-    for (const [k, val] of Object.entries(v)) {
-      if (k === 'customerName' || k === 'customerPhoneMasked' || k === 'customerPhone' || k === 'addressLine' || k === 'directions') {
-        out[k] = null;
-      } else if (k === 'lat' || k === 'lng') {
-        out[k] = null;
-      } else if (k === 'customer') {
-        out[k] = null;
-      } else {
-        out[k] = scrubPersonal(val);
-      }
-    }
-    return out;
-  }
-  return v;
+  return scrubPersonal(stripPrices(value)) as T;
 }
 
 /** Detay çekmecesi: kalemler, olay geçmişi (aktör adı), müşteri kısa geçmişi, iptal talebi, ack'ler. */

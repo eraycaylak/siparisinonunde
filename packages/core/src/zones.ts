@@ -114,6 +114,8 @@ export interface ZoneMatch<Z extends ZoneLike> {
   neighborhood: string | null;
   via: DeliveryZoneKind;
   distanceM?: number;
+  /** Konum/mahalle eşleşmesi yok; bölgeyi müşteri kendisi seçti (panel kartında "müşteri beyanı" olarak gösterilir). */
+  declared?: boolean;
 }
 
 /**

@@ -2,9 +2,11 @@
 // GET /conversations (liste: son mesaj, okunmamış, müşteri adı, maskeli telefon, mod), GET /conversations/:id,
 // GET /conversations/:id/messages (cursor), POST /conversations/:id/messages {text} (24 sa penceresi dışında
 // 409 window_closed; sent_by user; bot 30 dk susar), POST /:id/mode {bot|human}, POST /:id/read.
+// KVKK ile silinmiş (customer_erasures) müşterinin sohbeti listede görünmez, detayı 404 (müşteri listesiyle aynı
+// anlam: services/customers eraseCustomer). Aynı numara yeniden yazarsa yeni müşteri + yeni sohbet açılır.
 
 import { maskPhone, OPEN_ORDER_STATUSES } from '@siparis/core';
-import { conversations, customers, messages, orders, users, type Database } from '@siparis/db';
+import { conversations, customers, messages, orders, users, waAccounts, type Database } from '@siparis/db';
 import { and, desc, eq, ilike, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -61,7 +63,10 @@ function decodeCursor(c: string | undefined): { at: Date; id: string } | null {
 }
 
 function scope(auth: TenantAuth): SQL {
-  const conds = [eq(conversations.tenantId, auth.tenantId)];
+  const conds = [
+    eq(conversations.tenantId, auth.tenantId),
+    sql`not exists (select 1 from customer_erasures e where e.customer_id = ${conversations.customerId})`,
+  ];
   if (auth.branchId) conds.push(eq(conversations.branchId, auth.branchId));
   return and(...conds)!;
 }
@@ -251,6 +256,13 @@ const routes: FastifyPluginAsyncZod = async (app) => {
           .where(and(scope(auth), eq(conversations.id, request.params.id)))
           .for('update');
         if (!conv) throw notFound('Sohbet bulunamadı.');
+        const [acc] = await tx.select({ status: waAccounts.status }).from(waAccounts).where(eq(waAccounts.id, conv.waAccountId));
+        if (!acc || acc.status === 'disconnected') {
+          throw conflict(
+            'wa_not_connected',
+            'WhatsApp bağlantısı kesik olduğu için mesaj gönderilemez. İşletme sahibi Ayarlar > WhatsApp bölümünden yeniden bağlayabilir.',
+          );
+        }
         if (!windowOpen(conv.lastInboundAt, now, 0)) {
           throw conflict(
             'window_closed',

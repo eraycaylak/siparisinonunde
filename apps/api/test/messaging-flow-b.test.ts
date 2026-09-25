@@ -4,6 +4,7 @@ import { branchEvents, cancellationRequests, customers, jobs, notifications, ord
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { OutboundPayload } from '../src/services/messaging/outbound';
+import { transitionOrder } from '../src/services/orders/transition';
 import { createTestContext, type TestContext } from './helpers';
 import {
   MIN,
@@ -178,6 +179,31 @@ describe('buton yanıtları', () => {
     const conv = await conversationFor(ctx.db, t.account, phone);
     expect(await outCodes(ctx.db, conv!.id)).toEqual(['M05', 'M27b']);
     expect(conv!.mode).toBe('human');
+  });
+
+  it('eşzamanlı: panel onayı satırı kilitliyken gelen cancel:<id> kilitlenmez (40P01 yok), iptal talebine döner', async () => {
+    const phone = nextPhone();
+    const order = await createAwaitingOrder(ctx, t, 'RCE4K8');
+    await inbound(ctx, t.account, { phone }, text('Sipariş kodu: RCE4K8'));
+    let rowLocked!: () => void;
+    const locked = new Promise<void>((r) => (rowLocked = r));
+    // Panel: önce satır kilidi, sonra (bekleyip) geçiş → şube olayı (advisory lock)
+    const panel = ctx.db.transaction(async (tx) => {
+      await tx.select().from(orders).where(eq(orders.id, order.id)).for('update');
+      rowLocked();
+      await new Promise((r) => setTimeout(r, 300));
+      await transitionOrder(tx, { orderId: order.id, tenantId: t.tenantId, to: 'accepted', actor: { type: 'user' } });
+    });
+    await locked;
+    const customer = inbound(ctx, t.account, { phone }, { type: 'button_reply', id: `cancel:${order.id}`, title: 'Siparişi iptal et' });
+    const [p, c] = await Promise.allSettled([panel, customer]);
+    expect(p.status, p.status === 'rejected' ? String(p.reason) : '').toBe('fulfilled');
+    expect(c.status, c.status === 'rejected' ? String(c.reason) : '').toBe('fulfilled');
+    const o = await getOrder(ctx.db, order.id);
+    expect(o).toMatchObject({ status: 'accepted', cancelledBy: null });
+    expect(o.cancelRequestedAt).toBeInstanceOf(Date);
+    const [req] = await ctx.db.select().from(cancellationRequests).where(eq(cancellationRequests.orderId, order.id));
+    expect(req!.status).toBe('pending');
   });
 
   it('başka müşterinin siparişine ait buton yok sayılır', async () => {

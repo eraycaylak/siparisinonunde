@@ -84,6 +84,15 @@ describe('kurye görünümü', () => {
     expect(list.json().deliveredToday).toBeGreaterThanOrEqual(1);
   });
 
+  it('mutfakta hazırlanan sipariş için "Yola çıktım" anlaşılır 409 (durum kodu içermez)', async () => {
+    const o = await assignedOrder(burak.user.id);
+    await ctx.db.update(orders).set({ status: 'preparing' }).where(eq(orders.id, o.id));
+    const res = await ctx.request({ method: 'POST', url: `/api/v1/courier/orders/${o.id}/on-the-way`, cookie: burak.cookie });
+    expectError(res, 409, 'order_not_ready');
+    expect(res.json().error.message).not.toMatch(/preparing|on_the_way/);
+    await ctx.db.update(orders).set({ status: 'cancelled', cancelledBy: 'tenant', cancelReason: 'other' }).where(eq(orders.id, o.id));
+  });
+
   it('iptal edilen sipariş için aksiyon reddedilir', async () => {
     const o = await assignedOrder(burak.user.id);
     await ctx.request({ method: 'POST', url: `/api/v1/panel/orders/${o.id}/cancel`, cookie: s.ownerCookie, body: { reason: 'courier_issue' } });

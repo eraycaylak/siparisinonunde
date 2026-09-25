@@ -31,6 +31,8 @@ x-api-base: &api-base
     UPLOAD_DIR: /data/uploads
     # Üretimde geliştirici araçları kapalı (/dev/whatsapp, /api/v1/dev/*)
     DEV_TOOLS: ${DEV_TOOLS:-0}
+    # Platform yöneticilerine iki adımlı doğrulama zorunlu (00 §12a madde 7); .env ile kapatılamaz
+    ADMIN_TOTP_REQUIRED: "true"
   volumes:
     - uploads:/data/uploads
   logging: *logging
@@ -55,10 +57,10 @@ services:
       - max_connections=100
       - -c
       - log_min_duration_statement=500
+    # ./backups bağlanmaz: backup.sh/restore.sh dökümü `docker compose exec` ile akıtır. Bağlansaydı Docker klasörü
+    # root sahipliğinde oluşturur ve siparis kullanıcısının cron yedeği yazamazdı (docs/15 §8).
     volumes:
       - pgdata:/var/lib/postgresql/data
-      # scripts/restore.sh dökümleri buraya da koyabilir (konteyner içinden /backups)
-      - ./backups:/backups
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 10s
@@ -98,8 +100,9 @@ services:
   worker:
     <<: *api-base
     command: ["node", "--import", "tsx", "src/worker.ts"]
-    # SIGTERM'de mevcut iş partisi bitirilir (apps/api/src/worker.ts)
-    stop_grace_period: 30s
+    # SIGTERM'de sürmekte olan iş bitirilir, başlanmamışlar sıraya döner (apps/api/src/worker.ts). Dış çağrı zaman
+    # aşımı 15 sn; bir iş birden fazla çağrı yapabildiği için süre bol tutulur (SIGKILL yarım gönderim bırakmasın)
+    stop_grace_period: 60s
     depends_on:
       postgres:
         condition: service_healthy
@@ -124,6 +127,7 @@ services:
         NEXT_PUBLIC_ROOT_DOMAIN: ${DOMAIN}
         NEXT_PUBLIC_DEV_TOOLS: ${DEV_TOOLS:-0}
         NEXT_PUBLIC_DEMO_STORE_SLUG: ${DEMO_STORE_SLUG:-bozok-pide}
+        NEXT_PUBLIC_SUPPORT_WHATSAPP: ${SUPPORT_WHATSAPP:-}
         API_INTERNAL_URL: http://api:4000
     environment:
       NODE_ENV: production
@@ -161,6 +165,8 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+      # Erişim logları (5651: 1 yıl saklama; Caddyfile (access_log))
+      - caddy_logs:/var/log/caddy
     depends_on:
       web:
         condition: service_healthy
@@ -174,3 +180,4 @@ volumes:
   uploads:
   caddy_data:
   caddy_config:
+  caddy_logs:

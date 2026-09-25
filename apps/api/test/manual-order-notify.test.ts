@@ -2,14 +2,14 @@
 // uçtan uca: kasiyer "WhatsApp'tan bilgilendirilmeyi kabul etti" kutusunu işaretlerse durum mesajı (şablon)
 // müşterinin telefonuna gider; işaretlemezse hiçbir mesaj gitmez (02 §9.1, 00 §7 Akış E).
 
-import { conversations, messages, orders, smsMessages } from '@siparis/db';
-import { and, eq } from 'drizzle-orm';
+import { conversations, jobs, messages, orders, smsMessages } from '@siparis/db';
+import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { hasNotifyConsent, phoneOrderNotifyFields } from '../src/services/orders/notify-consent';
 import { clearMockSent } from '../src/wa/index';
 import { createTestContext, type TestContext } from './helpers';
 import { setupStore, type StoreFixture } from './orders-helpers';
-import { flushNotify, transition } from './wa-helpers';
+import { flushNotify, runJobs, transition } from './wa-helpers';
 
 let ctx: TestContext;
 let s: StoreFixture;
@@ -70,9 +70,11 @@ describe('telefon siparişi + WhatsApp bildirimi (uçtan uca)', () => {
 
     await flushNotify(ctx);
     const out = await outFor(o.id);
-    expect(out.length).toBeGreaterThanOrEqual(1);
-    // Pencere yok (müşteri yazmadı) → şablon
-    expect(out.every((m) => m.kind === 'template')).toBe(true);
+    // 04 §4.13 adım 7: ayrı "alındı" gitmez, tek "onaylandı" (pencere yok → şablon); bütçeden 1 mesaj
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ kind: 'template', templateName: 'siparis_onaylandi_v1' });
+    const [fresh] = await ctx.db.select().from(orders).where(eq(orders.id, o.id));
+    expect(fresh!.waStatusMsgCount).toBe(1);
     const [conv] = await ctx.db.select().from(conversations).where(eq(conversations.id, out[0]!.conversationId));
     expect(conv).toBeDefined();
     expect(conv!.customerId).toBe(o.customerId);
@@ -106,5 +108,37 @@ describe('telefon siparişi + WhatsApp bildirimi (uçtan uca)', () => {
     expect(o.statusNotifyChannel).toBe('none');
     await flushNotify(ctx);
     expect(await outFor(o.id)).toHaveLength(0);
+  });
+});
+
+describe('telefon siparişi: alarm zinciri ve tekrar gönderim', () => {
+  it('"Onaylı olarak kaydet" kapalı: alarm zinciri kurulmaz, 16 dk sonra otomatik iptal edilmez', async () => {
+    const res = await ctx.request({
+      method: 'POST',
+      url: '/api/v1/panel/orders/manual',
+      cookie: cashier,
+      body: { ...manualBody('0533 444 55 04'), acceptNow: false },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const id = res.json().order.id as string;
+    const alarmJobs = await ctx.db.select().from(jobs).where(and(eq(jobs.type, 'order.alarm_step'), sql`${jobs.payload}->>'orderId' = ${id}`));
+    expect(alarmJobs).toHaveLength(0);
+    await runJobs(ctx, ['order.alarm_step', 'order.finalize_rejection'], new Date(Date.now() + 16 * 60_000));
+    const [o] = await ctx.db.select().from(orders).where(eq(orders.id, id));
+    expect(o).toMatchObject({ status: 'new', cancelReason: null });
+    expect(await ctx.db.select().from(smsMessages).where(eq(smsMessages.tenantId, s.tenantId))).toHaveLength(0);
+  });
+
+  it('aynı idempotencyKey ile eşzamanlı iki istek: ikisi de 200, tek sipariş', async () => {
+    const body = { ...manualBody('0533 444 55 05'), idempotencyKey: 'telefon-siparis-es-zamanli-1' };
+    const [r1, r2] = await Promise.all([
+      ctx.request({ method: 'POST', url: '/api/v1/panel/orders/manual', cookie: cashier, body }),
+      ctx.request({ method: 'POST', url: '/api/v1/panel/orders/manual', cookie: cashier, body }),
+    ]);
+    expect(r1.statusCode, r1.body).toBe(200);
+    expect(r2.statusCode, r2.body).toBe(200);
+    expect(r1.json().order.id).toBe(r2.json().order.id);
+    const rows = await ctx.db.select().from(orders).where(eq(orders.idempotencyKey, body.idempotencyKey));
+    expect(rows).toHaveLength(1);
   });
 });

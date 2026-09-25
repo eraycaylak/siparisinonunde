@@ -78,6 +78,7 @@ import { loadPricingProducts, loadZones, quoteForBranch } from '../../services/o
 import { buildReceipt, renderReceiptHtml, resolveReceiptSettings } from '../../services/orders/receipt';
 import { emitOrderUpdated, findOrder, type OrderRow } from '../../services/orders/summary';
 import { transitionOrder } from '../../services/orders/transition';
+import { isUniqueViolation } from '../../services/settings/common';
 
 const STAFF: readonly TenantRole[] = ['owner', 'manager', 'cashier'];
 const READERS: readonly TenantRole[] = ['owner', 'manager', 'cashier', 'kitchen'];
@@ -519,79 +520,92 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         ) * 5,
       );
 
-    const order = await app.db.transaction(async (tx) => {
-      const customer = await upsertCustomerByPhone(tx, auth.tenantId, phone, body.customerName);
-      const neighborhood = zoneMatch?.neighborhood ?? body.neighborhood?.trim() ?? null;
-      if (body.fulfillmentType === 'delivery') {
-        await rememberAddress(tx, {
-          tenantId: auth.tenantId,
-          customerId: customer.id,
-          neighborhood,
-          addressLine: body.addressLine?.trim() ?? null,
-          directions: body.directions?.trim() || null,
-          lat: body.lat ?? null,
-          lng: body.lng ?? null,
-        });
-      }
-      const created = await insertOrderWithItems(
-        tx,
-        {
-          tenantId: auth.tenantId,
-          branchId,
-          status: 'new',
-          channel: 'manual',
-          fulfillmentType: body.fulfillmentType,
-          quote,
-          zone: zoneMatch ? { id: zoneMatch.zone.id, name: zoneMatch.zone.name } : null,
-          neighborhood: body.fulfillmentType === 'delivery' ? neighborhood : null,
-          addressLine: body.fulfillmentType === 'delivery' ? (body.addressLine?.trim() ?? null) : null,
-          directions: body.fulfillmentType === 'delivery' ? body.directions?.trim() || null : null,
-          lat: body.fulfillmentType === 'delivery' ? (body.lat ?? null) : null,
-          lng: body.fulfillmentType === 'delivery' ? (body.lng ?? null) : null,
-          outOfZoneOverride: outOfZone,
-          customerId: customer.id,
-          customerName: body.customerName.trim(),
-          customerPhone: phone,
-          paymentMethod: body.paymentMethod,
-          mealCardBrand: body.paymentMethod === 'meal_card_on_delivery' ? (body.mealCardBrand ?? null) : null,
-          changeForKurus: body.paymentMethod === 'cash_on_delivery' && body.changeForKurus ? body.changeForKurus : null,
-          wantsCutlery: body.wantsCutlery,
-          note: body.note?.trim() || null,
-          verificationMethod: 'staff',
-          verifiedAt: now,
-          idempotencyKey: body.idempotencyKey ?? null,
-          // Bildirim onayı → status_notify_channel + source_meta.notifyConsent (dilim 3 aynı biçimi okur)
-          ...phoneOrderNotifyFields(body.notifyWhatsapp),
-          createdByUserId: auth.userId,
-        },
-        { type: 'user', userId: auth.userId },
-      );
-      if (outOfZone) {
+    let order: OrderRow;
+    try {
+      order = await app.db.transaction(async (tx) => {
+        const customer = await upsertCustomerByPhone(tx, auth.tenantId, phone, body.customerName);
+        const neighborhood = zoneMatch?.neighborhood ?? body.neighborhood?.trim() ?? null;
+        if (body.fulfillmentType === 'delivery') {
+          await rememberAddress(tx, {
+            tenantId: auth.tenantId,
+            customerId: customer.id,
+            neighborhood,
+            addressLine: body.addressLine?.trim() ?? null,
+            directions: body.directions?.trim() || null,
+            lat: body.lat ?? null,
+            lng: body.lng ?? null,
+          });
+        }
+        const created = await insertOrderWithItems(
+          tx,
+          {
+            tenantId: auth.tenantId,
+            branchId,
+            status: 'new',
+            channel: 'manual',
+            fulfillmentType: body.fulfillmentType,
+            quote,
+            zone: zoneMatch ? { id: zoneMatch.zone.id, name: zoneMatch.zone.name } : null,
+            neighborhood: body.fulfillmentType === 'delivery' ? neighborhood : null,
+            addressLine: body.fulfillmentType === 'delivery' ? (body.addressLine?.trim() ?? null) : null,
+            directions: body.fulfillmentType === 'delivery' ? body.directions?.trim() || null : null,
+            lat: body.fulfillmentType === 'delivery' ? (body.lat ?? null) : null,
+            lng: body.fulfillmentType === 'delivery' ? (body.lng ?? null) : null,
+            outOfZoneOverride: outOfZone,
+            customerId: customer.id,
+            customerName: body.customerName.trim(),
+            customerPhone: phone,
+            paymentMethod: body.paymentMethod,
+            mealCardBrand: body.paymentMethod === 'meal_card_on_delivery' ? (body.mealCardBrand ?? null) : null,
+            changeForKurus: body.paymentMethod === 'cash_on_delivery' && body.changeForKurus ? body.changeForKurus : null,
+            wantsCutlery: body.wantsCutlery,
+            note: body.note?.trim() || null,
+            verificationMethod: 'staff',
+            verifiedAt: now,
+            idempotencyKey: body.idempotencyKey ?? null,
+            // Bildirim onayı → status_notify_channel + source_meta.notifyConsent (dilim 3 aynı biçimi okur)
+            ...phoneOrderNotifyFields(body.notifyWhatsapp),
+            createdByUserId: auth.userId,
+          },
+          { type: 'user', userId: auth.userId },
+        );
+        if (outOfZone) {
+          await audit(tx, {
+            ...auditActor(request),
+            action: 'order.out_of_zone_override',
+            entityType: 'order',
+            entityId: created.id,
+            data: { feeKurus: body.outOfZoneFeeKurus ?? 0, neighborhood, addressLine: body.addressLine ? '[maskeli]' : null },
+          });
+        }
         await audit(tx, {
           ...auditActor(request),
-          action: 'order.out_of_zone_override',
+          action: 'order.manual_create',
           entityType: 'order',
           entityId: created.id,
-          data: { feeKurus: body.outOfZoneFeeKurus ?? 0, neighborhood, addressLine: body.addressLine ? '[maskeli]' : null },
+          data: { number: created.number, acceptNow: body.acceptNow, notifyWhatsapp: body.notifyWhatsapp },
         });
+        if (!body.acceptNow) return created;
+        const r = await transitionOrder(tx, {
+          orderId: created.id,
+          tenantId: auth.tenantId,
+          to: 'accepted',
+          actor: { type: 'user', userId: auth.userId },
+          extra: { etaMinutes: eta, estimatedReadyAt: roundUpTo5Minutes(new Date(now.getTime() + eta * 60_000)) },
+        });
+        return r.order;
+      });
+    } catch (err) {
+      // Eşzamanlı aynı anahtar (çift tıklama / yeniden deneme): ilk kaydın kartını döndür
+      if (body.idempotencyKey && isUniqueViolation(err)) {
+        const [dup] = await app.db
+          .select()
+          .from(orders)
+          .where(and(eq(orders.tenantId, auth.tenantId), eq(orders.idempotencyKey, body.idempotencyKey)));
+        if (dup) return { order: await cardOf(app.db, dup, auth.role) };
       }
-      await audit(tx, {
-        ...auditActor(request),
-        action: 'order.manual_create',
-        entityType: 'order',
-        entityId: created.id,
-        data: { number: created.number, acceptNow: body.acceptNow, notifyWhatsapp: body.notifyWhatsapp },
-      });
-      if (!body.acceptNow) return created;
-      const r = await transitionOrder(tx, {
-        orderId: created.id,
-        tenantId: auth.tenantId,
-        to: 'accepted',
-        actor: { type: 'user', userId: auth.userId },
-        extra: { etaMinutes: eta, estimatedReadyAt: roundUpTo5Minutes(new Date(now.getTime() + eta * 60_000)) },
-      });
-      return r.order;
-    });
+      throw err;
+    }
     return { order: await cardOf(app.db, order, auth.role) };
   });
 

@@ -4,8 +4,8 @@ import { cn } from '@/lib/cn';
 import { Spinner } from './spinner';
 
 /**
- * Buton stilleri. Boyutlar: sm 40 px (yoğun masaüstü tablo), md 48 px (varsayılan dokunma hedefi),
- * lg 56 px, xl 56→64 px (panel ana aksiyonları, 12 §4.2).
+ * Buton stilleri. Boyutlar: sm 48 px (küçük yazı, dar dolgu; dokunma hedefi yine 48 px), md 48 px (varsayılan),
+ * lg 56 px, xl 56→64 px (panel ana aksiyonları, 12 §4.2: panelde her dokunulabilir öğe en az 48 px).
  * Link olarak kullanmak için: <Link className={buttonVariants({ variant: 'primary' })}>.
  */
 export const buttonVariants = cva(
@@ -29,10 +29,11 @@ export const buttonVariants = cva(
         link: 'h-auto min-h-0 px-0 text-fg underline underline-offset-4 hover:no-underline',
       },
       size: {
-        sm: 'min-h-10 px-3 text-sm [&_svg]:size-4',
+        sm: 'min-h-hit px-3 text-sm [&_svg]:size-4',
         md: 'min-h-hit px-4 text-base [&_svg]:size-5',
         lg: 'min-h-hit-primary px-5 text-lg [&_svg]:size-5',
-        xl: 'min-h-hit-primary px-6 text-xl font-bold md:min-h-hit-primary-lg [&_svg]:size-6',
+        // Ana aksiyon etiketi dar ekranda (360 px) kırpılmaz, iki satıra iner
+        xl: 'min-h-hit-primary whitespace-normal px-6 py-2 text-center text-xl font-bold md:min-h-hit-primary-lg [&_svg]:size-6',
         icon: 'size-hit p-0 [&_svg]:size-5',
       },
       block: {

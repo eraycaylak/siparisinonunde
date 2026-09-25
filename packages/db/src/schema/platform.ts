@@ -27,6 +27,7 @@ import {
 } from '@siparis/core';
 import { sql } from 'drizzle-orm';
 import {
+  bigint,
   boolean,
   check,
   doublePrecision,
@@ -195,7 +196,16 @@ export const users = pgTable(
     passwordHash: text('password_hash'),
     isPlatformAdmin: boolean('is_platform_admin').notNull().default(false),
     platformRole: text('platform_role').$type<PlatformRole>(),
+    /** Etkin TOTP sırrı (lib/encryption ile şifreli); yalnız totp_enabled_at doluysa geçerli */
     totpSecretEnc: text('totp_secret_enc'),
+    /** İki adımlı doğrulama açıldığı an (null = kapalı) — 0600 */
+    totpEnabledAt: tstz('totp_enabled_at'),
+    /** Kurulumu süren (henüz doğrulanmamış) sır, şifreli — 0600 */
+    totpPendingSecretEnc: text('totp_pending_secret_enc'),
+    /** Son kabul edilen TOTP zaman adımı (floor(unix/30)); aynı ya da eski adım tekrar kabul edilmez — 0600 */
+    totpLastStep: bigint('totp_last_step', { mode: 'number' }),
+    /** Tek kullanımlık kurtarma kodlarının SHA-256 özetleri (kod düz metin saklanmaz) — 0600 */
+    totpRecoveryHashes: text('totp_recovery_hashes').array().notNull().default(sql`'{}'::text[]`),
     lastLoginAt: tstz('last_login_at'),
     disabledAt: tstz('disabled_at'),
     createdAt: createdAt(),

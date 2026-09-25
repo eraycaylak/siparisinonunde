@@ -217,6 +217,40 @@ describe('destek oturumunda her panel isteği audit_log’a yazılır', () => {
     expect(gets).toHaveLength(2);
   });
 
+  it('SSE akışı (hijack, onResponse çalışmaz): açılış bir kez kaydedilir, kopunca ikinci kayıt yok; sahibin akışı kaydedilmez', async () => {
+    const baseUrl = await ctx.app.listen({ port: 0, host: '127.0.0.1' });
+    const openStream = async (cookie: string) => {
+      const controller = new AbortController();
+      const r = await fetch(`${baseUrl}/api/v1/panel/stream?branchId=${a.branchId}`, { headers: { cookie, accept: 'text/event-stream' }, signal: controller.signal });
+      expect(r.status).toBe(200);
+      expect(r.headers.get('content-type')).toContain('text/event-stream');
+      const reader = r.body!.getReader();
+      await reader.read();
+      controller.abort();
+      await reader.cancel().catch(() => {});
+    };
+
+    const res = await start(p.support_agent.cookie);
+    const sessionId = res.json().sessionId as string;
+    const imp = `sid=${cookiesOf(res).sid!.value}`;
+    await openStream(imp);
+    let rows = await requestRows(sessionId);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ tenantId: a.tenantId, actorUserId: p.support_agent.user.id, impersonatorUserId: p.support_agent.user.id, entityType: 'session' });
+    expect(rows[0]!.data).toMatchObject({ method: 'GET', path: '/api/v1/panel/stream', status: 200, stream: true, count: 1, queryKeys: ['branchId'], readOnly: true });
+    // İstemci koptu: onResponse kancası akışı ikinci kez yazmaz
+    await new Promise((r) => setTimeout(r, 150));
+    rows = await requestRows(sessionId);
+    expect(rows).toHaveLength(1);
+    expect((rows[0]!.data as { count: number }).count).toBe(1);
+
+    const before = await ctx.db.select().from(auditLog).where(eq(auditLog.action, 'admin.impersonation_request'));
+    await openStream(a.ownerCookie);
+    await new Promise((r) => setTimeout(r, 150));
+    const after = await ctx.db.select().from(auditLog).where(eq(auditLog.action, 'admin.impersonation_request'));
+    expect(after.length).toBe(before.length);
+  });
+
   it('işletmenin kendi oturumu ve panel dışı istekler kaydedilmez', async () => {
     const before = await ctx.db.select().from(auditLog).where(eq(auditLog.action, 'admin.impersonation_request'));
     await ctx.request({ method: 'GET', url: '/api/v1/panel/__imp/whoami', cookie: a.ownerCookie });

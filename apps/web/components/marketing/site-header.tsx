@@ -18,7 +18,7 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-30 print:hidden border-b border-border bg-bg/95 backdrop-blur supports-[backdrop-filter]:bg-bg/80">
       <div className="mx-auto flex h-16 max-w-6xl items-center gap-4 px-4">
-        <Link href="/" className="-ms-1 rounded-md p-1" aria-label="Siparişin Önünde ana sayfa">
+        <Link href="/" className="-ms-1 inline-flex min-h-hit min-w-hit items-center rounded-md p-1" aria-label="Siparişin Önünde ana sayfa">
           <Logo textClassName="max-[400px]:sr-only" />
         </Link>
         <nav aria-label="Ana menü" className="ms-4 hidden flex-1 items-center gap-1 lg:flex">
@@ -30,7 +30,7 @@ export function SiteHeader() {
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
                 className={cn(
-                  'inline-flex min-h-10 items-center rounded-md px-3 text-sm font-semibold transition-colors',
+                  'inline-flex min-h-hit items-center rounded-md px-3 text-sm font-semibold transition-colors',
                   active ? 'bg-accent text-fg' : 'text-fg-muted hover:bg-accent hover:text-fg',
                 )}
               >

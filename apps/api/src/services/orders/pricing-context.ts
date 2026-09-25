@@ -138,7 +138,8 @@ export interface ZoneQueryInput {
 
 /**
  * Adres → bölge. Önce mahalle/konum ile core.resolveZone; bulunamazsa ve istemci konumsuz bir poligon/yarıçap
- * bölgesini seçtiyse o bölge kabul edilir (mahalle bölgesi her zaman mahalle eşleşmesi ister).
+ * bölgesini seçtiyse o bölge kabul edilir (mahalle bölgesi her zaman mahalle eşleşmesi ister). Bu son durum
+ * doğrulanmamış bir beyandır: `declared` ile işaretlenir, sipariş kartında personele gösterilir.
  */
 export function resolveOrderZone(zones: readonly ZoneRow[], branch: Pick<BranchRow, 'lat' | 'lng'>, q: ZoneQueryInput): ZoneMatch<ZoneRow> | null {
   const active = zones.filter((z) => z.isActive && !z.deletedAt);
@@ -154,7 +155,7 @@ export function resolveOrderZone(zones: readonly ZoneRow[], branch: Pick<BranchR
   if (match) return match;
   if (q.zoneId && !isValidLatLng({ lat: q.lat ?? undefined, lng: q.lng ?? undefined })) {
     const chosen = active.find((z) => z.id === q.zoneId);
-    if (chosen && chosen.kind !== 'neighborhoods') return { zone: chosen, neighborhood: null, via: chosen.kind };
+    if (chosen && chosen.kind !== 'neighborhoods') return { zone: chosen, neighborhood: null, via: chosen.kind, declared: true };
   }
   return null;
 }

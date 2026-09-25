@@ -10,7 +10,8 @@
 
 {
 	email {$ACME_EMAIL:admin@siparisinonunde.com}
-	# Loglar JSON, stdout'a (docker compose logs caddy)
+	# Caddy'nin kendi (çalışma) logları JSON, stdout'a (docker compose logs caddy). HTTP erişim logları aşağıdaki
+	# (access_log) parçasıyla her site bloğunda ayrıca açılır; bu global blok erişim logu üretmez.
 	log {
 		output stdout
 		format json
@@ -22,8 +23,40 @@
 	# }
 }
 
-# Ortak kurallar: güvenlik başlıkları, API (SSE dahil) ve web.
+# HTTP erişim logları (08 §2.8 satır 10, 5651: trafik bilgisi 1 yıl; 06 §14.2). İki çıktı:
+#   - stdout → `docker compose logs caddy` (sorun giderme; Docker 5×20 MB ile sınırlar)
+#   - caddy_logs birimi /var/log/caddy/access.log → 100 MB'ta döner, 366 gün saklanır (yasal kayıt)
+# Cookie/Authorization başlıkları Caddy tarafından zaten maskelenir. Yoldaki gizli belirteçler (WhatsApp webhook
+# belirteci, müşteri takip belirteci) ve kurye giriş linkindeki ?t= kırpılır; IP, zaman, yöntem, durum kalır.
+(access_log) {
+	log {
+		output stdout
+		format filter {
+			wrap json
+			fields {
+				request>uri regexp "(^/(?:api/v1/webhooks/wa|wa|t|api/v1/store/track)/)[^/?#]+|([?&]t=)[^&#]*" "${1}${2}***"
+			}
+		}
+	}
+	log access_file {
+		output file /var/log/caddy/access.log {
+			roll_size 100MiB
+			roll_keep 1000
+			roll_keep_for 8784h
+		}
+		format filter {
+			wrap json
+			fields {
+				request>uri regexp "(^/(?:api/v1/webhooks/wa|wa|t|api/v1/store/track)/)[^/?#]+|([?&]t=)[^&#]*" "${1}${2}***"
+			}
+		}
+	}
+}
+
+# Ortak kurallar: erişim logu, güvenlik başlıkları, API (SSE dahil) ve web.
 (site) {
+	import access_log
+
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		X-Content-Type-Options "nosniff"
@@ -55,11 +88,13 @@
 }
 
 www.{$DOMAIN:siparisinonunde.com} {
+	import access_log
 	redir https://{$DOMAIN:siparisinonunde.com}{uri} permanent
 }
 
 # WhatsApp webhook alt alan adı (isteğe bağlı; panelde gösterilen adres DOMAIN/api/v1/webhooks/wa/<token>'dır)
 hooks.{$DOMAIN:siparisinonunde.com} {
+	import access_log
 	handle_path /wa/* {
 		rewrite * /api/v1/webhooks/wa{path}
 		reverse_proxy api:4000

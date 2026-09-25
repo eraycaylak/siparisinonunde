@@ -77,6 +77,18 @@ describe('dev WhatsApp simülatörü', () => {
     expect(alerts.items[0]).toMatchObject({ text: 'Yeni sipariş onay bekliyor', template: 'isletme_yeni_siparis_v1' });
   });
 
+  it('üretimde DEV_TOOLS açık olsa da /dev kaydedilmez (404); loadConfig zaten reddeder', async () => {
+    // loadConfig'i atlayan elle kurulmuş yapılandırma bile /dev'i açamaz (savunma derinliği)
+    const app = await buildApp({ config: { ...testConfig(), NODE_ENV: 'production', DEV_TOOLS: true }, db: ctx.handle, logger: false });
+    try {
+      expect((await app.inject({ method: 'GET', url: '/api/v1/dev/wa/accounts' })).statusCode).toBe(404);
+      expect((await app.inject({ method: 'GET', url: '/api/v1/dev/sms' })).statusCode).toBe(404);
+    } finally {
+      await app.close();
+    }
+    expect(() => testConfig({ NODE_ENV: 'production' })).toThrow(/DEV_TOOLS/);
+  });
+
   it('DEV_TOOLS kapalıyken /dev yok (404)', async () => {
     const app = await buildApp({ config: testConfig({ DEV_TOOLS: '0' }), db: ctx.handle, logger: false });
     try {

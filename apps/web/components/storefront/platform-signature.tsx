@@ -9,7 +9,7 @@ export function PlatformSignature() {
     <a
       href={`${getSiteUrl()}/?src=sf_footer`}
       rel="nofollow"
-      className="inline-flex min-h-10 items-center text-[13px] text-fg-muted underline-offset-4 hover:underline"
+      className="inline-flex min-h-hit items-center text-[13px] text-fg-muted underline-offset-4 hover:underline"
     >
       Altyapı: Siparişin Önünde
     </a>

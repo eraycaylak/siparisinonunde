@@ -2,7 +2,7 @@
 // KVKK dışa aktarma ve silme/anonimleştirme (08 §2.10); yetki ve yalıtım.
 
 import { localDateString } from '@siparis/core';
-import { auditLog, conversations, customerAddresses, customers, messages, orders, tenants, waAccounts } from '@siparis/db';
+import { auditLog, cancellationRequests, conversations, customerAddresses, customers, messages, orderEvents, orderItems, orders, tenants, waAccounts } from '@siparis/db';
 import { and, eq, isNull } from 'drizzle-orm';
 import { signCustomerCookie } from '../src/services/storefront/cookies';
 import { findTenantCustomer } from '../src/services/storefront/session';
@@ -225,5 +225,49 @@ describe('KVKK: dışa aktarma ve silme', () => {
     expect(await findTenantCustomer(ctx.db, a.tenantId, ayse.id)).toBeNull();
     const [other] = await ctx.db.select().from(customers).where(and(eq(customers.tenantId, a.tenantId), eq(customers.name, 'Müşteri 1')));
     expect((await findTenantCustomer(ctx.db, a.tenantId, other!.id))?.id).toBe(other!.id);
+  });
+});
+
+describe('KVKK: aynı kişinin başka müşteri kaydındaki siparişleri ve serbest metinler', () => {
+  it('telefonla kayıt A silinince, WhatsApp kaydı B\'deki aynı telefonlu sipariş de anonimleşir; müşteri notları temizlenir', async () => {
+    const phone = '+905337778899';
+    const recA = await createCustomer(ctx.db, a.tenantId, { name: 'Fatma Kaya', phone });
+    const recB = await createCustomer(ctx.db, a.tenantId, { name: 'Fatma', phone: null, bsuid: 'TR.bsuid.fatma' });
+    const other = await createCustomer(ctx.db, a.tenantId, { name: 'Başka Kişi', phone: '+905337770000' });
+    const web = await insertOrder(ctx.db, { tenantId: a.tenantId, branchId: a.branchId, customerId: recA.id, extra: { customerPhone: phone } });
+    const wa = await insertOrder(ctx.db, {
+      tenantId: a.tenantId,
+      branchId: a.branchId,
+      customerId: recB.id,
+      status: 'cancelled',
+      extra: { customerPhone: phone, customerName: 'Fatma Kaya', directions: 'Eczanenin üstü', note: 'Zili çalmayın', cancelNote: 'Adresim Yeni Mah.' },
+    });
+    const untouched = await insertOrder(ctx.db, { tenantId: a.tenantId, branchId: a.branchId, customerId: other.id, extra: { customerPhone: '+905337770000' } });
+    await ctx.db.update(orderItems).set({ note: 'Fatma Kaya için, kapıcı Mehmet' }).where(eq(orderItems.orderId, wa.id));
+    await ctx.db.insert(cancellationRequests).values({ tenantId: a.tenantId, orderId: wa.id, reason: 'Adresim Yeni Mah. 5. sok no 3' });
+    await ctx.db.insert(orderEvents).values([
+      { tenantId: a.tenantId, orderId: wa.id, type: 'cancel_requested', actorType: 'customer', note: 'Adresim Yeni Mah. 5. sok no 3' },
+      { tenantId: a.tenantId, orderId: wa.id, type: 'note', actorType: 'user', note: 'Kurye aradı' },
+    ]);
+
+    // Dışa aktarma iki siparişi de içerir
+    const exp = await req('POST', `/customers/${recA.id}/export`, a.ownerCookie);
+    expect(exp.statusCode, exp.body).toBe(200);
+    expect((exp.json().orders as { number: number }[]).map((o) => o.number).sort()).toEqual([web.number, wa.number].sort());
+
+    const res = await req('POST', `/customers/${recA.id}/erase`, a.ownerCookie);
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json()).toMatchObject({ orderCount: 2 });
+    const [w] = await ctx.db.select().from(orders).where(eq(orders.id, wa.id));
+    expect(w).toMatchObject({ customerName: 'Anonim müşteri', customerPhone: null, directions: null, note: null, cancelNote: null });
+    const items = await ctx.db.select({ note: orderItems.note }).from(orderItems).where(eq(orderItems.orderId, wa.id));
+    expect(items.every((i) => i.note === null)).toBe(true);
+    const [cr] = await ctx.db.select().from(cancellationRequests).where(eq(cancellationRequests.orderId, wa.id));
+    expect(cr!.reason).toBeNull();
+    const evs = await ctx.db.select().from(orderEvents).where(eq(orderEvents.orderId, wa.id));
+    expect(evs.find((e) => e.actorType === 'customer')!.note).toBeNull();
+    expect(evs.find((e) => e.actorType === 'user')!.note).toBe('Kurye aradı');
+    const [u] = await ctx.db.select().from(orders).where(eq(orders.id, untouched.id));
+    expect(u!.customerPhone).toBe('+905337770000');
   });
 });

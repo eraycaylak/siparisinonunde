@@ -101,7 +101,7 @@ function DailySection({ date }: { date: string }) {
   return (
     <div className="flex flex-col gap-4">
       <h2 className="text-xl font-bold text-fg">Gün sonu · {dayLabel(date)}</h2>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 [&>*]:min-w-0">
         <StatTile label="Teslim edilen" value={formatNumber(r.deliveredCount)} hint={`${r.receivedCount} sipariş alındı`} />
         <StatTile label="Ciro (KDV dahil)" value={formatMoney(r.revenueKurus)} hint={`Teslimat ücreti ${formatMoney(r.deliveryFeeKurus)}`} />
         <StatTile label="Ortalama sepet" value={formatMoney(r.avgBasketKurus)} />
@@ -111,7 +111,7 @@ function DailySection({ date }: { date: string }) {
         <StatTile label="Kaçırılan sipariş" value={formatNumber(r.missedCount)} hint="Yanıtsız kalıp otomatik iptal" tone={r.missedCount ? 'danger' : 'success'} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 [&>*]:min-w-0">
         <Section title="Kasa özeti · ödeme yöntemine göre" description="Teslim edilen siparişler.">
           <BarList items={payments} emptyText="Bu gün teslim edilen sipariş yok." />
           {payments.length ? (
@@ -223,7 +223,7 @@ function SummaryBody({ r, asTable }: { r: SummaryReport; asTable: boolean }) {
   }));
   return (
     <div className="flex flex-col gap-5">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 [&>*]:min-w-0">
         <StatTile label="Sipariş" value={formatNumber(r.totals.receivedCount)} hint={pctChange(r.totals.receivedCount, r.previous.receivedCount)} />
         <StatTile label="Teslim edilen" value={formatNumber(r.totals.deliveredCount)} />
         <StatTile label="Ciro" value={formatMoney(r.totals.revenueKurus)} hint={pctChange(r.totals.revenueKurus, r.previous.revenueKurus)} />
@@ -255,7 +255,7 @@ function SummaryBody({ r, asTable }: { r: SummaryReport; asTable: boolean }) {
       ) : (
         <ColumnChart data={data} formatValue={shortTL} ariaLabel="Günlük teslim edilen ciro" />
       )}
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] [&>*]:min-w-0">
         <div className="flex flex-col gap-2">
           <h3 className="text-base font-semibold text-fg">Saat × gün yoğunluğu</h3>
           <Heatmap matrix={r.heatmap} />

@@ -119,12 +119,28 @@ export function stripPrices(value: unknown): unknown {
   return value;
 }
 
+const PERSONAL_KEYS = new Set(['customerName', 'customerPhoneMasked', 'customerPhone', 'addressLine', 'directions', 'lat', 'lng', 'customer']);
+
+/** Müşterinin adı/telefonu/adresi/konumu alanlarını derinlemesine null'lar — mutfak projeksiyonu (04 §4.14). */
+export function scrubPersonal(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(scrubPersonal);
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) out[k] = PERSONAL_KEYS.has(k) ? null : scrubPersonal(v);
+    return out;
+  }
+  return value;
+}
+
 const CONVERSATION_ROLES: readonly TenantRole[] = ['owner', 'manager', 'cashier'];
 
-/** Olayı role göre süzer; null = bu role gönderilmez (07 §6.7). */
+/**
+ * Olayı role göre süzer; null = bu role gönderilmez (07 §6.7). Mutfak REST projeksiyonuyla aynı veriyi alır:
+ * fiyat yok, müşterinin kişisel verisi yok.
+ */
 export function projectEventForRole(type: string, payload: unknown, role: TenantRole): unknown | null {
   if (type.startsWith('conversation.') && !CONVERSATION_ROLES.includes(role)) return null;
-  if (role === 'kitchen') return stripPrices(payload);
+  if (role === 'kitchen') return scrubPersonal(stripPrices(payload));
   return payload;
 }
 

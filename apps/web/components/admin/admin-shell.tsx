@@ -14,6 +14,7 @@ import {
   MessageCircle,
   ScrollText,
   ShieldAlert,
+  ShieldCheck,
   type LucideIcon,
 } from 'lucide-react';
 import { LogoMark } from '@/components/brand/logo';
@@ -25,7 +26,7 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { apiFetch, errorMessage } from '@/lib/api';
 import { cn } from '@/lib/cn';
-import { ME_QUERY_KEY, useMe } from '@/lib/auth';
+import { ME_QUERY_KEY, needsTotpEnrollment, useMe } from '@/lib/auth';
 import { formatTime } from '@/lib/format';
 
 export interface AdminNavItem {
@@ -44,9 +45,13 @@ export const ADMIN_NAV: readonly AdminNavItem[] = [
   { href: '/admin/bayraklar', label: 'Bayraklar', icon: Flag },
   { href: '/admin/leadler', label: 'Lead’ler', icon: Inbox },
   { href: '/admin/denetim', label: 'Denetim', icon: ScrollText },
+  { href: '/admin/guvenlik', label: 'Güvenlik', icon: ShieldCheck },
 ];
 
 const PUBLIC = ['/admin/giris'];
+
+/** İki adımlı doğrulama zorunlu ve kurulmamışken açılabilen tek sayfa (API diğer admin uçlarını 403 ile kapatır). */
+export const ADMIN_SECURITY_PATH = '/admin/guvenlik';
 
 function active(pathname: string, item: AdminNavItem) {
   return item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -79,6 +84,13 @@ function GuardedAdmin({ pathname, children }: { pathname: string; children: Reac
       .catch(toLogin);
   }, [me.data, pathname, router, qc]);
 
+  // TOTP zorunlu ve kurulmamış platform yöneticisi: yalnız Güvenlik sayfası
+  const mustEnroll = needsTotpEnrollment(me.data);
+  const blocked = mustEnroll && pathname !== ADMIN_SECURITY_PATH;
+  useEffect(() => {
+    if (blocked) router.replace(ADMIN_SECURITY_PATH);
+  }, [blocked, router]);
+
   if (me.isPending) return <ScreenLoading />;
   if (me.isError && me.data === undefined) return <ScreenError error={me.error} onRetry={() => void me.refetch()} />;
   if (!me.data) return <ScreenLoading label="Yönlendiriliyor…" />;
@@ -99,6 +111,8 @@ function GuardedAdmin({ pathname, children }: { pathname: string; children: Reac
       </div>
     );
   }
+  if (blocked) return <ScreenLoading label="Yönlendiriliyor…" />;
+  const nav = mustEnroll ? ADMIN_NAV.filter((i) => i.href === ADMIN_SECURITY_PATH) : ADMIN_NAV;
 
   return (
     <div className="flex min-h-dvh flex-col bg-surface">
@@ -122,7 +136,7 @@ function GuardedAdmin({ pathname, children }: { pathname: string; children: Reac
           </div>
         </div>
         <nav aria-label="Yönetim menüsü (mobil)" className="flex gap-1 overflow-x-auto border-t border-border px-2 py-1 lg:hidden">
-          {ADMIN_NAV.map((item) => (
+          {nav.map((item) => (
             <Link
               key={item.href}
               href={item.href}
@@ -143,7 +157,7 @@ function GuardedAdmin({ pathname, children }: { pathname: string; children: Reac
           aria-label="Yönetim menüsü"
           className="sticky top-16 hidden h-[calc(100dvh-4rem)] w-60 shrink-0 flex-col gap-1 overflow-y-auto border-e border-border bg-surface-raised p-3 lg:flex"
         >
-          {ADMIN_NAV.map((item) => (
+          {nav.map((item) => (
             <Link
               key={item.href}
               href={item.href}

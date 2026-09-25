@@ -2,6 +2,7 @@
 // yalnız POST /impersonation/end destek oturumuyla da çağrılabilir (oturumu geri yükler).
 
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
+import { requireAdminTotpEnrollment } from '../../plugins/auth';
 import auditRoutes from './audit';
 import flagRoutes from './flags';
 import impersonationRoutes from './impersonation';
@@ -13,6 +14,8 @@ import tenantRoutes from './tenants';
 import whatsappRoutes from './whatsapp';
 
 const routes: FastifyPluginAsyncZod = async (app) => {
+  // Zorunlu TOTP kurulmadan hiçbir admin ucu çalışmaz (impersonation başlatma dahil; 00 §12a madde 7)
+  app.addHook('onRequest', requireAdminTotpEnrollment());
   // Admin yanıtları önbelleğe alınmaz
   app.addHook('onSend', async (_request, reply, payload) => {
     reply.header('cache-control', 'no-store');

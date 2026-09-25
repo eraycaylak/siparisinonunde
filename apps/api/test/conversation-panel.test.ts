@@ -123,3 +123,48 @@ describe('tenant yalıtımı', () => {
     expectError(await ctx.request({ method: 'POST', url: `/api/v1/panel/conversations/${convId}/mode`, cookie: ro, body: { mode: 'human' } }), 403, 'read_only_session');
   });
 });
+
+describe('KVKK silme: silinmiş müşterinin sohbeti panelde görünmez (müşteri listesiyle aynı)', () => {
+  it('liste, arama, detay, mesajlar, yanıt, mod, okundu → yok/404; önizleme silinir; aynı numara yazınca yeni sohbet', async () => {
+    const phone = '+905357770011';
+    await inbound(ctx, t.account, { phone, name: 'Elif Demir' }, { type: 'text', text: 'Adresim Lise Cad. 12' });
+    const conv = (await conversationFor(ctx.db, t.account, phone))!;
+    const list = async (q = '') => {
+      const res = await ctx.request({ method: 'GET', url: `/api/v1/panel/conversations${q}`, cookie: t.ownerCookie });
+      expect(res.statusCode, res.body).toBe(200);
+      return res.json() as { items: Array<{ id: string }> };
+    };
+    expect((await list()).items.map((i) => i.id)).toContain(conv.id);
+    expect((await list('?q=Elif')).items.map((i) => i.id)).toContain(conv.id);
+
+    const erase = await ctx.request({ method: 'POST', url: `/api/v1/panel/customers/${conv.customerId}/erase`, cookie: t.ownerCookie, body: {} });
+    expect(erase.statusCode, erase.body).toBe(200);
+
+    const after = await list();
+    expect(after.items.map((i) => i.id)).not.toContain(conv.id);
+    expect(after.items.map((i) => i.id)).toContain(convId); // diğer sohbetler etkilenmez
+    expect(JSON.stringify(after)).not.toContain('Elif');
+    expect((await list('?q=Elif')).items).toHaveLength(0);
+    expect((await list('?q=Lise')).items).toHaveLength(0);
+    expect((await list('?q=Silinmi')).items).toHaveLength(0);
+    expectError(await ctx.request({ method: 'GET', url: `/api/v1/panel/conversations/${conv.id}`, cookie: t.ownerCookie }), 404, 'not_found');
+    expectError(await ctx.request({ method: 'GET', url: `/api/v1/panel/conversations/${conv.id}/messages`, cookie: t.ownerCookie }), 404, 'not_found');
+    expectError(await ctx.request({ method: 'POST', url: `/api/v1/panel/conversations/${conv.id}/messages`, cookie: t.ownerCookie, body: { text: 'x' } }), 404, 'not_found');
+    expectError(await ctx.request({ method: 'POST', url: `/api/v1/panel/conversations/${conv.id}/mode`, cookie: t.ownerCookie, body: { mode: 'human' } }), 404, 'not_found');
+    expectError(await ctx.request({ method: 'POST', url: `/api/v1/panel/conversations/${conv.id}/read`, cookie: t.ownerCookie }), 404, 'not_found');
+    const row = await getConversation(ctx.db, conv.id);
+    expect(row.lastMessagePreview).toBeNull();
+    expect(row.unreadCount).toBe(0);
+    expect((await threadRows(ctx.db, conv.id)).every((m) => m.body === null)).toBe(true);
+
+    // Aynı numara yeniden yazar → yeni müşteri + yeni sohbet; eski içerik görünmez
+    await inbound(ctx, t.account, { phone }, { type: 'text', text: 'tekrar merhaba' });
+    const fresh = (await conversationFor(ctx.db, t.account, phone))!;
+    expect(fresh.id).not.toBe(conv.id);
+    expect(fresh.customerId).not.toBe(conv.customerId);
+    expect((await list()).items.map((i) => i.id)).toContain(fresh.id);
+    const msgs = await ctx.request({ method: 'GET', url: `/api/v1/panel/conversations/${fresh.id}/messages`, cookie: t.ownerCookie });
+    expect(msgs.statusCode).toBe(200);
+    expect(JSON.stringify(msgs.json())).not.toContain('Lise');
+  });
+});

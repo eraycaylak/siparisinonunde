@@ -121,14 +121,18 @@ export async function resolveSession(db: Database, token: string): Promise<AuthC
     }
   }
 
+  // Platform yetkisi yalnız kişisel (ve ondan açılan destek) oturumunda taşınır; kurye oturumu hiçbir koşulda
+  // platform yöneticisi sayılmaz (magic link ile parola/TOTP olmadan yönetim yetkisi alınamaz).
+  const platformAdmin = u.isPlatformAdmin && s.kind !== 'courier';
+
   return {
     user: {
       id: u.id,
       name: u.name,
       email: u.email,
       phone: u.phone,
-      isPlatformAdmin: u.isPlatformAdmin,
-      platformRole: u.platformRole,
+      isPlatformAdmin: platformAdmin,
+      platformRole: platformAdmin ? u.platformRole : null,
     },
     session: {
       id: s.id,
@@ -141,7 +145,7 @@ export async function resolveSession(db: Database, token: string): Promise<AuthC
     tenantId,
     role,
     branchId,
-    isPlatformAdmin: u.isPlatformAdmin,
+    isPlatformAdmin: platformAdmin,
     readOnly: s.readOnly,
   };
 }

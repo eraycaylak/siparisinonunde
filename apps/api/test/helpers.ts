@@ -160,7 +160,8 @@ export async function createTestContext(opts: { config?: Config } = {}): Promise
       const slug = o.slug ?? `test-${randomUUID().slice(0, 8)}`;
       const [t] = await db
         .insert(tenants)
-        .values({ name: o.name ?? `Test İşletme ${slug}`, slug, lifecycleStage: 'trial', planCode: 'pro' })
+        // Canlı işletme (web_live_at dolu): storefront sipariş alır
+        .values({ name: o.name ?? `Test İşletme ${slug}`, slug, lifecycleStage: 'trial', planCode: 'pro', webLiveAt: new Date() })
         .returning();
       const [b] = await db.insert(branches).values({ tenantId: t!.id, name: 'Merkez', lat: 39.8181, lng: 34.8147 }).returning();
       await db

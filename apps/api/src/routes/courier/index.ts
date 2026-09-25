@@ -114,6 +114,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       const o = await lockAssigned(tx, auth, request.params.id);
       if (o.fulfillmentType !== 'delivery') throw conflict('invalid_transition', 'Gel-al siparişinde "Yola çıktım" yok.');
       if (o.status === 'cancelled') throw conflict('order_cancelled', 'Bu sipariş iptal edildi.');
+      if (o.status === 'preparing') throw conflict('order_not_ready', 'Sipariş mutfakta hazırlanıyor. Hazır olunca yola çıkabilirsiniz.');
       const res = await transitionOrder(tx, {
         orderId: o.id,
         tenantId: auth.tenantId,

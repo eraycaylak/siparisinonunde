@@ -19,7 +19,7 @@ export function AuthLayout({
   return (
     <div className="flex min-h-dvh flex-col bg-surface">
       <header className="px-4 py-5">
-        <Link href="/" className="inline-flex rounded-md p-1" aria-label="Siparişin Önünde ana sayfa">
+        <Link href="/" className="inline-flex min-h-hit items-center rounded-md p-1" aria-label="Siparişin Önünde ana sayfa">
           <Logo />
         </Link>
       </header>

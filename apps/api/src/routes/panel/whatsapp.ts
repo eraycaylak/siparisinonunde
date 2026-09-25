@@ -1,10 +1,12 @@
 // Panel WhatsApp bağlantısı (14 §6.3 WhatsApp; 04 P-25) — dilim 3. Yalnız owner (00 §4: manager WhatsApp bağlantısı hariç).
 // GET /panel/whatsapp: bağlantı + sağlık; PUT: sağlayıcı ve kimlik bilgileri (API anahtarı AES-256-GCM ile şifreli);
 // POST /panel/whatsapp/test: kendi numarasına (ya da verilen numaraya) test mesajı.
+// POST /panel/whatsapp/disconnect: bağlantıyı keser (status 'disconnected', anahtar silinir, webhook belirteci yenilenir;
+// satır geçmiş için kalır). POST /panel/whatsapp/rotate-webhook-token: yeni gizli webhook adresi (eskisi hemen geçersiz).
 
 import { WA_ACCOUNT_STATUS_LABELS, WA_PROVIDER_LABELS, formatPhone, normalizePhone, normalizeTrMobile, waProviderSchema } from '@siparis/core';
 import { conversations, messages, tenants, waAccounts, type Database } from '@siparis/db';
-import { and, count, eq, gte, max } from 'drizzle-orm';
+import { and, count, eq, gte, max, sql } from 'drizzle-orm';
 import type { FastifyInstance } from 'fastify';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -114,7 +116,9 @@ async function buildResponse(app: FastifyInstance, tenantId: string, acc: WaAcco
       message = acc.lastError ? `Bağlantıda sorun var: ${acc.lastError}` : 'Bağlantıda sorun var.';
     } else if (acc.status === 'disconnected') {
       level = 'warning';
-      message = 'Numara kayıtlı ama bağlantı etkin değil.';
+      message = `WhatsApp bağlantısı kesik: müşterilere WhatsApp mesajı gitmez, gelen mesajlar alınmaz. ${
+        acc.provider === 'mock' ? 'Yeniden bağlamak için bilgileri kaydedin.' : 'Yeniden bağlamak için API anahtarını girip kaydedin.'
+      }`;
     } else if (failed > 0 && failed >= sent) {
       level = 'warning';
       message = 'Son 24 saatte gönderilemeyen mesajlar var.';
@@ -235,6 +239,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       const branchId = await branchFor(app, auth);
       const acc = await findAccount(app.db, auth.tenantId, branchId);
       if (!acc) throw conflict('wa_not_connected', 'Önce WhatsApp numaranızı kaydedin.');
+      if (acc.status === 'disconnected') throw conflict('wa_not_connected', 'WhatsApp bağlantısı kesik. Önce bağlantı bilgilerinizi kaydedin.');
       const rawTo = request.body?.to?.trim() || auth.user.phone;
       const to = rawTo ? normalizeTrMobile(rawTo) : null;
       if (!to) throw badRequest('Test mesajı için geçerli bir cep telefonu girin.', { issues: [{ path: '/to', message: 'Cep telefonu geçersiz.' }] }, 'phone_required');
@@ -281,6 +286,65 @@ const routes: FastifyPluginAsyncZod = async (app) => {
               : '';
         throw new AppError(502, 'wa_send_failed', `Test mesajı gönderilemedi: ${summary}.${hint}`, { code: err.code });
       }
+    },
+  );
+
+  // POST /whatsapp/disconnect — bağlantıyı keser. Satır silinmez (sohbet/mesaj geçmişi ona bağlı); API anahtarı silinir,
+  // numara kimliği serbest kalır (audit'te tutulur), webhook belirteci yenilenir (eski adres hemen 404). Sonuç:
+  // vitrin whatsappPhone null, Akış B SMS OTP'ye düşer (açıksa), kuyruktaki gönderimler 'account_unavailable' ile
+  // başarısız olur (services/messaging/send.ts), webhook bu hesap için olay kabul etmez (routes/webhooks/wa.ts).
+  app.post('/whatsapp/disconnect', { preHandler: ownerOnly, schema: { response: { 200: responseSchema } } }, async (request) => {
+    const auth = tenantAuth(request);
+    const branchId = await branchFor(app, auth);
+    const acc = await findAccount(app.db, auth.tenantId, branchId);
+    if (!acc) throw conflict('wa_not_connected', 'Bağlı bir WhatsApp hesabı yok.');
+    // Zaten kesik ve anahtarsız: tekrar istek bir şey değiştirmez
+    if (acc.status !== 'disconnected' || acc.apiKeyEnc || acc.phoneNumberId) {
+      await app.db.transaction(async (tx) => {
+        await tx
+          .update(waAccounts)
+          .set({
+            status: 'disconnected',
+            apiKeyEnc: null,
+            phoneNumberId: null,
+            webhookToken: randomToken(24),
+            lastError: null,
+            version: sql`${waAccounts.version} + 1`,
+            updatedAt: new Date(),
+          })
+          .where(and(eq(waAccounts.id, acc.id), eq(waAccounts.tenantId, auth.tenantId)));
+        await audit(tx, {
+          ...auditActor(request),
+          action: 'whatsapp.account_disconnect',
+          entityType: 'wa_account',
+          entityId: acc.id,
+          data: { provider: acc.provider, displayPhone: acc.displayPhone, phoneNumberId: acc.phoneNumberId, wabaId: acc.wabaId, previousStatus: acc.status },
+        });
+      });
+    }
+    return buildResponse(app, auth.tenantId, await findAccount(app.db, auth.tenantId, branchId));
+  });
+
+  // POST /whatsapp/rotate-webhook-token — yeni gizli belirteç; eski adres hemen çalışmaz. Yeni adres yanıtta döner
+  // (sağlayıcı paneline girilmesi gerekir); belirteç audit'e yazılmaz.
+  app.post(
+    '/whatsapp/rotate-webhook-token',
+    { preHandler: ownerOnly, schema: { response: { 200: responseSchema.extend({ webhookUrl: z.string() }) } } },
+    async (request) => {
+      const auth = tenantAuth(request);
+      const branchId = await branchFor(app, auth);
+      const acc = await findAccount(app.db, auth.tenantId, branchId);
+      if (!acc) throw conflict('wa_not_connected', 'Önce WhatsApp numaranızı kaydedin.');
+      const token = randomToken(24);
+      await app.db.transaction(async (tx) => {
+        await tx
+          .update(waAccounts)
+          .set({ webhookToken: token, version: sql`${waAccounts.version} + 1`, updatedAt: new Date() })
+          .where(and(eq(waAccounts.id, acc.id), eq(waAccounts.tenantId, auth.tenantId)));
+        await audit(tx, { ...auditActor(request), action: 'whatsapp.webhook_token_rotate', entityType: 'wa_account', entityId: acc.id, data: { provider: acc.provider } });
+      });
+      const res = await buildResponse(app, auth.tenantId, await findAccount(app.db, auth.tenantId, branchId));
+      return { ...res, webhookUrl: webhookUrl(app, token) };
     },
   );
 };

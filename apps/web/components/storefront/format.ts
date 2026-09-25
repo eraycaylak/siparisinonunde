@@ -52,6 +52,16 @@ export interface OrderingStatusText {
 export function orderingStatus(store: StorefrontView, now: Date = new Date()): OrderingStatusText {
   const b = store.branch;
   const prepPlusBusy = (b.prepMinutes ?? 20) + (b.busyExtraMinutes ?? 0);
+  // Canlıya geçmemiş işletme (04 §3.4.4): telefonlar yayımlanmadığından "arayın" denmez
+  if (store.live === false) {
+    return {
+      tone: 'closed',
+      label: 'Yakında',
+      detail: null,
+      band: 'Bu işletme online siparişe yakında başlayacak.',
+      acceptsOrders: false,
+    };
+  }
   if (store.orderingEnabled === false) {
     return {
       tone: 'closed',

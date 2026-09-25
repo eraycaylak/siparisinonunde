@@ -91,6 +91,11 @@ export const storefrontResponseSchema = z.object({
   }),
   /** Tenant kill-switch'i kapalıysa false (storefront "şu an online sipariş alınmıyor" gösterir). */
   orderingEnabled: z.boolean().optional(),
+  /**
+   * İşletme "Canlıya geç" dedi mi (web_live_at). false iken sipariş alınmaz, telefonlar gösterilmez; storefront
+   * "Yakında" gösterir ve arama motorlarına kapatılır (04 §3.4.4).
+   */
+  live: z.boolean().optional(),
   zones: z.array(storeZoneSchema),
   categories: z.array(storeCategorySchema),
   legal: z.object({
@@ -201,7 +206,11 @@ export type QuoteResponse = z.infer<typeof quoteResponseSchema>;
 
 export const createOrderRequestSchema = quoteRequestSchema.extend({
   customerName: z.string().trim().min(2).max(80),
-  customerPhone: z.string().trim().min(10).max(20),
+  /**
+   * Teslimat telefonu (03 §4.4): paket siparişte ve Akış B'de zorunlu. Akış A gel-al siparişinde boş bırakılabilir;
+   * sunucu WhatsApp bağlantısındaki müşterinin telefonunu kullanır.
+   */
+  customerPhone: z.string().trim().min(10).max(20).optional(),
   addressLine: z.string().trim().max(300).optional(),
   directions: z.string().trim().max(300).optional(),
   paymentMethod: paymentMethodSchema,

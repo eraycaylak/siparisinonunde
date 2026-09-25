@@ -17,6 +17,7 @@ import {
   QrCode,
   Receipt,
   Settings,
+  ShieldCheck,
   Siren,
   Store,
   UserCog,
@@ -38,6 +39,8 @@ export interface PanelNavItem {
 
 const OMC: readonly TenantRole[] = ['owner', 'manager', 'cashier'];
 const OM: readonly TenantRole[] = ['owner', 'manager'];
+/** Kişisel hesabı olan roller (kurye magic link ile girer, TOTP kullanmaz). */
+const PERSONAL: readonly TenantRole[] = ['owner', 'manager', 'cashier', 'kitchen'];
 
 export const PANEL_NAV: readonly PanelNavItem[] = [
   { href: '/panel', label: 'Canlı', icon: BellRing, roles: ['owner', 'manager', 'cashier', 'kitchen'], exact: true },
@@ -65,6 +68,8 @@ export const SETTINGS_NAV: readonly PanelNavItem[] = [
   { href: '/panel/ayarlar/personel', label: 'Personel', description: 'Kullanıcılar, roller, kurye giriş linki', icon: UserCog, roles: OM },
   { href: '/panel/ayarlar/fis', label: 'Fiş', description: 'Mutfak ve paket fişi ayarları', icon: Receipt, roles: OM },
   { href: '/panel/ayarlar/qr', label: 'QR ve afiş', description: 'QR kod ve A5 afiş yazdırma', icon: QrCode, roles: OM },
+  // Kendi hesabının iki adımlı doğrulaması (00 §12a madde 7): kişisel hesabı olan herkes; sahibe önerilir.
+  { href: '/panel/ayarlar/guvenlik', label: 'Güvenlik', description: 'İki adımlı doğrulama (hesabınız için)', icon: ShieldCheck, roles: PERSONAL },
 ];
 
 /** Yol için kural: en uzun eşleşen öğe. Listede yoksa (ör. /panel/kurulum) herkes. */

@@ -1,11 +1,12 @@
 // API süreci: buildApp + listen(API_PORT).
 
 import { buildApp } from './app';
-import { loadConfig } from './config';
+import { loadConfig, productionConfigWarnings } from './config';
 
 async function main() {
   const config = loadConfig();
   const app = await buildApp({ config });
+  for (const w of productionConfigWarnings(config)) app.log.warn(w);
   const shutdown = async (signal: string) => {
     app.log.info({ signal }, 'API kapanıyor');
     try {

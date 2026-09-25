@@ -3,7 +3,7 @@
 
 import { DEFAULT_TIMEZONE, localDateString, zonedTimeToUtc, type Queue } from '@siparis/core';
 import { jobs, type Database } from '@siparis/db';
-import { sql } from 'drizzle-orm';
+import { sql, type SQL } from 'drizzle-orm';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Config } from '../config';
 
@@ -131,6 +131,10 @@ export interface ProcessOptions {
   /** Test için sahte saat (verilmezse DB now()). */
   now?: Date;
   queues?: readonly Queue[];
+  /** Şerit süzgeci (WORKER_LANES); `queues` ile birlikte uygulanır. */
+  where?: SQL;
+  /** İptal edilince sıradaki işlere başlanmaz; alınmış ama başlanmamış işler hemen `pending`e döner. */
+  signal?: AbortSignal;
 }
 
 type ClaimedRow = {
@@ -154,13 +158,14 @@ export async function processDueJobs(opts: ProcessOptions): Promise<number> {
   const queueFilter = opts.queues?.length
     ? sql`and queue in (${sql.join(opts.queues.map((q) => sql`${q}`), sql`, `)})`
     : sql``;
+  const laneFilter = opts.where ? sql`and ${opts.where}` : sql``;
 
   const claimed = (await db.execute<ClaimedRow>(sql`
     update jobs
        set status = 'running', locked_at = now(), locked_by = ${workerId}, attempts = attempts + 1
      where id in (
        select id from jobs
-        where status = 'pending' and run_at <= ${nowExpr} ${queueFilter}
+        where status = 'pending' and run_at <= ${nowExpr} ${queueFilter} ${laneFilter}
         order by run_at, created_at
         for update skip locked
         limit ${limit}
@@ -168,7 +173,19 @@ export async function processDueJobs(opts: ProcessOptions): Promise<number> {
      returning id, queue, type, payload, run_at, attempts, max_attempts, tenant_id, dedupe_key`)) as unknown as ClaimedRow[];
 
   const rows = [...claimed].sort((a, b) => new Date(a.run_at).getTime() - new Date(b.run_at).getTime());
-  for (const r of rows) {
+  let processed = 0;
+  for (const [i, r] of rows.entries()) {
+    if (opts.signal?.aborted) {
+      // Kapanış: başlanmamış işler 5 dk'lık takılı iş kurtarmasını beklemeden sıraya döner (deneme sayılmaz)
+      const rest = rows.slice(i).map((x) => x.id);
+      await db.execute(sql`
+        update jobs set status = 'pending', locked_at = null, locked_by = null, attempts = greatest(attempts - 1, 0)
+         where status = 'running' and locked_by = ${workerId}
+           and id in (${sql.join(rest.map((id) => sql`${id}::uuid`), sql`, `)})`);
+      log.info({ released: rest.length }, 'worker kapanıyor: başlanmamış işler sıraya geri verildi');
+      break;
+    }
+    processed++;
     const job: JobRow = {
       id: r.id,
       queue: r.queue,
@@ -208,7 +225,7 @@ export async function processDueJobs(opts: ProcessOptions): Promise<number> {
       }
     }
   }
-  return rows.length;
+  return processed;
 }
 
 /** Çöken worker'ın kilitli bıraktığı işleri geri alır. */
@@ -278,6 +295,30 @@ export async function scheduleCronJobs(db: Database, now: Date = new Date()): Pr
 // ---------------------------------------------------------------------------
 // Worker döngüsü
 
+/** Worker şeridi: kendi döngüsünde, kendi partisiyle çalışan iş alt kümesi. */
+export interface WorkerLane {
+  name: string;
+  /** Şeridin işleri (SQL süzgeci, `jobs` tablosu kolonları üzerinde). */
+  where: SQL;
+  batchSize: number;
+  /** Cron zamanlama ve takılı iş kurtarma bu şeritte çalışır (tek şeritte). */
+  housekeeping?: boolean;
+}
+
+const WHATSAPP_JOBS = sql`(queue in ('wa-outbound', 'wa-media') or type = 'platform.alert')`;
+const SMS_JOBS = sql`(type = 'sms.send')`;
+
+/**
+ * Varsayılan şeritler: dış sağlayıcıya giden işler (WhatsApp, SMS) ayrı döngülerde ve küçük partilerle çalışır.
+ * Sağlayıcı yavaşlayınca (istek başına 15 sn zaman aşımı) alarm zinciri, sipariş zaman aşımları, bildirim kararları
+ * ve cron işleri onların arkasında beklemez; WhatsApp kesintisi SMS yedeğini de bekletmez.
+ */
+export const DEFAULT_WORKER_LANES: readonly WorkerLane[] = [
+  { name: 'main', where: sql`not ${WHATSAPP_JOBS} and not ${SMS_JOBS}`, batchSize: 10, housekeeping: true },
+  { name: 'whatsapp', where: WHATSAPP_JOBS, batchSize: 5 },
+  { name: 'sms', where: SMS_JOBS, batchSize: 5 },
+];
+
 export interface RunWorkerOptions {
   db: Database;
   config: Config;
@@ -285,9 +326,60 @@ export interface RunWorkerOptions {
   signal: AbortSignal;
   workerId?: string;
   pollMs?: number;
+  /** Tek şerit (`queues`) parti boyu; şeritlerde her şeridin kendi `batchSize`'ı geçerlidir. */
   batchSize?: number;
+  /** Verilirse tek şerit yalnız bu kuyruklarla çalışır (testler); verilmezse `lanes` ya da DEFAULT_WORKER_LANES. */
   queues?: readonly Queue[];
+  lanes?: readonly WorkerLane[];
+  /** Her döngü turunda çağrılır (worker.ts gözetçisi: döngü takılırsa süreç yeniden başlatılır). */
+  onHeartbeat?: (lane: string) => void;
   enableCron?: boolean;
+  /** Geçici DB hatasında ilk bekleme (katlanarak artar; varsayılan 1 sn). */
+  transientBackoffMs?: number;
+  /** Geçici DB hatasında en uzun bekleme (varsayılan 5 sn: şema geri gelince işler gecikmeden sürsün). */
+  transientBackoffMaxMs?: number;
+}
+
+/** Geçici hata günlüğü en çok bu aralıkla yazılır. */
+export const TRANSIENT_LOG_INTERVAL_MS = 60_000;
+
+// Postgres SQLSTATE: şema/tablo yok (dev/e2e sıfırlaması sırasında), veritabanı yok, sunucu kapanıyor/açılıyor,
+// bağlantı sınırı ve bağlantı hataları (08xxx); ayrıca Node.js ve postgres-js bağlantı hata kodları.
+const TRANSIENT_PG_CODES = new Set(['42P01', '3F000', '3D000', '57P01', '57P02', '57P03', '53300', '08000', '08001', '08003', '08004', '08006']);
+const TRANSIENT_NET_CODES = new Set([
+  'ECONNREFUSED',
+  'ECONNRESET',
+  'ETIMEDOUT',
+  'EPIPE',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+  'CONNECTION_CLOSED',
+  'CONNECTION_ENDED',
+  'CONNECTION_DESTROYED',
+  'CONNECT_TIMEOUT',
+]);
+
+/** Geçici sayılan hata kodu (yoksa null). Drizzle sarmalayıcısının `cause` zinciri ve AggregateError taranır. */
+function transientCode(err: unknown, depth = 0): string | null {
+  if (!err || typeof err !== 'object' || depth > 5) return null;
+  const code = (err as { code?: unknown }).code;
+  if (typeof code === 'string' && (TRANSIENT_PG_CODES.has(code) || TRANSIENT_NET_CODES.has(code))) return code;
+  const errors = (err as { errors?: unknown }).errors;
+  if (Array.isArray(errors)) {
+    for (const e of errors) {
+      const c = transientCode(e, depth + 1);
+      if (c) return c;
+    }
+  }
+  return transientCode((err as { cause?: unknown }).cause, depth + 1);
+}
+
+/**
+ * Worker döngüsünü durdurmaması, yalnız bekletmesi gereken hata mı: `relation "jobs" does not exist` (42P01; şema
+ * sıfırlanırken), bağlantı reddedildi/koptu vb.
+ */
+export function isTransientDbError(err: unknown): boolean {
+  return transientCode(err) != null;
 }
 
 function sleep(ms: number, signal: AbortSignal): Promise<void> {
@@ -303,21 +395,49 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
   });
 }
 
-/** 250 ms'de bir vadesi gelen işleri işler; `signal` iptal edilince mevcut parti bitince döner. */
+/** Geçici DB hatası dönemi (şeritler arasında ortak: dakikada en çok bir uyarı, düzelince bir bilgi). */
+interface OutageState {
+  since: number | null;
+  errors: number;
+  warned: boolean;
+  lastLog: number;
+}
+
+/**
+ * Şeritleri (DEFAULT_WORKER_LANES) eşzamanlı çalıştırır; her şerit 250 ms'de bir vadesi gelen işlerini işler.
+ * `signal` iptal edilince sürmekte olan iş biter, alınmış ama başlanmamış işler sıraya geri verilir.
+ * Geçici DB hatasında (isTransientDbError) çökmez: katlanan beklemeyle yeniden dener, dakikada en çok bir uyarı yazar,
+ * bağlantı dönünce bir kez bilgi verir.
+ */
 export async function runWorker(opts: RunWorkerOptions): Promise<void> {
-  const pollMs = opts.pollMs ?? 250;
   const workerId = opts.workerId ?? `w-${process.pid}-${Math.random().toString(36).slice(2, 8)}`;
+  const lanes: readonly WorkerLane[] = opts.queues?.length
+    ? [{ name: 'main', where: sql`true`, batchSize: opts.batchSize ?? 20, housekeeping: true }]
+    : (opts.lanes ?? DEFAULT_WORKER_LANES);
+  const outage: OutageState = { since: null, errors: 0, warned: false, lastLog: 0 };
+  opts.log.info(
+    { workerId, lanes: lanes.map((l) => l.name), handlers: registeredJobTypes(), crons: registeredCrons().map((c) => c.name) },
+    'worker başladı',
+  );
+  await Promise.all(lanes.map((lane) => runLane(opts, lane, lanes.length > 1 ? `${workerId}:${lane.name}` : workerId, outage)));
+  opts.log.info({ workerId }, 'worker durdu');
+}
+
+async function runLane(opts: RunWorkerOptions, lane: WorkerLane, workerId: string, outage: OutageState): Promise<void> {
+  const pollMs = opts.pollMs ?? 250;
+  const backoffBase = opts.transientBackoffMs ?? 1_000;
+  const backoffMax = opts.transientBackoffMaxMs ?? 5_000;
   let lastCron = 0;
   let lastRecover = 0;
-  opts.log.info({ workerId, handlers: registeredJobTypes(), crons: registeredCrons().map((c) => c.name) }, 'worker başladı');
   while (!opts.signal.aborted) {
+    opts.onHeartbeat?.(lane.name);
     try {
       const now = Date.now();
-      if (opts.enableCron !== false && now - lastCron >= 15_000) {
+      if (lane.housekeeping && opts.enableCron !== false && now - lastCron >= 15_000) {
         lastCron = now;
         await scheduleCronJobs(opts.db, new Date(now));
       }
-      if (now - lastRecover >= 60_000) {
+      if (lane.housekeeping && now - lastRecover >= 60_000) {
         lastRecover = now;
         const n = await recoverStaleJobs(opts.db);
         if (n) opts.log.warn({ count: n }, 'takılı işler geri alındı');
@@ -327,14 +447,36 @@ export async function runWorker(opts: RunWorkerOptions): Promise<void> {
         config: opts.config,
         log: opts.log,
         workerId,
-        limit: opts.batchSize ?? 20,
+        limit: lane.batchSize,
         queues: opts.queues,
+        where: lane.where,
+        signal: opts.signal,
       });
+      if (outage.since != null) {
+        if (outage.warned) opts.log.info({ workerId, downMs: Date.now() - outage.since, errors: outage.errors }, 'worker: veritabanı yeniden erişilebilir');
+        outage.since = null;
+        outage.errors = 0;
+        outage.warned = false;
+      }
       if (processed === 0) await sleep(pollMs, opts.signal);
     } catch (err) {
-      opts.log.error({ err }, 'worker döngü hatası');
-      await sleep(1_000, opts.signal);
+      if (!isTransientDbError(err)) {
+        opts.log.error({ err, lane: lane.name }, 'worker döngü hatası');
+        await sleep(1_000, opts.signal);
+        continue;
+      }
+      const now = Date.now();
+      outage.since ??= now;
+      outage.errors++;
+      if (now - outage.lastLog >= TRANSIENT_LOG_INTERVAL_MS) {
+        outage.lastLog = now;
+        outage.warned = true;
+        opts.log.warn(
+          { workerId, code: transientCode(err), message: err instanceof Error ? err.message : String(err), errors: outage.errors },
+          'worker: veritabanı geçici olarak erişilemiyor (şema sıfırlanıyor ya da bağlantı yok); bekleniyor',
+        );
+      }
+      await sleep(Math.min(backoffBase * 2 ** Math.min(outage.errors - 1, 16), backoffMax), opts.signal);
     }
   }
-  opts.log.info({ workerId }, 'worker durdu');
 }

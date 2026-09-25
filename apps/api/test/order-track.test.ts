@@ -1,9 +1,10 @@
 // Takip sayfası (14 §6.2, 03 §7): geçerli/süresi dolmuş/geçersiz token, iptal kuralları, iptal talebi, değerlendirme.
 
-import { branchEvents, cancellationRequests, orders, reviews } from '@siparis/db';
+import { branchEvents, cancellationRequests, orders, reviews, tenants } from '@siparis/db';
 import { desc, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTrackingToken } from '../src/lib/tracking';
+import { transitionOrder } from '../src/services/orders/transition';
 import { createTestContext, expectError, type TestContext } from './helpers';
 import { orderBody, placeOrder, setupStore, stubExternalJobs, type StoreFixture } from './orders-helpers';
 
@@ -93,6 +94,16 @@ describe('GET /store/track/:token', () => {
   });
 });
 
+describe('satıcı künyesi (6563 s. K. m.3)', () => {
+  it('takip yanıtı satıcının unvan/VKN/adres bilgisini taşır (belgeler sipariş verisiyle doldurulur)', async () => {
+    await ctx.db.update(tenants).set({ legalName: 'Bozok Gıda Ltd.', taxNo: '1234567890', taxOffice: 'Yozgat', address: 'Lise Cad. 12, Yozgat' }).where(eq(tenants.id, s.tenantId));
+    const o = await newOrder('new');
+    const res = await track(o.id);
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json().business.legal).toMatchObject({ legalName: 'Bozok Gıda Ltd.', taxNo: '1234567890', taxOffice: 'Yozgat', address: 'Lise Cad. 12, Yozgat' });
+  });
+});
+
 describe('iptal kuralları (03 §7.4)', () => {
   it('awaiting_customer ve new: doğrudan iptal (customer, customer_request)', async () => {
     for (const st of ['awaiting_customer', 'new'] as const) {
@@ -141,6 +152,26 @@ describe('iptal kuralları (03 §7.4)', () => {
     expect(res.statusCode).toBe(200);
     expect(res.json().order).toMatchObject({ status: 'accepted', cancelRequested: false });
     expect((await track(o.id)).json().order).toMatchObject({ cancelRequestStatus: 'rejected', canRequestCancel: true });
+  });
+
+  it('eşzamanlı: işletmenin onayı satırı kilitliyken gelen iptal doğrudan iptal değil iptal talebi olur', async () => {
+    const o = await newOrder('new');
+    let rowLocked!: () => void;
+    const locked = new Promise<void>((r) => (rowLocked = r));
+    const panel = ctx.db.transaction(async (tx) => {
+      await tx.select().from(orders).where(eq(orders.id, o.id)).for('update');
+      rowLocked();
+      await new Promise((r) => setTimeout(r, 200));
+      await transitionOrder(tx, { orderId: o.id, tenantId: s.tenantId, to: 'accepted', actor: { type: 'user' } });
+    });
+    await locked;
+    const cancel = ctx.request({ method: 'POST', url: `/api/v1/store/track/${tokenOf(o.id)}/cancel`, body: {} });
+    const [, res] = await Promise.all([panel, cancel]);
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json()).toEqual({ result: 'requested', status: 'accepted' });
+    const [c] = await ctx.db.select().from(orders).where(eq(orders.id, o.id));
+    expect(c).toMatchObject({ status: 'accepted', cancelledBy: null });
+    expect(c!.cancelRequestedAt).toBeInstanceOf(Date);
   });
 
   it('final durumda iptal yok (409)', async () => {

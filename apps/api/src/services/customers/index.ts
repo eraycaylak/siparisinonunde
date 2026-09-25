@@ -4,11 +4,13 @@
 import { maskPhone, turkishLower, type FulfillmentType, type PaymentMethod } from '@siparis/core';
 import type { CustomerDetail, CustomerListItem, CustomerOrderItem, CustomerPatch } from '@siparis/core/settings/contracts';
 import {
+  cancellationRequests,
   conversations,
   customerAddresses,
   customerErasures,
   customers,
   messages,
+  orderEvents,
   orderItemOptions,
   orderItems,
   orders,
@@ -18,7 +20,7 @@ import {
   tenants,
   type Database,
 } from '@siparis/db';
-import { and, asc, desc, eq, inArray, isNull, sql, type SQLWrapper } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, or, sql, type SQLWrapper } from 'drizzle-orm';
 import { conflict, notFound } from '../../lib/errors';
 import { isoOrNull, validationError } from '../settings/common';
 
@@ -273,6 +275,15 @@ export async function customerOrders(
   return rows.length > limit && last ? { items: out, nextCursor: encodeCursor(last.placedAtText, last.id) } : { items: out };
 }
 
+/**
+ * KVKK kapsamındaki siparişler: bu müşteri kaydına bağlı olanlar + aynı telefonla verilmiş olanlar. Akış A/B'de sipariş
+ * WhatsApp kimliğiyle (BSUID) açılmış ayrı bir müşteri kaydına bağlanabilir; kişinin telefonu siparişte kalır.
+ */
+function subjectOrdersWhere(c: CustomerRow) {
+  const byRecord = eq(orders.customerId, c.id);
+  return and(eq(orders.tenantId, c.tenantId), c.phoneE164 ? or(byRecord, eq(orders.customerPhone, c.phoneE164)) : byRecord);
+}
+
 /** KVKK dışa aktarma (08 §2.10): kimlik, iletişim, adresler, siparişler, değerlendirmeler, mesajlar. */
 export async function exportCustomer(db: Database, c: CustomerRow) {
   const [tenant] = await db.select({ name: tenants.name, legalName: tenants.legalName }).from(tenants).where(eq(tenants.id, c.tenantId));
@@ -280,7 +291,7 @@ export async function exportCustomer(db: Database, c: CustomerRow) {
   const orderRows = await db
     .select()
     .from(orders)
-    .where(and(eq(orders.tenantId, c.tenantId), eq(orders.customerId, c.id), isNull(orders.testKind)))
+    .where(and(subjectOrdersWhere(c), isNull(orders.testKind)))
     .orderBy(asc(orders.placedAt));
   const ids = orderRows.map((o) => o.id);
   const itemRows = ids.length ? await db.select().from(orderItems).where(inArray(orderItems.orderId, ids)).orderBy(asc(orderItems.sort)) : [];
@@ -365,7 +376,7 @@ export async function eraseCustomer(tx: Database, c: CustomerRow, actorUserId: s
   const [open] = await tx
     .select({ n: sql<number>`count(*)::int` })
     .from(orders)
-    .where(and(eq(orders.tenantId, c.tenantId), eq(orders.customerId, c.id), inArray(orders.status, [...OPEN_STATUSES])));
+    .where(and(subjectOrdersWhere(c), inArray(orders.status, [...OPEN_STATUSES])));
   if (Number(open?.n ?? 0) > 0) {
     throw conflict('open_orders', 'Müşterinin açık siparişi var. Sipariş tamamlanınca tekrar deneyin.');
   }
@@ -384,15 +395,26 @@ export async function eraseCustomer(tx: Database, c: CustomerRow, actorUserId: s
       lat: null,
       lng: null,
       note: null,
+      cancelNote: null,
       confirmationIp: null,
       confirmationUserAgent: null,
     })
-    .where(and(eq(orders.tenantId, c.tenantId), eq(orders.customerId, c.id)))
+    .where(subjectOrdersWhere(c))
     .returning({ id: orders.id });
   const orderIds = anonymized.map((o) => o.id);
   if (orderIds.length) {
     await tx.update(reviews).set({ comment: null }).where(and(eq(reviews.tenantId, c.tenantId), inArray(reviews.orderId, orderIds)));
     await tx.delete(otpVerifications).where(and(eq(otpVerifications.tenantId, c.tenantId), inArray(otpVerifications.orderId, orderIds)));
+    // Müşterinin yazdığı serbest metinler (ürün notu, iptal gerekçesi, zaman çizelgesindeki müşteri notları)
+    await tx.update(orderItems).set({ note: null }).where(and(eq(orderItems.tenantId, c.tenantId), inArray(orderItems.orderId, orderIds)));
+    await tx
+      .update(cancellationRequests)
+      .set({ reason: null })
+      .where(and(eq(cancellationRequests.tenantId, c.tenantId), inArray(cancellationRequests.orderId, orderIds)));
+    await tx
+      .update(orderEvents)
+      .set({ note: null })
+      .where(and(eq(orderEvents.tenantId, c.tenantId), inArray(orderEvents.orderId, orderIds), eq(orderEvents.actorType, 'customer')));
   }
   const convs = await tx.select({ id: conversations.id }).from(conversations).where(and(eq(conversations.tenantId, c.tenantId), eq(conversations.customerId, c.id)));
   let messageCount = 0;
@@ -403,6 +425,12 @@ export async function eraseCustomer(tx: Database, c: CustomerRow, actorUserId: s
       .where(and(eq(messages.tenantId, c.tenantId), inArray(messages.conversationId, convs.map((x) => x.id))))
       .returning({ id: messages.id });
     messageCount = cleared.length;
+    // Sohbet satırı (bot durumu, sayaçlar) kalır; son mesaj önizlemesi de içeriktir → silinir. Panel sohbet listesi
+    // silinmiş müşterinin sohbetini göstermez (routes/panel/conversations.ts).
+    await tx
+      .update(conversations)
+      .set({ lastMessagePreview: null, unreadCount: 0, updatedAt: new Date() })
+      .where(and(eq(conversations.tenantId, c.tenantId), inArray(conversations.id, convs.map((x) => x.id))));
   }
   await tx.delete(storefrontLinkTokens).where(and(eq(storefrontLinkTokens.tenantId, c.tenantId), eq(storefrontLinkTokens.customerId, c.id)));
   await tx.insert(customerErasures).values({ customerId: c.id, tenantId: c.tenantId, erasedByUserId: actorUserId });

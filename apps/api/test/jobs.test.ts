@@ -1,19 +1,25 @@
-import { jobs } from '@siparis/db';
+import { jobs, schema, type Database } from '@siparis/db';
 import { eq, sql } from 'drizzle-orm';
+import { drizzle } from 'drizzle-orm/postgres-js';
+import type { FastifyBaseLogger } from 'fastify';
 import pino from 'pino';
+import postgres from 'postgres';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+  DEFAULT_WORKER_LANES,
   PermanentJobError,
   backoffMs,
   cancelJobs,
   enqueueJob,
+  isTransientDbError,
   processDueJobs,
   recoverStaleJobs,
   registerCron,
   registerJobHandler,
+  runWorker,
   scheduleCronJobs,
 } from '../src/lib/jobs';
-import { createTestContext, type TestContext } from './helpers';
+import { createTestContext, TEST_DATABASE_URL, type TestContext } from './helpers';
 
 let ctx: TestContext;
 const log = pino({ level: 'silent' });
@@ -179,5 +185,212 @@ describe('jobs', () => {
     ]);
     expect(a + b).toBe(6);
     expect(n).toBe(6);
+  });
+});
+
+describe('worker şeritleri, kapanış ve sağlık ucu', () => {
+  it('varsayılan şeritler: WhatsApp ve SMS işleri ana şeritten ayrı', async () => {
+    await ctx.db.delete(jobs);
+    const samples: [string, string][] = [
+      ['wa-outbound', 'wa.send'],
+      ['notify', 'platform.alert'],
+      ['notify', 'sms.send'],
+      ['notify', 'order.alarm_step'],
+      ['notify', 'order.notify_customer'],
+      ['cron', 'cron.retention'],
+      ['wa-inbound', 'wa.inbound'],
+    ];
+    for (const [queue, type] of samples) await enqueueJob(ctx.db, { queue: queue as 'notify', type, delayMs: 3_600_000 });
+    const laneOf: Record<string, string[]> = {};
+    for (const lane of DEFAULT_WORKER_LANES) {
+      const rows = (await ctx.db.execute<{ type: string }>(sql`select type from jobs where ${lane.where} order by type`)) as unknown as { type: string }[];
+      laneOf[lane.name] = rows.map((r) => r.type);
+    }
+    expect(laneOf).toEqual({
+      main: ['cron.retention', 'order.alarm_step', 'order.notify_customer', 'wa.inbound'],
+      whatsapp: ['platform.alert', 'wa.send'],
+      sms: ['sms.send'],
+    });
+    await ctx.db.delete(jobs);
+  });
+
+  it('yavaş sağlayıcı işi (şerit) alarm işlerini bekletmez', async () => {
+    const finished: string[] = [];
+    registerJobHandler('test.slow_provider', async () => {
+      await new Promise((r) => setTimeout(r, 300));
+      finished.push('slow');
+    });
+    registerJobHandler('test.alarm', async () => {
+      finished.push('alarm');
+    });
+    for (let i = 0; i < 3; i++) await enqueueJob(ctx.db, { queue: 'notify', type: 'test.slow_provider' });
+    await enqueueJob(ctx.db, { queue: 'notify', type: 'test.alarm' });
+    const controller = new AbortController();
+    const done = runWorker({
+      db: ctx.db,
+      config: ctx.config,
+      log,
+      signal: controller.signal,
+      enableCron: false,
+      pollMs: 10,
+      lanes: [
+        { name: 'main', where: sql`type = 'test.alarm'`, batchSize: 10, housekeeping: true },
+        { name: 'provider', where: sql`type = 'test.slow_provider'`, batchSize: 5 },
+      ],
+    });
+    for (let i = 0; i < 100 && !finished.includes('alarm'); i++) await new Promise((r) => setTimeout(r, 10));
+    expect(finished[0]).toBe('alarm');
+    for (let i = 0; i < 200 && finished.length < 4; i++) await new Promise((r) => setTimeout(r, 10));
+    controller.abort();
+    await done;
+    expect(finished.filter((f) => f === 'slow')).toHaveLength(3);
+  });
+
+  it('kapanış: sürmekte olan iş biter, alınmış ama başlanmamış işler hemen sıraya döner (deneme sayılmaz)', async () => {
+    const controller = new AbortController();
+    let n = 0;
+    registerJobHandler('test.shutdown', async () => {
+      n++;
+      controller.abort();
+    });
+    const ids: string[] = [];
+    for (let i = 0; i < 3; i++) ids.push((await enqueueJob(ctx.db, { queue: 'notify', type: 'test.shutdown' }))!);
+    const processed = await processDueJobs({ db: ctx.db, config: ctx.config, log, workerId: 'w-kapanis', queues: ['notify'], signal: controller.signal });
+    expect(processed).toBe(1);
+    expect(n).toBe(1);
+    const rows = await Promise.all(ids.map(getJob));
+    expect(rows.filter((r) => r.status === 'done')).toHaveLength(1);
+    const pending = rows.filter((r) => r.status === 'pending');
+    expect(pending).toHaveLength(2);
+    expect(pending.every((r) => r.attempts === 0 && r.lockedAt === null)).toBe(true);
+    await ctx.db.delete(jobs).where(eq(jobs.type, 'test.shutdown'));
+  });
+
+  it('GET /health/worker: vadesi 5 dk\'dan fazla geçmiş iş varsa 503; kuyruk işlenince 200', async () => {
+    await ctx.db.delete(jobs).where(eq(jobs.status, 'pending'));
+    const fine = await ctx.request({ method: 'GET', url: '/api/v1/health/worker' });
+    expect(fine.statusCode, fine.body).toBe(200);
+    expect(fine.json()).toMatchObject({ ok: true, db: 'up', jobLagSec: 0, stuckJobs: 0 });
+    registerJobHandler('test.overdue', async () => {});
+    await enqueueJob(ctx.db, { queue: 'notify', type: 'test.overdue', runAt: new Date(Date.now() - 10 * 60_000) });
+    const lagging = await ctx.request({ method: 'GET', url: '/api/v1/health/worker' });
+    expect(lagging.statusCode).toBe(503);
+    expect(lagging.json().ok).toBe(false);
+    expect(lagging.json().jobLagSec).toBeGreaterThanOrEqual(590);
+    // API süreç sağlığı etkilenmez (Docker sağlık denetimi)
+    expect((await ctx.request({ method: 'GET', url: '/api/v1/health' })).statusCode).toBe(200);
+    await run();
+    expect((await ctx.request({ method: 'GET', url: '/api/v1/health/worker' })).statusCode).toBe(200);
+  });
+});
+
+/** Log çağrılarını seviye + mesajla toplayan sahte logger. */
+function captureLog() {
+  const lines: { level: string; msg: string; obj: unknown }[] = [];
+  const at =
+    (level: string) =>
+    (obj: unknown, msg?: string) => {
+      lines.push({ level, msg: msg ?? (typeof obj === 'string' ? obj : ''), obj });
+    };
+  const logger = { info: at('info'), warn: at('warn'), error: at('error'), debug: at('debug'), trace: at('trace'), fatal: at('fatal') } as Record<string, unknown>;
+  logger.child = () => logger;
+  return { log: logger as unknown as FastifyBaseLogger, lines };
+}
+
+describe('worker döngüsü: geçici veritabanı hataları', () => {
+  it('gerçek hatalar: tablo yok (42P01, drizzle sarmalı) ve bağlantı reddi geçici; sözdizimi hatası değil', async () => {
+    // Boş şemaya bakan bağlantı: `jobs` görünmez (e2e/dev sıfırlaması sırasındaki durum)
+    const client = postgres(TEST_DATABASE_URL, { max: 1, onnotice: () => {}, connection: { search_path: 'yok_boyle_sema' } });
+    const db = drizzle(client, { schema }) as unknown as Database;
+    try {
+      const missing = await db.execute(sql`select id from jobs limit 1`).then(
+        () => null,
+        (e: unknown) => e,
+      );
+      expect(missing).toBeTruthy();
+      expect(String((missing as { cause?: { message?: string } }).cause?.message ?? (missing as Error).message)).toContain('does not exist');
+      expect(isTransientDbError(missing)).toBe(true);
+      const syntax = await db.execute(sql`selec 1`).then(
+        () => null,
+        (e: unknown) => e,
+      );
+      expect(syntax).toBeTruthy();
+      expect(isTransientDbError(syntax)).toBe(false);
+    } finally {
+      await client.end({ timeout: 1 });
+    }
+
+    const refused = postgres('postgres://siparis:siparis@127.0.0.1:1/siparis_yok', { max: 1, connect_timeout: 2, onnotice: () => {} });
+    try {
+      const err = await refused`select 1`.then(
+        () => null,
+        (e: unknown) => e,
+      );
+      expect(err).toBeTruthy();
+      expect(isTransientDbError(err)).toBe(true);
+    } finally {
+      await refused.end({ timeout: 1 });
+    }
+    expect(isTransientDbError(new PermanentJobError('x'))).toBe(false);
+    expect(isTransientDbError(null)).toBe(false);
+  });
+
+  it('42P01 sürerken çökmez, bekleyerek yeniden dener, tek uyarı yazar; düzelince bir kez bilgi verir', async () => {
+    const tableMissing = Object.assign(new Error('Failed query: update jobs …'), {
+      cause: Object.assign(new Error('relation "jobs" does not exist'), { code: '42P01' }),
+    });
+    let failing = true;
+    let calls = 0;
+    const fakeDb = {
+      execute: async () => {
+        calls++;
+        if (failing) throw tableMissing;
+        return [];
+      },
+    } as unknown as Database;
+    const { log: capture, lines } = captureLog();
+    const controller = new AbortController();
+    const done = runWorker({
+      db: fakeDb,
+      config: ctx.config,
+      log: capture,
+      signal: controller.signal,
+      enableCron: false,
+      pollMs: 5,
+      transientBackoffMs: 1,
+      transientBackoffMaxMs: 4,
+    });
+    await new Promise((r) => setTimeout(r, 150));
+    const failedCalls = calls;
+    expect(failedCalls).toBeGreaterThan(5); // döngü sürüyor
+    expect(lines.filter((l) => l.level === 'error')).toHaveLength(0);
+    const warns = lines.filter((l) => l.level === 'warn');
+    expect(warns).toHaveLength(1); // dakikada en çok bir uyarı
+    expect(warns[0]!.msg).toContain('geçici olarak erişilemiyor');
+    expect(warns[0]!.obj).toMatchObject({ code: '42P01' });
+
+    failing = false;
+    await new Promise((r) => setTimeout(r, 60));
+    controller.abort();
+    await done;
+    expect(calls).toBeGreaterThan(failedCalls);
+    expect(lines.filter((l) => l.msg.includes('yeniden erişilebilir'))).toHaveLength(1);
+    expect(lines.filter((l) => l.level === 'warn')).toHaveLength(1);
+    expect(lines.filter((l) => l.level === 'error')).toHaveLength(0);
+  });
+
+  it('geçici olmayan hata eskisi gibi hata olarak loglanır', async () => {
+    const { log: capture, lines } = captureLog();
+    const controller = new AbortController();
+    const fakeDb = {
+      execute: async () => {
+        throw Object.assign(new Error('syntax error'), { code: '42601' });
+      },
+    } as unknown as Database;
+    const done = runWorker({ db: fakeDb, config: ctx.config, log: capture, signal: controller.signal, enableCron: false, pollMs: 5 });
+    await new Promise((r) => setTimeout(r, 50));
+    controller.abort();
+    await done;
+    expect(lines.filter((l) => l.level === 'error' && l.msg === 'worker döngü hatası').length).toBeGreaterThanOrEqual(1);
   });
 });

@@ -47,6 +47,8 @@ export interface AwaitingTimeoutPayload {
 
 /** Sipariş `new` olduğunda (oluşturma ya da awaiting_customer → new) zinciri planlar. t0 = şimdi. */
 export async function scheduleAlarmChain(tx: Database, order: OrderRow): Promise<void> {
+  // Telefon siparişini personel kendisi girer: uyarılacak kimse yok, otomatik iptal edilmez (canlı ekran da çalmaz)
+  if (order.channel === 'manual') return;
   const [branch] = await tx.select({ alarmPolicy: branches.alarmPolicy }).from(branches).where(eq(branches.id, order.branchId));
   const policy = normalizeAlarmPolicy(branch?.alarmPolicy);
   for (const s of planAlarmSteps(policy, order.testKind)) {

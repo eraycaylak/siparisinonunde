@@ -55,6 +55,8 @@ export const orderCardSchema = orderSummarySchema.extend({
   /** Ulaşılan en yüksek alarm adımı (ALARM_STEP). */
   alarmStep: z.number().int().nullable(),
   outOfZoneOverride: z.boolean(),
+  /** Bölge konum/mahalle ile doğrulanmadı; müşteri listeden seçti (personel adresi kontrol etmeli). */
+  zoneDeclared: z.boolean().optional(),
   verifiedAt: isoNullable,
   preparingAt: isoNullable,
   readyAt: isoNullable,
@@ -434,6 +436,19 @@ export const trackResponseExtSchema = trackResponseSchema.extend({
     slug: z.string(),
     /** İşletmenin WhatsApp numarası (bağlıysa; "WhatsApp'tan yaz"). */
     waPhone: z.string().nullable(),
+    /**
+     * Satıcı künyesi (6563 s. K. m.3; 03 §4.4 S-10): takip sayfasındaki ön bilgilendirme ve mesafeli satış
+     * belgeleri sipariş verisiyle birlikte bununla doldurulur.
+     */
+    legal: z
+      .object({
+        legalName: z.string().nullable(),
+        taxNo: z.string().nullable(),
+        taxOffice: z.string().nullable(),
+        address: z.string().nullable(),
+        email: z.string().nullable(),
+      })
+      .optional(),
   }),
 });
 export type TrackResponseExt = z.infer<typeof trackResponseExtSchema>;

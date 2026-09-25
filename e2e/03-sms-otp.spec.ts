@@ -1,5 +1,5 @@
 // Senaryo 3 — WhatsApp'sız mod / SMS OTP yedeği (00 §4, §7; 14 §7.3):
-// (a) WhatsApp'ı henüz bağlanmamış yeni işletme ("WhatsApp'sız başla", API ile kurulur) → vitrinden sipariş →
+// (a) WhatsApp'ı henüz bağlanmamış yeni işletme ("WhatsApp'sız başla" + Kapı 1 web canlıya geçiş, API ile kurulur) → vitrinden sipariş →
 //     doğrulama ekranı SMS'e düşer → kod mock SMS kutusundan (/api/v1/dev/sms) alınır → sipariş `new` →
 //     onay müşteriye SMS ile bildirilir (kritik durum).
 // (b) Demo işletmenin WhatsApp kanalı arızalı (hesap devre dışı) → Akış B otomatik olarak SMS OTP'ye döner.
@@ -57,10 +57,34 @@ test('WhatsApp bağlı olmayan işletme: SMS koduyla doğrulama ve onayın SMS i
   const whatsappless = await owner.post('/api/v1/panel/onboarding/whatsappless', { data: { enabled: true } });
   expect(whatsappless.ok(), await whatsappless.text()).toBeTruthy();
 
+  // Canlıya geçmeden vitrin "Yakında" der, sepete ekleme yok ve arama motorlarına kapalıdır (04 §3.4.4)
+  await page.goto(`/s/${tenant.slug}`);
+  await expect(page.getByText('Bu işletme online siparişe yakında başlayacak.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Ezogelin Çorbası sepete ekle' })).toHaveCount(0);
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/);
+
+  // --- Kapı 1 (web_live_at): künye, şube adresi ve bölge tamamlanmadan vitrin sipariş almaz (ordering_closed)
+  const imprint = await owner.patch('/api/v1/panel/tenant', { data: { legalName: 'Deneme Sahip', taxNo: '12345678901', address: 'Yozgat Merkez' } });
+  expect(imprint.ok(), await imprint.text()).toBeTruthy();
+  const address = await owner.patch(`/api/v1/panel/branches/${branchId}`, { data: { addressLine: 'Lise Cad. 5', lat: 39.82, lng: 34.81 } });
+  expect(address.ok(), await address.text()).toBeTruthy();
+  const zone = await owner.post('/api/v1/panel/zones', {
+    data: { name: 'Yakın', kind: 'radius', radiusM: 3000, feeKurus: 0, minOrderKurus: 0, etaMinutes: 30 },
+  });
+  expect(zone.ok(), await zone.text()).toBeTruthy();
+  const goLive = await owner.post('/api/v1/panel/onboarding/go-live');
+  expect(goLive.ok(), await goLive.text()).toBeTruthy();
+  // WhatsApp'sız mod: yalnız web siparişi açılır (Kapı 2 WhatsApp bağlantısı ister)
+  expect(await goLive.json()).toMatchObject({ webLive: true, live: false });
+
   // --- Müşteri: vitrin → gel-al siparişi
   await page.goto(`/s/${tenant.slug}`);
+  await expect(page.locator('meta[name="robots"][content*="noindex"]')).toHaveCount(0);
   await page.getByRole('button', { name: 'Ezogelin Çorbası sepete ekle' }).click();
   await goToCheckout(page);
+  await page.getByText('Gel-al', { exact: true }).click();
+  await expect(page.getByRole('radio', { name: 'Gel-al' })).toBeChecked();
+  await expect(page.getByText(/onay, ret ve iptal SMS ile bildirilir/)).toBeVisible();
   await page.getByLabel(labelRe('Adınız')).fill(customer.name);
   await page.getByLabel(labelRe('Teslimat telefonu')).fill(customer.phone);
   await page.getByRole('radio', { name: /^Kasada öde/ }).check();

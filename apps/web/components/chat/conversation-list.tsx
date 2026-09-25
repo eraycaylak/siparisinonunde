@@ -70,7 +70,7 @@ export function ConversationList({
               aria-pressed={filter === f.value}
               onClick={() => onFilterChange(f.value)}
               className={cn(
-                'min-h-10 flex-1 rounded-md px-2 text-sm font-semibold transition-colors',
+                'min-h-hit flex-1 rounded-md px-2 text-sm font-semibold transition-colors',
                 filter === f.value ? 'bg-primary text-primary-fg' : 'bg-surface text-fg hover:bg-accent',
               )}
             >

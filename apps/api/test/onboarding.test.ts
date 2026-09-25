@@ -1,7 +1,7 @@
 // Dilim 4 — onboarding: adım durumları, WhatsApp'sız başla, test siparişi (onboarding_test, 'new', SSE olayı),
 // canlıya geçiş (Kapı 1 / Kapı 2), eksik listesi; yetki ve yalıtım. Kayıttan (signup) başlayan gerçek akış.
 
-import { auditLog, branchEvents, orders, tenantOnboarding, tenants, waAccounts } from '@siparis/db';
+import { auditLog, branchEvents, orders, products, tenantOnboarding, tenants, waAccounts } from '@siparis/db';
 import { and, desc, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { cookieFrom, createTestContext, expectError, type TestContext, type TestTenant } from './helpers';
@@ -11,6 +11,7 @@ let ctx: TestContext;
 let owner: string;
 let tenantId: string;
 let branchId: string;
+let slug: string;
 let other: TestTenant;
 
 const req = (method: 'GET' | 'POST' | 'PATCH' | 'PUT', url: string, cookie: string, body?: unknown) =>
@@ -31,6 +32,7 @@ beforeAll(async () => {
   owner = cookieFrom(signup);
   tenantId = signup.json().tenant.id;
   branchId = signup.json().tenant.defaultBranchId;
+  slug = signup.json().tenant.slug;
   other = await ctx.createTenantWithOwner();
 });
 
@@ -111,6 +113,30 @@ describe('adımları tamamla → test siparişi → canlıya geç', () => {
     expect(logs).toHaveLength(1);
   });
 
+  it('canlıya geçmeden vitrin sipariş almaz ve kayıttaki telefonu yayımlamaz', async () => {
+    const view = await ctx.request({ method: 'GET', url: `/api/v1/store/${slug}` });
+    expect(view.statusCode, view.body).toBe(200);
+    expect(view.json()).toMatchObject({ live: false, orderingEnabled: false, tenant: { phone: null, whatsappPhone: null }, branch: { phone: null }, legal: { phone: null } });
+    expect(view.body).not.toContain('7654321');
+    const [product] = await ctx.db.select().from(products).where(eq(products.tenantId, tenantId));
+    const order = await ctx.request({
+      method: 'POST',
+      url: `/api/v1/store/${slug}/orders`,
+      headers: { 'x-forwarded-for': '10.44.9.1' },
+      body: {
+        items: [{ productId: product!.id, quantity: 1, optionIds: [] }],
+        fulfillmentType: 'pickup',
+        customerName: 'Erken Müşteri',
+        customerPhone: '0533 222 33 44',
+        paymentMethod: 'pay_at_counter',
+        acceptPreInfo: true,
+        idempotencyKey: 'erken-siparis-0001',
+      },
+    });
+    expectError(order, 409, 'ordering_closed');
+    expect(await ctx.db.select().from(orders).where(eq(orders.idempotencyKey, 'erken-siparis-0001'))).toHaveLength(0);
+  });
+
   it('test siparişi raporlara girmez', async () => {
     const r = (await req('GET', '/reports/daily', owner)).json();
     expect(r.byStatus).toEqual({});
@@ -124,6 +150,9 @@ describe('adımları tamamla → test siparişi → canlıya geç', () => {
     const [t1] = await ctx.db.select().from(tenants).where(eq(tenants.id, tenantId));
     expect(t1!.webLiveAt).not.toBeNull();
     expect(t1!.liveAt).toBeNull();
+    // Vitrin yayında: sipariş açık, telefon görünür
+    const view = await ctx.request({ method: 'GET', url: `/api/v1/store/${slug}` });
+    expect(view.json()).toMatchObject({ live: true, orderingEnabled: true, tenant: { phone: '+905327654321' } });
 
     await ctx.db.insert(waAccounts).values({ tenantId, branchId, provider: 'mock', webhookToken: `wh-${tenantId}`, status: 'connected', displayPhone: '+905550001122' });
     const full = await req('POST', '/onboarding/go-live', owner);

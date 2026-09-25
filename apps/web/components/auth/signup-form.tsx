@@ -24,7 +24,6 @@ interface Values {
   password: string;
   city: string;
   acceptTerms: boolean;
-  kvkkRead: boolean;
   commercePolicy: boolean;
 }
 
@@ -38,7 +37,6 @@ const INITIAL: Values = {
   password: '',
   city: PILOT_AREA.city,
   acceptTerms: false,
-  kvkkRead: false,
   commercePolicy: false,
 };
 
@@ -52,7 +50,6 @@ function validate(v: Values): Errors {
   if (v.password.length < 8) e.password = 'Parola en az 8 karakter olmalı.';
   if (v.city.trim().length < 2) e.city = 'İli yazın.';
   if (!v.acceptTerms) e.acceptTerms = 'Devam etmek için kullanım koşullarını kabul edin.';
-  if (!v.kvkkRead) e.kvkkRead = 'Devam etmek için aydınlatma metnini okuduğunuzu onaylayın.';
   if (!v.commercePolicy) e.commercePolicy = 'Devam etmek için bu beyanı onaylayın.';
   return e;
 }
@@ -186,26 +183,20 @@ export function SignupForm() {
           }
         />
         <Checkbox
-          name="kvkkRead"
-          checked={values.kvkkRead}
-          onChange={(e) => set('kvkkRead', e.target.checked)}
-          error={errors.kvkkRead}
-          label={
-            <>
-              <Link href="/yasal/kvkk-aydinlatma" target="_blank" className="font-semibold underline underline-offset-4">
-                KVKK aydınlatma metnini
-              </Link>{' '}
-              okudum.
-            </>
-          }
-        />
-        <Checkbox
           name="commercePolicy"
           checked={values.commercePolicy}
           onChange={(e) => set('commercePolicy', e.target.checked)}
           error={errors.commercePolicy}
           label="Alkol, tütün, ilaç ve tüp gazı WhatsApp ve web üzerinden satmayacağımı beyan ederim."
         />
+        {/* Aydınlatma bilgilendirmedir, onay kutusu değildir (08 §7.4 satır 3, 03 §4.4) */}
+        <p className="pt-1 text-sm text-fg-muted">
+          Kişisel verileriniz{' '}
+          <Link href="/yasal/kvkk-aydinlatma" target="_blank" className="font-semibold text-fg underline underline-offset-4">
+            KVKK aydınlatma metnine
+          </Link>{' '}
+          uygun olarak işlenir.
+        </p>
       </div>
       <Button type="submit" size="lg" block loading={signup.isPending}>
         <Store aria-hidden />

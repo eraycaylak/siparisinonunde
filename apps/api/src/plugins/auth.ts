@@ -1,9 +1,9 @@
 // request.auth çözümü ve yetki yardımcıları (14 §5).
 
 import type { PlatformRole, TenantRole } from '@siparis/core';
-import { branches, type Database } from '@siparis/db';
+import { branches, users, type Database } from '@siparis/db';
 import { and, eq } from 'drizzle-orm';
-import type { FastifyInstance, FastifyReply, FastifyRequest, preHandlerAsyncHookHandler } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest, onRequestAsyncHookHandler, preHandlerAsyncHookHandler } from 'fastify';
 import fp from 'fastify-plugin';
 import { AppError, forbidden, notFound, unauthorized } from '../lib/errors';
 import { resolveSession, SESSION_COOKIE } from '../services/auth/sessions';
@@ -59,9 +59,36 @@ export function requirePlatform(roles?: readonly PlatformRole[]): preHandlerAsyn
     if (!auth) throw unauthorized();
     if (!auth.isPlatformAdmin) throw forbidden();
     if (auth.session.kind === 'impersonation') throw forbidden('Destek görünümündeyken admin işlemi yapılamaz.');
+    // Yalnız kişisel oturum (parola + TOTP ile açılan); kurye ya da başka oturum türü yönetim uçlarına giremez
+    if (auth.session.kind !== 'user') throw forbidden();
     const role = auth.user.platformRole;
     if (roles && roles.length && role !== 'platform_owner' && (!role || !roles.includes(role))) throw forbidden();
     assertWritable(request);
+  };
+}
+
+/**
+ * Admin kapsamı onRequest kancası (00 §12a madde 7): ADMIN_TOTP_REQUIRED açıkken iki adımlı doğrulaması kapalı
+ * platform yöneticisi giriş yapabilir ve /auth/totp/* ile kurulum yapar, ama tüm /admin/* uçları
+ * 403 `totp_enrollment_required` döner. Diğer durumlar (oturumsuz, işletme kullanıcısı, destek oturumu) rota
+ * yetkisine bırakılır.
+ */
+export function requireAdminTotpEnrollment(): onRequestAsyncHookHandler {
+  return async function requireAdminTotpEnrollmentHook(request: FastifyRequest, _reply: FastifyReply) {
+    const auth = request.auth;
+    if (!auth || !auth.isPlatformAdmin || auth.session.kind !== 'user') return;
+    if (!request.server.config.ADMIN_TOTP_REQUIRED) return;
+    const [u] = await request.server.db
+      .select({ enabledAt: users.totpEnabledAt, secretEnc: users.totpSecretEnc })
+      .from(users)
+      .where(eq(users.id, auth.user.id));
+    if (!u?.enabledAt || !u.secretEnc) {
+      throw new AppError(
+        403,
+        'totp_enrollment_required',
+        'Yönetim ekranlarını kullanmadan önce iki adımlı doğrulamayı açın: Yönetim › Güvenlik.',
+      );
+    }
   };
 }
 

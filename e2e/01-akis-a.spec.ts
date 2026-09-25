@@ -3,7 +3,7 @@
 // 60 sn "alındı" debounce'u beklenmez: onay birleşik M06c'yi hemen kuyruğa atar, /api/v1/dev/jobs/flush işler.
 
 import { expect, test } from './support/test';
-import { demoWaAccount, flushJobs, uniqueName, uniquePhone, waThread } from './support/api';
+import { apiLogin, demoWaAccount, flushJobs, newApiContext, uniqueName, uniquePhone, waThread } from './support/api';
 import { DEMO } from './support/env';
 import { goToCheckout, labelRe, loginPanel, openSimulator, orderCard, simulatorSend, skipShiftStart } from './support/ui';
 
@@ -36,6 +36,8 @@ test('Akış A: sohbetten menü linki, seçenekli ürün, panelde onay ve WhatsA
 
   // 4) Checkout (paket servis, Medrese mahallesi, kapıda nakit)
   await goToCheckout(shop);
+  // Ön dolum (03 §4.4): ad WhatsApp profilinden gelir
+  await expect(shop.getByLabel(labelRe('Adınız'))).toHaveValue(customer.name);
   await shop.getByLabel(labelRe('Mahalle')).selectOption('Medrese');
   await expect(shop.getByText(/Teslimat bölgesindesiniz/)).toBeVisible();
   await shop.getByLabel(labelRe('Adres')).fill('Lise Caddesi No: 5 Daire 3');
@@ -85,4 +87,40 @@ test('Akış A: sohbetten menü linki, seçenekli ürün, panelde onay ve WhatsA
   await expect(shop.getByRole('heading', { level: 1 })).toContainText('Onaylandı');
 
   await panelContext.close();
+});
+
+test('Akış A gel-al: telefon boş bırakılır, WhatsApp bağlantısındaki numara kullanılır', async ({ page }) => {
+  const customer = { phone: uniquePhone(), name: uniqueName('Fatma') };
+  await openSimulator(page, customer);
+  await simulatorSend(page, 'merhaba');
+  const menuUrl = await page.getByRole('link', { name: 'Menüyü aç' }).getAttribute('href');
+
+  const shop = await page.context().newPage();
+  await shop.goto(menuUrl!);
+  await expect(shop.getByRole('button', { name: 'Ben değilim' })).toBeVisible();
+  await shop.getByRole('button', { name: 'Mercimek Çorbası sepete ekle' }).click();
+  await goToCheckout(shop);
+  await shop.getByText('Gel-al', { exact: true }).click();
+  // Telefon zorunlu değil; ipucu maskeli WhatsApp numarasını gösterir (03 §4.4)
+  const phone = shop.getByLabel(labelRe('Teslimat telefonu'));
+  await expect(phone).toHaveValue('');
+  await expect(shop.getByText(/Boş bırakırsanız WhatsApp numaranız .* kullanılır\./)).toBeVisible();
+  await expect(shop.getByLabel(labelRe('Adınız'))).toHaveValue(customer.name);
+  await shop.getByRole('radio', { name: /^Kasada öde/ }).check();
+  await shop.getByRole('checkbox', { name: /Ön bilgilendirme formunu/ }).check();
+  await shop.getByRole('button', { name: /^Siparişi onayla/ }).click();
+
+  await expect(shop).toHaveURL(/\/t\/[^/]+$/);
+  await expect(shop.getByRole('heading', { level: 1 })).toContainText('Siparişiniz alındı');
+
+  // Panelde sipariş müşterinin WhatsApp numarasıyla (son 4 hane) görünür
+  const owner = await newApiContext();
+  await apiLogin(owner, DEMO.owner.email, DEMO.owner.password);
+  const active = (await (await owner.get('/api/v1/panel/orders/active')).json()) as {
+    items: { customerName: string | null; customerPhoneMasked: string | null; fulfillmentType: string }[];
+  };
+  const mine = active.items.find((o) => o.customerName === customer.name);
+  expect(mine?.fulfillmentType).toBe('pickup');
+  expect(mine?.customerPhoneMasked?.replace(/\D/g, '').slice(-4)).toBe(customer.phone.replace(/\D/g, '').slice(-4));
+  await owner.dispose();
 });

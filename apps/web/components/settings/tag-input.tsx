@@ -78,11 +78,11 @@ export function TagInput({
       {values.length ? (
         <ul className="flex flex-wrap gap-2" aria-label={`${label} listesi`}>
           {values.map((v) => (
-            <li key={v} className="inline-flex min-h-10 items-center gap-1 rounded-full border border-border-strong bg-surface ps-3 text-sm font-semibold text-fg">
+            <li key={v} className="inline-flex min-h-hit items-center gap-1 rounded-full border border-border-strong bg-surface ps-3 text-sm font-semibold text-fg">
               {v}
               <button
                 type="button"
-                className="inline-flex size-10 items-center justify-center rounded-full hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
+                className="inline-flex size-hit items-center justify-center rounded-full hover:bg-accent focus-visible:outline-2 focus-visible:outline-ring"
                 aria-label={`${v} kaldır`}
                 onClick={() => onChange(values.filter((x) => x !== v))}
               >

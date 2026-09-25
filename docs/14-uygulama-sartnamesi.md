@@ -40,7 +40,7 @@ apps/web/                 app/(marketing)/*, app/s/[slug]/*, app/t/[token]/*, ap
 e2e/                      Playwright testleri
 ```
 
-**Sahiplik kuralı (paralel geliştirme):** Her dilim (§11) yalnız kendi dosyalarını düzenler. `packages/db` şeması ve `packages/core/src/enums.ts` **temel dilimin** malıdır; sonraki dilimler şema değişikliği gerekirse yeni bir migration dosyası ekler (`migrations/NNNN_<dilim>_*.sql` — numara çakışmasını önlemek için dilime ayrılmış aralık: temel 0000–0099, menü 0100–0199, sipariş 0200–0299, whatsapp 0300–0399, işletme-ayarları 0400–0499, admin 0500–0599) **ve** drizzle şemasına kendi dosyasında (`schema/<dilim>-ext.ts`) ekleme yapar. Mevcut kolonları değiştirmez.
+**Sahiplik kuralı (paralel geliştirme):** Her dilim (§11) yalnız kendi dosyalarını düzenler. `packages/db` şeması ve `packages/core/src/enums.ts` **temel dilimin** malıdır; sonraki dilimler şema değişikliği gerekirse yeni bir migration dosyası ekler (`migrations/NNNN_<dilim>_*.sql` — numara çakışmasını önlemek için dilime ayrılmış aralık: temel 0000–0099, menü 0100–0199, sipariş 0200–0299, whatsapp 0300–0399, işletme-ayarları 0400–0499, admin 0500–0599, kimlik güvenliği 0600–0699) **ve** drizzle şemasına kendi dosyasında (`schema/<dilim>-ext.ts`) ekleme yapar. Mevcut kolonları değiştirmez.
 
 ## 3. Ortam değişkenleri (`.env.example`)
 
@@ -63,6 +63,7 @@ NETGSM_USERCODE= / NETGSM_PASSWORD= / NETGSM_HEADER=
 UPLOAD_DIR=./uploads
 ANTHROPIC_API_KEY=                          # Faz 2 (AI), boşsa kapalı
 DEV_TOOLS=1                                 # /dev/whatsapp simülatörü ve /api/dev/* (üretimde 0)
+ADMIN_TOTP_REQUIRED=                        # platform yöneticisine TOTP zorunlu; boşsa üretimde 1, diğer ortamlarda 0 (§5)
 ```
 
 ## 4. Veritabanı (Faz 1 tablo seti)
@@ -73,7 +74,7 @@ Kolon adları ve anlamları için [07](07-veri-modeli-ve-api.md) §3 esastır; a
 |---|---|
 | `tenants` | `name, slug (unique), legal_name, tax_no, phone, lifecycle_stage, suspension_reason, ordering_enabled (bool, default true), sms_fallback_enabled (default true), brand_color, logo_url, cover_url, marketplace_commission_bp (tasarruf raporu için, default 2500), plan_code ('esnaf'|'pro'|'zincir'), trial_ends_at, live_at, web_live_at` |
 | `branches` | `tenant_id, name, phone, address_line, neighborhood, district ('Merkez'), city ('Yozgat'), lat, lng, timezone ('Europe/Istanbul'), paused_until, busy_extra_minutes, default_prep_minutes (20), accepts_delivery, accepts_pickup, payment_methods text[] (00 §5 kodları), meal_card_brands text[], status_messages jsonb (hangi durum mesajı gitsin; preparing varsayılan false), alarm_policy jsonb (00 §10: {auto_cancel_minutes:15, customer_notice_minutes:10, platform_wa_enabled:true, sms_enabled:true}), receipt_settings jsonb` |
-| `users` | `email (unique, nullable), phone (unique, nullable), name, password_hash (scrypt), is_platform_admin bool, platform_role (00 §4, nullable), totp_secret_enc, last_login_at, disabled_at` |
+| `users` | `email (unique, nullable), phone (unique, nullable), name, password_hash (scrypt), is_platform_admin bool, platform_role (00 §4, nullable), totp_secret_enc, totp_enabled_at, totp_pending_secret_enc, totp_last_step, totp_recovery_hashes text[] (§5 iki adımlı doğrulama), last_login_at, disabled_at` |
 | `sessions` | `user_id, token_hash (unique), kind ('user'|'courier'|'impersonation'), tenant_id (seçili), expires_at, ip, user_agent, impersonator_user_id, read_only bool` |
 | `memberships` | `tenant_id, user_id, role (owner/manager/cashier/kitchen/courier), branch_id nullable` unique(tenant_id,user_id) |
 | `courier_login_links` | `tenant_id, user_id, token_hash, expires_at (15 dk), used_at` |
@@ -119,7 +120,13 @@ Kolon adları ve anlamları için [07](07-veri-modeli-ve-api.md) §3 esastır; a
 - `request.auth = { user, session, tenantId, role, isPlatformAdmin, readOnly }`. Panel rotaları `requireTenantRole([...])`; admin rotaları `requirePlatform([...])`. Salt-okunur oturumda yazma → 403 `read_only_session`.
 - **Tenant kapsamı:** panel sorgularının hepsi `request.auth.tenantId` ile filtrelenir; başka tenant'ın kaydına erişim 404 döner. Her rota grubu için yalnıtım testi zorunlu (§10).
 - İzin matrisi (özet, ayrıntı 04 §2): owner her şey; manager abonelik ve WhatsApp bağlantısı hariç her şey; cashier siparişler, sohbetler, müşteriler, telefon siparişi; kitchen yalnız sipariş listesi (fiyatsız görünüm) ve hazırlık durumları; courier yalnız kendine atanmış siparişler.
-- Hız sınırı: giriş 10/dk/IP, storefront sipariş 5/dk/IP + 3/10dk/telefon, OTP 3/10dk/telefon (bellek içi token bucket yeterli).
+- Hız sınırı: giriş 10/dk/IP, storefront sipariş 5/dk/IP + 3/10dk/telefon, OTP 3/10dk/telefon, iki adımlı doğrulama kodu 5/10dk/kullanıcı (bellek içi token bucket yeterli).
+- **İki adımlı doğrulama (TOTP; 00 §12a madde 7):**
+  - Kapsam: platform yöneticisinde zorunlu (`ADMIN_TOTP_REQUIRED`; verilmezse üretimde `true`, diğer ortamlarda `false`), işletme kullanıcılarının kişisel hesaplarında isteğe bağlı (sahibe önerilir). Kurye ve paylaşımlı cihaz (PIN) oturumu kullanmaz; yalnız kurye üyeliği olan hesapta girişte ikinci adım sorulmaz.
+  - Veri: `users.totp_secret_enc` (etkin sır, `lib/encryption` AES-256-GCM), `totp_enabled_at` (null = kapalı), `totp_pending_secret_enc` (kurulumu süren sır), `totp_last_step` (son kabul edilen 30 sn adımı; tekrar oynatma koruması), `totp_recovery_hashes text[]` (8 tek kullanımlık kurtarma kodunun SHA-256 özeti; kod "ABCD-EFGH" biçiminde, karışmayan harf/rakam). Migration `0600_auth_totp.sql` (kimlik güvenliği aralığı 0600–0699).
+  - Giriş: parola **önce** doğrulanır (TOTP durumu parola bilinmeden açığa çıkmaz). TOTP açıksa `totp`/`recoveryCode` yoksa 401 `totp_required`; hatalı, süresi geçmiş ya da daha önce kullanılmış kod 401 `invalid_totp`; ikinci adım başarılı olmadan oturum açılmaz. ±1 adım kabul edilir; adım `totp_last_step`'ten büyük değilse reddedilir (atomik güncelleme). Kurtarma kodu kullanılınca silinir. Kullanıcı başına 5 deneme/10 dk aşılırsa 429 `rate_limited` (Türkçe mesaj, `details.retryAfterSec`).
+  - Yönetim uçları yalnız kişisel oturumda (`kind='user'`); destek görünümü (impersonation), kurye ve cihaz oturumu 403. Tümü audit'e yazılır (`auth.totp_*`); sır ve kodlar hiçbir kayda girmez.
+  - Zorunluluk: `ADMIN_TOTP_REQUIRED` açıkken TOTP'si kurulmamış platform yöneticisinin girişi başarılıdır (kurulum yapabilsin diye), fakat admin kapsamındaki `onRequest` kancası (`requireAdminTotpEnrollment`) tüm `/api/v1/admin/*` isteklerini 403 `totp_enrollment_required` ile reddeder; web yönetim kabuğu bu durumda `/admin/guvenlik`'e yönlendirir. Zorunluyken `disable` 403 `totp_required_for_admin`. Operatör kurtarması: `scripts/create-admin.ts --email … --reset-totp` (sırrı, kurtarma kodlarını ve tüm oturumları siler).
 
 ## 6. API sözleşmesi (`/api/v1`)
 
@@ -129,9 +136,14 @@ Hata biçimi: `{ "error": { "code": "snake_case", "message": "Türkçe açıklam
 | Metot | Yol | Açıklama |
 |---|---|---|
 | POST | `/auth/signup` | `{businessName, ownerName, phone, email, password, city?, acceptTerms:true}` → tenant + şube + owner + deneme aboneliği; oturum açar. `{ user, tenant }` |
-| POST | `/auth/login` | `{login (email|telefon), password}` → `{ user, memberships[], isPlatformAdmin }` |
+| POST | `/auth/login` | `{login (email|telefon), password, totp? (6 hane), recoveryCode?}` → `{ user, memberships[], isPlatformAdmin }`; TOTP açıksa kodsuz 401 `totp_required`, hatalı kod 401 `invalid_totp` (§5) |
 | POST | `/auth/logout` | |
-| GET | `/auth/me` | `{ user, tenant?, role?, memberships[], isPlatformAdmin, readOnly, impersonating? }` |
+| GET | `/auth/me` | `{ user, tenant?, role?, memberships[], isPlatformAdmin, totpEnabled, totpRequired? (yalnız platform yöneticisi), readOnly, impersonating? }` |
+| GET | `/auth/totp` | `{ enabled, enabledAt, recoveryCodesRemaining, required }` (yalnız kişisel oturum) |
+| POST | `/auth/totp/setup` | → `{ secret, otpauthUrl, qrSvg }`; bekleyen sır saklanır (issuer "Siparişin Önünde", etiket e-posta ya da telefon). Açıksa 409 `totp_already_enabled` |
+| POST | `/auth/totp/enable` | `{code}` → `{ recoveryCodes[8] }` (yalnız bu yanıtta); kullanıcının diğer oturumlarını kapatır. Hatalı kod 400 `invalid_totp` |
+| POST | `/auth/totp/disable` | `{password, code (TOTP ya da kurtarma kodu)}`; zorunlu olduğu platform yöneticisinde 403 `totp_required_for_admin` |
+| POST | `/auth/totp/recovery-codes` | `{code}` → yeni `{ recoveryCodes[8] }`, eskiler geçersiz |
 | POST | `/auth/switch-tenant` | `{tenantId}` (çok üyelikli kullanıcı) |
 | POST | `/auth/courier/exchange` | `{token}` magic link → kurye oturumu |
 

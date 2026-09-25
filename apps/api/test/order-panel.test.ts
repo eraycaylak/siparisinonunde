@@ -4,7 +4,8 @@
 import { auditLog, branches, jobs, orderAcks, orders, products } from '@siparis/db';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createTestContext, expectError, expectIsolated, type TestContext } from './helpers';
+import { buildApp } from '../src/app';
+import { createTestContext, expectError, expectIsolated, testConfig, type TestContext } from './helpers';
 import { createHookedOrder, jobsFor, runJobsAt, setupStore, stubExternalJobs, type StoreFixture } from './orders-helpers';
 
 let ctx: TestContext;
@@ -429,5 +430,25 @@ describe('SSE açılışında branch.state', () => {
     expect(frame).not.toMatch(/^id: /m);
     const data = JSON.parse(frame.replace(/^data: /, ''));
     expect(data).toMatchObject({ type: 'branch.state', data: { orderingState: 'open', busyExtraMinutes: 0, pausedUntil: null } });
+  });
+});
+
+describe('istek logu: telefon ve belirteçler maskeli (CLAUDE.md kural 7)', () => {
+  it('manuel sipariş müşteri araması ve takip linki URL\'si loga açık yazılmaz', async () => {
+    const lines: string[] = [];
+    const logStream = { write: (chunk: string) => void lines.push(chunk) };
+    const app = await buildApp({ config: testConfig({ LOG_LEVEL: 'info' }), db: ctx.handle, logStream });
+    try {
+      const res = await app.inject({ method: 'GET', url: '/api/v1/panel/orders/manual/customers?phone=05321234567', headers: { cookie: cashier } });
+      expect(res.statusCode, res.body).toBe(200);
+      await app.inject({ method: 'GET', url: '/api/v1/store/track/gizli-takip-belirteci-123' });
+    } finally {
+      await app.close();
+    }
+    const log = lines.join('');
+    expect(log).toContain('/api/v1/panel/orders/manual/customers?phone=***');
+    expect(log).not.toContain('5321234567');
+    expect(log).toContain('/api/v1/store/track/***');
+    expect(log).not.toContain('gizli-takip-belirteci');
   });
 });

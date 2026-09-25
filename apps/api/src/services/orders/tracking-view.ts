@@ -168,6 +168,13 @@ export async function buildTrackView(
       phone: branch?.phone ?? tenant.phone ?? null,
       slug: tenant.slug,
       waPhone: waConnectedForBusiness,
+      legal: {
+        legalName: tenant.legalName ?? null,
+        taxNo: tenant.taxNo ?? null,
+        taxOffice: tenant.taxOffice ?? null,
+        address: tenant.address ?? null,
+        email: tenant.email ?? null,
+      },
     },
     expired: false,
   };

@@ -82,7 +82,8 @@ export async function branchOrderingInfo(db: Database, tenant: TenantRow, branch
     { timezone: tz, hours, specialDays: specials, pausedUntil: branch.pausedUntil, busyExtraMinutes: branch.busyExtraMinutes },
     now,
   );
-  const orderingEnabled = tenant.orderingEnabled && !ORDERING_BLOCKED_STAGES.includes(tenant.lifecycleStage);
+  // Canlıya geçmemiş işletme (web_live_at boş) sipariş almaz (04 §3.4.4)
+  const orderingEnabled = tenant.orderingEnabled && !ORDERING_BLOCKED_STAGES.includes(tenant.lifecycleStage) && tenant.webLiveAt != null;
   if (!orderingEnabled) {
     // İşletme düzeyinde kapalı: "paused" gibi davran, açılış zamanı bilinmez
     return { state: 'paused', nextOpenAt: null, closesAt: null, pausedUntil: null, busyExtraMinutes: 0, orderingEnabled: false };
@@ -209,6 +210,10 @@ export async function loadStorefront(db: Database, rawSlug: string, now: Date = 
     .map((c) => ({ id: c.id, name: c.name, products: productsByCategory.get(c.id) ?? [] }))
     .filter((c) => c.products.length > 0);
 
+  // Canlıya geçmeden (künye onaylanmadan) kayıttaki telefonlar işletme telefonu olarak yayımlanmaz
+  const live = tenant.webLiveAt != null;
+  const pub = <T,>(v: T | null | undefined): T | null => (live ? (v ?? null) : null);
+
   return {
     tenant: {
       name: tenant.name,
@@ -216,8 +221,8 @@ export async function loadStorefront(db: Database, rawSlug: string, now: Date = 
       brandColor: tenant.brandColor,
       logoUrl: tenant.logoUrl,
       coverUrl: tenant.coverUrl,
-      phone: tenant.phone ?? branch.phone,
-      whatsappPhone: waRows[0]?.displayPhone ?? null,
+      phone: pub(tenant.phone ?? branch.phone),
+      whatsappPhone: pub(waRows[0]?.displayPhone),
     },
     branch: {
       id: branch.id,
@@ -235,10 +240,11 @@ export async function loadStorefront(db: Database, rawSlug: string, now: Date = 
       mealCardBrands: branch.mealCardBrands,
       prepMinutes: branch.defaultPrepMinutes,
       busyExtraMinutes: ordering.busyExtraMinutes,
-      phone: branch.phone ?? tenant.phone,
+      phone: pub(branch.phone ?? tenant.phone),
       pickupMinOrderKurus: branch.pickupMinOrderKurus,
     },
     orderingEnabled: ordering.orderingEnabled,
+    live,
     zones: zoneRows.map((z) => ({
       id: z.id,
       name: z.name,
@@ -254,7 +260,7 @@ export async function loadStorefront(db: Database, rawSlug: string, now: Date = 
       taxNo: tenant.taxNo,
       taxOffice: tenant.taxOffice,
       address: tenant.address,
-      phone: tenant.phone,
+      phone: pub(tenant.phone),
       email: tenant.email,
     },
   };

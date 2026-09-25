@@ -68,6 +68,31 @@ export function formatLira(amountTl: number, options: LiraFormatOptions = {}): s
   return `${showMinus ? MINUS : ''}${text}${unit ? NBSP + unit : ''}`;
 }
 
+/**
+ * Kullanıcının yazdığı TL tutarını kuruşa çevirir (Türkçe yazım): "1.000" → 100000, "1.250,50" → 125050,
+ * "250,5" → 25050, "500 TL" → 50000. Virgül varsa ondalık ayırıcıdır ve noktalar binlik sayılır; virgül yoksa
+ * nokta yalnız üçlü gruplar hâlindeyse ("1.000", "12.500") binliktir, değilse ondalıktır ("12.5").
+ * Geçersiz ya da negatif girdide null.
+ */
+export function parseTlToKurus(input: string): number | null {
+  const raw = input.replace(/\s|\u00a0/g, '').replace(/(tl|₺)$/i, '');
+  if (!raw) return null;
+  let normalized: string;
+  if (raw.includes(',')) {
+    if (!/^\d{1,3}(\.\d{3})*,\d{0,2}$|^\d+,\d{0,2}$/.test(raw)) return null;
+    normalized = raw.replace(/\./g, '').replace(',', '.');
+  } else if (/^\d{1,3}(\.\d{3})+$/.test(raw)) {
+    normalized = raw.replace(/\./g, '');
+  } else if (/^\d+(\.\d{1,2})?$/.test(raw)) {
+    normalized = raw;
+  } else {
+    return null;
+  }
+  const value = Number(normalized);
+  if (!Number.isFinite(value) || value < 0) return null;
+  return Math.round(value * 100);
+}
+
 /** Sayı: 1234.5 → "1.234,5". */
 export function formatNumber(value: number, maxFractionDigits = 2): string {
   return numberFormat(0, maxFractionDigits).format(value);

@@ -8,6 +8,7 @@ import {
   formatRelative,
   formatLira,
   formatTime,
+  parseTlToKurus,
   searchKey,
   trUpper,
 } from './format';
@@ -63,5 +64,27 @@ describe('format', () => {
     expect(formatPhone('05321234567')).toBe('0 (532) 123 45 67');
     expect(trUpper('soğansız iskender')).toBe('SOĞANSIZ İSKENDER');
     expect(searchKey('Çiğ Köfte')).toBe('cig kofte');
+  });
+
+  it('TL girdisi → kuruş: Türkçe binlik nokta ve ondalık virgül ("1.000" bin liradır)', () => {
+    expect(parseTlToKurus('1.000')).toBe(100_000);
+    expect(parseTlToKurus('12.500')).toBe(1_250_000);
+    expect(parseTlToKurus('1.250,50')).toBe(125_050);
+    expect(parseTlToKurus('250,5')).toBe(25_050);
+    expect(parseTlToKurus('500')).toBe(50_000);
+    expect(parseTlToKurus(' 500 TL ')).toBe(50_000);
+    expect(parseTlToKurus('200₺')).toBe(20_000);
+    expect(parseTlToKurus('12.5')).toBe(1_250);
+    expect(parseTlToKurus('99.99')).toBe(9_999);
+    expect(parseTlToKurus('1000,')).toBe(100_000);
+  });
+
+  it('TL girdisi: geçersiz ya da negatif → null', () => {
+    expect(parseTlToKurus('')).toBeNull();
+    expect(parseTlToKurus('abc')).toBeNull();
+    expect(parseTlToKurus('-50')).toBeNull();
+    expect(parseTlToKurus('1.00.0')).toBeNull();
+    expect(parseTlToKurus('1,000,00')).toBeNull();
+    expect(parseTlToKurus('12,345')).toBeNull();
   });
 });

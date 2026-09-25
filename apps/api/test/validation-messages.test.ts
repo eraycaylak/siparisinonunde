@@ -92,11 +92,12 @@ describe('hata işleyici', () => {
     expect(e.details.context).toBe('body');
     const byField = e.details.fields as Record<string, string>;
     expect(byField.customerName).toBe('Çok kısa: en az 2 karakter olmalı.');
-    expect(byField.customerPhone).toBe('Bu alan zorunlu.');
+    // Telefon Akış A gel-al için şemada isteğe bağlı (zorunluluğu rota uygular)
+    expect(byField.customerPhone).toBeUndefined();
     expect(byField.acceptPreInfo).toBe('Bu onay gerekli.');
     expect(byField.idempotencyKey).toBe('Bu alan zorunlu.');
-    const phone = e.details.issues.find((i: { field: string }) => i.field === 'customerPhone');
-    expect(phone).toMatchObject({ path: '/customerPhone', code: 'invalid_type' });
+    const key = e.details.issues.find((i: { field: string }) => i.field === 'idempotencyKey');
+    expect(key).toMatchObject({ path: '/idempotencyKey', code: 'invalid_type' });
     // İngilizce Zod metni sızmaz
     expect(JSON.stringify(e)).not.toMatch(/Invalid input|Too small|Too big|expected/);
   });

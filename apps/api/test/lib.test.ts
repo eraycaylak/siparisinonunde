@@ -1,8 +1,9 @@
 // DB gerektirmeyen yardımcılar: parola, şifreleme, token, takip token'ı, hız sınırı, yapılandırma.
 
 import { describe, expect, it } from 'vitest';
-import { loadConfig } from '../src/config';
+import { loadConfig, productionConfigWarnings } from '../src/config';
 import { createEncryptor } from '../src/lib/encryption';
+import { redactUrlForLog } from '../src/lib/log';
 import { hashPassword, verifyPassword } from '../src/lib/password';
 import { createRateLimiter } from '../src/lib/rate-limit';
 import { ORDER_CODE_ALPHABET, generateNumericCode, generateOrderCode, randomToken, sha256Hex } from '../src/lib/tokens';
@@ -103,5 +104,52 @@ describe('config', () => {
   it('geçersiz anahtar hata verir', () => {
     expect(() => loadConfig({ ...base, ENCRYPTION_KEY: 'kisa' })).toThrow(/ENCRYPTION_KEY/);
     expect(() => loadConfig({ ...base, DATABASE_URL: '' })).toThrow(/DATABASE_URL/);
+  });
+  describe('üretim (fail-fast)', () => {
+    const prod = {
+      ...base,
+      NODE_ENV: 'production',
+      SESSION_SECRET: 'q9Vd1x7Wm2Lp8Zr4Tn6Yb3Kc5Hs0Jf1Ga9Ue7Io2',
+      TRACKING_SECRET: 'Rt5Yh8Nm2Kq7Wx3Zc9Vb1Lp4Sd6Fg0Hj8Aa',
+      WA_VERIFY_TOKEN: '3f9c1a7e5b2d4c6e8a0b1c2d3e4f5a6b',
+      DEV_TOOLS: '0',
+    };
+    it('geçerli üretim yapılandırması yüklenir; taklit sağlayıcılar yalnız uyarı', () => {
+      const c = loadConfig(prod);
+      expect(c.DEV_TOOLS).toBe(false);
+      expect(productionConfigWarnings(c)).toHaveLength(3);
+      expect(productionConfigWarnings(loadConfig({ ...base, DEV_TOOLS: '1' }))).toEqual([]);
+    });
+    it('DEV_TOOLS=1 üretimde reddedilir', () => {
+      expect(() => loadConfig({ ...prod, DEV_TOOLS: '1' })).toThrow(/DEV_TOOLS/);
+      expect(() => loadConfig({ ...prod, DEV_TOOLS: 'true' })).toThrow(/DEV_TOOLS/);
+    });
+    it('örnek/kısa gizli anahtarlar ve boş doğrulama belirteci reddedilir', () => {
+      expect(() => loadConfig({ ...prod, SESSION_SECRET: 'dev-only-change-me-32chars-minimum' })).toThrow(/SESSION_SECRET/);
+      expect(() => loadConfig({ ...prod, TRACKING_SECRET: 'dev-only-tracking-secret' })).toThrow(/TRACKING_SECRET/);
+      expect(() => loadConfig({ ...prod, WA_VERIFY_TOKEN: '' })).toThrow(/WA_VERIFY_TOKEN/);
+      expect(() => loadConfig({ ...prod, WA_VERIFY_TOKEN: undefined })).toThrow(/WA_VERIFY_TOKEN/);
+    });
+    it('seçilen gerçek sağlayıcının anahtarları eksikse reddedilir', () => {
+      expect(() => loadConfig({ ...prod, SMS_PROVIDER: 'netgsm', NETGSM_USERCODE: 'u', NETGSM_PASSWORD: '' })).toThrow(/NETGSM/);
+      expect(loadConfig({ ...prod, SMS_PROVIDER: 'netgsm', NETGSM_USERCODE: 'u', NETGSM_PASSWORD: 'p', NETGSM_HEADER: 'SIPARISNDE' }).SMS_PROVIDER).toBe('netgsm');
+      expect(() => loadConfig({ ...prod, PLATFORM_WA_PROVIDER: 'd360', PLATFORM_WA_API_KEY: '' })).toThrow(/PLATFORM_WA_API_KEY/);
+      expect(() => loadConfig({ ...prod, PLATFORM_WA_PROVIDER: 'cloud', PLATFORM_WA_API_KEY: 'k' })).toThrow(/PLATFORM_WA_PHONE_NUMBER_ID/);
+      expect(loadConfig({ ...prod, PLATFORM_WA_PROVIDER: 'd360', PLATFORM_WA_API_KEY: 'k' }).PLATFORM_WA_PROVIDER).toBe('d360');
+    });
+    it('geliştirme/test ortamında bu kurallar uygulanmaz', () => {
+      expect(loadConfig({ ...base, DEV_TOOLS: '1', SMS_PROVIDER: 'netgsm' }).DEV_TOOLS).toBe(true);
+    });
+  });
+});
+
+describe('log URL maskeleme', () => {
+  it('sorgu değerleri ve yol belirteçleri maskelenir', () => {
+    expect(redactUrlForLog('/api/v1/panel/orders/manual/customers?phone=05321234567')).toBe('/api/v1/panel/orders/manual/customers?phone=***');
+    expect(redactUrlForLog('/api/v1/panel/conversations?q=0532&limit=20')).toBe('/api/v1/panel/conversations?q=***&limit=***');
+    expect(redactUrlForLog('/api/v1/store/track/abc.def/cancel')).toBe('/api/v1/store/track/***/cancel');
+    expect(redactUrlForLog('/api/v1/webhooks/wa/wh-token-1?hub.verify_token=x')).toBe('/api/v1/webhooks/wa/***?hub.verify_token=***');
+    expect(redactUrlForLog('/api/v1/health')).toBe('/api/v1/health');
+    expect(redactUrlForLog('/api/v1/health?')).toBe('/api/v1/health');
   });
 });

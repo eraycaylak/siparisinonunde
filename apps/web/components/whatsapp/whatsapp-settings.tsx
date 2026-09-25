@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import { CircleCheck, CircleX, Copy, MessageSquareOff, PlugZap, Send, ShieldCheck, TriangleAlert } from 'lucide-react';
+import { CircleCheck, CircleX, Copy, MessageSquareOff, PlugZap, RefreshCw, Send, ShieldCheck, TriangleAlert, Unplug } from 'lucide-react';
 import { toast } from 'sonner';
 import { PasswordInput } from '@/components/auth/password-input';
 import {
@@ -13,6 +13,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  ConfirmDialog,
   Field,
   Input,
   PageHeader,
@@ -50,6 +51,16 @@ interface WhatsappSettings {
 
 const KEY = ['panel', 'whatsapp'] as const;
 
+/** Bağlantı kesilmiş hesap: webhook adresi çalışmaz, mesaj gitmez; yeniden bağlamak için anahtar girilir. */
+function isDisconnected(acc: WhatsappSettings['account']): boolean {
+  return acc?.status === 'disconnected';
+}
+
+/** Webhook adresinin girileceği yer (sağlayıcıya göre). */
+function webhookPlace(provider: Provider): string {
+  return provider === 'd360' ? '360dialog panelinde (ya da API ile)' : provider === 'cloud' ? 'Meta uygulamanızda WhatsApp > Yapılandırma bölümünde' : 'sağlayıcı panelinde';
+}
+
 const PROVIDER_OPTIONS: { value: Provider; label: string; description: string }[] = [
   { value: 'd360', label: '360dialog', description: 'Önerilen aracı firma (BSP). Numaranızı 360dialog panelinden bağlar, aldığınız API anahtarını buraya girersiniz.' },
   { value: 'cloud', label: 'Meta Cloud API', description: 'Doğrudan Meta. Telefon numarası kimliği (Phone number ID) ve erişim anahtarı gerekir.' },
@@ -58,8 +69,9 @@ const PROVIDER_OPTIONS: { value: Provider; label: string; description: string }[
 
 function HealthCard({ data }: { data: WhatsappSettings }) {
   const { account, health } = data;
-  const tone =
-    health.level === 'ok'
+  const tone = isDisconnected(account)
+    ? { Icon: Unplug, badge: 'warning' as const, label: 'Bağlantı kesik' }
+    : health.level === 'ok'
       ? { Icon: CircleCheck, badge: 'success' as const, label: 'Bağlı' }
       : health.level === 'error'
         ? { Icon: CircleX, badge: 'danger' as const, label: 'Hata' }
@@ -203,12 +215,31 @@ function ConnectionForm({ data }: { data: WhatsappSettings }) {
 }
 
 function WebhookCard({ url, provider }: { url: string; provider: Provider }) {
+  const qc = useQueryClient();
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [rotating, setRotating] = useState(false);
+  const [rotated, setRotated] = useState(false);
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(url);
       toast.success('Webhook adresi kopyalandı.');
     } catch {
       toast.error('Kopyalanamadı; adresi seçip elle kopyalayın.');
+    }
+  };
+  const rotate = async () => {
+    setRotating(true);
+    try {
+      // Yanıt güncel ayarları ve yeni adresi taşır; kart yeni adresi önbellekten gösterir
+      const res = await apiFetch<WhatsappSettings & { webhookUrl: string }>('/panel/whatsapp/rotate-webhook-token', { method: 'POST', body: {} });
+      qc.setQueryData(KEY, res);
+      setRotated(true);
+      setConfirmOpen(false);
+      toast.success('Yeni webhook adresi oluşturuldu. Sağlayıcı paneline girmeyi unutmayın.');
+    } catch (err) {
+      toast.error(errorMessage(err, 'Webhook adresi yenilenemedi.'));
+    } finally {
+      setRotating(false);
     }
   };
   return (
@@ -234,12 +265,96 @@ function WebhookCard({ url, provider }: { url: string; provider: Provider }) {
             Kopyala
           </Button>
         </div>
+        {rotated ? (
+          <Alert variant="warning" title="Yeni adresi şimdi tanımlayın" className="mt-3">
+            Eski adres artık çalışmıyor. Yukarıdaki yeni adresi {webhookPlace(provider)} webhook olarak kaydedin; kaydedene kadar müşterilerin WhatsApp
+            mesajları size ulaşmaz.
+          </Alert>
+        ) : null}
+        <div className="mt-4 flex flex-col items-start gap-2 border-t border-border pt-4">
+          <p className="text-sm text-fg-muted">
+            Adres başkalarının eline geçtiyse ya da tanımadığınız istekler görüyorsanız yenileyin. Eski adres hemen çalışmaz; yenisini {webhookPlace(provider)} tekrar
+            girmeniz gerekir.
+          </p>
+          <Button variant="secondary" onClick={() => setConfirmOpen(true)}>
+            <RefreshCw aria-hidden />
+            Webhook adresini yenile
+          </Button>
+        </div>
       </CardContent>
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Webhook adresi yenilensin mi?"
+        description={`Yeni gizli bir adres oluşturulur, mevcut adres hemen geçersiz olur. Yeni adresi ${webhookPlace(provider)} webhook olarak kaydedene kadar müşterilerin WhatsApp mesajları size ulaşmaz ve bot yanıt vermez.`}
+        confirmLabel="Adresi yenile"
+        loading={rotating}
+        onConfirm={() => void rotate()}
+      />
     </Card>
   );
 }
 
-function TestCard({ enabled }: { enabled: boolean }) {
+function DisconnectCard({ data }: { data: WhatsappSettings }) {
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const smsReady = data.smsFallback.tenantEnabled && data.smsFallback.platformEnabled;
+  const provider = data.account?.provider ?? 'd360';
+  const disconnect = async () => {
+    setBusy(true);
+    try {
+      const res = await apiFetch<WhatsappSettings>('/panel/whatsapp/disconnect', { method: 'POST', body: {} });
+      qc.setQueryData(KEY, res);
+      setOpen(false);
+      toast.success('WhatsApp bağlantısı kesildi.');
+    } catch (err) {
+      toast.error(errorMessage(err, 'Bağlantı kesilemedi.'));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Bağlantıyı kes</CardTitle>
+        <CardDescription>
+          Numaranızı başka bir sağlayıcıya taşıyacaksanız, API anahtarınızın başkasının eline geçtiğinden şüpheleniyorsanız ya da WhatsApp üzerinden sipariş almayı
+          bırakacaksanız kullanın.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button variant="danger" onClick={() => setOpen(true)}>
+          <Unplug aria-hidden />
+          Bağlantıyı kes
+        </Button>
+      </CardContent>
+      <ConfirmDialog
+        open={open}
+        onOpenChange={setOpen}
+        title="WhatsApp bağlantısı kesilsin mi?"
+        description="Bağlantı hemen kesilir. Yeniden bağlamak için kurulumu tekrarlamanız gerekir."
+        confirmLabel="Bağlantıyı kes"
+        loading={busy}
+        onConfirm={() => void disconnect()}
+      >
+        <ul className="flex list-disc flex-col gap-1 ps-5 text-sm leading-6">
+          <li>Kayıtlı API anahtarı silinir ve webhook adresi geçersiz olur.</li>
+          <li>Müşterilere WhatsApp mesajı (onay, yolda, teslim) gitmez, gelen mesajlar alınmaz; gönderilmeyi bekleyen mesajlar da gitmez.</li>
+          <li>
+            {smsReady
+              ? 'Web siparişleri SMS koduyla doğrulanır ve durum bildirimleri SMS ile gider (WhatsApp’sız mod).'
+              : 'SMS yedeği kapalı: web siparişleri kendiliğinden doğrulanamaz; müşteriyi arayıp siparişi panelden doğrulamanız gerekir.'}
+          </li>
+          <li>Sohbet ve mesaj geçmişi silinmez.</li>
+          <li>Yeniden bağlamak için API anahtarını tekrar girip kaydetmeniz ve yeni webhook adresini {webhookPlace(provider)} tanımlamanız gerekir.</li>
+        </ul>
+      </ConfirmDialog>
+    </Card>
+  );
+}
+
+function TestCard({ enabled, disabledHint }: { enabled: boolean; disabledHint: string }) {
   const qc = useQueryClient();
   const [to, setTo] = useState('');
   const [sending, setSending] = useState(false);
@@ -274,7 +389,7 @@ function TestCard({ enabled }: { enabled: boolean }) {
             Test mesajı gönder
           </Button>
         </form>
-        {!enabled ? <p className="mt-2 text-sm text-fg-muted">Önce numaranızı kaydedin.</p> : null}
+        {!enabled ? <p className="mt-2 text-sm text-fg-muted">{disabledHint}</p> : null}
         {error ? (
           <Alert variant="danger" className="mt-3">
             {error}
@@ -359,10 +474,14 @@ export function WhatsappSettingsPage() {
         <>
           <HealthCard data={q.data} />
           <ConnectionForm data={q.data} />
-          {q.data.account ? <WebhookCard url={q.data.account.webhookUrl} provider={q.data.account.provider} /> : null}
-          <TestCard enabled={!!q.data.account} />
+          {q.data.account && !isDisconnected(q.data.account) ? <WebhookCard url={q.data.account.webhookUrl} provider={q.data.account.provider} /> : null}
+          <TestCard
+            enabled={!!q.data.account && !isDisconnected(q.data.account)}
+            disabledHint={isDisconnected(q.data.account) ? 'Bağlantı kesik. Yeniden bağlamak için yukarıdaki bilgileri kaydedin.' : 'Önce numaranızı kaydedin.'}
+          />
           <SmsModeCard data={q.data} />
           <Guide360 />
+          {q.data.account && !isDisconnected(q.data.account) ? <DisconnectCard data={q.data} /> : null}
         </>
       )}
     </div>

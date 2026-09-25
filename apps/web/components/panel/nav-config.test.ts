@@ -23,4 +23,15 @@ describe('panel rol görünürlüğü', () => {
     // Yönetici diğer ayarları görmeye devam eder
     expect(isPathAllowed('/panel/ayarlar/personel', 'manager')).toBe(true);
   });
+  it('Ayarlar › Güvenlik (iki adımlı doğrulama) kişisel hesabı olan tüm rollerde; kurye hariç', () => {
+    for (const role of ['owner', 'manager', 'cashier', 'kitchen'] as const) {
+      expect(isPathAllowed('/panel/ayarlar/guvenlik', role)).toBe(true);
+      expect(settingsForRole(role).map((i) => i.href)).toContain('/panel/ayarlar/guvenlik');
+    }
+    expect(isPathAllowed('/panel/ayarlar/guvenlik', 'courier')).toBe(false);
+    // Kasiyer ve mutfak diğer ayarları görmez, ana menüleri değişmez
+    expect(settingsForRole('kitchen').map((i) => i.href)).toEqual(['/panel/ayarlar/guvenlik']);
+    expect(isPathAllowed('/panel/ayarlar', 'cashier')).toBe(false);
+    expect(navForRole('kitchen').map((i) => i.href)).toEqual(['/panel', '/panel/menu']);
+  });
 });

@@ -18,6 +18,7 @@ import { PanelBands } from './panel-bands';
 import { PanelStreamProvider, usePanelStream } from './stream-provider';
 import { UserMenu } from './user-menu';
 import { OrderingQuickActions } from '@/components/settings/ordering-quick-actions';
+import { NewOrderAlarmProvider, NewOrderBands, SoundIndicator } from '@/components/live/new-order-alarm';
 
 /** Oturum gerektirmeyen panel yolları. */
 export const PANEL_PUBLIC_PATHS = ['/panel/giris', '/panel/kayit'] as const;
@@ -28,7 +29,8 @@ function isPublic(pathname: string) {
 
 /**
  * Panel kabuğu: oturum koruması (useMe → 401 ise /panel/giris?next=…), rol bazlı menü,
- * tek SSE bağlantısı, üst bar ve bantlar. /panel/giris ve /panel/kayit korumasızdır.
+ * tek SSE bağlantısı, yeni sipariş alarmı (her ekranda ses + kırmızı bant), üst bar ve bantlar.
+ * /panel/giris ve /panel/kayit korumasızdır.
  */
 export function PanelShell({ children }: { children: ReactNode }) {
   const pathname = usePathname() ?? '/panel';
@@ -60,22 +62,24 @@ function GuardedPanel({ pathname, children }: { pathname: string; children: Reac
 
   return (
     <PanelStreamProvider branchId={currentBranchId(me.data)} enabled={streamEnabled}>
-      <PanelChrome me={me.data} pathname={pathname} minimal={onboarding}>
-        {isPathAllowed(pathname, role) ? (
-          children
-        ) : (
-          <EmptyState
-            icon={LockKeyhole}
-            title="Bu sayfa için yetkiniz yok"
-            description="Bu bölümü işletme sahibi ya da yönetici kullanabilir."
-            action={
-              <Link href="/panel" className={buttonVariants({ variant: 'secondary' })}>
-                Canlı siparişlere dön
-              </Link>
-            }
-          />
-        )}
-      </PanelChrome>
+      <NewOrderAlarmProvider businessName={me.data.tenant.name} kitchen={role === 'kitchen'} minimal={onboarding}>
+        <PanelChrome me={me.data} pathname={pathname} minimal={onboarding}>
+          {isPathAllowed(pathname, role) ? (
+            children
+          ) : (
+            <EmptyState
+              icon={LockKeyhole}
+              title="Bu sayfa için yetkiniz yok"
+              description="Bu bölümü işletme sahibi ya da yönetici kullanabilir."
+              action={
+                <Link href="/panel" className={buttonVariants({ variant: 'secondary' })}>
+                  Canlı siparişlere dön
+                </Link>
+              }
+            />
+          )}
+        </PanelChrome>
+      </NewOrderAlarmProvider>
     </PanelStreamProvider>
   );
 }
@@ -187,6 +191,7 @@ function PanelChrome({ me, pathname, minimal, children }: { me: Me; pathname: st
         İçeriğe geç
       </a>
       <div ref={topRef} className="sticky top-0 z-40" data-print-hide>
+        <NewOrderBands />
         <PanelBands me={me} />
         <ConnectionBanner onRetry={stream?.reconnect} />
         <header className="border-b border-border bg-surface-raised">
@@ -200,6 +205,7 @@ function PanelChrome({ me, pathname, minimal, children }: { me: Me; pathname: st
             </Link>
             <div className="ms-auto flex items-center gap-1 sm:gap-3">
               <OrderingIndicator />
+              <SoundIndicator />
               <ConnectionIndicator />
               <UserMenu me={me} />
             </div>

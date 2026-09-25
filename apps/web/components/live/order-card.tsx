@@ -3,7 +3,7 @@
 // Canlı ekran sipariş kartı (04 §4.4, §4.6, §4.8): tek birincil buton, süre çipleri, ret, durum ilerletme.
 
 import { useState } from 'react';
-import { AlertTriangle, BellRing, Ellipsis, Hourglass, MessageSquareWarning, PhoneCall, Printer, StickyNote, Timer, Undo2 } from 'lucide-react';
+import { AlertTriangle, BellRing, Ellipsis, Hourglass, MapPin, MessageSquareWarning, PhoneCall, Printer, StickyNote, Timer, Undo2 } from 'lucide-react';
 import type { OrderCard } from '@siparis/core/orders/contracts';
 import { Badge, Button, ChannelBadge, FulfillmentBadge, IconButton, StatusBadge } from '@/components/ui';
 import { cn } from '@/lib/cn';
@@ -12,6 +12,7 @@ import { autoPrintKinds, openReceipt } from '@/components/orders/api';
 import { changeText, paymentShort, rejectLabel } from '@/components/orders/labels';
 import { OrderItems } from '@/components/orders/order-items';
 import { useOrderSheets } from '@/components/orders/order-sheets';
+import { acceptWithAutoPrint } from './receipt-window';
 
 const ETA_OPTIONS = [15, 20, 30, 45, 60];
 
@@ -50,8 +51,13 @@ export function OrderCardView({ card, now, usePreparingStep, alarming, onSeen, a
     setBusy(`accept-${minutes}`);
     onSeen?.(card.id);
     try {
-      await actions.accept(card.id, minutes, card.version);
-      if (autoPrint) openReceipt(card.id, autoPrintKinds(printPlan, card.fulfillmentType));
+      // Fiş penceresi bu tıklama içinde, istekten önce açılır (await sonrası açılır pencere engellenir);
+      // onay başarısızsa kapanır. Otomatik yazdırma kapalıysa ya da şube ayarı fiş istemiyorsa pencere açılmaz.
+      await acceptWithAutoPrint(
+        () => actions.accept(card.id, minutes, card.version),
+        card.id,
+        autoPrint ? autoPrintKinds(printPlan, card.fulfillmentType) : [],
+      );
     } catch {
       /* tost gösterildi */
     } finally {
@@ -153,6 +159,12 @@ export function OrderCardView({ card, now, usePreparingStep, alarming, onSeen, a
           <span className="text-fg-muted">
             {card.fulfillmentType === 'delivery' ? (card.neighborhood ? `${card.neighborhood}` : 'Adres') : 'Gel-al'}
           </span>
+          {card.fulfillmentType === 'delivery' && card.zoneDeclared ? (
+            // Bölge konum/mahalleyle doğrulanmadı, müşteri listeden seçti: adres personelce kontrol edilir
+            <Badge variant="warning" size="sm">
+              <MapPin aria-hidden className="size-3.5" /> Bölge müşteri beyanı
+            </Badge>
+          ) : null}
         </div>
       ) : null}
 

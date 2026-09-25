@@ -92,7 +92,7 @@ export function CouriersView() {
                     )}
                   </span>
                   {c.phone ? (
-                    <a href={`tel:${c.phone}`} className="inline-flex min-h-10 items-center gap-1.5 self-start text-sm text-fg underline underline-offset-4">
+                    <a href={`tel:${c.phone}`} className="inline-flex min-h-hit items-center gap-1.5 self-start text-sm text-fg underline underline-offset-4">
                       <Phone aria-hidden className="size-4" />
                       {formatPhone(c.phone)}
                     </a>

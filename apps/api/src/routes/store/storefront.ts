@@ -24,6 +24,7 @@ import {
   findTenantCustomer,
   findValidLinkToken,
   loadLastOrder,
+  loadPrefill,
   markLinkTokenExchanged,
 } from '../../services/storefront/session';
 
@@ -95,26 +96,28 @@ const storefrontRoutes: FastifyPluginAsyncZod = async (app) => {
       }
 
       const linkCustomer = await findTenantCustomer(app.db, tenant.id, linkCustomerId);
-      let lastOrderCustomerId: string | null = linkCustomer?.id ?? null;
+      let known = linkCustomer;
       let lastOrderSource: StoreSessionView['lastOrderSource'] = linkCustomer ? 'link' : null;
-      if (!lastOrderCustomerId) {
+      if (!known) {
         const deviceCustomerId = verifyCustomerCookie(app.config.SESSION_SECRET, request.cookies?.[customerCookieName(slug)], {
           tenantId: tenant.id,
           slug,
         });
         const deviceCustomer = await findTenantCustomer(app.db, tenant.id, deviceCustomerId);
         if (deviceCustomer && !deviceCustomer.isBlocked) {
-          lastOrderCustomerId = deviceCustomer.id;
+          known = deviceCustomer;
           lastOrderSource = 'device';
         }
       }
-      const lastOrder = lastOrderCustomerId ? await loadLastOrder(app.db, tenant.id, lastOrderCustomerId) : null;
+      const lastOrder = known ? await loadLastOrder(app.db, tenant.id, known.id) : null;
+      const prefill = known && lastOrderSource ? await loadPrefill(app.db, known, lastOrderSource) : null;
 
       return {
         customer: linkCustomer ? customerDto(linkCustomer) : null,
         lastOrder,
         linkStatus,
         lastOrderSource: lastOrder ? lastOrderSource : null,
+        prefill,
       };
     },
   );

@@ -3,9 +3,12 @@ import Link from 'next/link';
 import { SearchX } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
 
+// Vitrin 404'ü de bu sayfadır (/s/{bilinmeyen}): önizlemede platform tanıtımı değil nötr metin görünür
 export const metadata: Metadata = {
   title: 'Sayfa bulunamadı',
+  description: 'Aradığınız sayfa bulunamadı.',
   robots: { index: false },
+  openGraph: { type: 'website', locale: 'tr_TR', title: 'Sayfa bulunamadı', description: 'Aradığınız sayfa bulunamadı.' },
 };
 
 export default function NotFound() {

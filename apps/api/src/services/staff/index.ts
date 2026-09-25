@@ -117,6 +117,8 @@ export async function createStaff(tx: Database, actor: StaffActor, body: StaffCr
   const existingUser = Boolean(user);
   if (user) {
     if (user.disabledAt) throw conflict('user_disabled', 'Bu hesap kapatılmış; eklenemez.');
+    // Platform yönetim hesabı hiçbir işletmeye personel/kurye olarak bağlanamaz
+    if (user.isPlatformAdmin) throw conflict('account_not_allowed', 'Bu hesap personel olarak eklenemez.');
     const [m] = await tx
       .select()
       .from(memberships)
@@ -225,6 +227,25 @@ async function assertCourier(db: Database, tenantId: string, userId: string): Pr
   return row;
 }
 
+/**
+ * Magic link (parolasız kurye oturumu) verilebilir mi: platform yöneticisine hiçbir koşulda verilmez; parolası olan
+ * hesaba yalnız her yerde kurye ise verilir. Böylece bir işletme, başka yerde sahip/personel olan birinin (parolalı)
+ * hesabına parola ve TOTP olmadan oturum açamaz. Parolasız hesabın bağlantıdan başka giriş yolu yoktur; oturum
+ * zaten bağlantının işletmesine ve kurye rolüne bağlıdır (switch-tenant kapalı). Üretimde ve kullanımda (exchange)
+ * ayrı ayrı kontrol edilir.
+ */
+export async function courierLinkAllowed(db: Database, userId: string): Promise<boolean> {
+  const [u] = await db.select({ isPlatformAdmin: users.isPlatformAdmin, passwordHash: users.passwordHash }).from(users).where(eq(users.id, userId));
+  if (!u || u.isPlatformAdmin) return false;
+  if (!u.passwordHash) return true;
+  const [other] = await db
+    .select({ id: memberships.id })
+    .from(memberships)
+    .where(and(eq(memberships.userId, userId), ne(memberships.role, 'courier')))
+    .limit(1);
+  return !other;
+}
+
 export async function createCourierLoginLink(
   tx: Database,
   actor: StaffActor,
@@ -234,6 +255,12 @@ export async function createCourierLoginLink(
 ): Promise<{ url: string; expiresAt: Date; linkId: string }> {
   const { m, u } = await assertCourier(tx, actor.tenantId, userId);
   if (m.disabledAt || u.disabledAt) throw new AppError(409, 'courier_disabled', 'Kurye devre dışı; önce etkinleştirin.');
+  if (!(await courierLinkAllowed(tx, userId))) {
+    throw conflict(
+      'courier_link_not_allowed',
+      'Bu kişinin başka bir işletmede personel hesabı var; giriş bağlantısı gönderilemez. Kendi e-posta/telefon ve parolasıyla giriş yapmalı.',
+    );
+  }
   const token = randomToken(32);
   const expiresAt = new Date(now.getTime() + COURIER_LINK_TTL_MS);
   const [link] = await tx

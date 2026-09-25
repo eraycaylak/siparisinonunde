@@ -50,6 +50,12 @@ describe('order FSM', () => {
     }
   }
 
+  it('geçersiz geçiş mesajı Türkçe durum etiketleriyle (kod içermez)', () => {
+    const err = validateTransition('preparing', 'on_the_way');
+    expect(err?.message).toBe('Bu sipariş "Hazırlanıyor" durumundan "Yolda" durumuna geçemez.');
+    expect(err?.message).not.toMatch(/preparing|on_the_way/);
+  });
+
   it('rejected → new geçişi yoktur', () => {
     expect(canTransition('rejected', 'new')).toBe(false);
   });

@@ -16,7 +16,7 @@ import { Alert, Badge, Button, Checkbox, EmptyState, Field, IconButton, Input, P
 import { apiFetch, errorMessage, fieldErrorsOf, isApiError, newIdempotencyKey, useApiQuery } from '@/lib/api';
 import { useMe } from '@/lib/auth';
 import { cn } from '@/lib/cn';
-import { formatMoney, formatRelative, searchKey } from '@/lib/format';
+import { formatMoney, formatRelative, parseTlToKurus, searchKey } from '@/lib/format';
 import { ETA_CHIPS } from './labels';
 
 type Product = ManualMenuResponse['categories'][number]['products'][number];
@@ -181,12 +181,14 @@ export function PhoneOrder() {
     if (outOfZone && !override) e.override = 'Bölge dışı: "Yine de kaydet" kutusunu işaretleyin ya da gel-al seçin.';
     if (!payment) e.paymentMethod = 'Ödeme yöntemini seçin.';
     if (payment === 'meal_card_on_delivery' && !mealBrand) e.mealCardBrand = 'Markayı seçin.';
+    // Türkçe yazım: "1.000" bin liradır (parseTlToKurus)
+    const changeKurus = payment === 'cash_on_delivery' && changeFor.trim() ? parseTlToKurus(changeFor) : undefined;
+    if (changeKurus === null) e.changeFor = 'Tutarı rakamla yazın (ör. 1.000 ya da 250,50).';
     setErrors(e);
     setFormError(null);
     if (Object.keys(e).length) return;
     setSaving(true);
     try {
-      const changeKurus = payment === 'cash_on_delivery' && changeFor ? Math.round(Number(changeFor.replace(',', '.')) * 100) : undefined;
       const res = await apiFetch<OrderCardResponse>('/panel/orders/manual', {
         method: 'POST',
         body: {
@@ -224,7 +226,7 @@ export function PhoneOrder() {
   return (
     <div className="flex flex-col gap-4 pb-8">
       <PageHeader title="Telefon siparişi" description="Telefonla gelen siparişi kaydedin. Toplamı sistem hesaplar." />
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] [&>*]:min-w-0">
         <div className="flex min-w-0 flex-col gap-4">
           {/* 1 Müşteri */}
           <section className="flex flex-col gap-3 rounded-lg border border-border bg-surface-raised p-4">
@@ -380,7 +382,7 @@ export function PhoneOrder() {
               </Field>
             ) : null}
             {payment === 'cash_on_delivery' ? (
-              <Field label="Kaç TL ile ödeyecek? (isteğe bağlı)">
+              <Field label="Kaç TL ile ödeyecek? (isteğe bağlı)" error={errors.changeFor}>
                 <Input inputMode="decimal" value={changeFor} onChange={(e) => setChangeFor(e.target.value)} />
               </Field>
             ) : null}

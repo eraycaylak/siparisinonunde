@@ -18,7 +18,9 @@ test('Kayıt, kurulum sihirbazı, test siparişi ve canlı ekranda onay', async 
   await page.getByLabel(labelRe('E-posta')).fill(`kayit-${stamp}@e2e.local`);
   await page.getByLabel(labelRe('Parola')).fill('e2e-parola-123');
   await page.getByRole('checkbox', { name: /Kullanım koşullarını/ }).check();
-  await page.getByRole('checkbox', { name: /KVKK aydınlatma metnini/ }).check();
+  // Aydınlatma bilgilendirmedir, onay kutusu yoktur (08 §7.4)
+  await expect(page.getByRole('checkbox', { name: /aydınlatma/i })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'KVKK aydınlatma metnine' })).toBeVisible();
   await page.getByRole('checkbox', { name: /satmayacağımı beyan ederim/ }).check();
   await page.getByRole('button', { name: 'Hesabımı aç' }).click();
 

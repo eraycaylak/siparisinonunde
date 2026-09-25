@@ -54,6 +54,7 @@ function CourierCard({ order: o, open, onToggle, onDeliver }: { order: CourierOr
   const address = [o.neighborhood ? `${o.neighborhood} Mah.` : null, o.addressLine].filter(Boolean).join(', ');
   const maps = mapLinks({ lat: o.lat, lng: o.lng, address: `${address}, Yozgat` });
   const onTheWay = o.status === 'on_the_way';
+  const preparing = o.status === 'preparing';
 
   const goOut = async () => {
     setBusy(true);
@@ -127,9 +128,13 @@ function CourierCard({ order: o, open, onToggle, onDeliver }: { order: CourierOr
           Teslim ettim
         </Button>
       ) : (
-        <Button size="xl" block onClick={goOut} loading={busy} disabled={o.fulfillmentType !== 'delivery'}>
-          <Bike aria-hidden /> Yola çıktım
-        </Button>
+        <>
+          {/* preparing → on_the_way geçişi yok (00 durum makinesi): mutfak "Hazır" deyince açılır */}
+          {preparing ? <p className="text-center text-sm font-semibold text-fg-muted">Mutfakta hazırlanıyor. Hazır olunca yola çıkabilirsiniz.</p> : null}
+          <Button size="xl" block onClick={goOut} loading={busy} disabled={o.fulfillmentType !== 'delivery' || preparing}>
+            <Bike aria-hidden /> Yola çıktım
+          </Button>
+        </>
       )}
     </article>
   );

@@ -13,7 +13,12 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const { slug } = await params;
   const result = await getStorefront(slug);
   if (result.kind !== 'ok') {
-    return { title: { absolute: 'Online sipariş' }, robots: { index: false, follow: false } };
+    return {
+      title: { absolute: 'Online sipariş' },
+      description: 'Online sipariş.',
+      robots: { index: false, follow: false },
+      openGraph: { type: 'website', locale: 'tr_TR', title: 'Online sipariş', description: 'Online sipariş.' },
+    };
   }
   const s = result.store;
   const title = `${s.tenant.name} · Online sipariş`;
@@ -22,6 +27,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
     title: { absolute: title },
     description,
     alternates: { canonical: storefrontPublicUrl(slug) },
+    // Canlıya geçmemiş vitrin ("Yakında") arama motorlarına kapalı (04 §3.4.4)
+    ...(s.live === false ? { robots: { index: false, follow: false } } : {}),
     openGraph: {
       type: 'website',
       locale: 'tr_TR',
@@ -68,7 +75,7 @@ export default async function StorefrontPage({ params }: { params: Promise<{ slu
   const store = result.kind === 'ok' ? result.store : null;
   return (
     <>
-      {store ? <JsonLd data={restaurantJsonLd(store, slug)} /> : null}
+      {store && store.live !== false ? <JsonLd data={restaurantJsonLd(store, slug)} /> : null}
       <StorefrontMenu slug={slug} initialStore={store} />
     </>
   );

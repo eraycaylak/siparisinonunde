@@ -236,7 +236,7 @@ function QrCard({ title, url, qr, fileName, onCopy }: { title: string; url: stri
               Kopyala
             </Button>
             {qr ? (
-              <a href={qr} download={fileName} className="inline-flex min-h-10 items-center gap-2 rounded-md border border-border-strong px-3 text-sm font-semibold text-fg hover:bg-accent">
+              <a href={qr} download={fileName} className="inline-flex min-h-hit items-center gap-2 rounded-md border border-border-strong px-3 text-sm font-semibold text-fg hover:bg-accent">
                 <Download aria-hidden className="size-4" />
                 PNG indir
               </a>

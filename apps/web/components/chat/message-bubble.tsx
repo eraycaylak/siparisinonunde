@@ -149,7 +149,7 @@ export function MessageBubble({
             href={`https://www.openstreetmap.org/?mlat=${m.location.lat}&mlon=${m.location.lng}#map=17/${m.location.lat}/${m.location.lng}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex min-h-10 items-center gap-2 text-sm font-semibold underline underline-offset-2"
+            className="inline-flex min-h-hit items-center gap-2 text-sm font-semibold underline underline-offset-2"
           >
             <MapPin aria-hidden className="size-4" />
             Haritada gör ({m.location.lat.toFixed(4)}, {m.location.lng.toFixed(4)})

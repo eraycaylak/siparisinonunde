@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { currentBranchId, currentRole, hasRole, homePathFor, safeNextPath, type Me } from './auth';
+import { currentBranchId, currentRole, hasRole, homePathFor, needsTotpEnrollment, safeNextPath, type Me } from './auth';
 
 const me: Me = {
   user: { id: 'u1', name: 'Elif', email: null, phone: null, isPlatformAdmin: false, platformRole: null },
@@ -19,6 +19,7 @@ const me: Me = {
   branchId: null,
   memberships: [{ tenantId: 't1', tenantName: 'Bozok Pide Salonu', tenantSlug: 'bozok-pide', role: 'cashier', branchId: 'b1' }],
   isPlatformAdmin: false,
+  totpEnabled: false,
   readOnly: false,
   impersonating: null,
 };
@@ -44,5 +45,16 @@ describe('auth yardımcıları', () => {
     expect(homePathFor(me)).toBe('/panel');
     expect(homePathFor({ ...me, memberships: [{ ...me.memberships[0]!, role: 'courier' }] })).toBe('/kurye');
     expect(homePathFor({ ...me, memberships: [], isPlatformAdmin: true })).toBe('/admin');
+  });
+
+  it('TOTP kurulumu gereken platform yöneticisi', () => {
+    const admin: Me = { ...me, tenant: null, memberships: [], isPlatformAdmin: true, totpRequired: true, totpEnabled: false };
+    expect(needsTotpEnrollment(admin)).toBe(true);
+    expect(needsTotpEnrollment({ ...admin, totpEnabled: true })).toBe(false);
+    expect(needsTotpEnrollment({ ...admin, totpRequired: false })).toBe(false);
+    expect(needsTotpEnrollment({ ...admin, totpRequired: undefined })).toBe(false);
+    // İşletme kullanıcısında TOTP isteğe bağlı
+    expect(needsTotpEnrollment(me)).toBe(false);
+    expect(needsTotpEnrollment(null)).toBe(false);
   });
 });

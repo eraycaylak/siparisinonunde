@@ -7,6 +7,12 @@ const bool01 = z
   .union([z.string(), z.boolean(), z.undefined()])
   .transform((v) => v === true || v === '1' || v === 'true');
 
+/** Verilmemiş/boş → undefined (varsayılanı loadConfig ortama göre seçer); aksi halde bool01 gibi. */
+const optionalBool01 = z
+  .union([z.string(), z.boolean()])
+  .optional()
+  .transform((v) => (v === undefined || v === '' ? undefined : v === true || v === '1' || v === 'true'));
+
 const optionalString = z
   .string()
   .optional()
@@ -43,15 +49,62 @@ export const configSchema = z.object({
   UPLOAD_DIR: z.string().default('./uploads'),
   ANTHROPIC_API_KEY: optionalString,
   DEV_TOOLS: bool01.default(false),
+  /** Platform yöneticileri için TOTP zorunlu (00 §12a madde 7). Verilmezse: üretimde açık, diğer ortamlarda kapalı. */
+  ADMIN_TOTP_REQUIRED: optionalBool01,
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 
-export type Config = z.infer<typeof configSchema> & {
+export type Config = Omit<z.infer<typeof configSchema>, 'ADMIN_TOTP_REQUIRED'> & {
+  /** Çözülmüş değer (varsayılan NODE_ENV'e göre) */
+  ADMIN_TOTP_REQUIRED: boolean;
   /** Çerezde Secure bayrağı (üretim ya da https kök adres) */
   cookieSecure: boolean;
   /** Mutlak yükleme dizini */
   uploadDirAbs: string;
 };
+
+type ParsedConfig = z.infer<typeof configSchema>;
+
+/** Üretimde güçlü sayılmayan gizli anahtar: kısa ya da örnek dosyadaki geliştirme değeri. */
+const weakSecret = (v: string) => v.length < 32 || v.startsWith('dev-only');
+
+/**
+ * Üretimde (NODE_ENV=production) süreci başlatmayan yapılandırma hataları (fail-fast; 15 §4):
+ * geliştirici araçları açık, zayıf/örnek gizli anahtarlar, seçilen gerçek sağlayıcının anahtarları eksik.
+ */
+export function productionConfigErrors(c: ParsedConfig): string[] {
+  if (c.NODE_ENV !== 'production') return [];
+  const errors: string[] = [];
+  if (c.DEV_TOOLS) errors.push('DEV_TOOLS üretimde 0 olmalı (/api/v1/dev/* kimlik doğrulamasızdır)');
+  if (weakSecret(c.SESSION_SECRET)) errors.push('SESSION_SECRET en az 32 karakter ve örnek değerden farklı olmalı (openssl rand -base64 48)');
+  if (weakSecret(c.TRACKING_SECRET)) errors.push('TRACKING_SECRET en az 32 karakter ve örnek değerden farklı olmalı (openssl rand -base64 32)');
+  if (!c.WA_VERIFY_TOKEN.trim() || c.WA_VERIFY_TOKEN === 'dev-verify') {
+    errors.push('WA_VERIFY_TOKEN boş ya da varsayılan olamaz (openssl rand -hex 16)');
+  }
+  if (c.SMS_PROVIDER === 'netgsm' && (!c.NETGSM_USERCODE || !c.NETGSM_PASSWORD || !c.NETGSM_HEADER)) {
+    errors.push('SMS_PROVIDER=netgsm için NETGSM_USERCODE, NETGSM_PASSWORD ve NETGSM_HEADER zorunlu');
+  }
+  if (c.PLATFORM_WA_PROVIDER !== 'mock' && !c.PLATFORM_WA_API_KEY) {
+    errors.push(`PLATFORM_WA_PROVIDER=${c.PLATFORM_WA_PROVIDER} için PLATFORM_WA_API_KEY zorunlu`);
+  }
+  if (c.PLATFORM_WA_PROVIDER === 'cloud' && !c.PLATFORM_WA_PHONE_NUMBER_ID) {
+    errors.push('PLATFORM_WA_PROVIDER=cloud için PLATFORM_WA_PHONE_NUMBER_ID zorunlu');
+  }
+  return errors;
+}
+
+/**
+ * Üretimde başlatmayı engellemeyen ama loglanan uyarılar: taklit (mock) sağlayıcılar hiçbir mesajı gerçekten
+ * göndermez (kurulum aşamasında bilerek seçilebilir; canlıya çıkmadan önce değiştirilmeli).
+ */
+export function productionConfigWarnings(c: Pick<Config, 'NODE_ENV' | 'SMS_PROVIDER' | 'WA_DEFAULT_PROVIDER' | 'PLATFORM_WA_PROVIDER'>): string[] {
+  if (c.NODE_ENV !== 'production') return [];
+  const out: string[] = [];
+  if (c.SMS_PROVIDER === 'mock') out.push('SMS_PROVIDER=mock: SMS OTP ve alarm SMS\'leri gönderilmez');
+  if (c.PLATFORM_WA_PROVIDER === 'mock') out.push('PLATFORM_WA_PROVIDER=mock: işletme sahibine platform WhatsApp uyarıları gönderilmez');
+  if (c.WA_DEFAULT_PROVIDER === 'mock') out.push('WA_DEFAULT_PROVIDER=mock: yeni WhatsApp hesapları taklit sağlayıcıyla açılır');
+  return out;
+}
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
   const parsed = configSchema.safeParse(env);
@@ -60,8 +113,11 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     throw new Error(`Geçersiz yapılandırma: ${msg}`);
   }
   const c = parsed.data;
+  const prodErrors = productionConfigErrors(c);
+  if (prodErrors.length) throw new Error(`Geçersiz üretim yapılandırması: ${prodErrors.join('; ')}`);
   return {
     ...c,
+    ADMIN_TOTP_REQUIRED: c.ADMIN_TOTP_REQUIRED ?? c.NODE_ENV === 'production',
     cookieSecure: c.NODE_ENV === 'production' || c.APP_BASE_URL.startsWith('https://'),
     uploadDirAbs: resolve(process.cwd(), c.UPLOAD_DIR),
   };

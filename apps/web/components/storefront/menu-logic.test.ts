@@ -96,6 +96,13 @@ describe('orderingStatus ve teslimat özeti', () => {
     expect(orderingStatus(v).label).toBe('Şu an online sipariş alınmıyor');
   });
 
+  it('canlıya geçmemiş işletme: "Yakında", sipariş yok, "arayın" denmez', () => {
+    const v = { ...store({ orderingState: 'paused' }), orderingEnabled: false, live: false };
+    const s = orderingStatus(v);
+    expect(s).toMatchObject({ label: 'Yakında', acceptsOrders: false });
+    expect(s.band).not.toMatch(/arayın/);
+  });
+
   it('teslimat özeti: süre, ücret aralığı, min. sepet, gel-al', () => {
     expect(deliverySummary(store()).map((s) => s.text)).toEqual(['30–50 dk', 'Teslimat 0–25 TL', "Min. sepet 150 TL'den", "Gel-al · 20 dk'da hazır"]);
   });

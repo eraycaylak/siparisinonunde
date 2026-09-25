@@ -20,18 +20,18 @@ export function SiteFooter() {
         <nav aria-label="Ürün" className="flex flex-col gap-1">
           <h2 className="mb-1 text-sm font-bold text-fg">Ürün</h2>
           {MARKETING_NAV.map((item) => (
-            <Link key={item.href} href={item.href} className="inline-flex min-h-10 items-center text-sm text-fg-muted hover:text-fg hover:underline">
+            <Link key={item.href} href={item.href} className="inline-flex min-h-hit items-center text-sm text-fg-muted hover:text-fg hover:underline">
               {item.label}
             </Link>
           ))}
-          <Link href="/panel/giris" className="inline-flex min-h-10 items-center text-sm text-fg-muted hover:text-fg hover:underline">
+          <Link href="/panel/giris" className="inline-flex min-h-hit items-center text-sm text-fg-muted hover:text-fg hover:underline">
             İşletme girişi
           </Link>
         </nav>
         <nav aria-label="Yasal" className="flex flex-col gap-1">
           <h2 className="mb-1 text-sm font-bold text-fg">Yasal</h2>
           {LEGAL_NAV.map((item) => (
-            <Link key={item.href} href={item.href} className="inline-flex min-h-10 items-center text-sm text-fg-muted hover:text-fg hover:underline">
+            <Link key={item.href} href={item.href} className="inline-flex min-h-hit items-center text-sm text-fg-muted hover:text-fg hover:underline">
               {item.label}
             </Link>
           ))}

@@ -9,6 +9,10 @@ import type {
   SignupRequest,
   SignupResponse,
   TenantDto,
+  TotpDisableRequest,
+  TotpRecoveryCodesResponse,
+  TotpSetupResponse,
+  TotpStatusResponse,
   UserDto,
 } from '@siparis/core/contracts/auth';
 import type { TenantRole } from '@siparis/core/enums';
@@ -19,12 +23,13 @@ export type Me = MeResponse;
 export type AuthUser = UserDto;
 export type Membership = MembershipDto;
 export type MeTenant = TenantDto;
-export type { LoginResponse, SignupResponse };
+export type { LoginResponse, SignupResponse, TotpRecoveryCodesResponse, TotpSetupResponse, TotpStatusResponse };
 
-export type LoginInput = LoginRequest & {
-  /** Platform yöneticisi için TOTP (API "totp_required" döndürürse gönderilir). */
-  totp?: string;
-};
+/**
+ * Giriş gövdesi. İki adımlı doğrulama açıksa API önce "totp_required" döner; form ardından `totp`
+ * (6 hane) ya da `recoveryCode` (tek kullanımlık kurtarma kodu) ile yeniden gönderir.
+ */
+export type LoginInput = LoginRequest;
 
 export type SignupInput = SignupRequest;
 
@@ -40,6 +45,7 @@ export async function fetchMe(signal?: AbortSignal): Promise<Me | null> {
       role: me.role ?? null,
       branchId: me.branchId ?? null,
       memberships: me.memberships ?? [],
+      totpEnabled: Boolean(me.totpEnabled),
       readOnly: Boolean(me.readOnly),
       impersonating: me.impersonating ?? null,
     };
@@ -136,7 +142,71 @@ export function useCourierExchange() {
 }
 
 // ---------------------------------------------------------------------------
+// İki adımlı doğrulama (TOTP; /api/v1/auth/totp/*). Yalnız kişisel oturumda çalışır.
+
+/** Anahtar 'auth' ile başlamaz: girişte (useLogin) diğer sorgularla birlikte temizlenir. */
+export const TOTP_STATUS_QUERY_KEY = ['security', 'totp'] as const;
+
+export function useTotpStatus(options: { enabled?: boolean } = {}) {
+  return useQuery<TotpStatusResponse, ApiError>({
+    queryKey: TOTP_STATUS_QUERY_KEY,
+    queryFn: ({ signal }) => apiFetch<TotpStatusResponse>('/auth/totp', { signal }),
+    staleTime: 30_000,
+    enabled: options.enabled ?? true,
+  });
+}
+
+/**
+ * Durum ve /auth/me yenilenir ama beklenmez: yenilenen durum (ör. "açık") kurulum görünümünü kaldırabilir;
+ * mutate çağrısının kendi onSuccess'i (kurtarma kodlarını gösterme, bildirim) bileşen sökülmeden çalışmalı.
+ */
+function refreshSecurity(qc: ReturnType<typeof useQueryClient>): void {
+  void qc.invalidateQueries({ queryKey: TOTP_STATUS_QUERY_KEY });
+  void qc.invalidateQueries({ queryKey: ME_QUERY_KEY });
+}
+
+/** Kurulumu başlatır: sır + otpauth adresi + QR (SVG). Etkinleştirilene kadar girişi etkilemez. */
+export function useTotpSetup() {
+  return useMutation<TotpSetupResponse, ApiError, void>({
+    mutationFn: () => apiFetch<TotpSetupResponse>('/auth/totp/setup', { method: 'POST', body: {} }),
+  });
+}
+
+/** İlk kodla açar; kurtarma kodları yalnız bu yanıtta gelir. Diğer cihazlardaki oturumlar kapanır. */
+export function useTotpEnable() {
+  const qc = useQueryClient();
+  return useMutation<TotpRecoveryCodesResponse, ApiError, string>({
+    mutationFn: (code) => apiFetch<TotpRecoveryCodesResponse>('/auth/totp/enable', { method: 'POST', body: { code } }),
+    onSuccess: () => refreshSecurity(qc),
+  });
+}
+
+/** Parola + kod (TOTP ya da kurtarma kodu) ile kapatır. */
+export function useTotpDisable() {
+  const qc = useQueryClient();
+  return useMutation<void, ApiError, TotpDisableRequest>({
+    mutationFn: (body) => apiFetch<void>('/auth/totp/disable', { method: 'POST', body }),
+    onSuccess: () => refreshSecurity(qc),
+  });
+}
+
+/** Yeni kurtarma kodları (eskiler geçersizleşir). */
+export function useTotpRegenerate() {
+  const qc = useQueryClient();
+  return useMutation<TotpRecoveryCodesResponse, ApiError, string>({
+    mutationFn: (code) => apiFetch<TotpRecoveryCodesResponse>('/auth/totp/recovery-codes', { method: 'POST', body: { code } }),
+    onSuccess: () => refreshSecurity(qc),
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Yardımcılar
+
+/** Platform yöneticisi, TOTP zorunlu ve henüz kurulmamış: admin ekranları yerine /admin/guvenlik. */
+export function needsTotpEnrollment(me: Pick<Me, 'isPlatformAdmin' | 'totpEnabled' | 'totpRequired' | 'impersonating'> | null | undefined): boolean {
+  if (!me || !me.isPlatformAdmin || me.impersonating) return false;
+  return Boolean(me.totpRequired) && !me.totpEnabled;
+}
 
 /** Seçili işletmedeki rol. */
 export function currentRole(me: Me | null | undefined): TenantRole | null {

@@ -22,6 +22,7 @@ import {
 } from '@siparis/core';
 import {
   cancellationRequests,
+  customers,
   legalAcceptances,
   orderEvents,
   orders,
@@ -200,12 +201,22 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         return buildCreateResponse(app.db, app.config, tenant, existing);
       }
 
-      const phone = normalizePhone(body.customerPhone);
+      const now = new Date();
+      const token = await linkTokenUsable(app.db, await readLinkToken(app.db, request, tenant.slug, tenant.id, now));
+      // Akış A gel-al: telefon boşsa WhatsApp bağlantısındaki müşterinin numarası (03 §4.4); paket ve Akış B'de zorunlu
+      let rawPhone = body.customerPhone;
+      if (!rawPhone && token?.customerId && body.fulfillmentType === 'pickup') {
+        const [known] = await app.db
+          .select({ phone: customers.phoneE164 })
+          .from(customers)
+          .where(and(eq(customers.id, token.customerId), eq(customers.tenantId, tenant.id)));
+        rawPhone = known?.phone ?? undefined;
+      }
+      const phone = normalizePhone(rawPhone);
       if (!phone) throw fieldError('customerPhone', 'Telefon numarası 10 haneli olmalı (5xx xxx xx xx).');
       enforceRateLimit(ipLimiter, clientIp(request));
       enforceRateLimit(phoneLimiter, phone);
 
-      const now = new Date();
       if (tenantOrderingBlocked(tenant)) throw orderingClosed({ orderingState: 'paused' });
       const state = await computeBranchOrderingState(app.db, branch, now);
       if (!acceptsOrders(state.state)) {
@@ -222,7 +233,6 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       }
       validatePayment(branch, body, quote.totalKurus);
 
-      const token = await linkTokenUsable(app.db, await readLinkToken(app.db, request, tenant.slug, tenant.id, now));
       const channels = token ? null : await loadVerificationChannels(app.db, tenant, branch.id);
       const flowA = Boolean(token);
       const waCode = !flowA && Boolean(channels?.waConnected);
@@ -281,6 +291,8 @@ const routes: FastifyPluginAsyncZod = async (app) => {
               confirmationIp: clientIp(request),
               confirmationUserAgent: request.headers['user-agent'] ?? null,
               statusNotifyChannel,
+              // Konumsuz seçilen poligon/yarıçap bölgesi: ücret/minimum müşteri beyanına dayanır (kartta işaretli)
+              ...(body.fulfillmentType === 'delivery' && zoneMatch?.declared ? { sourceMeta: { zoneDeclared: true } } : {}),
             },
             { type: 'customer' },
           );
@@ -447,47 +459,49 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       noStore(reply);
       const { order } = await loadTracked(app.db, app.config, request.params.token);
       const note = request.body?.reason?.trim() || null;
-      if (order.status === 'awaiting_customer' || order.status === 'new') {
-        const r = await app.db.transaction((tx) =>
-          transitionOrder(tx, {
-            orderId: order.id,
-            tenantId: order.tenantId,
+      // Karar satır kilidi altında verilir: işletme aynı anda onayladıysa doğrudan iptal değil iptal talebi olur
+      // (00 §7: accepted ve sonrasında müşteri yalnız iptal talebi gönderir).
+      return app.db.transaction(async (tx) => {
+        const [locked] = await tx.select().from(orders).where(eq(orders.id, order.id)).for('update');
+        if (!locked) throw notFound('Sipariş bulunamadı.');
+        if (locked.status === 'awaiting_customer' || locked.status === 'new') {
+          const r = await transitionOrder(tx, {
+            orderId: locked.id,
+            tenantId: locked.tenantId,
             to: 'cancelled',
             actor: { type: 'customer' },
             cancelledBy: 'customer',
             reason: 'customer_request',
             note,
-          }),
-        );
-        return { result: 'cancelled' as const, status: r.order.status };
-      }
-      if (order.status === 'accepted' || order.status === 'preparing' || order.status === 'ready' || order.status === 'on_the_way') {
-        await app.db.transaction(async (tx) => {
-          const [locked] = await tx.select().from(orders).where(eq(orders.id, order.id)).for('update');
+            expectedVersion: locked.version,
+          });
+          return { result: 'cancelled' as const, status: r.order.status };
+        }
+        if (locked.status === 'accepted' || locked.status === 'preparing' || locked.status === 'ready' || locked.status === 'on_the_way') {
           const inserted = await tx
             .insert(cancellationRequests)
-            .values({ tenantId: order.tenantId, orderId: order.id, reason: note })
+            .values({ tenantId: locked.tenantId, orderId: locked.id, reason: note })
             .onConflictDoNothing()
             .returning({ id: cancellationRequests.id });
           if (!inserted.length) throw conflict('cancel_request_exists', 'İptal talebiniz zaten iletildi.');
           const [updated] = await tx
             .update(orders)
-            .set({ cancelRequestedAt: new Date(), version: locked!.version + 1 })
-            .where(eq(orders.id, order.id))
+            .set({ cancelRequestedAt: new Date(), version: locked.version + 1 })
+            .where(eq(orders.id, locked.id))
             .returning();
           await tx.insert(orderEvents).values({
-            tenantId: order.tenantId,
-            orderId: order.id,
+            tenantId: locked.tenantId,
+            orderId: locked.id,
             type: 'cancel_requested',
             actorType: 'customer',
             note,
             data: { requestId: inserted[0]!.id },
           });
           await emitOrderUpdated(tx, { order: updated!, change: 'cancel_request' });
-        });
-        return { result: 'requested' as const, status: order.status };
-      }
-      throw conflict('invalid_transition', 'Bu sipariş artık iptal edilemez.');
+          return { result: 'requested' as const, status: locked.status };
+        }
+        throw conflict('invalid_transition', 'Bu sipariş artık iptal edilemez.');
+      });
     },
   );
 

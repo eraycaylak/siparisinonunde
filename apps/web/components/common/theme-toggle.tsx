@@ -26,7 +26,7 @@ export function ThemeToggle({ className, compact = false }: { className?: string
             aria-label={compact ? label : undefined}
             onClick={() => setTheme(value)}
             className={cn(
-              'inline-flex min-h-10 items-center gap-1.5 rounded-sm px-3 text-sm font-semibold transition-colors',
+              'inline-flex min-h-hit min-w-hit items-center justify-center gap-1.5 rounded-sm px-3 text-sm font-semibold transition-colors',
               'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
               selected ? 'bg-primary text-primary-fg' : 'text-fg-muted hover:bg-accent hover:text-fg',
             )}

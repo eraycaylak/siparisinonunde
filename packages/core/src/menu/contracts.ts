@@ -45,6 +45,27 @@ export const storeSessionViewSchema = storeSessionResponseSchema.extend({
   linkStatus: z.enum(STORE_LINK_STATUSES),
   /** lastOrder kaynağı: WhatsApp bağlantısı ya da "bu cihazda hatırla" çerezi. */
   lastOrderSource: z.enum(['link', 'device']).nullable().optional(),
+  /**
+   * Checkout ön dolumu (03 §4.4: "Tekrar gelen müşteride tüm bölümler dolu"). Tam telefon yalnız "bu cihazda hatırla"
+   * çerezinde döner (müşterinin açık seçimi); WhatsApp bağlantısında yalnız maskeli telefon + `phoneKnown`.
+   */
+  prefill: z
+    .object({
+      source: z.enum(['link', 'device']),
+      name: z.string().nullable(),
+      phone: z.string().nullable(),
+      phoneMasked: z.string().nullable(),
+      phoneKnown: z.boolean(),
+      address: z
+        .object({
+          neighborhood: z.string().nullable(),
+          addressLine: z.string().nullable(),
+          directions: z.string().nullable(),
+        })
+        .nullable(),
+    })
+    .nullable()
+    .optional(),
 });
 export type StoreSessionView = z.infer<typeof storeSessionViewSchema>;
 

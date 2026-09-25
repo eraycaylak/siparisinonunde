@@ -53,7 +53,10 @@ export async function computeBranchOrderingState(db: Database, branch: BranchRow
   );
 }
 
-/** İşletme genelinde online sipariş kapalı mı (kill-switch / askı). */
+/**
+ * İşletme genelinde online sipariş kapalı mı: kill-switch, askı/kapanış ya da henüz "Canlıya geç" denmemiş
+ * (web_live_at boş; künye tamamlanmadan storefront yayına alınmaz — 04 §3.4.4, 6563 s. K. m.3).
+ */
 export function tenantOrderingBlocked(tenant: TenantRow): boolean {
-  return !tenant.orderingEnabled || CLOSED_STAGES.has(tenant.lifecycleStage);
+  return !tenant.orderingEnabled || CLOSED_STAGES.has(tenant.lifecycleStage) || !tenant.webLiveAt;
 }

@@ -3,13 +3,15 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { LogIn } from 'lucide-react';
+import { KeyRound, LogIn, MessageCircle, Phone, Smartphone } from 'lucide-react';
 import { Alert } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { errorMessage, isApiError } from '@/lib/api';
 import { homePathFor, logout, safeNextPath, useLogin, useMe } from '@/lib/auth';
+import { formatPhone } from '@/lib/format';
+import { SUPPORT_WHATSAPP, supportWhatsappHref } from '@/lib/site';
 import { PasswordInput } from './password-input';
 
 export interface LoginFormProps {
@@ -17,14 +19,30 @@ export interface LoginFormProps {
   variant?: 'panel' | 'admin';
 }
 
-function loginErrorText(err: unknown): string {
+type SecondFactor = 'totp' | 'recovery';
+
+function loginErrorText(err: unknown, factor: SecondFactor): string {
   if (isApiError(err)) {
-    if (err.status === 401 || err.code === 'invalid_credentials') return 'E-posta/telefon ya da parola hatalı. Kontrol edip tekrar deneyin.';
-    if (err.status === 429 || err.code === 'rate_limited') return 'Çok fazla deneme yaptınız. 1 dakika bekleyip tekrar deneyin.';
+    // Önce kod: 'invalid_totp' da 401 döner
+    if (err.code === 'invalid_totp') {
+      return factor === 'recovery'
+        ? 'Kurtarma kodu hatalı ya da daha önce kullanılmış.'
+        : 'Doğrulama kodu hatalı ya da süresi dolmuş. Uygulamadaki güncel kodu yazın.';
+    }
     if (err.code === 'account_disabled') return 'Bu hesap kapatılmış. İşletme sahibinizle görüşün.';
-    if (err.code === 'invalid_totp') return 'Doğrulama kodu hatalı ya da süresi dolmuş.';
+    if (err.status === 429 || err.code === 'rate_limited') {
+      const retry = (err.details as { retryAfterSec?: number } | undefined)?.retryAfterSec ?? 60;
+      const minutes = Math.max(1, Math.ceil(retry / 60));
+      return `Çok fazla deneme yaptınız. ${minutes} dakika bekleyip tekrar deneyin.`;
+    }
+    if (err.status === 401 || err.code === 'invalid_credentials') return 'E-posta/telefon ya da parola hatalı. Kontrol edip tekrar deneyin.';
   }
   return errorMessage(err, 'Giriş yapılamadı. Tekrar deneyin.');
+}
+
+/** Kurtarma kodu biçimi: 8 harf/rakam (tire ve boşluk serbest). */
+function isRecoveryCodeShape(value: string): boolean {
+  return value.replace(/[^a-z0-9]/gi, '').length === 8;
 }
 
 /** E-posta/telefon + parola ile giriş (14 §6.1 POST /auth/login). */
@@ -33,13 +51,15 @@ export function LoginForm({ variant = 'panel' }: LoginFormProps) {
   const params = useSearchParams();
   const me = useMe();
   const login = useLogin();
-  const [values, setValues] = useState({ login: '', password: '', totp: '' });
+  const [values, setValues] = useState({ login: '', password: '', totp: '', recoveryCode: '' });
   const [needTotp, setNeedTotp] = useState(false);
-  const [fieldErrors, setFieldErrors] = useState<{ login?: string; password?: string; totp?: string }>({});
+  const [factor, setFactor] = useState<SecondFactor>('totp');
+  const [fieldErrors, setFieldErrors] = useState<{ login?: string; password?: string; totp?: string; recoveryCode?: string }>({});
   const [error, setError] = useState<string | null>(null);
   const [showForgot, setShowForgot] = useState(false);
   const submitted = useRef(false);
   const loginRef = useRef<HTMLInputElement>(null);
+  const codeRef = useRef<HTMLInputElement>(null);
 
   const next = params.get('next');
 
@@ -57,22 +77,35 @@ export function LoginForm({ variant = 'panel' }: LoginFormProps) {
     loginRef.current?.focus();
   }, []);
 
+  // İkinci adım alanı açılınca ya da kod türü değişince odak koda
+  useEffect(() => {
+    if (needTotp) codeRef.current?.focus();
+  }, [needTotp, factor]);
+
+  const switchFactor = () => {
+    setFactor((f) => (f === 'totp' ? 'recovery' : 'totp'));
+    setFieldErrors((fe) => ({ ...fe, totp: undefined, recoveryCode: undefined }));
+    setError(null);
+  };
+
   const onSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     const fe: typeof fieldErrors = {};
     if (values.login.trim().length < 3) fe.login = 'E-posta adresinizi ya da telefonunuzu yazın.';
     if (!values.password) fe.password = 'Parolanızı yazın.';
-    if (needTotp && !/^\d{6}$/.test(values.totp.trim())) fe.totp = '6 haneli kodu yazın.';
+    if (needTotp && factor === 'totp' && !/^\d{6}$/.test(values.totp.trim())) fe.totp = '6 haneli kodu yazın.';
+    if (needTotp && factor === 'recovery' && !isRecoveryCodeShape(values.recoveryCode)) fe.recoveryCode = 'Kurtarma kodunu yazın (ör. ABCD-EFGH).';
     setFieldErrors(fe);
     if (Object.keys(fe).length > 0) return;
 
     submitted.current = true;
     try {
+      const secondFactor = !needTotp ? {} : factor === 'totp' ? { totp: values.totp.trim() } : { recoveryCode: values.recoveryCode.trim() };
       const res = await login.mutateAsync({
         login: values.login.trim(),
         password: values.password,
-        ...(needTotp ? { totp: values.totp.trim() } : {}),
+        ...secondFactor,
       });
       if (variant === 'admin') {
         if (!res.isPlatformAdmin) {
@@ -92,7 +125,16 @@ export function LoginForm({ variant = 'panel' }: LoginFormProps) {
         setError(null);
         return;
       }
-      setError(loginErrorText(err));
+      if (isApiError(err) && err.code === 'invalid_totp') {
+        // Kod alanında göster, alanı temizle ve yeniden odakla
+        const msg = loginErrorText(err, factor);
+        setValues((v) => (factor === 'totp' ? { ...v, totp: '' } : { ...v, recoveryCode: '' }));
+        setFieldErrors((fe) => (factor === 'totp' ? { ...fe, totp: msg } : { ...fe, recoveryCode: msg }));
+        setError(null);
+        codeRef.current?.focus();
+        return;
+      }
+      setError(loginErrorText(err, factor));
     }
   };
 
@@ -120,16 +162,53 @@ export function LoginForm({ variant = 'panel' }: LoginFormProps) {
         />
       </Field>
       {needTotp ? (
-        <Field label="Doğrulama kodu" required error={fieldErrors.totp} hint="Doğrulama uygulamanızdaki 6 haneli kod.">
-          <Input
-            name="totp"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={6}
-            value={values.totp}
-            onChange={(e) => setValues((v) => ({ ...v, totp: e.target.value.replace(/\D/g, '') }))}
-          />
-        </Field>
+        <div className="flex flex-col gap-3">
+          <Alert variant="info">Bu hesapta iki adımlı doğrulama açık. Girişi tamamlamak için ikinci adımı doğrulayın.</Alert>
+          {factor === 'totp' ? (
+            <Field label="Doğrulama kodu" required error={fieldErrors.totp} hint="Doğrulama uygulamanızdaki 6 haneli kod.">
+              <Input
+                key="totp"
+                ref={codeRef}
+                name="totp"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                maxLength={6}
+                className="font-mono tracking-[0.3em]"
+                value={values.totp}
+                onChange={(e) => setValues((v) => ({ ...v, totp: e.target.value.replace(/\D/g, '') }))}
+              />
+            </Field>
+          ) : (
+            <Field
+              label="Kurtarma kodu"
+              required
+              error={fieldErrors.recoveryCode}
+              hint="İki adımlı doğrulamayı açarken kaydettiğiniz kodlardan biri. Her kod yalnız bir kez kullanılabilir."
+            >
+              <Input
+                key="recovery"
+                ref={codeRef}
+                name="recoveryCode"
+                autoComplete="off"
+                autoCapitalize="characters"
+                spellCheck={false}
+                maxLength={20}
+                placeholder="ABCD-EFGH"
+                className="font-mono uppercase tracking-wider"
+                value={values.recoveryCode}
+                onChange={(e) => setValues((v) => ({ ...v, recoveryCode: e.target.value }))}
+              />
+            </Field>
+          )}
+          <button
+            type="button"
+            className="inline-flex min-h-hit items-center gap-2 self-start rounded-md text-sm font-semibold text-fg underline underline-offset-4"
+            onClick={switchFactor}
+          >
+            {factor === 'totp' ? <KeyRound aria-hidden className="size-4" /> : <Smartphone aria-hidden className="size-4" />}
+            {factor === 'totp' ? 'Kurtarma kodu kullan' : 'Doğrulama uygulamasındaki kodu kullan'}
+          </button>
+        </div>
       ) : null}
       <Button type="submit" size="lg" block loading={login.isPending}>
         <LogIn aria-hidden />
@@ -139,17 +218,13 @@ export function LoginForm({ variant = 'panel' }: LoginFormProps) {
         <div className="flex flex-col gap-3 text-sm">
           <button
             type="button"
-            className="min-h-10 self-start font-semibold text-fg underline underline-offset-4"
+            className="min-h-hit self-start font-semibold text-fg underline underline-offset-4"
             onClick={() => setShowForgot((s) => !s)}
             aria-expanded={showForgot}
           >
             Parolamı unuttum
           </button>
-          {showForgot ? (
-            <Alert variant="info">
-              Personelseniz işletme sahibinizden parolanızı sıfırlamasını isteyin. İşletme sahibiyseniz destek hattımıza WhatsApp’tan yazın.
-            </Alert>
-          ) : null}
+          {showForgot ? <ForgotPasswordHelp /> : null}
           <p className="text-fg-muted">Kuryeyseniz işletmenizin gönderdiği giriş linkini kullanın.</p>
           <p className="text-fg-muted">
             Hesabınız yok mu?{' '}
@@ -166,5 +241,38 @@ export function LoginForm({ variant = 'panel' }: LoginFormProps) {
         {login.isPending ? 'Giriş yapılıyor' : ''}
       </span>
     </form>
+  );
+}
+
+/** Parola sıfırlama yolu: personel → işletme sahibi; sahip → platform destek hattı (WhatsApp) ya da iletişim formu. */
+function ForgotPasswordHelp() {
+  const wa = supportWhatsappHref('Merhaba, işletme paneli parolamı unuttum. İşletme adı: ');
+  return (
+    <Alert variant="info">
+      <span className="flex flex-col gap-2">
+        <span>Personelseniz işletme sahibinizden parolanızı sıfırlamasını isteyin.</span>
+        {wa ? (
+          <span>
+            İşletme sahibiyseniz destek hattımıza yazın; kimliğinizi doğruladıktan sonra parolanızı sıfırlarız.
+            <span className="mt-2 flex flex-wrap gap-2">
+              <a href={wa} target="_blank" rel="noreferrer" className={buttonVariants({ variant: 'secondary', size: 'sm' })}>
+                <MessageCircle aria-hidden /> WhatsApp’tan yaz
+              </a>
+              <a href={`tel:+${SUPPORT_WHATSAPP}`} className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+                <Phone aria-hidden /> {formatPhone(SUPPORT_WHATSAPP)}
+              </a>
+            </span>
+          </span>
+        ) : (
+          <span>
+            İşletme sahibiyseniz{' '}
+            <Link href="/demo" className="font-semibold underline underline-offset-4">
+              iletişim formundan
+            </Link>{' '}
+            bize yazın; sizi arayıp kimliğinizi doğruladıktan sonra parolanızı sıfırlarız.
+          </span>
+        )}
+      </span>
+    </Alert>
   );
 }

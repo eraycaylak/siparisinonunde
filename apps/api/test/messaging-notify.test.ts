@@ -6,6 +6,7 @@ import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { enqueueJob } from '../src/lib/jobs';
 import type { OutboundPayload } from '../src/services/messaging/outbound';
+import { handleNotifyCustomer, isSuperseded } from '../src/services/messaging/order-notify';
 import { performWaSend } from '../src/services/messaging/send';
 import { clearMockSent, mockFailNext } from '../src/wa/index';
 import { createTestContext, type TestContext } from './helpers';
@@ -204,6 +205,67 @@ describe('bütçe, pencere, supersede', () => {
     await accept(later.id);
     await flushNotify(ctx);
     expect((await outCodes(ctx.db, conv.id)).slice(-1)).toEqual(['M06c']);
+  });
+});
+
+describe('idempotent iş, bekleyen ret, kurulum test siparişi', () => {
+  it('order.notify_customer aynı yükle iki kez çalışırsa ikinci mesaj ve bütçe harcanmaz', async () => {
+    const { order, conv } = await flowAOrder();
+    await runJobs(ctx, ['order.received_debounced'], plus(new Date(), 61_000));
+    await accept(order.id);
+    const deps = { db: ctx.db, config: ctx.config, log: silentLog };
+    const payload = { orderId: order.id, event: 'status' as const, to: 'accepted' as const, from: 'new' as const };
+    expect(await handleNotifyCustomer(deps, payload)).toMatchObject({ sent: 'wa' });
+    expect(await handleNotifyCustomer(deps, payload)).toEqual({ sent: 'none', reason: 'already_sent' });
+    await flushNotify(ctx);
+    expect(await outCodes(ctx.db, conv.id)).toEqual(['M01', 'M05', 'M06a']);
+    expect((await getOrder(ctx.db, order.id)).waStatusMsgCount).toBe(2);
+  });
+
+  it('Akış A: ret bekliyorken (30 sn geri alma) 60 sn "alındı" gitmez', async () => {
+    const { order, conv } = await flowAOrder();
+    await ctx.db.update(orders).set({ rejectionScheduledAt: new Date(), rejectionReason: 'too_busy' }).where(eq(orders.id, order.id));
+    await runJobs(ctx, ['order.received_debounced'], plus(new Date(), 61_000));
+    await flushOutbound(ctx);
+    expect(await outCodes(ctx.db, conv.id)).toEqual(['M01']);
+    expect((await getOrder(ctx.db, order.id)).waStatusMsgCount).toBe(0);
+  });
+
+  it('"alındı" sonraki her durumla geçersizleşir', () => {
+    expect(isSuperseded('new', 'accepted', false)).toBe(true);
+    expect(isSuperseded('new', 'new', false)).toBe(false);
+    expect(isSuperseded('accepted', 'preparing', false)).toBe(false);
+  });
+
+  it('kurulum test siparişi: SMS gitmez; sahibin konuşması varsa yalnız "Onaylandı" WhatsApp\'tan gider', async () => {
+    const ownerPhone = nextPhone();
+    const base = {
+      testKind: 'onboarding_test' as const,
+      channel: 'web' as const,
+      verificationMethod: 'staff' as const,
+      statusNotifyChannel: 'whatsapp' as const,
+      fulfillmentType: 'pickup' as const,
+      paymentMethod: 'pay_at_counter' as const,
+      customerId: null,
+      customerPhone: ownerPhone,
+    };
+    // Konuşma yok: ne WhatsApp ne SMS
+    const silent = await createOrderWithHooks(ctx, t, { status: 'new', extra: base });
+    await accept(silent.id);
+    await flushNotify(ctx);
+    expect(await ctx.db.select().from(smsMessages).where(eq(smsMessages.toPhone, ownerPhone))).toHaveLength(0);
+    expect(await ctx.db.select().from(messages).where(eq(messages.orderId, silent.id))).toHaveLength(0);
+
+    // Sahip işletmeye yazmış (bağlantı denemesi): "alındı" gitmez, "Onaylandı" gider, SMS yok
+    await inbound(ctx, t.account, { phone: ownerPhone, name: 'Sahip' }, { type: 'text', text: 'deneme' });
+    const conv = await conversationFor(ctx.db, t.account, ownerPhone);
+    const before = await outCodes(ctx.db, conv!.id);
+    const test = await createOrderWithHooks(ctx, t, { status: 'new', extra: base });
+    await flushNotify(ctx);
+    await accept(test.id);
+    await flushNotify(ctx);
+    expect((await outCodes(ctx.db, conv!.id)).slice(before.length)).toEqual(['M06b']);
+    expect(await ctx.db.select().from(smsMessages).where(eq(smsMessages.toPhone, ownerPhone))).toHaveLength(0);
   });
 });
 

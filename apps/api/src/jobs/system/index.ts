@@ -12,6 +12,8 @@ export const RETENTION_DAYS = {
   finishedJobs: 30,
   storefrontLinkTokens: 30,
   courierLoginLinks: 7,
+  /** Gelen konum ve medya mesajlarının koordinat/adres/medya kimliği (08 §2.8 retention.locations, retention.media) */
+  locationsMedia: 30,
 } as const;
 
 export function registerSystemJobs(): void {
@@ -39,6 +41,17 @@ export function registerSystemJobs(): void {
       sql`delete from courier_login_links where expires_at < now() - make_interval(days => ${r.courierLoginLinks}) returning id`,
     );
     await run('sessions', sql`delete from sessions where expires_at < now() returning id`);
+    // Konum/medya: mesaj satırı (sohbet geçmişi) kalır; koordinat, adres, medya kimliği ve ham webhook gövdesi silinir
+    await run(
+      'message_locations_media',
+      sql`update messages
+             set payload = payload - 'lat' - 'lng' - 'address' - 'name' - 'mediaId' - 'raw',
+                 body = case when kind = 'location' then 'Konum paylaşıldı' else body end
+           where kind in ('location', 'image', 'audio')
+             and created_at < now() - make_interval(days => ${r.locationsMedia})
+             and payload ?| array['lat', 'lng', 'address', 'name', 'mediaId', 'raw']
+         returning id`,
+    );
     log.info({ counts }, 'saklama temizliği tamamlandı');
   });
   registerCron({ name: 'retention', type: 'cron.retention', schedule: { dailyAt: '03:00' } });

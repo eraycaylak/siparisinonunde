@@ -4,6 +4,7 @@ import {
   CANCEL_REASONS,
   CANCELLED_BY,
   FINAL_ORDER_STATUSES,
+  ORDER_STATUS_LABELS,
   REJECTION_REASONS,
   type CancelReason,
   type CancelledBy,
@@ -101,7 +102,11 @@ export function validateTransition(
   input: TransitionInput = {},
 ): OrderTransitionError | null {
   if (!canTransition(from, to)) {
-    return new OrderTransitionError('invalid_transition', `Bu sipariş "${from}" durumundan "${to}" durumuna geçemez.`);
+    // Kullanıcıya giden metin: durum kodları değil Türkçe etiketler (ör. "Hazırlanıyor" → "Yolda")
+    return new OrderTransitionError(
+      'invalid_transition',
+      `Bu sipariş "${ORDER_STATUS_LABELS[from]}" durumundan "${ORDER_STATUS_LABELS[to]}" durumuna geçemez.`,
+    );
   }
   const note = input.note?.trim() ?? '';
   if (to === 'rejected') {

@@ -4,6 +4,7 @@ import { ORDER_CODE_PATTERN } from '@siparis/core';
 import {
   branches,
   customers,
+  deliveryZones,
   featureFlags,
   jobs,
   legalAcceptances,
@@ -230,6 +231,21 @@ describe('POST /store/:slug/orders — Akış A (link çerezi)', () => {
     expect(c!.orderCount).toBe(1);
   });
 
+  it('Akış A gel-al: telefon boşsa WhatsApp müşterisinin numarası kullanılır; paket siparişte ve Akış B\'de telefon zorunlu', async () => {
+    const link = await createLinkToken(ctx, s);
+    await ctx.db.update(customers).set({ phoneE164: '+905337001122' }).where(eq(customers.id, link.customerId));
+    const pickup = { fulfillmentType: 'pickup', paymentMethod: 'pay_at_counter', neighborhood: undefined, addressLine: undefined, directions: undefined, changeForKurus: undefined, customerPhone: undefined };
+    const res = await placeOrder(ctx, s.slug, orderBody(s, pickup), { cookie: link.cookie });
+    expect(res.statusCode, res.body).toBe(200);
+    const [o] = await ctx.db.select().from(orders).where(eq(orders.id, res.json().orderId));
+    expect(o).toMatchObject({ customerPhone: '+905337001122', customerId: link.customerId, verificationMethod: 'wa_link' });
+    // Paket siparişte telefon yine zorunlu
+    const delivery = await placeOrder(ctx, s.slug, orderBody(s, { customerPhone: undefined }), { cookie: link.cookie });
+    expectError(delivery, 400, 'validation_error');
+    // Akış B (bağlantı yok): gel-al da olsa zorunlu
+    expectError(await placeOrder(ctx, s.slug, orderBody(s, pickup)), 400, 'validation_error');
+  });
+
   it('geçersiz/başka işletmenin çerezi Akış B\'ye düşer', async () => {
     const res = await placeOrder(ctx, s.slug, orderBody(s), { cookie: `sf_link_${s.slug}=gecersiz-token-degeri-0123456789` });
     expect(res.json().status).toBe('awaiting_customer');
@@ -263,7 +279,8 @@ describe('WhatsApp\'sız mod (SMS OTP)', () => {
     const payload = smsJobs[0]!.payload as { body: string; purpose: string; to: string };
     expect(payload.purpose).toBe('otp');
     expect(payload.to).toBe(o0!.customerPhone);
-    const code = /(\d{6})/.exec(payload.body)![1]!;
+    // Kod gövdedeki "kodunuz:" ifadesinden alınır (rastgele işletme adında 6 rakam olabilir)
+    const code = /kodunuz: (\d{6})/.exec(payload.body)![1]!;
 
     // 60 sn dolmadan yeniden gönderim yok
     const again = await ctx.request({
@@ -301,7 +318,7 @@ describe('WhatsApp\'sız mod (SMS OTP)', () => {
       headers: { 'x-forwarded-for': freshIp() },
     });
     const job = (await jobsFor(ctx, r.orderId, 'sms.send'))[0]!;
-    const code = /(\d{6})/.exec((job.payload as { body: string }).body)![1]!;
+    const code = /kodunuz: (\d{6})/.exec((job.payload as { body: string }).body)![1]!;
     const bad = code === '123456' ? '654321' : '123456';
     for (let i = 0; i < 4; i++) {
       expectError(await ctx.request({ method: 'POST', url: `/api/v1/store/orders/${r.orderId}/sms-verify`, body: { code: bad } }), 422, 'invalid_code');
@@ -338,6 +355,37 @@ describe('WhatsApp\'sız mod (SMS OTP)', () => {
 });
 
 describe('kurallar ve korumalar', () => {
+  it('canlıya geçmemiş işletme (web_live_at boş) → 409 ordering_closed; vitrin sipariş kapalı gösterir', async () => {
+    const x = await setupStore(ctx, { wa: 'connected' });
+    await ctx.db.update(tenants).set({ webLiveAt: null }).where(eq(tenants.id, x.tenantId));
+    expectError(await placeOrder(ctx, x.slug, orderBody(x)), 409, 'ordering_closed');
+    const view = await ctx.request({ method: 'GET', url: `/api/v1/store/${x.slug}` });
+    expect(view.json()).toMatchObject({ live: false, orderingEnabled: false, branch: { orderingState: 'paused', phone: null } });
+    await ctx.db.update(tenants).set({ webLiveAt: new Date() }).where(eq(tenants.id, x.tenantId));
+    const ok = await placeOrder(ctx, x.slug, orderBody(x));
+    expect(ok.statusCode, ok.body).toBe(200);
+  });
+
+  it('konumsuz seçilen yarıçap bölgesi kabul edilir ama kartta "müşteri beyanı" olarak işaretlenir', async () => {
+    const x = await setupStore(ctx, { wa: 'connected' });
+    const [radius] = await ctx.db
+      .insert(deliveryZones)
+      .values({ tenantId: x.tenantId, branchId: x.branchId, name: 'Yakın çevre', kind: 'radius', radiusM: 1500, feeKurus: 0, minOrderKurus: 0, etaMinutes: 25, sort: 9 })
+      .returning();
+    const declared = await placeOrder(ctx, x.slug, orderBody(x, { neighborhood: undefined, zoneId: radius!.id }));
+    expect(declared.statusCode, declared.body).toBe(200);
+    const matched = await placeOrder(ctx, x.slug, orderBody(x));
+    expect(matched.statusCode, matched.body).toBe(200);
+    for (const r of [declared, matched]) {
+      await ctx.request({ method: 'POST', url: `/api/v1/panel/orders/${r.json().orderId}/verify`, cookie: x.ownerCookie });
+    }
+    const active = await ctx.request({ method: 'GET', url: '/api/v1/panel/orders/active', cookie: x.ownerCookie });
+    expect(active.statusCode, active.body).toBe(200);
+    const cards = active.json().items as { id: string; zoneName: string | null; zoneDeclared?: boolean }[];
+    expect(cards.find((c) => c.id === declared.json().orderId)).toMatchObject({ zoneName: 'Yakın çevre', zoneDeclared: true });
+    expect(cards.find((c) => c.id === matched.json().orderId)).toMatchObject({ zoneDeclared: false });
+  });
+
   it('duraklatılmış şube, ordering_enabled=false ve çalışma saati dışı → 409 ordering_closed', async () => {
     const x = await setupStore(ctx, { wa: 'connected' });
     await ctx.db.update(branches).set({ pausedUntil: new Date(Date.now() + 30 * 60_000) }).where(eq(branches.id, x.branchId));

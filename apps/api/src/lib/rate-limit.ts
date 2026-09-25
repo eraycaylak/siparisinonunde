@@ -74,4 +74,6 @@ export const RATE_LIMITS = {
   storeOrderPerIp: { limit: 5, windowMs: 60_000 },
   storeOrderPerPhone: { limit: 3, windowMs: 10 * 60_000 },
   otpPerPhone: { limit: 3, windowMs: 10 * 60_000 },
+  /** İki adımlı doğrulama kodu denemesi (giriş + TOTP yönetimi), kullanıcı başına */
+  totpPerUser: { limit: 5, windowMs: 10 * 60_000 },
 } as const;

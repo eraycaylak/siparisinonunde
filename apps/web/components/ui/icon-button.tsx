@@ -10,7 +10,7 @@ export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
   size?: 'sm' | 'md' | 'lg';
 }
 
-const SIZE = { sm: 'size-10 [&_svg]:size-4', md: 'size-hit [&_svg]:size-5', lg: 'size-hit-primary [&_svg]:size-6' } as const;
+const SIZE = { sm: 'size-hit [&_svg]:size-4', md: 'size-hit [&_svg]:size-5', lg: 'size-hit-primary [&_svg]:size-6' } as const;
 
 /** Yalnız ikonlu kare buton; varsayılan 48×48 px. */
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(function IconButton(

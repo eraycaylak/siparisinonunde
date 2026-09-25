@@ -2,7 +2,7 @@
 
 import { maskPhone } from '@siparis/core';
 import type { StoreSessionView } from '@siparis/core/menu/contracts';
-import { customers, options, orderItemOptions, orderItems, orders, products, storefrontLinkTokens, type Database } from '@siparis/db';
+import { customerAddresses, customers, options, orderItemOptions, orderItems, orders, products, storefrontLinkTokens, type Database } from '@siparis/db';
 import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { sha256Hex } from '../../lib/tokens';
 
@@ -53,6 +53,27 @@ export async function findTenantCustomer(db: Database, tenantId: string, custome
 
 export function customerDto(c: CustomerRow): NonNullable<StoreSessionView['customer']> {
   return { name: c.name?.trim() || null, phoneMasked: c.phoneE164 ? maskPhone(c.phoneE164) : null };
+}
+
+/**
+ * Checkout ön dolumu: ad, son kullanılan adres ve telefon. Tam telefon yalnız cihaz çerezinde ("bu cihazda hatırla"
+ * açık seçimi); WhatsApp bağlantısında maskeli.
+ */
+export async function loadPrefill(db: Database, c: CustomerRow, source: 'link' | 'device'): Promise<NonNullable<StoreSessionView['prefill']>> {
+  const [addr] = await db
+    .select({ neighborhood: customerAddresses.neighborhood, addressLine: customerAddresses.addressLine, directions: customerAddresses.directions })
+    .from(customerAddresses)
+    .where(and(eq(customerAddresses.tenantId, c.tenantId), eq(customerAddresses.customerId, c.id)))
+    .orderBy(desc(customerAddresses.lastUsedAt))
+    .limit(1);
+  return {
+    source,
+    name: c.name?.trim() || null,
+    phone: source === 'device' ? (c.phoneE164 ?? null) : null,
+    phoneMasked: c.phoneE164 ? maskPhone(c.phoneE164) : null,
+    phoneKnown: Boolean(c.phoneE164),
+    address: addr ? { neighborhood: addr.neighborhood ?? null, addressLine: addr.addressLine ?? null, directions: addr.directions ?? null } : null,
+  };
 }
 
 /**

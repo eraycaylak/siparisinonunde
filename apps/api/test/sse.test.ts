@@ -3,7 +3,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { sql } from 'drizzle-orm';
 import { appendBranchEvent } from '../src/lib/events';
-import { MAX_REPLAY_EVENTS, formatSseEvent, stripPrices } from '../src/lib/sse';
+import { MAX_REPLAY_EVENTS, formatSseEvent, projectEventForRole, stripPrices } from '../src/lib/sse';
 import { createTestContext, sleep, type TestContext, type TestTenant } from './helpers';
 
 let ctx: TestContext;
@@ -169,15 +169,31 @@ describe('SSE /panel/stream', () => {
     client.close();
   });
 
-  it('mutfak projeksiyonu: fiyat alanları çıkarılır, sohbet olayları gitmez', async () => {
+  it('mutfak projeksiyonu: fiyat alanları ve müşterinin kişisel verisi çıkarılır, sohbet olayları gitmez', async () => {
     const kitchen = await ctx.createStaff(t.tenantId, 'kitchen');
     const client = await connect(kitchen.cookie, { branchId: t.branchId });
     await append(t, 'conversation.message', { conversationId: 'x', preview: 'merhaba' });
-    const s = await append(t, 'order.created', { order: { id: 'o1', totalKurus: 12345, items: [{ name: 'Pide', lineTotalKurus: 100 }] } });
+    const s = await append(t, 'order.created', {
+      order: {
+        id: 'o1',
+        totalKurus: 12345,
+        customerName: 'Ayşe Kaya',
+        customerPhoneMasked: '0*** *** 22 66',
+        neighborhood: 'Aşağınohutlu',
+        items: [{ name: 'Pide', lineTotalKurus: 100 }],
+      },
+    });
     const e = await client.next();
     expect(e?.id).toBe(String(s));
-    expect(e?.data).toEqual({ order: { id: 'o1', items: [{ name: 'Pide' }] } });
+    expect(e?.data).toEqual({
+      order: { id: 'o1', customerName: null, customerPhoneMasked: null, neighborhood: 'Aşağınohutlu', items: [{ name: 'Pide' }] },
+    });
+    expect(JSON.stringify(e?.data)).not.toContain('Ayşe');
     client.close();
+    // Sahip aynı olayı tam görür
+    expect(projectEventForRole('order.created', { order: { customerName: 'Ayşe Kaya', totalKurus: 1 } }, 'owner')).toEqual({
+      order: { customerName: 'Ayşe Kaya', totalKurus: 1 },
+    });
   });
 
   it('çok fazla kaçırılmış olayda resync gönderilir', async () => {
