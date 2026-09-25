@@ -153,6 +153,8 @@ export async function detectOfflinePanels(db: Database, now: Date = new Date()):
         tenantId: row.tenantId,
         dedupeKey: `platform_alert:panel_offline:${row.branchId}:${Math.floor(now.getTime() / PANEL_OFFLINE_ALERT_EVERY_MS)}`,
         payload: { tenantId: row.tenantId, branchId: row.branchId, kind: 'panel_offline', minutes },
+        // Algılama anında çalışır (enjekte edilen saatle tutarlı; varsayılan DB now() gerçek saate bağlanırdı)
+        runAt: now,
       });
       return true;
     });

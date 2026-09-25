@@ -1,7 +1,7 @@
 // DB gerektirmeyen yardımcılar: parola, şifreleme, token, takip token'ı, hız sınırı, yapılandırma.
 
 import { describe, expect, it } from 'vitest';
-import { loadConfig, productionConfigWarnings } from '../src/config';
+import { devToolsAllowed, loadConfig, productionConfigWarnings } from '../src/config';
 import { createEncryptor } from '../src/lib/encryption';
 import { redactUrlForLog } from '../src/lib/log';
 import { hashPassword, verifyPassword } from '../src/lib/password';
@@ -136,6 +136,19 @@ describe('config', () => {
       expect(() => loadConfig({ ...prod, PLATFORM_WA_PROVIDER: 'd360', PLATFORM_WA_API_KEY: '' })).toThrow(/PLATFORM_WA_API_KEY/);
       expect(() => loadConfig({ ...prod, PLATFORM_WA_PROVIDER: 'cloud', PLATFORM_WA_API_KEY: 'k' })).toThrow(/PLATFORM_WA_PHONE_NUMBER_ID/);
       expect(loadConfig({ ...prod, PLATFORM_WA_PROVIDER: 'd360', PLATFORM_WA_API_KEY: 'k' }).PLATFORM_WA_PROVIDER).toBe('d360');
+    });
+    it('dev dağıtımı (DEPLOY_ENV=dev): DEV_TOOLS yalnız tüm sağlayıcılar mock iken kabul edilir', () => {
+      const dev = { ...prod, DEPLOY_ENV: 'dev', DEV_TOOLS: '1' };
+      const c = loadConfig(dev);
+      expect(c.DEV_TOOLS).toBe(true);
+      expect(devToolsAllowed(c)).toBe(true);
+      expect(() => loadConfig({ ...dev, SMS_PROVIDER: 'netgsm', NETGSM_USERCODE: 'u', NETGSM_PASSWORD: 'p', NETGSM_HEADER: 'H' })).toThrow(/DEV_TOOLS/);
+      expect(() => loadConfig({ ...dev, PLATFORM_WA_PROVIDER: 'd360', PLATFORM_WA_API_KEY: 'k' })).toThrow(/DEV_TOOLS/);
+      expect(() => loadConfig({ ...dev, WA_DEFAULT_PROVIDER: 'd360' })).toThrow(/DEV_TOOLS/);
+      // Dev dağıtımı zayıf gizli anahtarları affetmez
+      expect(() => loadConfig({ ...dev, SESSION_SECRET: 'dev-only-change-me-32chars-minimum' })).toThrow(/SESSION_SECRET/);
+      expect(() => loadConfig({ ...dev, DEPLOY_ENV: 'staging' })).toThrow(/DEPLOY_ENV/);
+      expect(devToolsAllowed(loadConfig(prod))).toBe(false);
     });
     it('geliştirme/test ortamında bu kurallar uygulanmaz', () => {
       expect(loadConfig({ ...base, DEV_TOOLS: '1', SMS_PROVIDER: 'netgsm' }).DEV_TOOLS).toBe(true);

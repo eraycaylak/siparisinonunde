@@ -1,0 +1,23 @@
+# Depo kökü derleme bağlamı. docker/*.Dockerfile kendi <Dockerfile>.dockerignore dosyalarını kullanır (BuildKit);
+# bu dosya Dockerfile'ı stdin'den alan derlemeler içindir (wrangler: deploy/cloudflare/Dockerfile).
+**/node_modules
+**/.next
+**/.next-*
+**/.turbo
+**/.wrangler
+**/coverage
+**/*.log
+.git
+.env
+.env.*
+!.env.example
+test-results
+playwright-report
+uploads
+apps/api/uploads
+backups
+docs
+e2e
+apps/api/test
+packages/*/test
+deploy/cloudflare/src

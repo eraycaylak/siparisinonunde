@@ -89,6 +89,25 @@ describe('dev WhatsApp simülatörü', () => {
     expect(() => testConfig({ NODE_ENV: 'production' })).toThrow(/DEV_TOOLS/);
   });
 
+  it('dev dağıtımında (DEPLOY_ENV=dev, tüm sağlayıcılar mock) /dev açılır; gerçek sağlayıcıyla açılmaz', async () => {
+    const devApp = await buildApp({ config: { ...testConfig(), NODE_ENV: 'production', DEPLOY_ENV: 'dev', DEV_TOOLS: true }, db: ctx.handle, logger: false });
+    try {
+      expect((await devApp.inject({ method: 'GET', url: '/api/v1/dev/sms' })).statusCode).toBe(200);
+    } finally {
+      await devApp.close();
+    }
+    const realSms = await buildApp({
+      config: { ...testConfig(), NODE_ENV: 'production', DEPLOY_ENV: 'dev', DEV_TOOLS: true, SMS_PROVIDER: 'netgsm' },
+      db: ctx.handle,
+      logger: false,
+    });
+    try {
+      expect((await realSms.inject({ method: 'GET', url: '/api/v1/dev/sms' })).statusCode).toBe(404);
+    } finally {
+      await realSms.close();
+    }
+  });
+
   it('DEV_TOOLS kapalıyken /dev yok (404)', async () => {
     const app = await buildApp({ config: testConfig({ DEV_TOOLS: '0' }), db: ctx.handle, logger: false });
     try {

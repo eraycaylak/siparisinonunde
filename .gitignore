@@ -21,3 +21,6 @@ playwright/.cache/
 backups/
 *.dump
 *.sql.gz
+# Cloudflare dev dağıtımı (deploy/cloudflare): üretilen yapılandırma ve wrangler önbelleği
+deploy/cloudflare/wrangler.generated.jsonc
+.wrangler/

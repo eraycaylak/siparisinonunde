@@ -1,0 +1,130 @@
+# Cloudflare dev/demo ortamı (docs/15 §13): Worker + tek container (PostgreSQL + API + worker + web).
+# Gereken GitHub secret'ları (Settings > Secrets and variables > Actions):
+#   CLOUDFLARE_API_TOKEN  — "Edit Cloudflare Workers" şablonuyla oluşturulan token (Containers için Workers Paid plan)
+#   DEV_PASSWORD          — siteye girişte sorulacak dev parolası (en az 8 karakter)
+#   CLOUDFLARE_ACCOUNT_ID — isteğe bağlı; token birden fazla hesaba erişiyorsa zorunlu
+name: Dev ortamı (Cloudflare)
+
+on:
+  push:
+    branches: [main, claude/relaxed-pascal-1m775m]
+    paths-ignore: ['docs/**', '**/*.md']
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-dev-cloudflare
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # Secret'lar henüz eklenmemişse push'ta dağıtım atlanır (uyarı); elle çalıştırmada hata verir
+  kontrol:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          DEV_PASSWORD: ${{ secrets.DEV_PASSWORD }}
+        run: |
+          missing=()
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || missing+=(CLOUDFLARE_API_TOKEN)
+          [ -n "$DEV_PASSWORD" ] || missing+=(DEV_PASSWORD)
+          if [ ${#missing[@]} -eq 0 ]; then echo "ready=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "ready=false" >> "$GITHUB_OUTPUT"
+          msg="Eksik GitHub secret: ${missing[*]} — Settings > Secrets and variables > Actions (docs/15 §13)"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then echo "::error::$msg"; exit 1; fi
+          echo "::warning::Dev dağıtımı atlandı. $msg"
+
+  deploy:
+    needs: kontrol
+    if: needs.kontrol.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      DEV_PASSWORD: ${{ secrets.DEV_PASSWORD }}
+      WRANGLER_SEND_METRICS: 'false'
+    defaults:
+      run:
+        working-directory: deploy/cloudflare
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: deploy/cloudflare/package-lock.json
+
+      - name: Bağımlılıklar ve tür denetimi
+        run: |
+          npm ci --no-audit --no-fund
+          npm run typecheck
+
+      - name: Cloudflare hesabı ve workers.dev adresi
+        id: cf
+        run: |
+          api() { curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4$1"; }
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            ids=$(api "/accounts?per_page=50" | jq -r '.result[].id')
+            count=$(printf '%s\n' "$ids" | grep -c . || true)
+            if [ "$count" != "1" ]; then
+              echo "::error::Token $count hesaba erişiyor; CLOUDFLARE_ACCOUNT_ID secret'ını ekleyin"
+              exit 1
+            fi
+            CLOUDFLARE_ACCOUNT_ID="$ids"
+            echo "CLOUDFLARE_ACCOUNT_ID=$ids" >> "$GITHUB_ENV"
+          fi
+          sub=$(api "/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" | jq -r '.result.subdomain // empty')
+          if [ -z "$sub" ]; then
+            echo "::error::workers.dev alt alan adı bulunamadı (Cloudflare > Workers & Pages ekranını bir kez açın)"
+            exit 1
+          fi
+          url="https://siparisinonunde-dev.${sub}.workers.dev"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Yapılandırma ve gizli değerler
+        env:
+          SITE_URL: ${{ steps.cf.outputs.url }}
+        run: |
+          node scripts/prepare-config.mjs "$SITE_URL"
+          # İlk dağıtımda Worker yoktur: liste boş sayılır, tüm gizli değerler üretilir
+          npx wrangler secret list -c wrangler.generated.jsonc --format json > "$RUNNER_TEMP/existing.json" 2>/dev/null || echo '[]' > "$RUNNER_TEMP/existing.json"
+          node scripts/secrets.mjs "$RUNNER_TEMP/existing.json" > "$RUNNER_TEMP/secrets.json"
+
+      - name: Dağıt (Worker + container imajı)
+        run: |
+          npx wrangler deploy -c wrangler.generated.jsonc --secrets-file "$RUNNER_TEMP/secrets.json" --containers-rollout=immediate
+          rm -f "$RUNNER_TEMP/secrets.json"
+
+      - name: Duman testi
+        env:
+          URL: ${{ steps.cf.outputs.url }}
+        run: |
+          # İlk dağıtımda container'ın hazırlanması birkaç dakika sürebilir
+          code=000
+          for i in $(seq 1 40); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 170 -u "dev:$DEV_PASSWORD" "$URL/api/v1/health" || true)
+            echo "sağlık denemesi $i: HTTP $code"
+            [ "$code" = "200" ] && break
+            sleep 15
+          done
+          [ "$code" = "200" ] || { echo "::error::API sağlık denetimi 200 dönmedi (son: $code)"; exit 1; }
+          for path in / /s/bozok-pide /panel/giris /admin/giris /dev/whatsapp /api/v1/health/worker; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 -u "dev:$DEV_PASSWORD" "$URL$path")
+            echo "$path → HTTP $code"
+            [ "$code" = "200" ] || { echo "::error::$path HTTP $code"; exit 1; }
+          done
+          code=$(curl -s -o /dev/null -w '%{http_code}' "$URL/panel/giris")
+          [ "$code" = "401" ] || { echo "::error::Parolasız erişim 401 dönmedi ($code)"; exit 1; }
+          {
+            echo "### Dev ortamı hazır"
+            echo ""
+            echo "- Adres: $URL (kullanıcı adı: dev, parola: DEV_PASSWORD secret'ı)"
+            echo "- Demo işletme: $URL/s/bozok-pide · Panel: $URL/panel/giris · WhatsApp simülatörü: $URL/dev/whatsapp"
+          } >> "$GITHUB_STEP_SUMMARY"

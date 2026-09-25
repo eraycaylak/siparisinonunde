@@ -63,6 +63,7 @@ NETGSM_USERCODE= / NETGSM_PASSWORD= / NETGSM_HEADER=
 UPLOAD_DIR=./uploads
 ANTHROPIC_API_KEY=                          # Faz 2 (AI), boşsa kapalı
 DEV_TOOLS=1                                 # /dev/whatsapp simülatörü ve /api/dev/* (üretimde 0)
+DEPLOY_ENV=production                       # dev: Cloudflare demo ortamı (15 §13); DEV_TOOLS'a yalnız tüm sağlayıcılar mock iken izin verir
 ADMIN_TOTP_REQUIRED=                        # platform yöneticisine TOTP zorunlu; boşsa üretimde 1, diğer ortamlarda 0 (§5)
 VAPID_PUBLIC_KEY= / VAPID_PRIVATE_KEY=      # Web Push anahtar çifti (web-push generate-vapid-keys); boşsa push kapalı (§6.3 Bildirim)
 VAPID_SUBJECT=                              # mailto:… ya da https://… (itme servislerinin iletişim adresi)

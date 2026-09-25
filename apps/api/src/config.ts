@@ -62,6 +62,11 @@ export const configSchema = z.object({
     message: 'VAPID_SUBJECT mailto: ya da https:// ile başlamalı (ör. mailto:destek@siparisinonunde.com)',
   }),
   DEV_TOOLS: bool01.default(false),
+  /**
+   * Dağıtım türü: `production` (gerçek işletmeler) ya da `dev` (Cloudflare dev/demo ortamı, 15 §13). `dev`,
+   * NODE_ENV=production altında geliştirici araçlarına (WhatsApp simülatörü) yalnız tüm sağlayıcılar mock iken izin verir.
+   */
+  DEPLOY_ENV: z.enum(['production', 'dev']).default('production'),
   /** Platform yöneticileri için TOTP zorunlu (00 §12a madde 7). Verilmezse: üretimde açık, diğer ortamlarda kapalı. */
   ADMIN_TOTP_REQUIRED: optionalBool01,
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
@@ -83,6 +88,23 @@ type ParsedConfig = z.infer<typeof configSchema>;
 /** Üretimde güçlü sayılmayan gizli anahtar: kısa ya da örnek dosyadaki geliştirme değeri. */
 const weakSecret = (v: string) => v.length < 32 || v.startsWith('dev-only');
 
+/** Tüm dış sağlayıcılar taklit mi (hiçbir WhatsApp mesajı ya da SMS gerçekten gönderilemez). */
+function allProvidersMock(c: Pick<ParsedConfig, 'WA_DEFAULT_PROVIDER' | 'PLATFORM_WA_PROVIDER' | 'SMS_PROVIDER'>): boolean {
+  return c.WA_DEFAULT_PROVIDER === 'mock' && c.PLATFORM_WA_PROVIDER === 'mock' && c.SMS_PROVIDER === 'mock';
+}
+
+/**
+ * Kimlik doğrulamasız geliştirici uçları (/api/v1/dev/*) açılabilir mi: geliştirme/test ortamında DEV_TOOLS ile;
+ * üretim derlemesinde yalnız dev dağıtımında (DEPLOY_ENV=dev) ve tüm sağlayıcılar mock iken.
+ */
+export function devToolsAllowed(
+  c: Pick<ParsedConfig, 'DEV_TOOLS' | 'NODE_ENV' | 'DEPLOY_ENV' | 'WA_DEFAULT_PROVIDER' | 'PLATFORM_WA_PROVIDER' | 'SMS_PROVIDER'>,
+): boolean {
+  if (!c.DEV_TOOLS) return false;
+  if (c.NODE_ENV !== 'production') return true;
+  return c.DEPLOY_ENV === 'dev' && allProvidersMock(c);
+}
+
 /**
  * Üretimde (NODE_ENV=production) süreci başlatmayan yapılandırma hataları (fail-fast; 15 §4):
  * geliştirici araçları açık, zayıf/örnek gizli anahtarlar, seçilen gerçek sağlayıcının anahtarları eksik.
@@ -90,7 +112,9 @@ const weakSecret = (v: string) => v.length < 32 || v.startsWith('dev-only');
 export function productionConfigErrors(c: ParsedConfig): string[] {
   if (c.NODE_ENV !== 'production') return [];
   const errors: string[] = [];
-  if (c.DEV_TOOLS) errors.push('DEV_TOOLS üretimde 0 olmalı (/api/v1/dev/* kimlik doğrulamasızdır)');
+  if (c.DEV_TOOLS && !devToolsAllowed(c)) {
+    errors.push('DEV_TOOLS üretimde 0 olmalı (/api/v1/dev/* kimlik doğrulamasızdır); yalnız DEPLOY_ENV=dev ve tüm sağlayıcılar mock iken açılabilir');
+  }
   if (weakSecret(c.SESSION_SECRET)) errors.push('SESSION_SECRET en az 32 karakter ve örnek değerden farklı olmalı (openssl rand -base64 48)');
   if (weakSecret(c.TRACKING_SECRET)) errors.push('TRACKING_SECRET en az 32 karakter ve örnek değerden farklı olmalı (openssl rand -base64 32)');
   if (!c.WA_VERIFY_TOKEN.trim() || c.WA_VERIFY_TOKEN === 'dev-verify') {

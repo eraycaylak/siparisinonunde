@@ -19,6 +19,7 @@
 10. [İzleme](#10-izleme)
 11. [Sorun giderme](#11-sorun-giderme)
 12. [Canlıya çıkış kontrol listesi](#12-canlıya-çıkış-kontrol-listesi)
+13. [Cloudflare dev (demo) ortamı](#13-cloudflare-dev-demo-ortamı)
 
 ---
 
@@ -391,3 +392,50 @@ docker compose exec postgres psql -U siparis -c "select b.name, p.last_seen_at, 
 - [ ] Fatura düzeni (Paraşüt / e-Arşiv) ilk ücretli işletmeden önce hazır; fişteki "mali değeri yoktur" ibaresi teyitli (V-024, V-025).
 
 **[13](13-varsayim-ve-teyit-kaydi.md) §2 engelleyici teyitler** — P0 (pilot) kapısındaki maddeler `teyitli` durumda olmalı ya da kapı kararına "şu maddeye rağmen şu gerekçeyle" notu yazılmalı: V-001 (rate card), V-009 (TR barındırma), V-011 (platform şablonları), V-012 (SMS fiyatı), V-018 (Coexistence), V-020 (SMS başlığı), V-021 (canary), V-022 (harita kotaları), V-023 (SMS İYS sınıfı), V-024 (fiş ibaresi), V-025 (e-Arşiv), V-026 (Meta aktarımı risk değerlendirmesi). 00 §12a'daki BSP yolu nedeniyle Tech Provider'a özgü maddelerin (V-005, V-010, V-015, V-016, V-019) yerine 360dialog'un API uç noktası, webhook tanımı ve imza davranışı (§6) teyit edilir.
+
+---
+
+## 13. Cloudflare dev (demo) ortamı
+
+Sistemi gerçek işletme verisi olmadan denemek ve göstermek için ayrı bir ortamdır. **Üretimin yerine geçmez:** üretim Türkiye'deki VPS'tedir (§1–§12). Dev ortamında:
+- tüm sağlayıcılar `mock` çalışır, gerçek WhatsApp mesajı ya da SMS gitmez;
+- WhatsApp simülatörü (`/dev/whatsapp`) açıktır;
+- site tek bir dev parolasıyla korunur;
+- veriler yurt dışındadır (Cloudflare R2, ENAM). Bu yüzden gerçek müşteri verisi girilmez (00 §12a, 08).
+
+**Yapı** (`deploy/cloudflare/`): tek bir Worker ve Workers Paid planının Containers özelliğiyle çalışan tek bir container örneği (`basic`: 1/4 vCPU, 1 GiB).
+- Container içinde aynı anda PostgreSQL 16, API, worker ve web çalışır. İmaj depo kökünden derlenir (`deploy/cloudflare/Dockerfile`).
+- Worker `/api/*` isteklerini API'ye (4000), diğer istekleri web'e (3000) aktarır. WhatsApp webhook'ları ve PWA dosyaları dışında her şey HTTP Basic ile korunur: kullanıcı adı serbest, parola `DEV_PASSWORD`.
+- Container diski geçicidir. `entrypoint.sh` her açılışta boş bir veritabanı kurar ve son yedeği Worker'ın `yedek.internal` çıkış işleyicisi üzerinden R2'den (`siparisinonunde-dev-yedek`) geri yükler. Yedek yoksa demo verisi yüklenir (seed).
+- Yedek 10 dakikada bir, kapanışta ve çökmede alınır. Veritabanı ve görsel yedeğinin haftanın her günü için bir kopyası tutulur (7 gün). R2'ye ulaşılamazsa container boş veritabanıyla açılmaz, çıkar; böylece iyi yedeğin üzerine yazılmaz.
+- Son istekten 30 dakika sonra container uyur. Açık bir panel (SSE) uyumayı engeller. Uyanış yaklaşık 30–60 saniye sürer; bu sırada tarayıcıda "Sistem başlatılıyor" sayfası görünür ve kendiliğinden yenilenir.
+- `DEPLOY_ENV=dev`, üretim derlemesinde geliştirici araçlarını yalnız tüm sağlayıcılar `mock` iken açar (`apps/api/src/config.ts`, `devToolsAllowed`). Yönetici 2FA'sı dev ortamında isteğe bağlıdır (`ADMIN_TOTP_REQUIRED=false`).
+
+**Kurulum (bir kez):**
+1. Cloudflare hesabında **Workers Paid** planını açın (aylık 5 $; Containers bu planla gelir). Container sürekli açık kalırsa kullanım ücreti ayda yaklaşık 7 $ tutar; uyuyan container ücretlendirilmez.
+2. Cloudflare > My Profile > API Tokens > **Create Token** > **"Edit Cloudflare Workers"** şablonuyla bir token oluşturun.
+3. GitHub deposunda **Settings > Secrets and variables > Actions > New repository secret** ile şunları ekleyin:
+   - `CLOUDFLARE_API_TOKEN`: 2. adımdaki token.
+   - `DEV_PASSWORD`: siteye girişte sorulacak parola, en az 8 karakter.
+   - `CLOUDFLARE_ACCOUNT_ID`: yalnız token birden fazla hesaba erişiyorsa gerekir.
+4. GitHub > **Actions > "Dev ortamı (Cloudflare)" > Run workflow**. Sonraki her push, `main` ya da çalışma dalına, ortamı kendiliğinden günceller.
+
+**İş akışı** (`.github/workflows/deploy-dev-cloudflare.yml`):
+1. workers.dev adresini bulur.
+2. Adresi web derlemesine (`NEXT_PUBLIC_SITE_URL`) ve API'ye (`APP_BASE_URL`) yazar (`scripts/prepare-config.mjs`).
+3. Eksik gizli değerleri bir kez üretir (`scripts/secrets.mjs`): `SESSION_SECRET`, `TRACKING_SECRET`, `ENCRYPTION_KEY`, `WA_VERIFY_TOKEN` ve VAPID çifti. Worker'da zaten olanlara dokunmaz; `ENCRYPTION_KEY` değişirse yedekteki şifreli veriler okunamaz.
+4. `wrangler deploy` ile Worker'ı ve container imajını yayınlar.
+5. Duman testi yapar: sağlık uçları, vitrin, giriş sayfaları, simülatör ve parolasız erişimin 401 dönmesi. Adres, iş akışı özetine yazılır: `https://siparisinonunde-dev.<alt-alan>.workers.dev`.
+
+**Kullanım:**
+- Giriş için README'deki demo hesapları kullanılır: `demo@siparisinonunde.local` / `demo1234` vb.
+- Demo işletme: `/s/bozok-pide`.
+- WhatsApp akışları `/dev/whatsapp` simülatöründen denenir.
+
+**Sıfırlama:** R2'deki `db/son.dump` ve `uploads/son.tar.gz` nesnelerini silip container'ı yeniden başlatın (yeniden dağıtım yeterli). Sistem demo verisiyle yeniden kurulur.
+
+**Sorun giderme:**
+- Container günlükleri: Cloudflare > Workers & Pages > `siparisinonunde-dev` > Logs, ya da `npx wrangler tail siparisinonunde-dev`.
+- İlk dağıtımdan sonra container'ın hazırlanması birkaç dakika sürebilir; duman testi 10 dakikaya kadar bekler.
+- "Failed to start container" hatası çoğunlukla bellek yetmediğini gösterir. `wrangler.jsonc` içinde `instance_type` değerini `standard-1` yapın (4 GiB; maliyet artar).
+

@@ -8,7 +8,7 @@ import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastif
 import { serializerCompiler, validatorCompiler, type ZodTypeProvider } from 'fastify-type-provider-zod';
 import { mkdirSync } from 'node:fs';
 import type { DestinationStream } from 'pino';
-import type { Config } from './config';
+import { devToolsAllowed, type Config } from './config';
 import { registerAllJobs } from './jobs/index';
 import { logSerializers } from './lib/log';
 import { BranchEventHub } from './lib/sse';
@@ -123,8 +123,9 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   await app.register(adminRoutes, { prefix: `${API_PREFIX}/admin` });
   await app.register(publicRoutes, { prefix: `${API_PREFIX}/public` });
   await app.register(webhookWaRoutes, { prefix: `${API_PREFIX}/webhooks/wa` });
-  // Kimlik doğrulamasız geliştirici uçları üretimde hiçbir koşulda açılmaz (loadConfig de reddeder)
-  if (config.DEV_TOOLS && config.NODE_ENV !== 'production') {
+  // Kimlik doğrulamasız geliştirici uçları canlı üretimde hiçbir koşulda açılmaz (loadConfig de reddeder); yalnız
+  // dev dağıtımında (DEPLOY_ENV=dev) ve tüm sağlayıcılar mock iken (devToolsAllowed)
+  if (devToolsAllowed(config)) {
     await app.register(devRoutes, { prefix: `${API_PREFIX}/dev` });
   }
 
