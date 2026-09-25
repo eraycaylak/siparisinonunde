@@ -9,7 +9,7 @@
 
 İşletme sipariş başına komisyon değil, sabit aylık ücret öder.
 
-> **Durum:** Planlama tamamlandı, geliştirme başlamadı. Hafta 1 = 28 Eylül 2026.
+> **Durum:** Faz 1 çalışır durumda: pazarlama sitesi, işletme vitrini ve sipariş akışları (A, B, E), işletme paneli, admin paneli, kurye ekranı, WhatsApp (360dialog / Cloud API / geliştirme simülatörü), SMS yedeği, Docker ile kurulum. Canlıya çıkıştan önce kalanlar: [15 §12 kontrol listesi](docs/15-kurulum-ve-isletim.md) ve hukuki metinlerin incelemesi. Pilot: Yozgat / Merkez.
 
 ## Nereden başlamalı?
 
@@ -18,6 +18,8 @@
 3. **[Yol haritası ve sprint planı](docs/09-yol-haritasi-ve-sprint-plani.md):** "Yarın sabah ne yapıyoruz?"
 
 ## Plan dokümanları
+
+Uygulamanın bağlayıcı teknik sözleşmesi [14 — Uygulama şartnamesi](docs/14-uygulama-sartnamesi.md), sunucu kurulumu ve işletim [15 — Kurulum ve işletim rehberi](docs/15-kurulum-ve-isletim.md).
 
 | # | Doküman | Kapsam |
 |---|---|---|
@@ -49,10 +51,12 @@ Ham araştırma raporları ve kaynak bağlantıları: [docs/arastirma/](docs/ara
   - Komisyon yok.
   - 14 gün kartsız deneme.
   - İlk 100 işletme 12 ay %30 indirimli.
-- **Stack (varsayılan):** TypeScript monorepo.
-  - Next.js 16 (site ve storefront), Vite + React (paneller), Fastify 5 (API, SSE, webhook).
-  - BullMQ, PostgreSQL 18 + PostGIS (RLS), Redis, Better Auth.
-  - Kişisel veri Türkiye'de barındırılır.
+- **Stack (uygulanan, [00 §12a](docs/00-kararlar-ve-sozluk.md) ve [14](docs/14-uygulama-sartnamesi.md)):** TypeScript pnpm monorepo.
+  - Tek Next.js 16 uygulaması: pazarlama sitesi, vitrin (`/s/<slug>`), işletme paneli (`/panel`), admin (`/admin`), kurye (`/kurye`).
+  - Fastify 5 API (REST, SSE, WhatsApp webhook) + aynı kod tabanından worker süreci.
+  - Yalnız PostgreSQL: Drizzle, `jobs` tablosu (`FOR UPDATE SKIP LOCKED`), outbox, `LISTEN/NOTIFY`. Redis yok.
+  - Kendi oturum sistemimiz (scrypt, HttpOnly çerez), yöneticiler için TOTP 2FA.
+  - Kişisel veri Türkiye'deki tek VPS'te (Docker Compose + Caddy).
 - **Takvim:**
   - Talep go/no-go: 20 Kasım 2026.
   - Pilot (10 işletme): Aralık 2026.
