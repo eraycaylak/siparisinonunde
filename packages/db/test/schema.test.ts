@@ -17,6 +17,8 @@ const PLATFORM_TABLES = new Set([
   'wa_webhook_events',
   'jobs',
   'sms_messages',
+  // İmha tutanağı: tüm tabloya uygulanan saklama adımlarında tenant yoktur; tenant silinse de satır kalır (08 §2.8 satır 18)
+  'retention_runs',
 ]);
 
 describe('şema', () => {

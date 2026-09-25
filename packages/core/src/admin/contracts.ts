@@ -69,6 +69,13 @@ export const adminOverviewSchema = z.object({
   waSilentAccounts: int,
   leadsTotal: int,
   leadsNew: int,
+  /** Saklama/imha işi sağlığı (08 §2.8 kabul kriteri): son koşu 48 saatten eskiyse ya da hatalıysa `alert` */
+  retention: z.object({
+    lastRunAt: isoOrNull,
+    error: z.string().nullable(),
+    stale: z.boolean(),
+    alert: z.boolean(),
+  }),
   alerts: z.object({
     missedOrders: z.array(
       z.object({ orderId: id, tenantId: id, tenantName: z.string(), number: int, cancelledAt: isoOrNull }),

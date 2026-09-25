@@ -10,3 +10,4 @@ export * from './whatsapp-ext';
 export * from './settings-ext';
 export * from './admin-ext';
 export * from './notifications-ext';
+export * from './retention-ext';

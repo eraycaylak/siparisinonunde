@@ -10,6 +10,9 @@ import { loadWaHealth } from './wa-health';
 /** Geç onay eşiği (05 §A.5 "Geç onay oranı": new'de 2 dk'dan uzun). */
 const LATE_NEW_SECONDS = 120;
 
+/** Saklama işi bu süreden uzun koşmadıysa alarm (08 §2.8 kabul kriteri: 48 saat). */
+export const RETENTION_STALE_HOURS = 48;
+
 export async function loadOverview(db: Database, now: Date = new Date()): Promise<AdminOverview> {
   const nowIso = now.toISOString();
 
@@ -91,6 +94,15 @@ export async function loadOverview(db: Database, now: Date = new Date()): Promis
     sql`select id, name, business_name, city, source, created_at from leads where status = 'new' order by created_at desc limit 5`,
   );
 
+  // Son saklama koşusunun özeti (jobs/system cron.retention → retention_runs)
+  const [lastRetention] = await rows<{ finished_at: string; error: string | null }>(
+    db,
+    sql`select finished_at, error from retention_runs where job_name = 'cron.retention' order by started_at desc limit 1`,
+  );
+  const retentionLastRunAt = lastRetention ? new Date(lastRetention.finished_at) : null;
+  const retentionStale = !retentionLastRunAt || now.getTime() - retentionLastRunAt.getTime() > RETENTION_STALE_HOURS * 3600_000;
+  const retentionError = lastRetention?.error ? lastRetention.error.slice(0, 300) : null;
+
   const wa = await loadWaHealth(db, { now });
   const waProblems = wa.filter((a) => a.status === 'error' || a.silent);
 
@@ -113,6 +125,12 @@ export async function loadOverview(db: Database, now: Date = new Date()): Promis
     waSilentAccounts: wa.filter((a) => a.silent).length,
     leadsTotal: Number(leadStats?.total ?? 0),
     leadsNew: Number(leadStats?.fresh ?? 0),
+    retention: {
+      lastRunAt: retentionLastRunAt ? retentionLastRunAt.toISOString() : null,
+      error: retentionError,
+      stale: retentionStale,
+      alert: retentionStale || retentionError !== null,
+    },
     alerts: {
       missedOrders: missed.map((m) => ({
         orderId: m.id,

@@ -179,6 +179,7 @@ Dayanak: Silme, Yok Etme veya Anonim Hale Getirme Yönetmeliği (RG 28.10.2017) 
 - İşletme süre ayarını (satır 6) değiştirince yeni süre bir sonraki koşuda uygulanır. Ayar değişikliği `audit_log`'a yazılır.
 - Staging'de zaman yolculuğu (sahte saat) testiyle her iş doğrulanır. CI'da "silinmiş alan logda görünmez" testi çalışır.
 - Saklama-imha politikası (iç doküman) bu tabloyu birebir içerir; tablo değişirse politika sürümü de değişir.
+- *Uygulama notu (Faz 1):* `retention_runs.job_name` tablodaki iş adını önek olarak kullanır; bir iş birden çok adımdan oluşuyorsa alt ad eklenir: `retention.technical.<tablo>` (satır 19 ve teknik kayıtlar), `retention.order_notes.items`, `retention.wa_messages.previews`, sipariş onayı ve son müşteri belge kabulündeki IP/tarayıcı bilgisinin 1 yıl sonra boşaltılması `retention.access_logs.orders` / `retention.access_logs.legal_acceptances` (satır 10). `retention.customer_inactive` haftalık değil günlük koşuda çalışır; işletme süre ayarı (6–24 ay) henüz yoktur, süre 24 aydır. Ayrıntı [14](14-uygulama-sartnamesi.md) §7.2.
 
 ### 2.9 Veri ihlali müdahale süreci (72 saat)
 

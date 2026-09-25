@@ -21,7 +21,8 @@ import {
   type Database,
 } from '@siparis/db';
 import { and, asc, desc, eq, inArray, isNull, or, sql, type SQLWrapper } from 'drizzle-orm';
-import { conflict, notFound } from '../../lib/errors';
+import { audit } from '../../lib/audit';
+import { AppError, conflict, notFound } from '../../lib/errors';
 import { isoOrNull, validationError } from '../settings/common';
 
 type CustomerRow = typeof customers.$inferSelect;
@@ -371,8 +372,13 @@ export async function exportCustomer(db: Database, c: CustomerRow) {
 /**
  * KVKK silme/anonimleştirme (08 §2.10, §2.8): açık siparişi varsa 409. Müşteri kimlik/iletişim alanları, adresler,
  * sohbet içerikleri silinir; siparişlerde ad/telefon/adres anonimleşir, tutarlar (mali kayıt) korunur.
+ * `actorUserId` null = sistem (saklama işi, retention.customer_inactive); `customer_erasures.erased_by_user_id` boş kalır.
  */
-export async function eraseCustomer(tx: Database, c: CustomerRow, actorUserId: string): Promise<{ orderCount: number; messageCount: number }> {
+export async function eraseCustomer(
+  tx: Database,
+  c: CustomerRow,
+  actorUserId: string | null,
+): Promise<{ orderCount: number; messageCount: number }> {
   const [open] = await tx
     .select({ n: sql<number>`count(*)::int` })
     .from(orders)
@@ -435,4 +441,102 @@ export async function eraseCustomer(tx: Database, c: CustomerRow, actorUserId: s
   await tx.delete(storefrontLinkTokens).where(and(eq(storefrontLinkTokens.tenantId, c.tenantId), eq(storefrontLinkTokens.customerId, c.id)));
   await tx.insert(customerErasures).values({ customerId: c.id, tenantId: c.tenantId, erasedByUserId: actorUserId });
   return { orderCount: orderIds.length, messageCount };
+}
+
+// ---------------------------------------------------------------------------
+// Hareketsiz müşteri anonimleştirme (08 §2.8 satır 6, retention.customer_inactive)
+
+/**
+ * Hareketsizlik süresi (ay). 08 §2.8 satır 6'daki işletme ayarı (6–24 ay arası kısaltma) için henüz tenant kolonu yok;
+ * ayar eklenince süre buradan değil tenant ayarından okunur.
+ */
+export const CUSTOMER_INACTIVE_MONTHS = 24;
+
+/**
+ * Hareketsiz müşteri koşulu (`c` = customers). Son etkinlik = kayıt, son sipariş (müşteri kaydındaki `last_order_at` ve
+ * KVKK kapsamındaki siparişlerin `created_at`'i: bu kayda bağlı ya da aynı telefonla verilmiş) ve son gelen mesaj
+ * (müşteri ve sohbet `last_inbound_at`) anlarının en büyüğü. Silinmiş müşteri ve açık (final olmayan) siparişi olan
+ * müşteri hariç. Telefon eşleşmesi ayrı NOT EXISTS: planlayıcı iki koşulu da hash anti-join ile çözebilir.
+ */
+function inactiveCustomerWhere(months: number) {
+  const cutoff = sql`now() - make_interval(months => ${months})`;
+  const open = sql.raw(OPEN_STATUSES.map((s) => `'${s}'`).join(', '));
+  return sql`not exists (select 1 from customer_erasures e where e.customer_id = c.id)
+    and greatest(c.created_at, c.last_order_at, c.last_inbound_at) < ${cutoff}
+    and not exists (
+      select 1 from orders o
+       where o.tenant_id = c.tenant_id and o.customer_id = c.id
+         and (o.created_at >= ${cutoff} or o.status in (${open})))
+    and (c.phone_e164 is null or not exists (
+      select 1 from orders o
+       where o.tenant_id = c.tenant_id and o.customer_phone = c.phone_e164
+         and (o.created_at >= ${cutoff} or o.status in (${open}))))
+    and not exists (
+      select 1 from conversations v
+       where v.tenant_id = c.tenant_id and v.customer_id = c.id and v.last_inbound_at >= ${cutoff})`;
+}
+
+/** Anonimleştirilecek müşterisi olan tenant'lar. */
+export async function tenantsWithInactiveCustomers(db: Database, months = CUSTOMER_INACTIVE_MONTHS): Promise<string[]> {
+  const rows = (await db.execute<{ tenant_id: string }>(
+    sql`select distinct c.tenant_id from customers c where ${inactiveCustomerWhere(months)} order by c.tenant_id`,
+  )) as unknown as { tenant_id: string }[];
+  return rows.map((r) => r.tenant_id);
+}
+
+/** Tenant'ın hareketsiz müşterileri (id sırasıyla, `afterId`'den sonra; sayfa sayfa). */
+export async function inactiveCustomerIds(
+  db: Database,
+  tenantId: string,
+  opts: { months?: number; afterId?: string | null; limit?: number } = {},
+): Promise<string[]> {
+  const after = opts.afterId ? sql`and c.id > ${opts.afterId}::uuid` : sql``;
+  const rows = (await db.execute<{ id: string }>(sql`
+    select c.id from customers c
+     where c.tenant_id = ${tenantId} ${after} and ${inactiveCustomerWhere(opts.months ?? CUSTOMER_INACTIVE_MONTHS)}
+     order by c.id
+     limit ${opts.limit ?? 200}`)) as unknown as { id: string }[];
+  return rows.map((r) => r.id);
+}
+
+/**
+ * Tek hareketsiz müşteriyi elle silmeyle aynı anlamda anonimleştirir (eraseCustomer, aktör sistem) ve `customer.erase`
+ * denetim kaydı yazar. Satır kilitlenir ve koşul yeniden denetlenir: bu arada silinen, yeniden etkinleşen ya da açık
+ * siparişi olan müşteri atlanır ('skipped').
+ */
+export async function eraseInactiveCustomer(
+  db: Database,
+  tenantId: string,
+  customerId: string,
+  months = CUSTOMER_INACTIVE_MONTHS,
+): Promise<'erased' | 'skipped'> {
+  return db.transaction(async (tx) => {
+    const [c] = await tx
+      .select()
+      .from(customers)
+      .where(and(eq(customers.id, customerId), eq(customers.tenantId, tenantId)))
+      .for('update');
+    if (!c) return 'skipped';
+    const still = (await tx.execute(
+      sql`select 1 from customers c where c.id = ${customerId} and ${inactiveCustomerWhere(months)}`,
+    )) as unknown as unknown[];
+    if (!still.length) return 'skipped';
+    let r: { orderCount: number; messageCount: number };
+    try {
+      r = await eraseCustomer(tx, c, null);
+    } catch (err) {
+      // Açık sipariş denetimi yazmadan önce yapılır: atlamak güvenli
+      if (err instanceof AppError && err.code === 'open_orders') return 'skipped';
+      throw err;
+    }
+    await audit(tx, {
+      tenantId,
+      actorUserId: null,
+      action: 'customer.erase',
+      entityType: 'customer',
+      entityId: c.id,
+      data: { ...r, actorType: 'system', job: 'retention.customer_inactive', inactiveMonths: months },
+    });
+    return 'erased';
+  });
 }

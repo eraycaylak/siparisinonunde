@@ -4,6 +4,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import {
   AlertOctagon,
+  Archive,
   Briefcase,
   Building2,
   Clock,
@@ -47,7 +48,7 @@ export function AdminOverviewScreen() {
       {!o && q.isPending ? <OverviewSkeleton /> : null}
       {o ? (
         <div className="flex flex-col gap-6">
-          <section aria-label="Canlı operasyon" className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <section aria-label="Canlı operasyon" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             <StatCard
               icon={ShoppingBag}
               label="Bugünkü sipariş"
@@ -87,6 +88,19 @@ export function AdminOverviewScreen() {
               tone={o.waErrorAccounts > 0 ? 'danger' : o.waSilentAccounts > 0 ? 'warning' : 'ok'}
               href="/admin/whatsapp"
               hint={`${o.waErrorAccounts} hata · ${o.waSilentAccounts} sessiz`}
+            />
+            <StatCard
+              icon={Archive}
+              label="Saklama işi"
+              value={o.retention.error ? 'Hata' : o.retention.stale ? 'Gecikti' : 'Çalışıyor'}
+              tone={o.retention.error ? 'danger' : o.retention.stale ? 'warning' : 'ok'}
+              hint={
+                o.retention.error
+                  ? o.retention.error
+                  : o.retention.lastRunAt
+                    ? `Son koşu ${formatRelative(o.retention.lastRunAt)}${o.retention.stale ? ' · 48 saati aştı' : ''}`
+                    : 'Henüz koşmadı'
+              }
             />
             <StatCard icon={Building2} label="İşletme" value={formatNumber(o.tenantsTotal)} href="/admin/isletmeler" />
             <StatCard icon={UserPlus} label="Yeni kayıt (7 gün)" value={formatNumber(o.newTenants7d)} />
@@ -225,8 +239,8 @@ function AlertList({
 
 function OverviewSkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-hidden>
-      {Array.from({ length: 8 }, (_, i) => (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-hidden>
+      {Array.from({ length: 9 }, (_, i) => (
         <Skeleton key={i} className="h-28 rounded-lg" />
       ))}
     </div>

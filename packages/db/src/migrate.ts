@@ -1,6 +1,7 @@
 // migrations/*.sql dosyalarını ad sırasıyla uygular; uygulananlar `_migrations` tablosunda tutulur.
 // Dilim aralıkları (14 §2): temel 0000–0099, menü 0100–0199, sipariş 0200–0299, whatsapp 0300–0399,
-// işletme-ayarları 0400–0499, admin 0500–0599, kimlik güvenliği 0600–0699, bildirimler 0700–0799.
+// işletme-ayarları 0400–0499, admin 0500–0599, kimlik güvenliği 0600–0699, bildirimler 0700–0799,
+// saklama 0800–0899.
 
 import { createHash } from 'node:crypto';
 import { readdir, readFile } from 'node:fs/promises';

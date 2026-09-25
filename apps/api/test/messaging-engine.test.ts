@@ -308,19 +308,21 @@ describe('medya ve desteklenmeyen', () => {
 });
 
 describe('saklama (cron.retention): konum/medya 30 gün', () => {
-  it('31 günlük konum mesajının koordinat/adresi ve medya kimliği silinir; yeni mesaj ve metin dokunulmaz', async () => {
+  it('31 günlük konum mesajının koordinat/adresi ve medya (ses, görsel, belge) kimliği silinir; yeni mesaj ve metin dokunulmaz', async () => {
     const phone = nextPhone();
     await inbound(ctx, t.account, { phone }, { type: 'location', lat: 39.8201, lng: 34.8089, name: 'Ev', address: 'Yeni Mah. 5. Sok. No 3' });
     await inbound(ctx, t.account, { phone }, { type: 'image', caption: 'kapı' });
     await inbound(ctx, t.account, { phone }, { type: 'text', text: 'merhaba' });
     await inbound(ctx, t.account, { phone }, { type: 'location', lat: 39.83, lng: 34.81 });
+    // Belge sistem mesajı olarak (mediaType) kaydedilir; medya kimliği yine 30 günde silinir
+    await inbound(ctx, t.account, { phone }, { type: 'document', caption: 'reçete' });
     const conv = await conversationFor(ctx.db, t.account, phone);
     const ins = (await threadRows(ctx.db, conv!.id)).filter((r) => r.direction === 'in');
-    const [oldLoc, oldImg, oldText, newLoc] = ins;
+    const [oldLoc, oldImg, oldText, newLoc, oldDoc] = ins;
     await ctx.db
       .update(messages)
       .set({ createdAt: new Date(Date.now() - 31 * 24 * HOUR) })
-      .where(inArray(messages.id, [oldLoc!.id, oldImg!.id, oldText!.id]));
+      .where(inArray(messages.id, [oldLoc!.id, oldImg!.id, oldText!.id, oldDoc!.id]));
     await enqueueJob(ctx.db, { queue: 'cron', type: 'cron.retention' });
     await runJobs(ctx, ['cron.retention']);
     const rows = await ctx.db.select().from(messages).where(inArray(messages.id, ins.map((r) => r.id)));
@@ -330,6 +332,10 @@ describe('saklama (cron.retention): konum/medya 30 gün', () => {
     expect(JSON.stringify(loc.payload)).not.toMatch(/39\.82|34\.80|Yeni Mah/);
     expect(loc.payload).toMatchObject({ type: 'location' });
     expect(byId.get(oldImg!.id)!.payload).not.toHaveProperty('mediaId');
+    const doc = byId.get(oldDoc!.id)!;
+    expect(doc.kind).toBe('system');
+    expect(doc.payload).toMatchObject({ mediaType: 'document' });
+    expect(doc.payload).not.toHaveProperty('mediaId');
     expect(byId.get(oldText!.id)!.body).toBe('merhaba');
     expect(byId.get(newLoc!.id)!.payload).toMatchObject({ lat: 39.83, lng: 34.81 });
   });
