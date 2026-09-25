@@ -5,19 +5,25 @@
 // sekme başlığı sayacı ve "Ses kapalı" bandı menü, sohbet ve ayar ekranlarında da çalışır. Vardiya durumu da burada
 // tutulur: ekranlar arasında gezinirken "Siparişleri almaya başla" yeniden sorulmaz (tam yenilemede ses kilidi
 // düştüğü için canlı ekranda yeniden sorulur, 04 §4.1).
+// Web Push (00 §10 alarm t=0 "ses + push", 04 §4.1 "Web Push izni (ilk sefer)"): vardiya başlatma ve "Sesi aç"
+// dokunuşunda izin istenir ve cihaz abone edilir (kullanıcı bu cihazda kapattıysa açılmaz); panel açılışında mevcut
+// abonelik sessizce sunucuya yeniden bildirilir. Destek görünümünde (impersonation) push'a hiç dokunulmaz.
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { BellOff, BellRing, Volume2, VolumeX } from 'lucide-react';
+import { toast } from 'sonner';
 import { SAFETY_POLL_INTERVAL_MS, type OrderAlarmPayload } from '@siparis/core/contracts/events';
 import type { ActiveOrdersResponse, OrderCard } from '@siparis/core/orders/contracts';
 import { Banner } from '@/components/ui/banner';
 import { Button } from '@/components/ui/button';
 import { STREAM_RECONNECTED, usePanelEvent } from '@/components/panel/stream-provider';
 import { ORDERS_ACTIVE_KEY, applySummary, isOrderEventPayload, orderActions, orderDetailKey } from '@/components/orders/api';
+import { enablePush, isPushOptedOut, isPushSupported, registerPanelServiceWorker, syncPushSubscription } from '@/components/push/push-client';
 import { useApiQuery } from '@/lib/api';
+import { useMe } from '@/lib/auth';
 import { cn } from '@/lib/cn';
 import { formatMoney } from '@/lib/format';
 import { alarmSound, ScreenWake } from './alarm-sound';
@@ -26,6 +32,20 @@ import { ShiftStart } from './shift-start';
 import { useNow } from './use-now';
 
 const DEVICE_LABEL_KEY = 'siparisinonunde:device-label';
+/** Vardiya başlatmadaki bildirim uyarısı (izin engelli / iOS ana ekran) cihaz başına günde en çok bir kez. */
+const PUSH_HINT_KEY = 'siparisinonunde:push-hint-at';
+const PUSH_HINT_EVERY_MS = 24 * 60 * 60_000;
+
+function takePushHint(): boolean {
+  try {
+    const last = Number(window.localStorage.getItem(PUSH_HINT_KEY) ?? 0);
+    if (Date.now() - last < PUSH_HINT_EVERY_MS) return false;
+    window.localStorage.setItem(PUSH_HINT_KEY, String(Date.now()));
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 type ShiftState = 'pending' | 'started' | 'skipped';
 
@@ -86,8 +106,11 @@ export function NewOrderAlarmProvider({
   children: ReactNode;
 }) {
   const qc = useQueryClient();
+  const router = useRouter();
   const pathname = usePathname() ?? '/panel';
   const onLive = pathname === '/panel';
+  const me = useMe();
+  const impersonating = Boolean(me.data?.impersonating);
   const [wake] = useState(() => new ScreenWake());
   const [audioOn, setAudioOn] = useState(false);
   const [shift, setShift] = useState<ShiftState>(() => (alarmSound.unlocked ? 'started' : 'pending'));
@@ -180,11 +203,39 @@ export function NewOrderAlarmProvider({
     ack(alarming);
   }, [alarming, ack]);
 
+  // Panel açılışı: service worker'ı önceden kaydet (vardiya dokunuşunda abonelik beklemesin), izinli cihazın mevcut
+  // aboneliğini bu oturuma yeniden bağla (çıkış/yeniden giriş, başka personel)
+  const pushOwner = me.data ? `${me.data.user.id}:${me.data.tenant?.id ?? ''}` : null;
+  useEffect(() => {
+    if (impersonating || !pushOwner || !isPushSupported()) return;
+    if (Notification.permission === 'denied' || isPushOptedOut()) return;
+    void registerPanelServiceWorker()
+      .then(() => syncPushSubscription())
+      .catch(() => undefined);
+  }, [impersonating, pushOwner]);
+
+  /** Kullanıcı jesti içinde çağrılır: bildirim izni (ilk sefer) + bu cihazın aboneliği. Sessizdir; ayrıntı ayarlarda. */
+  const startPush = useCallback(() => {
+    if (impersonating) return;
+    void enablePush({ respectOptOut: true }).then((res) => {
+      if (res.ok) return;
+      if ((res.reason === 'needs_home_screen' || res.reason === 'denied') && takePushHint()) {
+        toast.info(
+          res.reason === 'needs_home_screen'
+            ? 'Panel kapalıyken bildirim almak için paneli ana ekrana ekleyin.'
+            : 'Bildirim izni kapalı. Panel kapalıyken yeni sipariş bildirimi gelmez.',
+          { action: { label: 'Nasıl açılır', onClick: () => router.push('/panel/ayarlar/bildirimler/cihaz') }, duration: 10_000 },
+        );
+      }
+    });
+  }, [impersonating, router]);
+
   const enableSound = useCallback(() => {
-    // Kullanıcı jesti içinde: ses kilidini aç, ekranı açık tut
+    // Kullanıcı jesti içinde: ses kilidini aç, ekranı açık tut, bildirim iznini iste
     void alarmSound.unlock();
     void wake.enable();
-  }, [wake]);
+    startPush();
+  }, [wake, startPush]);
 
   // "Gördüm" ile susturulan sipariş new kaldıkça 30 sn'de bir kısa hatırlatma (04 §4.5)
   const silencedStillNew = newOrders.some((c) => silenced.has(c.id) && !c.rejectionScheduledAt);
@@ -254,6 +305,8 @@ export function NewOrderAlarmProvider({
             setShift('started');
             setShiftRequested(false);
           }}
+          // "Siparişleri almaya başla" dokunuşunun içinde (ses kilidiyle aynı anda, beklemeden): bildirim izni + abonelik
+          onTap={startPush}
           onSkip={() => {
             setShift((s) => (s === 'started' ? s : 'skipped'));
             setShiftRequested(false);

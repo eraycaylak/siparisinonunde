@@ -20,13 +20,13 @@ import { cn } from '@/lib/cn';
 import { formatMoney, formatPhone, parseTlToKurus } from '@/lib/format';
 import { storefrontHref } from '@/lib/storefront-url';
 import { brandButtonClass } from '@/components/storefront/brand';
+import { WITHDRAWAL_EXCEPTION_TEXT, storeLegalHref } from '@/components/storefront/legal/store-legal';
 import { useStoreSession } from '@/components/storefront/use-store-session';
 import { VerificationScreen } from './verification-screen';
 
 /** 03 §4.4 kilitli metin. */
 const REMEMBER_DEVICE_TEXT = 'Adımı, telefonumu ve adresimi bu cihazda sonraki siparişlerim için hatırla.';
-const OBLIGATION_TEXT =
-  '"Siparişi onayla"ya bastığınızda siparişiniz kesinleşir ve ödeme yükümlülüğü doğar. Gıda siparişleri çabuk bozulabilen ürünler olduğundan cayma hakkı kapsamı dışındadır.';
+const OBLIGATION_TEXT = `"Siparişi onayla"ya bastığınızda siparişiniz kesinleşir ve ödeme yükümlülüğü doğar. ${WITHDRAWAL_EXCEPTION_TEXT}`;
 
 type Fulfillment = 'delivery' | 'pickup';
 
@@ -552,20 +552,29 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
           </Alert>
         ) : null}
         <div data-field="acceptPreInfo" className="flex flex-col gap-1">
+          {/* Metinler bu işletmenin (satıcı ve veri sorumlusu) belgeleridir; yeni sekmede açılır, sepet ve form korunur */}
           <Checkbox
-            label="Ön bilgilendirme formunu ve mesafeli satış sözleşmesini okudum, onaylıyorum."
+            label={
+              <>
+                <a href={storeLegalHref(slug, 'on-bilgilendirme')} target="_blank" rel="noopener" className="font-semibold underline underline-offset-4">
+                  Ön bilgilendirme formunu
+                </a>{' '}
+                ve{' '}
+                <a href={storeLegalHref(slug, 'mesafeli-satis')} target="_blank" rel="noopener" className="font-semibold underline underline-offset-4">
+                  mesafeli satış sözleşmesini
+                </a>{' '}
+                okudum, onaylıyorum.
+              </>
+            }
             checked={accept}
             onChange={(e) => setAccept(e.target.checked)}
             error={fieldErrors.acceptPreInfo}
           />
           <p className="flex flex-wrap gap-x-3 text-sm">
-            <button type="button" className="inline-flex min-h-hit-sf items-center gap-1 font-semibold underline underline-offset-4" onClick={() => setPreInfoOpen(true)}>
-              <FileText aria-hidden className="size-4" /> Ön bilgilendirme formu
+            <button type="button" className="inline-flex min-h-hit items-center gap-1 font-semibold underline underline-offset-4" onClick={() => setPreInfoOpen(true)}>
+              <FileText aria-hidden className="size-4" /> Siparişinize göre ön bilgilendirme
             </button>
-            <a href="/yasal/mesafeli-satis-sablonu" target="_blank" rel="noreferrer" className="inline-flex min-h-hit-sf items-center font-semibold underline underline-offset-4">
-              Mesafeli satış sözleşmesi
-            </a>
-            <a href="/yasal/kvkk-aydinlatma" target="_blank" rel="noreferrer" className="inline-flex min-h-hit-sf items-center font-semibold underline underline-offset-4">
+            <a href={storeLegalHref(slug, 'aydinlatma')} target="_blank" rel="noopener" className="inline-flex min-h-hit items-center font-semibold underline underline-offset-4">
               Aydınlatma metni
             </a>
           </p>
@@ -612,7 +621,7 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
       </div>
 
       <Dialog open={preInfoOpen} onOpenChange={setPreInfoOpen} title="Ön bilgilendirme formu" description="Taslak — hukuki inceleme bekliyor." size="lg">
-        <PreInfo store={store} quote={quote} fulfillment={fulfillment} payment={payment} />
+        <PreInfo slug={slug} store={store} quote={quote} fulfillment={fulfillment} payment={payment} />
       </Dialog>
     </div>
   );
@@ -620,11 +629,13 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
 
 /** Siparişe göre doldurulmuş ön bilgilendirme özeti (03 §4.4, 00 §9). */
 function PreInfo({
+  slug,
   store,
   quote,
   fulfillment,
   payment,
 }: {
+  slug: string;
   store: StorefrontView;
   quote: QuoteResponse | null;
   fulfillment: Fulfillment;
@@ -637,7 +648,7 @@ function PreInfo({
         <strong>Satıcı:</strong> {l.legalName ?? store.tenant.name}
         {l.taxNo ? ` · VKN ${l.taxNo}` : ''}
         {l.address ? ` · ${l.address}` : ''}
-        {l.phone ? ` · ${l.phone}` : ''}
+        {l.phone ? ` · ${formatPhone(l.phone)}` : ''}
         {l.email ? ` · ${l.email}` : ''}
       </p>
       <div>
@@ -658,8 +669,16 @@ function PreInfo({
         <strong>Teslim:</strong> {fulfillment === 'delivery' ? 'Adrese teslim (paket servis)' : 'Gel-al'} ·{' '}
         <strong>Ödeme:</strong> {payment ? (payment === 'pay_at_counter' ? 'Kasada' : PAYMENT_METHOD_LABELS[payment]) : '—'} (kapıda/kasada)
       </p>
-      <p>Gıda siparişleri çabuk bozulabilen ürünler olduğundan cayma hakkı kapsamı dışındadır.</p>
+      <p>{WITHDRAWAL_EXCEPTION_TEXT}</p>
       <p className="text-fg-muted">Bu sipariş {store.tenant.name} tarafından hazırlanır ve teslim edilir. Platform yalnız altyapı sağlayıcısıdır.</p>
+      <p className="flex flex-wrap gap-x-3">
+        <a href={storeLegalHref(slug, 'on-bilgilendirme')} target="_blank" rel="noopener" className="inline-flex min-h-hit items-center font-semibold underline underline-offset-4">
+          Ön bilgilendirme formunun tamamı
+        </a>
+        <a href={storeLegalHref(slug, 'mesafeli-satis')} target="_blank" rel="noopener" className="inline-flex min-h-hit items-center font-semibold underline underline-offset-4">
+          Mesafeli satış sözleşmesi
+        </a>
+      </p>
     </div>
   );
 }

@@ -14,7 +14,18 @@ export const RETENTION_DAYS = {
   courierLoginLinks: 7,
   /** Gelen konum ve medya mesajlarının koordinat/adres/medya kimliği (08 §2.8 retention.locations, retention.media) */
   locationsMedia: 30,
+  /** Sipariş notu ve ürün notu: final durumdan (teslim, ret, iptal) itibaren (08 §2.8 satır 1 retention.order_notes, §2.7) */
+  orderNotes: 30,
 } as const;
+
+/** WhatsApp mesaj içeriği (ay): metin silinir; wamid, yön, zaman ve durum kalır (08 §2.8 satır 4 retention.wa_messages). */
+export const RETENTION_WA_MESSAGE_MONTHS = 6;
+
+/** İçeriği silinen mesajın panelde görünen metni. */
+export const RETENTION_REDACTED_BODY = 'Mesaj içeriği saklama süresi dolduğu için silindi.';
+
+/** Mesaj yükünde metin ya da kişisel veri taşıyan anahtarlar (gelen: yanıt başlığı, profil, ham gövde; giden: gönderim tanımı ve yedekleri). */
+const WA_MESSAGE_TEXT_KEYS = ['title', 'profileName', 'username', 'referral', 'raw', 'spec', 'templateFallback', 'smsFallback'] as const;
 
 export function registerSystemJobs(): void {
   registerJobHandler('cron.retention', async (_payload, { db, log }) => {
@@ -50,6 +61,46 @@ export function registerSystemJobs(): void {
            where kind in ('location', 'image', 'audio')
              and created_at < now() - make_interval(days => ${r.locationsMedia})
              and payload ?| array['lat', 'lng', 'address', 'name', 'mediaId', 'raw']
+         returning id`,
+    );
+    // Sipariş notu (serbest metin, sağlık bilgisi içerebilir): final durumdan 30 gün sonra kalıcı olarak boşaltılır
+    await run(
+      'order_notes',
+      sql`update orders
+             set note = null
+           where note is not null
+             and status in ('delivered', 'rejected', 'cancelled')
+             and coalesce(delivered_at, rejected_at, cancelled_at, updated_at) < now() - make_interval(days => ${r.orderNotes})
+         returning id`,
+    );
+    await run(
+      'order_item_notes',
+      sql`update order_items oi
+             set note = null
+            from orders o
+           where o.id = oi.order_id
+             and oi.note is not null
+             and o.status in ('delivered', 'rejected', 'cancelled')
+             and coalesce(o.delivered_at, o.rejected_at, o.cancelled_at, o.updated_at) < now() - make_interval(days => ${r.orderNotes})
+         returning oi.id`,
+    );
+    // WhatsApp mesaj içeriği: 6 ay sonra metin ve metin taşıyan yük alanları silinir; sohbet önizlemesi de temizlenir
+    const textKeys = sql.raw(`array[${WA_MESSAGE_TEXT_KEYS.map((k) => `'${k}'`).join(', ')}]`);
+    await run(
+      'wa_message_text',
+      sql`update messages
+             set body = ${RETENTION_REDACTED_BODY},
+                 payload = case when payload is null then null else payload - ${textKeys}::text[] end
+           where created_at < now() - make_interval(months => ${RETENTION_WA_MESSAGE_MONTHS})
+             and ((body is not null and body <> ${RETENTION_REDACTED_BODY}) or payload ?| ${textKeys}::text[])
+         returning id`,
+    );
+    await run(
+      'conversation_previews',
+      sql`update conversations
+             set last_message_preview = null
+           where last_message_preview is not null
+             and last_message_at < now() - make_interval(months => ${RETENTION_WA_MESSAGE_MONTHS})
          returning id`,
     );
     log.info({ counts }, 'saklama temizliği tamamlandı');

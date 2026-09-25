@@ -2,8 +2,10 @@
 // PLATFORM_WA_PROVIDER=mock → gönderim notifications tablosuna ('platform_wa') + log. cloud/d360 → platform hesabı
 // (config: PLATFORM_WA_API_KEY + PLATFORM_WA_PHONE_NUMBER_ID). onboarding_test'te sipariş no "TEST #<no>".
 // ops bayrağı platform_wa_alerts kapalıysa gönderilmez (Meta kesintisi, 10 §6.6).
+// panel_offline (cron.panel_presence, 06 §7.7): şablon isletme_panel_cevrimdisi_v1 [işletme(· şube), dakika]; kayıt metni
+// tr.ts panelOfflineAlertText. Tekillik (şube başına 60 dk'da 1) dedektördedir.
 
-import { formatTL, maskPhone, type PlatformTemplateName } from '@siparis/core';
+import { formatTL, maskPhone, panelOfflineAlertText, type PlatformTemplateName } from '@siparis/core';
 import { memberships, notifications, orders, users, type Database } from '@siparis/db';
 import { and, eq, isNull, sql } from 'drizzle-orm';
 import type { FastifyBaseLogger } from 'fastify';
@@ -24,6 +26,8 @@ export interface PlatformAlertPayload {
   text?: string | null;
   /** new_order_alarm: bekleme dakikası (verilmezse sipariş zamanından hesaplanır) */
   waitingMinutes?: number | null;
+  /** panel_offline: sipariş ekranının görülmediği dakika (cron.panel_presence, 06 §7.7) */
+  minutes?: number | null;
 }
 
 export interface PlatformAlertDeps {
@@ -100,6 +104,8 @@ export async function handlePlatformAlert(deps: PlatformAlertDeps, p: PlatformAl
   let template: PlatformTemplateName | null = null;
   let params: string[] = [];
   let testLabel = false;
+  /** Kayıt/önizleme metni (verilmezse şablon gövdesi) */
+  let summary: string | null = null;
   switch (p.kind) {
     case 'new_order_alarm': {
       testLabel = order!.testKind === 'onboarding_test';
@@ -117,14 +123,19 @@ export async function handlePlatformAlert(deps: PlatformAlertDeps, p: PlatformAl
       template = 'isletme_meta_odeme_v1';
       params = [tenant.name];
       break;
-    case 'panel_offline':
+    case 'panel_offline': {
+      // Tek şubede işletme adı; ek şubede "İşletme · Şube" (şablon {{1}})
+      const label = branch && !branch.isDefault ? `${tenant.name} · ${branch.name}` : tenant.name;
+      const minutes = p.minutes && p.minutes > 0 ? Math.round(p.minutes) : 5;
       template = 'isletme_panel_cevrimdisi_v1';
-      params = [branch?.name ?? tenant.name, p.text?.trim() || '3'];
+      params = [label, String(minutes)];
+      summary = panelOfflineAlertText({ isletme: label, dk: minutes });
       break;
+    }
     default:
       template = null;
   }
-  const text = template ? renderTemplateBody(template, params) : (p.text ?? `${tenant.name}: ${p.kind}`);
+  const text = summary ?? (template ? renderTemplateBody(template, params) : (p.text ?? `${tenant.name}: ${p.kind}`));
   const basePayload: Record<string, unknown> = { template, params, text, testLabel, provider: config.PLATFORM_WA_PROVIDER };
 
   if (!(await isFlagEnabled(db, 'platform_wa_alerts'))) {

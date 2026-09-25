@@ -1,5 +1,5 @@
-// Bildirim işleri (order.received_debounced, order.notify_customer, platform.alert, sms.send) ve sipariş olayı
-// abonelikleri (registerMessagingHooks) — dilim 3.
+// Bildirim işleri (order.received_debounced, order.notify_customer, platform.alert, sms.send, push.send) ve sipariş
+// olayı abonelikleri (registerMessagingHooks) — dilim 3; push.send: 00 §10 alarm t=0 Web Push.
 // Bu fonksiyon hem API hem worker sürecinde çağrılır (jobs/index.ts → registerAllJobs; app.ts ve worker.ts);
 // kayıtlar ada göre tekildir (tekrar çağrı güvenli).
 
@@ -12,6 +12,7 @@ import {
 } from '../../services/messaging/order-notify';
 import { handlePlatformAlert, type PlatformAlertPayload } from '../../services/messaging/platform-alert';
 import { handleSmsSend, type SmsSendPayload } from '../../services/messaging/sms-send';
+import { handlePushSend, PUSH_SEND_JOB, type PushSendPayload } from '../../services/push/send';
 
 export function registerNotifyJobs(): void {
   // Akış A: "alındı" 60 sn debounce (onay gelirse iş iptal edilir → birleşik M06c)
@@ -36,6 +37,13 @@ export function registerNotifyJobs(): void {
   registerJobHandler<SmsSendPayload>('sms.send', async (payload, { db, config, log, job }) => {
     if (!payload.to || !payload.body) return;
     await handleSmsSend({ db, config, log, lastAttempt: job.attempts >= job.maxAttempts }, payload);
+  });
+
+  // Yeni sipariş Web Push (t=0): şubeye erişen panel kullanıcılarının cihazları (ana şerit; istek başına 10 sn üst süre)
+  registerJobHandler<PushSendPayload>(PUSH_SEND_JOB, async (payload, { db, config, log }) => {
+    if (!payload.orderId || !payload.tenantId) return;
+    const res = await handlePushSend({ db, config, log }, payload);
+    if (res.status === 'sent') log.info({ orderId: payload.orderId, sent: res.sent, disabled: res.disabled, retrying: res.retrying }, 'push gönderildi');
   });
 
   // Sipariş olayları → müşteri mesajları (onOrderCreated / onOrderTransition)

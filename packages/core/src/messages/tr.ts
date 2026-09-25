@@ -754,6 +754,39 @@ export const PLATFORM_TEMPLATES = {
 } as const;
 export type PlatformTemplateName = keyof typeof PLATFORM_TEMPLATES;
 
+// ---------------------------------------------------------------------------
+// İşletmeye giden panel dışı uyarılar (00 §10 alarm zinciri, 06 §7.7)
+
+/**
+ * Yeni sipariş Web Push bildirimi (00 §10 t=0, 04 §4.5): müşteri adı/telefonu/adresi yok. Mutfak fiyat görmez
+ * (00 §4): `totalKurus` null verilirse tutar yazılmaz. Kurulum testinde numara "TEST #…" olur.
+ */
+export function newOrderPushText(v: { number: number | string; itemCount: number; totalKurus: number | null; test?: boolean }): {
+  title: string;
+  body: string;
+} {
+  const no = v.test ? `TEST #${v.number}` : `#${v.number}`;
+  const items = `${Math.max(0, v.itemCount)} ürün`;
+  return {
+    title: `Yeni sipariş ${no}`,
+    body: v.totalKurus == null ? items : `${items} · ${formatTL(v.totalKurus)}`,
+  };
+}
+
+/** Push test bildirimi (Ayarlar › Bu cihazda bildirimler). */
+export const PUSH_TEST_TEXT = {
+  title: 'Bildirimler açık',
+  body: 'Yeni sipariş geldiğinde bu cihaza bildirim gelecek.',
+} as const;
+
+/**
+ * Panel çevrimdışı uyarısının kayıt/önizleme metni (06 §7.7). Gönderim onaylı platform şablonuyla
+ * (`isletme_panel_cevrimdisi_v1`, parametreler: şube/işletme adı, dakika) yapılır.
+ */
+export function panelOfflineAlertText(v: { isletme: string; dk: number }): string {
+  return `${v.isletme}: sipariş ekranı ${Math.max(1, Math.round(v.dk))} dakikadır kapalı görünüyor. Siparişleri kaçırmamak için paneli açın.`;
+}
+
 /** Müşteri adı bilinmiyorsa şablon değişkeni (02 §5.1). */
 export const UNKNOWN_CUSTOMER_NAME = 'değerli müşterimiz';
 

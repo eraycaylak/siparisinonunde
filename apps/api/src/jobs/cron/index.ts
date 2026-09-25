@@ -5,6 +5,7 @@
 import { branches, type Database } from '@siparis/db';
 import { and, eq, isNotNull, lte } from 'drizzle-orm';
 import { registerCron, registerJobHandler } from '../../lib/jobs';
+import { detectOfflinePanels } from '../../services/push/presence';
 import { emitBranchState } from '../../services/settings/branch';
 
 /**
@@ -42,4 +43,12 @@ export function registerCronJobs(): void {
     if (n) log.info({ branches: n }, 'süresi dolan duraklatmalar yayınlandı');
   });
   registerCron({ name: 'branch_pause_end', type: 'cron.branch_pause_end', schedule: { everyMinutes: 1 } });
+
+  // Panel çevrimdışı dedektörü (06 §7.7): sipariş alan şubede sipariş ekranı 5 dk'dır görülmüyorsa sahibine
+  // platform.alert `panel_offline` (şube başına 60 dk'da en çok 1)
+  registerJobHandler('cron.panel_presence', async (_payload, { db, log }) => {
+    const alerts = await detectOfflinePanels(db);
+    if (alerts.length) log.warn({ branches: alerts.map((a) => a.branchId) }, 'panel çevrimdışı uyarısı kuyruğa atıldı');
+  });
+  registerCron({ name: 'panel_presence', type: 'cron.panel_presence', schedule: { everyMinutes: 1 } });
 }

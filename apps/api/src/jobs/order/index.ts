@@ -1,4 +1,5 @@
 // Sipariş işleri — dilim 2 (14 §7.2):
+//  - t=0 Web Push: scheduleAlarmChain `push.send` işini de kuyruğa atar (services/push/send.ts; canary hariç).
 //  - order.alarm_step: 00 §10 kademeli alarm zinciri (60 sn SSE, 2 dk platform.alert, 5 dk sms.send, müşteri bilgisi
 //    order.notify_customer {event:'approval_delay'}, otomatik iptal tenant_no_response). Sipariş artık `new` değilse no-op;
 //    bekleyen retteyken adım ret penceresinin sonuna ertelenir (geri alınırsa zincir kaldığı yerden sürer).
@@ -22,6 +23,7 @@ import {
 } from '../../services/orders/alarm-policy';
 import type { OrderRow } from '../../services/orders/summary';
 import { onOrderCreated, onOrderTransition, transitionOrder } from '../../services/orders/transition';
+import { enqueueNewOrderPush } from '../../services/push/send';
 
 export interface AlarmStepPayload {
   orderId: string;
@@ -49,6 +51,8 @@ export interface AwaitingTimeoutPayload {
 export async function scheduleAlarmChain(tx: Database, order: OrderRow): Promise<void> {
   // Telefon siparişini personel kendisi girer: uyarılacak kimse yok, otomatik iptal edilmez (canlı ekran da çalmaz)
   if (order.channel === 'manual') return;
+  // t=0: panel sesiyle birlikte kayıtlı cihazlara Web Push (00 §10; canary dışarıya bildirim üretmez)
+  await enqueueNewOrderPush(tx, order);
   const [branch] = await tx.select({ alarmPolicy: branches.alarmPolicy }).from(branches).where(eq(branches.id, order.branchId));
   const policy = normalizeAlarmPolicy(branch?.alarmPolicy);
   for (const s of planAlarmSteps(policy, order.testKind)) {

@@ -1,6 +1,7 @@
 'use client';
 
 // "Vardiyayı başlat" tam ekran kartı (04 §4.1): dokunuş ses kilidini açar (kısa test sesi), Wake Lock ister.
+// Jest gerektiren diğer istekler (Web Push bildirim izni) `onTap` ile dokunuşun içinde, hiçbir beklemeden önce yapılır.
 // Bekleyen yeni sipariş varsa kartın üstünde kırmızı uyarı görünür (kartlar bu ekranın arkasında kalır).
 
 import { useState } from 'react';
@@ -13,6 +14,7 @@ export function ShiftStart({
   wake,
   waitingCount = 0,
   onStarted,
+  onTap,
   onSkip,
 }: {
   businessName: string;
@@ -20,6 +22,8 @@ export function ShiftStart({
   /** Bekleyen (onay bekleyen) yeni sipariş sayısı. */
   waitingCount?: number;
   onStarted: (info: { audio: boolean; wakeLock: boolean }) => void;
+  /** Dokunuşun içinde, eşzamanlı çağrılır (ör. bildirim izni; Safari izni yalnız kullanıcı jestinde verir). */
+  onTap?: () => void;
   onSkip: () => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -28,7 +32,10 @@ export function ShiftStart({
 
   const start = async () => {
     setBusy(true);
-    const audio = await alarmSound.unlock();
+    // Ses kilidi ve (varsa) bildirim izni aynı dokunuşta, ilk beklemeden önce başlar
+    const unlocking = alarmSound.unlock();
+    onTap?.();
+    const audio = await unlocking;
     const wakeLock = await wake.enable();
     setBusy(false);
     setResult({ audio, wakeLock });

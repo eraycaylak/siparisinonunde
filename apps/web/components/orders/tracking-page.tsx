@@ -3,6 +3,7 @@
 // Takip sayfası (S-07/S-08, 03 §7): durum çizelgesi (renk + ikon + kelime), tahmini saat, onay gecikmesi satırı,
 // kalemler ve toplam, işletmeyi ara / WhatsApp'tan yaz, iptal (new) / iptal talebi (accepted+), teslimden sonra
 // 3 butonlu değerlendirme. 15 sn'de bir yenilenir (doğrulama beklerken 3 sn). Süresi dolmuş link: kişisel veri yok.
+// Altta satıcı künyesi (business.legal) ve işletmenin yasal metinleri (/s/{slug}/yasal/*; satıcı ve veri sorumlusu işletme).
 
 import { useEffect, useState } from 'react';
 import { Check, Circle, Frown, Meh, MessageCircle, Phone, Smile, TimerOff } from 'lucide-react';
@@ -14,6 +15,8 @@ import { cn } from '@/lib/cn';
 import { formatMoney, formatTime } from '@/lib/format';
 import { storefrontHref } from '@/lib/storefront-url';
 import { VerificationScreen } from '@/components/storefront/checkout/verification-screen';
+import { availableImprintRows } from '@/components/storefront/legal/store-legal';
+import { ImprintDetails, StoreLegalLinks } from '@/components/storefront/legal/store-legal-links';
 import { changeText, paymentShort, telHref } from './labels';
 
 const trackKey = (token: string) => ['store', 'track', token] as const;
@@ -67,9 +70,7 @@ function ExpiredView({ business }: { business: TrackExpiredDetails['business'] |
           </a>
         ) : null}
       </div>
-      <a href="/yasal/mesafeli-satis-sablonu" className="text-sm underline underline-offset-4">
-        Ön bilgilendirme ve sözleşme metni
-      </a>
+      {business ? <StoreLegalLinks slug={business.slug} /> : null}
     </div>
   );
 }
@@ -277,15 +278,6 @@ function TrackingView({ token, data, refetch }: { token: string; data: TrackResp
         {o.note ? <p className="text-sm">Not: {o.note}</p> : null}
       </section>
 
-      <p className="flex flex-wrap gap-x-3 text-sm">
-        Belgeler:
-        <a href="/yasal/mesafeli-satis-sablonu" className="underline underline-offset-4">
-          Ön bilgilendirme · Mesafeli satış sözleşmesi
-        </a>
-        <a href="/yasal/kvkk-aydinlatma" className="underline underline-offset-4">
-          Aydınlatma metni
-        </a>
-      </p>
       {(o.channel === 'web' || o.channel === 'manual') && waHref ? (
         <p className="text-sm text-fg-muted">
           Bir dahaki siparişinizi WhatsApp&apos;tan verebilirsiniz.{' '}
@@ -294,6 +286,13 @@ function TrackingView({ token, data, refetch }: { token: string; data: TrackResp
           </a>
         </p>
       ) : null}
+
+      <footer className="flex flex-col items-center gap-1 border-t border-border pt-3 text-center">
+        <ImprintDetails
+          rows={availableImprintRows({ name: data.business.name, legal: data.business.legal ?? {}, phone: data.business.phone })}
+        />
+        <StoreLegalLinks slug={data.business.slug} label="Satıcının yasal metinleri" />
+      </footer>
 
       <ConfirmDialog
         open={cancelOpen}

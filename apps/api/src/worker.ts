@@ -3,7 +3,7 @@
 
 import { createDb } from '@siparis/db';
 import pino from 'pino';
-import { loadConfig, productionConfigWarnings } from './config';
+import { loadConfig, productionConfigWarnings, webPushConfigWarnings } from './config';
 import { registerAllJobs } from './jobs/index';
 import { runWorker } from './lib/jobs';
 
@@ -16,7 +16,7 @@ async function main() {
     level: config.LOG_LEVEL,
     ...(config.NODE_ENV === 'development' ? { transport: { target: 'pino-pretty', options: { translateTime: 'SYS:HH:MM:ss' } } } : {}),
   });
-  for (const w of productionConfigWarnings(config)) log.warn(w);
+  for (const w of [...productionConfigWarnings(config), ...webPushConfigWarnings(config)]) log.warn(w);
   const handle = createDb(config.DATABASE_URL, { applicationName: 'siparis-worker', max: 5 });
   registerAllJobs();
 

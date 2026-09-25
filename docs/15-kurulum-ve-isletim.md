@@ -31,7 +31,7 @@ Tek VPS üzerinde Docker Compose (00 §12a):
 | `caddy` | `docker/caddy.Dockerfile` (Caddy 2 + Cloudflare DNS modülü) | TLS (Let's Encrypt), ters vekil | 80, 443 (TCP+UDP) |
 | `web` | `docker/web.Dockerfile` (Next.js 16, standalone) | Pazarlama sitesi, storefront, panel, admin, kurye | Hayır |
 | `api` | `docker/api.Dockerfile` (Fastify 5, tsx) | REST `/api/v1`, SSE, WhatsApp webhook, görseller (`/api/v1/uploads`) | Hayır |
-| `worker` | aynı API imajı, `src/worker.ts` | `jobs` kuyruğu: WhatsApp gönderimi, alarm zinciri, SMS, cron | Hayır |
+| `worker` | aynı API imajı, `src/worker.ts` | `jobs` kuyruğu: WhatsApp gönderimi, alarm zinciri, Web Push, SMS, cron (panel çevrimdışı dedektörü dahil) | Hayır |
 | `migrate` | aynı API imajı, tek seferlik | `packages/db/migrations/*.sql` (ad sırasıyla) | Hayır |
 | `postgres` | `postgres:16` | Tek veritabanı (Redis yok; kuyruk + `LISTEN/NOTIFY`) | Hayır |
 
@@ -51,7 +51,7 @@ Kalıcı veriler adlandırılmış Docker birimlerindedir: `pgdata` (veritabanı
 | İşletim sistemi | Ubuntu 24.04 LTS | Saat dilimi UTC kalsın (uygulama Europe/Istanbul'u kendi hesaplar). |
 | Docker | Docker Engine 27+ ve Compose v2.24+ (BuildKit açık) | `docker compose version` |
 | Disk | Veritabanı + 14 günlük yedek + görseller için en az 40 GB boş | Yedekler ayrıca ikinci bir Türkiye lokasyonuna kopyalanır (§8). |
-| Ağ | Gelen: 22 (yalnız anahtarla), 80, 443. Giden: Let's Encrypt, Cloudflare API, 360dialog, Netgsm | 80 portu HTTP-01 doğrulaması ve HTTPS yönlendirmesi için açık kalmalı. |
+| Ağ | Gelen: 22 (yalnız anahtarla), 80, 443. Giden: Let's Encrypt, Cloudflare API, 360dialog, Netgsm, Web Push servisleri (`fcm.googleapis.com`, `web.push.apple.com`, `*.push.services.mozilla.com`) | 80 portu HTTP-01 doğrulaması ve HTTPS yönlendirmesi için açık kalmalı. |
 | Hesaplar | Cloudflare (DNS), 360dialog, Netgsm, ACME e-postası | §3, §6, §7 |
 
 Ölçeklenme notu: sipariş hacmi büyüdüğünde önce `postgres` ayrı sunucuya taşınır (00 §10: tek sunucu → app + pg primary + pg standby). "Sipariş kaçmaz" paketi için ikinci ucuz VPS'te webhook alımı ve dış izleme pilot öncesi zorunludur (00 §11).
@@ -114,6 +114,8 @@ Alan adı Cloudflare'de yönetilir (00 §10: Faz 1 wildcard alt alan adı). Kay�
 | `LOG_LEVEL` | hayır | `info` (sorun ararken `debug`) | `info` |
 | `DEMO_STORE_SLUG` | hayır | Pazarlama sitesindeki "demo vitrin" bağlantısı | `bozok-pide` |
 | `SUPPORT_WHATSAPP` | önerilir | Platform destek hattı (WhatsApp), rakamlarla. Giriş ekranındaki "Parolamı unuttum" işletme sahibine bu numarayı (WhatsApp + arama) gösterir; boşsa iletişim formuna yönlendirir. Web'e derleme anında gömülür | `905321234567` |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | önerilir | Web Push anahtar çifti: yeni sipariş bildirimi panel kapalıyken de cihazlara gider (00 §10 alarm t=0, §10). Boşsa push kapalıdır; API/worker açılır, logda uyarı yazar. **Değişirse** tüm cihazların aboneliği geçersizleşir, cihazlar bir sonraki "Siparişleri almaya başla"da yeniden abone olur | aşağıda |
+| `VAPID_SUBJECT` | push için | İtme servislerinin (Google, Apple, Mozilla) sorun olursa ulaşacağı adres; `mailto:` ya da `https://` ile başlamalı | `mailto:ops@siparisinonunde.com` |
 | `BACKUP_REMOTE`, `RETENTION_DAYS` | önerilir | Yedeğin ikinci konumu (rclone) ve saklama günü | §8 |
 | `BACKUP_PING_URL` | önerilir | Her başarılı yedekten sonra çağrılan dış izleme (push) adresi; 26 saat gelmezse alarm | §8 |
 
@@ -124,6 +126,15 @@ printf 'POSTGRES_PASSWORD=%s\nSESSION_SECRET=%s\nTRACKING_SECRET=%s\nENCRYPTION_
   "$(openssl rand -hex 24)" "$(openssl rand -base64 48 | tr -d '\n')" "$(openssl rand -base64 32)" \
   "$(openssl rand -base64 32)" "$(openssl rand -hex 16)"
 ```
+
+**Web Push (VAPID) anahtarları** bir kez üretilir ve saklanır (API imajındaki `web-push` aracıyla; ağ gerekmez). Çıktıdaki "Public Key" `VAPID_PUBLIC_KEY`'e, "Private Key" `VAPID_PRIVATE_KEY`'e yazılır; ardından `docker compose up -d api worker`:
+
+```bash
+docker compose run --rm --no-deps api npx web-push generate-vapid-keys
+# servisler zaten çalışıyorsa: docker compose exec api npx web-push generate-vapid-keys
+```
+
+Özel anahtar gizlidir (parola yöneticisine). Genel anahtar tarayıcıya gider (`GET /api/v1/panel/push/public-key`), gizli değildir.
 
 Web derleme argümanları (`NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_ROOT_DOMAIN`, `NEXT_PUBLIC_DEV_TOOLS`, `NEXT_PUBLIC_SUPPORT_WHATSAPP`, `API_INTERNAL_URL`) compose'da `.env`'den türetilir ve **derleme anında** imaja gömülür; `DOMAIN`, `DEV_TOOLS` ya da `SUPPORT_WHATSAPP` değişirse `docker compose build web && docker compose up -d web` gerekir.
 
@@ -136,6 +147,8 @@ Web derleme argümanları (`NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_ROOT_DOMAIN`, `N
 - `PLATFORM_WA_PROVIDER=d360` ya da `cloud` iken `PLATFORM_WA_API_KEY` boş (`cloud` için ayrıca `PLATFORM_WA_PHONE_NUMBER_ID`).
 
 `docker/env.production.example` `SMS_PROVIDER=netgsm` ve `PLATFORM_WA_PROVIDER=d360` ile, anahtarlar boş olarak gelir; bu haliyle API açılmaz. Netgsm ve 360dialog hesapları hazır olmadan kurulum yapılacaksa ikisini geçici olarak `mock` yapın. Süreç açılır, logda uyarı yazar (`SMS_PROVIDER=mock: SMS OTP ve alarm SMS'leri gönderilmez` vb.). Bu durumda SMS ve platform WhatsApp uyarıları **gerçekten gitmez**: WhatsApp'sız moddaki işletmenin müşterisi SMS kodu alamaz ve sahibine alarm gitmez. Canlıya çıkmadan önce gerçek sağlayıcıya geçin (§6.8, §7, §12).
+
+Web Push anahtarları (`VAPID_*`) açılış için zorunlu değildir: boşsa API ve worker açılır, logda `Web Push kapalı (VAPID_PUBLIC_KEY, … boş)` uyarısı yazar ve panel kapalıyken cihazlara yeni sipariş bildirimi gitmez (§10). Biçimi bozuk bir anahtar ya da `mailto:`/`https://` ile başlamayan `VAPID_SUBJECT` ise açılışı durdurur (`Geçersiz yapılandırma: VAPID_…`).
 
 ## 5. İlk kurulum
 
@@ -210,7 +223,7 @@ Yedek cron'unu kurmayı unutmayın (§8).
    360dialog Meta'nın `X-Hub-Signature-256` imzasını göndermez; URL'deki gizli belirteç doğrulamanın yerine geçer (teyit edilmeli). Belirteci gizli tutun (loglarda, ekran görüntülerinde paylaşmayın). Webhook ham olayı kaydedip hemen 200 döner; işleme `wa-inbound` kuyruğundadır (00 §10).
 6. **Deneme:** Kendi telefonunuzdan işletme numarasına "merhaba" yazın → karşılama mesajı ve **Menüyü aç** butonu gelmeli; linkten sipariş verin, panelde sesli uyarıyı görün. Paneldeki "Test mesajı gönder" pencere kuralına tabidir: test numarası son 24 saatte işletme numarasına yazmış olmalıdır. Sağlık durumu: `Admin > WhatsApp` (son webhook zamanı, son 24 saat hata).
 7. **Şablonlar:** 24 saat penceresi dışındaki durum mesajları onaylı **utility** şablonlarla gider. Müşteri şablonları: `siparis_alindi_v1`, `siparis_onaylandi_v1`, `siparis_hazir_v1`, `siparis_yolda_v1`, `siparis_teslim_v1`, `siparis_reddedildi_v1`, `siparis_iptal_v1`, `siparis_iptal_yanitsiz_v1`, `yanit_bekliyor_v1` (metin ve parametre sırası `packages/core/src/messages/tr.ts` → `CUSTOMER_TEMPLATES`). Her işletmenin WABA'sında 360dialog Hub ya da API üzerinden oluşturulup onaylatılır (teyit edilmeli). Şablonlara promosyon eklenmez (İYS, 00 §7).
-8. **Platform uyarı numarası:** İşletme sahibine yeni sipariş alarmı (t=2 dk), WhatsApp bağlantı sorunu ve Meta ödeme uyarısı platformun kendi numarasından gider: `.env`'de `PLATFORM_WA_PROVIDER=d360`, `PLATFORM_WA_API_KEY=...`. Platform şablonları: `isletme_yeni_siparis_v1`, `isletme_panel_cevrimdisi_v1`, `kurye_giris_v1`, `isletme_baglanti_sorunu_v1`, `isletme_meta_odeme_v1`, `isletme_kalite_uyari_v1` (utility kategorisinde onay — V-011). `isletme_panel_cevrimdisi_v1` "panel çevrimdışı" dedektörü için ayrılmıştır; dedektör henüz yoktur (§10 "Henüz olmayanlar"), şablon yine de onaylatılır. Gerekirse `Admin > Bayraklar > platform_wa_alerts` ile geçici kapatılır.
+8. **Platform uyarı numarası:** İşletme sahibine yeni sipariş alarmı (t=2 dk), WhatsApp bağlantı sorunu ve Meta ödeme uyarısı platformun kendi numarasından gider: `.env`'de `PLATFORM_WA_PROVIDER=d360`, `PLATFORM_WA_API_KEY=...`. Platform şablonları: `isletme_yeni_siparis_v1`, `isletme_panel_cevrimdisi_v1`, `kurye_giris_v1`, `isletme_baglanti_sorunu_v1`, `isletme_meta_odeme_v1`, `isletme_kalite_uyari_v1` (utility kategorisinde onay — V-011). `isletme_panel_cevrimdisi_v1` "panel çevrimdışı" uyarısıdır (06 §7.7): şube sipariş alırken (çalışma saati içinde, duraklatılmamış, sipariş alma açık, web canlı) sipariş ekranı 5 dakikadır açık değilse ya da şube açılalı 10 dakika olduğu hâlde açılıştan beri hiç açılmadıysa işletme sahibine gider; şube başına saatte en çok bir kez (`cron.panel_presence`, §10). Parametreler: işletme adı (ek şubede "İşletme · Şube") ve dakika. Gerekirse `Admin > Bayraklar > platform_wa_alerts` ile geçici kapatılır.
 
 WhatsApp bağlantısı koparsa (hesap `error`, token/ödeme hatası) işletme otomatik olarak **WhatsApp'sız moda** düşer: Akış B SMS OTP ile doğrulanır, onay/ret/iptal SMS ile bildirilir (00 §4, §7).
 
@@ -287,10 +300,24 @@ docker compose ps && curl -fsS https://siparisinonunde.com/api/v1/health
 | Veritabanı | 500 ms'yi aşan sorgular postgres loguna düşer (`log_min_duration_statement`). Disk: `docker system df`, `df -h` |
 | Kuyruk | `docker compose exec postgres psql -U siparis -c "select status, count(*) from jobs group by 1"` |
 
-**Henüz olmayanlar (pilot sürümü).** 00 §10 ve 04 §4.5'teki alarm zincirinin iki halkası bu sürümde yoktur; nöbette bunlara güvenmeyin:
+**Panel dışı uyarılar (00 §10 alarm zinciri).** Panelde ses ve kırmızı bant (t=0, 60 sn) dışında şu halkalar sunucu tarafında çalışır; hepsi worker işleridir:
 
-- **Web Push (t=0):** Panel kapalıyken ya da tarayıcı arka plandayken cihaza bildirim gitmez. t=0'da ve 60 sn'de yalnız açık paneldeki ses ve bant çalışır; 2 dk platform WhatsApp uyarısı, 5 dk SMS, 10 dk müşteriye bilgi ve 15 dk otomatik iptal panelden bağımsız olarak worker işleriyle çalışır. Bu nedenle `PLATFORM_WA_PROVIDER` ve `SMS_PROVIDER` üretimde gerçek sağlayıcı olmalıdır (§4).
-- **"Panel çevrimdışı" dedektörü:** Açık saatte şubenin hiçbir panel bağlantısı olmasa da sahibine uyarı gitmez. Kaçan sipariş yine 2 dk'da platform WhatsApp uyarısıyla sahibine ulaşır. Pilot işletmelerde "Vardiyayı başlat" alışkanlığı kurulum sırasında gösterilir.
+- **Web Push (t=0, `push.send`):** Sipariş `new` olunca şubeye erişen sahip, yönetici, kasiyer ve mutfak kullanıcılarının kayıtlı cihazlarına bildirim gider: "Yeni sipariş #1051 · 3 ürün · 245,00 TL" (mutfakta tutar yok; müşteri adı, telefonu, adresi hiçbir zaman yok). Telefon siparişi ve canary göndermez; kurulum testi "TEST #" etiketiyle gider. Cihaz, "Siparişleri almaya başla" dokunuşunda izin verip abone olur; durum ve aç/kapa `Panel › Ayarlar › Bu cihazda bildirimler` (`/panel/ayarlar/bildirimler/cihaz`; kasiyer/mutfak için telefonda "Diğer" menüsünde, masaüstünde kullanıcı menüsünde) ekranındadır, oradan test bildirimi de gönderilir. Çıkış yapılınca o cihazın kaydı silinir. İtme servisi aboneliği silmişse (404/410) kayıt kapatılır; geçici hatalar o abonelik için 3 denemeye kadar yeniden denenir. `VAPID_*` boşsa bu halka kapalıdır (§4).
+  - **iPhone/iPad:** Web Push yalnız **ana ekrana eklenmiş** panelde ve **iOS/iPadOS 16.4+** ile çalışır (Safari › Paylaş › Ana Ekrana Ekle; paneli ana ekrandaki "Siparişler" simgesinden açıp giriş yapın, vardiyayı başlatın). Safari sekmesinde bildirim izni hiç sorulmaz. Kilit ekranında görünür; ses/titreşim iOS bildirim ayarlarına bağlıdır, tekrarlayan alarm sesi yoktur.
+  - **Android/masaüstü:** Chrome, Edge, Firefox. Android'de Chrome'un bildirim sesi açık olmalı, pil tasarrufu Chrome'u kısıtlamamalı; masaüstünde bildirim dokunulana kadar ekranda kalır. Gizli sekmede push çalışmaz.
+  - Push, açık paneldeki alarm sesinin yerini tutmaz: sekme kapalıyken sesli döngü yoktur, tek bildirim gelir. Asıl güvence 2 dk platform WhatsApp ve 5 dk SMS halkalarıdır; bu yüzden `PLATFORM_WA_PROVIDER` ve `SMS_PROVIDER` üretimde gerçek sağlayıcı olmalıdır (§4).
+- **Panel çevrimdışı dedektörü (`cron.panel_presence`, dakikada bir):** Sipariş ekranının canlı akışı (SSE) açıkken şube dakikada bir "görüldü" yazılır (`branch_panel_presence`; yalnız sahip/yönetici/kasiyer ekranları sayılır, mutfak ekranı ve destek görünümü sayılmaz). Şube sipariş alırken ekran 5 dk'dır görülmüyorsa ya da açılıştan beri hiç görülmeyip açılış 10 dk'yı geçtiyse sahibine platform WhatsApp'tan `isletme_panel_cevrimdisi_v1` gider (§6.8); şube başına 60 dk'da en çok 1. Çalışma saati dışında, duraklatılmış şubede, `ordering_enabled` kapalı, web'de canlı olmayan, aday/kurulumdaki/salt-okunur/askıdaki/kapanmış ve demo işletmelerde çalışmaz. Bu sürümde SMS ve "storefront'u otomatik durdur" seçeneği (04 §7.4) yoktur.
+- **Sonraki halkalar:** 2 dk platform WhatsApp uyarısı, 5 dk SMS, 10 dk müşteriye bilgi ve 15 dk otomatik iptal panelden bağımsız çalışır (`order.alarm_step`).
+
+İzleme sorguları:
+
+```bash
+# Web Push: etkin/kapatılmış abonelik ve son hatalar
+docker compose exec postgres psql -U siparis -c "select count(*) filter (where disabled_at is null) as etkin, count(*) filter (where disabled_at is not null) as kapali, max(last_success_at) as son_basari from push_subscriptions"
+docker compose exec postgres psql -U siparis -c "select status, count(*) from jobs where type = 'push.send' and created_at > now() - interval '1 day' group by 1"
+# Panel varlığı: son görülme ve son çevrimdışı uyarısı
+docker compose exec postgres psql -U siparis -c "select b.name, p.last_seen_at, p.offline_alerted_at from branch_panel_presence p join branches b on b.id = p.branch_id order by p.last_seen_at nulls first"
+```
 
 ## 11. Sorun giderme
 
@@ -304,7 +331,7 @@ docker compose ps && curl -fsS https://siparisinonunde.com/api/v1/health
 **Webhook gelmiyor (müşteri yazıyor, bot yanıt vermiyor)**
 
 1. `Admin > WhatsApp` → "son webhook" zamanı eski mi? 360dialog'a tanımlı URL paneldeki adresle birebir aynı mı (§6.5)?
-2. Dışarıdan erişim: `curl -i -X POST https://DOMAIN/api/v1/webhooks/wa/<belirteç> -H 'Content-Type: application/json' -d '{}'` → 200 beklenir (400 = gövde geçersiz ama yol çalışıyor; 404 = belirteç yanlış; 401 `invalid_signature` = cloud hesabında `WA_APP_SECRET` uyuşmuyor).
+2. Dışarıdan erişim: `curl -i -X POST https://DOMAIN/api/v1/webhooks/wa/<belirteç> -H 'Content-Type: application/json' -d '{}'` → 200 beklenir (400 = gövde geçersiz ama yol çalışıyor; 404 = belirteç yanlış, adres panelden yenilenmiş (Ayarlar > WhatsApp bağlantısı > "Webhook adresini yenile": eski adres hemen geçersizleşir, yenisi sağlayıcı paneline girilmeli) ya da WhatsApp bağlantısı kesilmiş (kesik hesabın adresi olay kabul etmez; kesme işlemi adresi de yeniler, yeniden bağlarken paneldeki yeni adres girilmeli); 401 `invalid_signature` = cloud hesabında `WA_APP_SECRET` uyuşmuyor).
 3. Caddy erişim loglarında istek görünüyor mu? `docker compose logs --since 1h caddy | grep 'webhooks/wa'` (belirteç `***` olarak yazılır; `status` alanı yanıt kodudur). Görünmüyorsa DNS/TLS ya da sağlayıcı tarafı; görünüyorsa API loglarına bakın.
 4. Olay kaydedildi ama işlenmedi: `select count(*) from wa_webhook_events where processed_at is null` → worker'ı ve `wa-inbound` işlerini kontrol edin.
 5. Giden mesaj `failed`: sohbet ekranında hata kodu; 131047 = 24 saat penceresi dışı (şablon gerekir), token/ödeme hataları hesabı `error`'a çeker ve işletme WhatsApp'sız moda düşer.
@@ -315,6 +342,14 @@ docker compose ps && curl -fsS https://siparisinonunde.com/api/v1/health
 2. Araya başka bir vekil girmesin: Cloudflare proxy (turuncu bulut) ya da kurumsal ağ vekilleri akışı tamponlayabilir → §3'teki gibi "Yalnız DNS". Caddy'de `/api/*` için `flush_interval -1` ve sıkıştırma yok (Caddyfile); başka bir nginx eklenirse `proxy_buffering off` ve `X-Accel-Buffering: no` gerekir.
 3. Tablet uykuya geçiyor: "Vardiyayı başlat" Wake Lock ister; cihazın güç tasarrufu ayarını kapatın.
 4. Kopmalar sunucu yeniden başlatmalarıyla aynı anda mı? Güncellemeleri yoğun saat dışına alın (§9). Kaçan olaylar `Last-Event-ID` ile yeniden oynatılır; 1000'den fazla olay kaçarsa panel tam yenilenir (resync).
+
+**Yeni sipariş bildirimi (Web Push) gelmiyor**
+
+1. Açılış logunda `Web Push kapalı` uyarısı var mı? `docker compose exec api printenv VAPID_PUBLIC_KEY` boşsa §4'teki gibi anahtar üretin. `curl -s -b <panel çerezi> https://DOMAIN/api/v1/panel/push/public-key` → `"enabled":true` olmalı.
+2. Cihazda `Ayarlar › Bu cihazda bildirimler`: "Bildirim izni: Engellendi" ise tarayıcı/cihaz ayarından izin verilir; "Bu cihazın kaydı: Kayıtlı değil" ise anahtar açılır. "Test bildirimi gönder" gelmiyorsa sorun cihaz tarafındadır (rahatsız etme modu, Chrome bildirim sesi, pil tasarrufu).
+3. iPhone/iPad'de panel Safari sekmesinden değil ana ekrandaki simgeden açılmalı (iOS 16.4+, §10).
+4. `select last_error, disabled_at, last_success_at from push_subscriptions where user_id = …`: `HTTP 410/404` → itme servisi aboneliği sildi (uygulama silinmiş, tarayıcı verisi temizlenmiş); cihazda anahtarı kapatıp açın ya da vardiyayı yeniden başlatın. `HTTP 403/401` → VAPID anahtarları değişmiş olabilir; cihazlar yeniden abone olmalı.
+5. `Admin › İşler`'de başarısız `push.send` var mı? Sunucunun `fcm.googleapis.com`, `web.push.apple.com`, `*.push.services.mozilla.com` adreslerine 443 üzerinden çıkışı açık olmalı.
 
 **Diğer**
 
@@ -338,6 +373,8 @@ docker compose ps && curl -fsS https://siparisinonunde.com/api/v1/health
 - [ ] Caddy erişim logu dosyaya yazılıyor: `docker compose exec caddy ls -l /var/log/caddy/` (5651, 1 yıl).
 - [ ] Dış izleme `GET /api/v1/health` ve `GET /api/v1/health/worker`'ı 1 dk aralıkla izliyor, P1 bildirimi nöbetçiye gidiyor; `Admin > İşler`'de başarısız iş yok.
 - [ ] Sağlayıcılar gerçek: `docker compose exec worker printenv SMS_PROVIDER PLATFORM_WA_PROVIDER WA_DEFAULT_PROVIDER` çıktısında `mock` yok (§4).
+- [ ] Web Push açık: `VAPID_*` dolu, açılış logunda `Web Push kapalı` uyarısı yok; bir Android tablette ve ana ekrana eklenmiş bir iPhone'da "Siparişleri almaya başla" → izin → `Ayarlar › Bu cihazda bildirimler › Test bildirimi gönder` geldi; panel sekmesi kapalıyken verilen deneme siparişinde "Yeni sipariş #…" bildirimi geldi (§10).
+- [ ] Panel çevrimdışı uyarısı denendi: açık saatte paneli kapatıp 5 dk bekleyince sahibin telefonuna `isletme_panel_cevrimdisi_v1` geldi (`notifications` tablosunda `kind = 'panel_offline'`).
 - [ ] Sunucu: UFW açık (22/80/443), SSH yalnız anahtarla, otomatik güvenlik güncellemeleri açık, `.env` izni 600.
 - [ ] 360dialog numarası bağlı, webhook tanımlı, "merhaba" → "Menüyü aç" → sipariş → panel alarmı → onay mesajı uçtan uca gerçek telefonla denendi; müşteri ve platform şablonları onaylı (V-011).
 - [ ] Netgsm başlığı onaylı, OTP ve "onaylandı" SMS'i gerçek telefona geldi (V-012, V-020, V-023).

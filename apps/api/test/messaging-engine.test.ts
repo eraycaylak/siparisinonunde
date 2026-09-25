@@ -54,6 +54,9 @@ describe('karşılama ve sıklık (12 sa / 30 dk)', () => {
     expect(out!.status).toBe('queued');
     expect(out!.body).toContain('Merhaba Ayşe, Bozok Test Pide WhatsApp sipariş hattına hoş geldiniz!');
     expect(out!.body).toContain('Kişisel verileriniz');
+    // Aydınlatma linki işletmenin kendi metnine gider (veri sorumlusu işletme; 08 §2.4-B), platformun metnine değil
+    expect(out!.body).toContain(`Ayrıntı: http://localhost:3000/s/${t.slug}/yasal/aydinlatma`);
+    expect(out!.body).not.toContain('/yasal/kvkk-aydinlatma');
     expect(out!.body).toContain('"yetkili"');
     expect(payload.spec.type).toBe('interactive');
     if (payload.spec.type !== 'interactive') return;

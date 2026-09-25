@@ -25,6 +25,7 @@ import panelCustomerRoutes from './routes/panel/customers';
 import panelMenuRoutes from './routes/panel/menu';
 import panelOnboardingRoutes from './routes/panel/onboarding';
 import panelOrderRoutes from './routes/panel/orders';
+import panelPushRoutes from './routes/panel/push';
 import panelReportRoutes from './routes/panel/reports';
 import panelSettingsRoutes from './routes/panel/settings';
 import panelStaffRoutes from './routes/panel/staff';
@@ -116,6 +117,7 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
   await app.register(panelCustomerRoutes, { prefix: panel });
   await app.register(panelConversationRoutes, { prefix: panel });
   await app.register(panelWhatsappRoutes, { prefix: panel });
+  await app.register(panelPushRoutes, { prefix: panel });
 
   await app.register(courierRoutes, { prefix: `${API_PREFIX}/courier` });
   await app.register(adminRoutes, { prefix: `${API_PREFIX}/admin` });

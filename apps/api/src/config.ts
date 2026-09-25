@@ -48,6 +48,19 @@ export const configSchema = z.object({
   NETGSM_HEADER: optionalString,
   UPLOAD_DIR: z.string().default('./uploads'),
   ANTHROPIC_API_KEY: optionalString,
+  /**
+   * Web Push (00 §10 alarm t=0): VAPID anahtar çifti (`npx web-push generate-vapid-keys`) ve iletişim adresi.
+   * Üçü de verilmezse push kapalıdır (uygulama çalışır; üretimde başlangıçta uyarı yazılır).
+   */
+  VAPID_PUBLIC_KEY: optionalString.refine((v) => v === undefined || /^[A-Za-z0-9_-]{86,88}={0,2}$/.test(v), {
+    message: 'VAPID_PUBLIC_KEY base64url biçiminde olmalı (npx web-push generate-vapid-keys)',
+  }),
+  VAPID_PRIVATE_KEY: optionalString.refine((v) => v === undefined || /^[A-Za-z0-9_-]{42,44}={0,2}$/.test(v), {
+    message: 'VAPID_PRIVATE_KEY base64url biçiminde olmalı (npx web-push generate-vapid-keys)',
+  }),
+  VAPID_SUBJECT: optionalString.refine((v) => v === undefined || /^(mailto:\S+@\S+|https:\/\/\S+)$/.test(v), {
+    message: 'VAPID_SUBJECT mailto: ya da https:// ile başlamalı (ör. mailto:destek@siparisinonunde.com)',
+  }),
   DEV_TOOLS: bool01.default(false),
   /** Platform yöneticileri için TOTP zorunlu (00 §12a madde 7). Verilmezse: üretimde açık, diğer ortamlarda kapalı. */
   ADMIN_TOTP_REQUIRED: optionalBool01,
@@ -57,6 +70,8 @@ export const configSchema = z.object({
 export type Config = Omit<z.infer<typeof configSchema>, 'ADMIN_TOTP_REQUIRED'> & {
   /** Çözülmüş değer (varsayılan NODE_ENV'e göre) */
   ADMIN_TOTP_REQUIRED: boolean;
+  /** Web Push açık mı (VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY + VAPID_SUBJECT dolu) */
+  pushEnabled: boolean;
   /** Çerezde Secure bayrağı (üretim ya da https kök adres) */
   cookieSecure: boolean;
   /** Mutlak yükleme dizini */
@@ -106,6 +121,27 @@ export function productionConfigWarnings(c: Pick<Config, 'NODE_ENV' | 'SMS_PROVI
   return out;
 }
 
+/** VAPID anahtarlarının üçü de dolu mu (Web Push açık). */
+export function isPushConfigured(c: Pick<ParsedConfig, 'VAPID_PUBLIC_KEY' | 'VAPID_PRIVATE_KEY' | 'VAPID_SUBJECT'>): boolean {
+  return Boolean(c.VAPID_PUBLIC_KEY && c.VAPID_PRIVATE_KEY && c.VAPID_SUBJECT);
+}
+
+/**
+ * Web Push yapılandırma uyarıları (üretimde; başlatmayı engellemez). Push isteğe bağlıdır: anahtarlar yoksa yeni
+ * sipariş uyarısı yalnız açık paneldeki sesle ve sonraki alarm basamaklarıyla (platform WhatsApp, SMS) ulaşır.
+ * Taklit sağlayıcı uyarılarından (productionConfigWarnings) ayrı tutulur.
+ */
+export function webPushConfigWarnings(
+  c: Pick<Config, 'NODE_ENV' | 'VAPID_PUBLIC_KEY' | 'VAPID_PRIVATE_KEY' | 'VAPID_SUBJECT'>,
+): string[] {
+  if (c.NODE_ENV !== 'production' || isPushConfigured(c)) return [];
+  const missing = (['VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'] as const).filter((k) => !c[k]);
+  return [
+    `Web Push kapalı (${missing.join(', ')} boş): panel kapalıyken yeni sipariş bildirimi cihazlara gitmez. ` +
+      'Anahtar üretmek için: docker compose run --rm --no-deps api npx web-push generate-vapid-keys (15 §4)',
+  ];
+}
+
 export function loadConfig(env: Record<string, string | undefined> = process.env): Config {
   const parsed = configSchema.safeParse(env);
   if (!parsed.success) {
@@ -118,6 +154,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   return {
     ...c,
     ADMIN_TOTP_REQUIRED: c.ADMIN_TOTP_REQUIRED ?? c.NODE_ENV === 'production',
+    pushEnabled: isPushConfigured(c),
     cookieSecure: c.NODE_ENV === 'production' || c.APP_BASE_URL.startsWith('https://'),
     uploadDirAbs: resolve(process.cwd(), c.UPLOAD_DIR),
   };

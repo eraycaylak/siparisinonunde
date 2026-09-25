@@ -1,4 +1,5 @@
 // GET /api/v1/panel/stream?branchId= — SSE (14 §7.1). Last-Event-ID ile kaçırılan olaylar tekrar oynatılır.
+// Akış açıkken şubenin panel varlığı dakikada bir yazılır (06 §7.7 panel çevrimdışı dedektörü).
 
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
@@ -7,6 +8,7 @@ import { openBranchStream, parseLastEventId } from '../../lib/sse';
 import { computeBranchOrderingState } from '../../services/orders/store-context';
 import { assertBranchAccess, defaultBranchId, requireTenantRole, tenantAuth } from '../../plugins/auth';
 import { recordImpersonationStreamOpen } from '../../plugins/impersonation-audit';
+import { PANEL_PRESENCE_TOUCH_MS, PRESENCE_ROLES, touchBranchPresence } from '../../services/push/presence';
 
 const streamQuery = z.object({
   branchId: z.uuid().optional(),
@@ -46,6 +48,30 @@ const streamRoutes: FastifyPluginAsyncZod = async (app) => {
           nextOpenAt: state.nextOpenAt?.toISOString() ?? null,
         };
         reply.raw.write(`data: ${JSON.stringify({ type: 'branch.state', data })}\n\n`);
+      }
+      // Panel varlığı: yalnız yeni sipariş alarmını duyan roller (mutfak sayılmaz) ve işletmenin kendi oturumu
+      // (destek oturumu işletmenin cihazı değildir). Açılışta ve akış sürdükçe dakikada bir; kapanınca durur.
+      if (!reply.raw.writableEnded && auth.session.kind !== 'impersonation' && PRESENCE_ROLES.includes(auth.role)) {
+        let closed = false;
+        let timer: ReturnType<typeof setInterval> | null = null;
+        const stop = () => {
+          closed = true;
+          if (timer) clearInterval(timer);
+        };
+        request.raw.once('close', stop);
+        reply.raw.once('close', stop);
+        // Bağlantı, dinleyiciler eklenmeden (akış açılışındaki beklemeler sırasında) kapanmış olabilir: 'close' bir daha
+        // gelmez. Soket kontrol edilmezse zamanlayıcı kapalı ekran için varlık yazmaya devam eder, dedektör hiç uyarmaz.
+        const gone = () => closed || reply.raw.writableEnded || reply.raw.destroyed || !reply.raw.socket || reply.raw.socket.destroyed;
+        const touch = async () => {
+          if (gone()) return stop();
+          await touchBranchPresence(app.db, { tenantId: auth.tenantId, branchId }).catch((err) => request.log.warn({ err }, 'panel varlığı yazılamadı'));
+        };
+        await touch();
+        if (!gone()) {
+          timer = setInterval(() => void touch(), PANEL_PRESENCE_TOUCH_MS);
+          timer.unref();
+        }
       }
       // Destek oturumu (impersonation): hijack edilen akışta onResponse kancası çalışmaz → açılış burada kaydedilir
       await recordImpersonationStreamOpen(app, request);

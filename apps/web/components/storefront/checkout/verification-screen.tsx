@@ -13,6 +13,7 @@ import { apiFetch, errorMessage, isApiError, useApiQuery } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { formatElapsed, formatMoney } from '@/lib/format';
 import { storefrontHref } from '@/lib/storefront-url';
+import { storeLegalHref } from '@/components/storefront/legal/store-legal';
 
 const trackKey = (token: string) => ['store', 'track', token] as const;
 
@@ -149,7 +150,9 @@ export function VerificationScreen({
         </>
       ) : null}
 
-      {smsMode && orderId ? <SmsPanel orderId={orderId} defaultPhone={phone ?? ''} onVerified={() => router.replace(`/t/${token}`)} /> : null}
+      {smsMode && orderId ? (
+        <SmsPanel orderId={orderId} defaultPhone={phone ?? ''} slug={storeSlug} businessName={name} onVerified={() => router.replace(`/t/${token}`)} />
+      ) : null}
 
       {!method && !smsMode ? (
         <Alert variant="warning" title="Siparişinizi doğrulatın">
@@ -203,8 +206,23 @@ export function VerificationScreen({
   );
 }
 
-/** S-06C: telefon → 6 haneli kod (inputmode numeric, one-time-code), 60 sn sonra yeniden gönder. */
-function SmsPanel({ orderId, defaultPhone, onVerified }: { orderId: string; defaultPhone: string; onVerified: () => void }) {
+/**
+ * S-06C: telefon → 6 haneli kod (inputmode numeric, one-time-code), 60 sn sonra yeniden gönder. Numara girişinin altında
+ * işletmenin aydınlatma satırı ve metnine bağlantı (08 §2.4-B: SMS OTP kod ekranında kısa satır + link).
+ */
+function SmsPanel({
+  orderId,
+  defaultPhone,
+  slug,
+  businessName,
+  onVerified,
+}: {
+  orderId: string;
+  defaultPhone: string;
+  slug?: string;
+  businessName?: string;
+  onVerified: () => void;
+}) {
   const [phone, setPhone] = useState(defaultPhone);
   const [sent, setSent] = useState<SmsOtpResponse | null>(null);
   const [sentAt, setSentAt] = useState(0);
@@ -258,6 +276,22 @@ function SmsPanel({ orderId, defaultPhone, onVerified }: { orderId: string; defa
           <Button size="lg" block onClick={send} loading={busy === 'send'} disabled={phone.replace(/\D/g, '').length < 10}>
             Kod gönder
           </Button>
+          <p className="text-sm text-fg-muted">
+            Kişisel verileriniz siparişinizi almak ve teslim etmek amacıyla {businessName ?? 'işletme'} tarafından işlenir.
+            {slug ? (
+              <>
+                {' '}
+                <a
+                  href={storeLegalHref(slug, 'aydinlatma')}
+                  target="_blank"
+                  rel="noopener"
+                  className="inline-flex min-h-hit items-center font-semibold text-fg underline underline-offset-4"
+                >
+                  Aydınlatma metni
+                </a>
+              </>
+            ) : null}
+          </p>
         </>
       ) : (
         <>

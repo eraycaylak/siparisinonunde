@@ -19,6 +19,7 @@ import {
   Settings,
   ShieldCheck,
   Siren,
+  Smartphone,
   Store,
   UserCog,
   UsersRound,
@@ -61,8 +62,17 @@ export const SETTINGS_NAV: readonly PanelNavItem[] = [
   { href: '/panel/ayarlar/saatler', label: 'Çalışma saatleri', description: 'Haftalık saatler ve özel günler', icon: Clock, roles: OM },
   { href: '/panel/ayarlar/bolgeler', label: 'Teslimat bölgeleri', description: 'Mahalleler, harita, ücret ve min. sepet', icon: MapPin, roles: OM },
   { href: '/panel/ayarlar/odeme', label: 'Ödeme yöntemleri', description: 'Kapıda nakit, kart, yemek kartı', icon: CreditCard, roles: OM },
-  { href: '/panel/ayarlar/bildirimler', label: 'Müşteri bildirimleri', description: 'Hangi durumda mesaj gitsin', icon: MessageSquareText, roles: OM },
+  // exact: alt sayfası "Bu cihazda bildirimler" menüde ayrı öğedir (ikisi birden etkin görünmesin)
+  { href: '/panel/ayarlar/bildirimler', label: 'Müşteri bildirimleri', description: 'Hangi durumda mesaj gitsin', icon: MessageSquareText, roles: OM, exact: true },
   { href: '/panel/ayarlar/alarm', label: 'Sipariş alarmı', description: 'Uyarı zinciri ve otomatik iptal süresi', icon: Siren, roles: OM },
+  // Yeni sipariş Web Push'u (00 §10 alarm t=0): cihaz başına tercih; kişisel hesabı olan herkes (kurye hariç)
+  {
+    href: '/panel/ayarlar/bildirimler/cihaz',
+    label: 'Bu cihazda bildirimler',
+    description: 'Yeni sipariş bildirimi (telefon, tablet)',
+    icon: Smartphone,
+    roles: PERSONAL,
+  },
   // WhatsApp bağlantısı yalnız işletme sahibinde (00 §4; API de owner-only).
   { href: '/panel/ayarlar/whatsapp', label: 'WhatsApp bağlantısı', description: 'Numara, bağlantı sağlığı, test mesajı', icon: MessageCircle, roles: ['owner'] },
   { href: '/panel/ayarlar/personel', label: 'Personel', description: 'Kullanıcılar, roller, kurye giriş linki', icon: UserCog, roles: OM },

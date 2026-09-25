@@ -13,6 +13,19 @@ test('Akış B: vitrinden sipariş, WhatsApp koduyla doğrulama ve takip sayfas�
   // 1) QR/Instagram'dan gelen müşteri: vitrin, basit ürün + seçenekli ürün, gel-al
   await page.goto(`/s/${DEMO.slug}`);
   await expect(page.getByRole('heading', { name: DEMO.tenantName, level: 1 })).toBeVisible();
+
+  // Altbilgide işletmenin kendi yasal metinleri (S-10): son müşteri için veri sorumlusu işletmedir (08 §2.4-B)
+  const privacyLink = page.getByRole('navigation', { name: 'Yasal metinler' }).getByRole('link', { name: 'Aydınlatma metni' });
+  await expect(privacyLink).toHaveAttribute('href', `/s/${DEMO.slug}/yasal/aydinlatma`);
+  await privacyLink.click();
+  await expect(page).toHaveURL(new RegExp(`/s/${DEMO.slug}/yasal/aydinlatma$`));
+  await expect(page.getByRole('heading', { name: 'KVKK aydınlatma metni', level: 1 })).toBeVisible();
+  const controller = page.getByRole('region', { name: /Veri sorumlusu$/ });
+  await expect(controller).toContainText('Kişisel verilerinizin veri sorumlusu, künyesi aşağıda yer alan işletmedir');
+  await expect(controller).toContainText(DEMO.tenantName);
+  await page.getByRole('link', { name: 'Menüye dön' }).click();
+  await expect(page.getByRole('heading', { name: DEMO.tenantName, level: 1 })).toBeVisible();
+
   await page.getByRole('button', { name: 'Mercimek Çorbası sepete ekle' }).click();
   await page.getByRole('button', { name: 'Lahmacun: seçenekleri gör' }).click();
   const sheet = page.getByRole('dialog', { name: 'Lahmacun' });

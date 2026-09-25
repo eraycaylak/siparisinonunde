@@ -530,8 +530,9 @@ async function welcome(ctx: Ctx, opts: { force: boolean }): Promise<void> {
       pickupOnly,
       pickupMinutes: ctx.branch.defaultPrepMinutes + (ctx.branch.busyExtraMinutes ?? 0),
       busy,
-      // Aydınlatma satırı yalnız ilk temasta (03 §9.2)
-      aydinlatmaLink: ctx.conv.lastWelcomeAt ? null : `${ctx.deps.config.APP_BASE_URL.replace(/\/$/, '')}/yasal/kvkk-aydinlatma`,
+      // Aydınlatma satırı yalnız ilk temasta (03 §9.2). Veri sorumlusu işletme olduğundan link işletmenin kendi
+      // aydınlatma metnine gider (08 §2.4-B; storefront /s/<slug>/yasal/aydinlatma), platformun metnine değil.
+      aydinlatmaLink: ctx.conv.lastWelcomeAt ? null : `${storefrontUrl(ctx.deps.config, ctx.tenant.slug)}/yasal/aydinlatma`,
       menuUrl,
     });
   }

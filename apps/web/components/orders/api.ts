@@ -14,6 +14,7 @@ import type {
   RejectOrderResponse,
 } from '@siparis/core/orders/contracts';
 import { apiFetch } from '@/lib/api';
+import { RECEIPT_WINDOW_FEATURES, receiptUrl, receiptWindowName } from '@/components/live/receipt-window';
 
 export const ORDERS_ACTIVE_KEY = ['panel', 'orders', 'active'] as const;
 export const orderDetailKey = (id: string) => ['panel', 'orders', 'detail', id] as const;
@@ -89,8 +90,8 @@ export function openReceipt(orderId: string, type: ReceiptKind | readonly Receip
   if (typeof window === 'undefined') return;
   const types = (Array.isArray(type) ? type : [type]) as readonly ReceiptKind[];
   if (!types.length) return;
-  const t = types.join(',');
-  window.open(`/receipt/${orderId}?type=${t}&auto=1`, `fis-${orderId}-${types.join('-')}`, 'width=420,height=720');
+  // Adres, pencere adı ve boyutu onaydaki otomatik fişle aynı (live/receipt-window): yeniden basış aynı pencereyi kullanır
+  window.open(receiptUrl(orderId, types), receiptWindowName(orderId, types), RECEIPT_WINDOW_FEATURES);
 }
 
 /**

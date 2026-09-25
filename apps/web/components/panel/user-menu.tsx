@@ -1,18 +1,47 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { usePathname, useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { ArrowLeftRight, ChevronDown, LogOut, UserRound } from 'lucide-react';
+import { ArrowLeftRight, BellRing, ChevronDown, LogOut, ShieldCheck, UserRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { ThemeToggle } from '@/components/common/theme-toggle';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { Sheet } from '@/components/ui/sheet';
 import { cn } from '@/lib/cn';
 import { errorMessage } from '@/lib/api';
 import { currentRole, useLogout, useSwitchTenant, type Me } from '@/lib/auth';
 import { PLATFORM_ROLE_LABELS, TENANT_ROLE_LABELS } from '@/lib/labels';
+import { isPathAllowed } from './nav-config';
 
-/** Kullanıcı menüsü: ad, rol, işletme değiştir, tema, çıkış. */
+/** Kişisel hesabın iki adımlı doğrulama ekranı (nav-config SETTINGS_NAV "Güvenlik"). */
+export const PANEL_SECURITY_PATH = '/panel/ayarlar/guvenlik';
+
+/**
+ * Menüde "Güvenlik" bağlantısı: yalnız panelde, kişisel hesabı olan rollerde (kurye magic link ile girer, TOTP'si yok)
+ * ve kendi oturumunda (destek görüntülemesinde TOTP ayarı yapılamaz). Admin kabuğunun kendi Güvenlik menüsü vardır.
+ */
+export function showsSecurityLink(pathname: string | null, me: Me): boolean {
+  if (!(pathname ?? '').startsWith('/panel') || me.impersonating) return false;
+  return isPathAllowed(PANEL_SECURITY_PATH, currentRole(me));
+}
+
+/** Bu cihazın yeni sipariş bildirimi ayarı (nav-config SETTINGS_NAV "Bu cihazda bildirimler"). */
+export const PANEL_DEVICE_PUSH_PATH = '/panel/ayarlar/bildirimler/cihaz';
+
+/**
+ * Menüde "Bu cihazda bildirimler" bağlantısı: Güvenlik ile aynı kural (panelde, kendi oturumunda; kurye hariç).
+ * Web Push aboneliği cihaza bağlıdır; destek görüntülemesinde ayar yapılamaz.
+ */
+export function showsDevicePushLink(pathname: string | null, me: Me): boolean {
+  if (!(pathname ?? '').startsWith('/panel') || me.impersonating) return false;
+  return isPathAllowed(PANEL_DEVICE_PUSH_PATH, currentRole(me));
+}
+
+/**
+ * Kullanıcı menüsü: ad, rol, işletme değiştir, bu cihazda bildirimler ve güvenlik (panelde kişisel hesabı olan roller),
+ * tema, çıkış. Kasiyer ve mutfak Ayarlar menüsünü görmez; masaüstünde bu iki ekrana buradan ulaşır.
+ */
 export function UserMenu({ me, loginPath = '/panel/giris', className }: { me: Me; loginPath?: string; className?: string }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
@@ -21,6 +50,9 @@ export function UserMenu({ me, loginPath = '/panel/giris', className }: { me: Me
   const role = currentRole(me);
   const roleLabel = role ? TENANT_ROLE_LABELS[role] : me.user.platformRole ? PLATFORM_ROLE_LABELS[me.user.platformRole] : '';
   const others = me.memberships.filter((m) => m.tenantId !== me.tenant?.id);
+  const pathname = usePathname();
+  const showSecurity = showsSecurityLink(pathname, me);
+  const showDevicePush = showsDevicePushLink(pathname, me);
 
   const doLogout = () => {
     logout.mutate(undefined, { onError: (err) => toast.error(errorMessage(err, 'Çıkış yapılamadı. Tekrar deneyin.')) });
@@ -80,6 +112,18 @@ export function UserMenu({ me, loginPath = '/panel/giris', className }: { me: Me
                 </Button>
               ))}
             </div>
+          ) : null}
+          {showDevicePush ? (
+            <Link href={PANEL_DEVICE_PUSH_PATH} onClick={() => setOpen(false)} className={buttonVariants({ variant: 'secondary', block: true })}>
+              <BellRing aria-hidden />
+              Bu cihazda bildirimler
+            </Link>
+          ) : null}
+          {showSecurity ? (
+            <Link href={PANEL_SECURITY_PATH} onClick={() => setOpen(false)} className={buttonVariants({ variant: 'secondary', block: true })}>
+              <ShieldCheck aria-hidden />
+              Güvenlik
+            </Link>
           ) : null}
           <div className="flex flex-col gap-2">
             <p className="text-sm font-semibold text-fg-muted">Tema</p>

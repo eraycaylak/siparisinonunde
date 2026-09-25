@@ -941,7 +941,7 @@ Metrikler ve alarm kanalları (on-call, admin paneli) [06](06-teknik-mimari.md) 
 | Webhook→panel gecikmesi | p95 > 3 sn (5 dk) | P2 | Kuyruk derinliği, worker ölçekleme |
 | Ingress imza hatası | > 10/dk | P2 | App Secret rotasyonu/saldırı kontrolü |
 | Yeni sipariş onaylanmadı | `new` ≥ 2 dk | İşletme | Kademeli alarm zinciri (§10.3) |
-| Panel çevrimdışı | Şube açıkken sesi açık ve nabız gönderen hiç cihaz yok (≥ 3 dk) | İşletme | `isletme_panel_cevrimdisi_v1` + SMS, 30 dk'da en fazla 1 (§5.3, [06](06-teknik-mimari.md) §7.7) |
+| Panel çevrimdışı | Şube açıkken sesi açık ve nabız gönderen hiç cihaz yok (≥ 3 dk). **[Faz 1 uygulaması]** sipariş ekranı akışı 5 dk görülmüyor ya da açılıştan beri hiç görülmedi ve açılış ≥ 10 dk | İşletme | `isletme_panel_cevrimdisi_v1` + SMS, 30 dk'da en fazla 1 (§5.3, [06](06-teknik-mimari.md) §7.7). **[Faz 1 uygulaması]** yalnız platform WhatsApp, şube başına 60 dk'da en çok 1 |
 | Kalite düşüşü | `YELLOW` / `RED` | İşletme + admin | §9.4 |
 | Token 190 / süre bitimi yakın | Anında / 7 gün kala | İşletme + admin | §7.8 |
 | Ödeme 131042 | Anında | İşletme + admin | §3.7 |
@@ -959,7 +959,7 @@ Hedef: sipariş kaçırma %0. Zamanlama kanoniktir ([00](00-kararlar-ve-sozluk.m
 
 | Basamak | Zaman (varsayılan) | Kanal | Kime | Not |
 |---|---|---|---|---|
-| 1 | t=0 | Panel sesi (döngüsel) + Web Push | Açık panel ekranları; `owner`, `manager`, `cashier` cihazları | Push yükünde PII yok ("Yeni sipariş #1234"). "Panel çevrimdışı" ise §5.3 panel çevrimdışı uyarısı ayrıca çalışır |
+| 1 | t=0 | Panel sesi (döngüsel) + Web Push | Açık panel ekranları; `owner`, `manager`, `cashier` cihazları (**[Faz 1 uygulaması]** `kitchen` cihazları da; mutfakta tutar gösterilmez: "Yeni sipariş #1234 · 3 ürün") | Push yükünde PII yok ("Yeni sipariş #1234"). "Panel çevrimdışı" ise §5.3 panel çevrimdışı uyarısı ayrıca çalışır |
 | 2 | t+60 sn | Ses tekrarı (yükselen ton/seviye) | Açık panel ekranları | |
 | 3 | t+2 dk | Platform numarasından `isletme_yeni_siparis_v1` (§5.3) | `owner` (+ isteğe bağlı `manager`) | Açık onay gerekli; maliyet bizde. Onay yoksa veya şablon `failed` olursa aynı uyarı e-posta ile hemen gider. WABA uyarısı tekrarlanmaz |
 | 4 | t+5 dk | Yalnız SMS (platform WABA tekrarı yok) | `owner` | WhatsApp şablonunun teslim durumundan bağımsız gider |

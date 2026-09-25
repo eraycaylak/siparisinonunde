@@ -312,6 +312,8 @@ const SMS_JOBS = sql`(type = 'sms.send')`;
  * Varsayılan şeritler: dış sağlayıcıya giden işler (WhatsApp, SMS) ayrı döngülerde ve küçük partilerle çalışır.
  * Sağlayıcı yavaşlayınca (istek başına 15 sn zaman aşımı) alarm zinciri, sipariş zaman aşımları, bildirim kararları
  * ve cron işleri onların arkasında beklemez; WhatsApp kesintisi SMS yedeğini de bekletmez.
+ * Web Push (`push.send`, t=0 alarmı) ana şerittedir: alarm zinciriyle aynı anda çıkmalıdır; istek başına 10 sn üst süre
+ * ve abonelikler paralel gönderildiği için ana şeridi en çok birkaç saniye bekletir.
  */
 export const DEFAULT_WORKER_LANES: readonly WorkerLane[] = [
   { name: 'main', where: sql`not ${WHATSAPP_JOBS} and not ${SMS_JOBS}`, batchSize: 10, housekeeping: true },
