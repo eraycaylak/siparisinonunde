@@ -31,6 +31,7 @@ import { SETTINGS_KEYS, useBranchId, useBranchSettings, useOnboarding, useUpdate
 import { LocationPicker, type LatLng } from '@/components/settings/map/location-picker';
 import { Section, SettingsError, SettingsLoading } from '@/components/settings/settings-shell';
 import { publicStorefrontUrl } from '@/components/settings/urls';
+import { QrDownloadLinks, qrDownloadHref } from '@/components/whatsapp/shop-qr';
 import { Badge } from '@/components/ui/badge';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
@@ -39,6 +40,7 @@ import { StatusBadge } from '@/components/ui/status-badge';
 import { apiFetch, errorMessage } from '@/lib/api';
 import { currentRole, ME_QUERY_KEY, useMe } from '@/lib/auth';
 import { cn } from '@/lib/cn';
+import { formatPhone } from '@/lib/format';
 
 const STEP_ICONS: Record<OnboardingStepCode, typeof Check> = {
   business_info: ClipboardList,
@@ -283,6 +285,10 @@ function WhatsappStep({ status, onChanged }: { status: OnboardingStatus; onChang
       setBusy(false);
     }
   }
+  // Ortak numara (00 §12a madde 8): kayıtta hazırdır, adım kendiliğinden tamamdır; QR kodu burada da gösterilir
+  if (status.whatsapp.connected && status.whatsapp.mode === 'shared') {
+    return <SharedWhatsappReady code={status.whatsapp.code ?? null} displayPhone={status.whatsapp.displayPhone} isOwner={isOwner} />;
+  }
   if (status.whatsapp.connected) {
     return (
       <Section title="WhatsApp bağlı">
@@ -326,6 +332,62 @@ function WhatsappStep({ status, onChanged }: { status: OnboardingStatus; onChang
         )}
       </Section>
     </div>
+  );
+}
+
+/** Ortak numarada WhatsApp adımı: yapılacak bir şey yok; dükkan kodu ve QR (GET /panel/whatsapp/qr, owner + manager). */
+function SharedWhatsappReady({ code, displayPhone, isOwner }: { code: string | null; displayPhone: string | null; isOwner: boolean }) {
+  const [qrFailed, setQrFailed] = useState(false);
+  return (
+    <Section
+      title={
+        <span className="flex flex-wrap items-center gap-2">
+          WhatsApp hazır
+          <Badge variant="success" size="sm">
+            <Check aria-hidden />
+            Tamam
+          </Badge>
+        </span>
+      }
+      description="Siparişleriniz ortak Siparişin Önünde numarasından gelir; ayrıca numara bağlamanız gerekmez."
+    >
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+        {!qrFailed ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={qrDownloadHref('svg')}
+            alt={code ? `Dükkan QR kodu (#${code})` : 'Dükkan QR kodu'}
+            width={176}
+            height={176}
+            onError={() => setQrFailed(true)}
+            className="size-44 shrink-0 self-center rounded-md border border-border bg-white sm:self-start"
+          />
+        ) : null}
+        <div className="flex min-w-0 flex-col gap-3">
+          <p className="text-base text-fg">
+            Dükkan kodunuz <span className="font-mono text-xl font-bold tracking-wide">{code ? `#${code}` : '—'}</span>
+            {displayPhone ? (
+              <>
+                {' '}
+                · WhatsApp numarası <span className="whitespace-nowrap font-semibold">{formatPhone(displayPhone)}</span>
+              </>
+            ) : null}
+          </p>
+          <ul className="flex list-disc flex-col gap-1 ps-5 text-sm text-fg">
+            <li>Müşteri QR kodunuzu okutunca WhatsApp dükkan kodunuzla açılır; bot dükkanınızın adıyla karşılar ve menü bağlantısını gönderir.</li>
+            <li>Her mesajda dükkanınızın adı görünür; siparişler bu panele düşer, başka dükkanlarla karışmaz.</li>
+            <li>QR’ı masaya, kapıya ve paketlere koyun; afiş ve masa kartı hazır.</li>
+          </ul>
+          <div className="flex flex-wrap gap-2">
+            <QrDownloadLinks />
+            <Link href={isOwner ? '/panel/ayarlar/whatsapp' : '/panel/ayarlar/qr'} className={buttonVariants({ variant: 'ghost' })}>
+              <QrCode aria-hidden />
+              {isOwner ? 'Bağlantı ve masa kartı' : 'QR ve afiş'}
+            </Link>
+          </div>
+        </div>
+      </div>
+    </Section>
   );
 }
 

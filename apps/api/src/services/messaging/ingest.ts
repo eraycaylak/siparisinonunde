@@ -1,11 +1,13 @@
 // Webhook alımı (02 §7.2): ham olay wa_webhook_events + `wa.process_inbound` işi (aynı transaction) +
 // wa_accounts.last_webhook_at. İşleme worker'da (wa-inbound kuyruğu); dev simülatörü aynı hattı kullanır.
+// Ortak numara olayları (provider 'shared', hesapsız) shared-router.ts yönlendiricisine gider.
 
 import { waAccounts, waWebhookEvents, type Database } from '@siparis/db';
 import { eq } from 'drizzle-orm';
 import { enqueueJob } from '../../lib/jobs';
-import { getWaProvider, type WaAccountRow } from '../../wa/registry';
+import { getWaProvider, providerForAccount, type WaAccountRow } from '../../wa/registry';
 import { processWaEvents, type EngineDeps, type ProcessEventsSummary } from './engine';
+import { processSharedEvents } from './shared-router';
 
 export interface IngestResult {
   webhookEventId: string;
@@ -35,12 +37,26 @@ export async function ingestWebhookPayload(db: Database, account: WaAccountRow, 
 export async function processWebhookEvent(deps: EngineDeps, webhookEventId: string, opts: { now?: Date } = {}): Promise<ProcessEventsSummary | null> {
   const [row] = await deps.db.select().from(waWebhookEvents).where(eq(waWebhookEvents.id, webhookEventId));
   if (!row || row.processedAt) return null;
+  // Ortak numara (00 §12a madde 8): hesap yok; yönlendirici her mesaj için dükkanı seçer
+  if (row.provider === 'shared' && !row.waAccountId) {
+    try {
+      const summary = await processSharedEvents(deps, getWaProvider(deps.config.PLATFORM_WA_PROVIDER).parseWebhook(row.payload), opts);
+      await deps.db.update(waWebhookEvents).set({ processedAt: new Date(), error: null }).where(eq(waWebhookEvents.id, row.id));
+      return summary;
+    } catch (err) {
+      await deps.db
+        .update(waWebhookEvents)
+        .set({ error: (err instanceof Error ? err.message : String(err)).slice(0, 500) })
+        .where(eq(waWebhookEvents.id, row.id));
+      throw err;
+    }
+  }
   const [account] = row.waAccountId ? await deps.db.select().from(waAccounts).where(eq(waAccounts.id, row.waAccountId)) : [];
   if (!account) {
     await deps.db.update(waWebhookEvents).set({ processedAt: new Date(), error: 'account_not_found' }).where(eq(waWebhookEvents.id, row.id));
     return null;
   }
-  const events = getWaProvider(account.provider).parseWebhook(row.payload);
+  const events = providerForAccount(account, deps.config).parseWebhook(row.payload);
   const mismatched = events.find((e) => e.phoneNumberId && account.phoneNumberId && e.phoneNumberId !== account.phoneNumberId);
   if (mismatched) deps.log.warn({ webhookEventId, accountId: account.id }, 'webhook phone_number_id hesapla eşleşmiyor');
   try {

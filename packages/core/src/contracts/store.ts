@@ -9,6 +9,7 @@ import {
   orderStatusSchema,
   paymentMethodSchema,
   reviewRatingSchema,
+  waModeSchema,
 } from '../enums';
 import { MAX_CART_LINES, MAX_ITEM_QUANTITY } from '../pricing';
 import { idSchema, isoDateTimeSchema, kurusSchema, nonNegativeKurusSchema } from './common';
@@ -63,8 +64,19 @@ export const storefrontResponseSchema = z.object({
     logoUrl: z.string().nullable(),
     coverUrl: z.string().nullable(),
     phone: z.string().nullable(),
-    /** Bağlı (connected) WhatsApp numarası, E.164 — "WhatsApp'tan yaz" için; yoksa null. */
+    /**
+     * Bağlı (connected) WhatsApp numarası, E.164 — "WhatsApp'tan yaz" için; yoksa null. Ortak numara modundaki
+     * işletmede platformun ortak numarasıdır (00 §12a madde 8); o durumda bağlantı için `whatsappLink` kullanılır.
+     */
     whatsappPhone: z.string().nullable().optional(),
+    /** "WhatsApp'tan yaz" bağlantısı: ortak numarada dükkan kodlu ön-dolu metinle (#KOD), kendi numarada yalın wa.me. */
+    whatsappLink: z.string().nullable().optional(),
+    /** WhatsApp modu: 'shared' (ortak numara) | 'own' (kendi numarası); bağlı numara yoksa null. */
+    whatsappMode: waModeSchema.nullable().optional(),
+    /** Ortak numarada dükkan kodu (ör. BOZOK); kendi numarada null. */
+    whatsappCode: z.string().nullable().optional(),
+    /** Ortak numarada QR/bağlantının ön-dolu mesajı; kendi numarada null. */
+    whatsappPrefillText: z.string().nullable().optional(),
   }),
   branch: z.object({
     id: idSchema,

@@ -5,7 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Building2, Search } from 'lucide-react';
 import type { AdminTenantListItem, AdminTenantListResponse } from '@siparis/core/admin/contracts';
-import { LIFECYCLE_STAGES, type LifecycleStage } from '@siparis/core/enums';
+import { LIFECYCLE_STAGES, WA_MODE_LABELS, type LifecycleStage } from '@siparis/core/enums';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Field } from '@/components/ui/field';
@@ -131,7 +131,13 @@ export function TenantsListScreen() {
                 <TD className="text-end tabular-nums">{formatNumber(t.orders7d)}</TD>
                 <TD className="whitespace-nowrap text-fg-muted">{t.lastOrderAt ? formatRelative(t.lastOrderAt) : '—'}</TD>
                 <TD>
-                  <WaStatusBadge status={t.waStatus} />
+                  <div className="flex flex-col items-start gap-1">
+                    <WaStatusBadge status={t.waStatus} />
+                    <span className="whitespace-nowrap text-xs text-fg-muted">
+                      {WA_MODE_LABELS[t.waMode]}
+                      {t.waCode ? ` · #${t.waCode}` : ''}
+                    </span>
+                  </div>
                 </TD>
               </TR>
             ))}

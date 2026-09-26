@@ -122,9 +122,12 @@ jobs:
           done
           code=$(curl -s -o /dev/null -w '%{http_code}' "$URL/panel/giris")
           [ "$code" = "401" ] || { echo "::error::Parolasız erişim 401 dönmedi ($code)"; exit 1; }
+          # Ortak numara webhook'u parolasız erişilir (Meta çağırır); yanlış belirteç API'den 404 döner (401 değil)
+          code=$(curl -s -o /dev/null -w '%{http_code}' "$URL/api/v1/webhooks/wa/shared/yanlis-belirtec-0000000000")
+          [ "$code" = "404" ] || { echo "::error::Ortak webhook yolu parolasız API'ye ulaşmadı ($code)"; exit 1; }
           {
             echo "### Dev ortamı hazır"
             echo ""
             echo "- Adres: $URL (kullanıcı adı: dev, parola: DEV_PASSWORD secret'ı)"
-            echo "- Demo işletme: $URL/s/bozok-pide · Panel: $URL/panel/giris · WhatsApp simülatörü: $URL/dev/whatsapp"
+            echo "- Demo işletmeler: $URL/s/bozok-pide (#BOZOK), $URL/s/camlik-doner (#DONER) · Panel: $URL/panel/giris · WhatsApp simülatörü (ortak numara): $URL/dev/whatsapp"
           } >> "$GITHUB_STEP_SUMMARY"

@@ -12,6 +12,7 @@ import {
   SUBSCRIPTION_STATUSES,
   SUSPENSION_REASONS,
   TENANT_ROLES,
+  WA_MODES,
   type FeatureFlagKind,
   type LeadStatus,
   type LegalDocument,
@@ -24,6 +25,7 @@ import {
   type SubscriptionStatus,
   type SuspensionReason,
   type TenantRole,
+  type WaMode,
 } from '@siparis/core';
 import { sql } from 'drizzle-orm';
 import {
@@ -116,6 +118,13 @@ export const tenants = pgTable(
     liveAt: tstz('live_at'),
     webLiveAt: tstz('web_live_at'),
     isDemo: boolean('is_demo').notNull().default(false),
+    /**
+     * Ortak numara (00 §12a madde 8; migrations/0900_shared_wa_number.sql, 0901): dükkan kodu (A–Z0–9, 3–12, en az bir
+     * harf, tekil; QR'daki #KOD). Kayıtta slug'dan üretilir; yalnız platform yöneticisi değiştirir.
+     */
+    waCode: text('wa_code'),
+    /** 'shared' (ortak platform numarası, varsayılan) | 'own' (işletmenin kendi numarası) */
+    waMode: text('wa_mode').$type<WaMode>().notNull().default('shared'),
     /** Sipariş numarası sayacı; ilk sipariş 1001 */
     orderSeq: integer('order_seq').notNull().default(1000),
     version: integer('version').notNull().default(1),
@@ -124,6 +133,10 @@ export const tenants = pgTable(
   },
   (t) => [
     uniqueIndex('tenants_slug_uk').on(t.slug),
+    uniqueIndex('tenants_wa_code_uk').on(t.waCode).where(sql`wa_code is not null`),
+    enumCheck('tenants_wa_mode_ck', t.waMode, WA_MODES),
+    // 0901: en az bir harf (yalnız rakam "#1047" sipariş numarasıyla karışır)
+    check('tenants_wa_code_ck', sql`${t.waCode} is null or (${t.waCode} ~ '^[A-Z0-9]{3,12}$' and ${t.waCode} ~ '[A-Z]')`),
     index('tenants_lifecycle_idx').on(t.lifecycleStage),
     enumCheck('tenants_lifecycle_stage_ck', t.lifecycleStage, LIFECYCLE_STAGES),
     enumCheck('tenants_suspension_reason_ck', t.suspensionReason, SUSPENSION_REASONS),

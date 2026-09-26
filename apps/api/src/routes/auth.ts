@@ -71,6 +71,7 @@ import {
   verifyTotpLogin,
   type UserRow,
 } from '../services/auth/totp';
+import { ensureSharedWaAccount, generateWaCode } from '../services/messaging/shared';
 import { courierLinkAllowed } from '../services/staff/index';
 
 const TRIAL_DAYS = 14;
@@ -131,6 +132,8 @@ const authRoutes: FastifyPluginAsyncZod = async (app) => {
 
       const passwordHash = await hashPassword(body.password);
       const slug = await uniqueSlug(app.db, body.businessName);
+      // Ortak numara (00 §12a madde 8): dükkan kodu slug'dan (çakışmada rakam soneki), varsayılan mod 'shared'
+      const waCode = await generateWaCode(app.db, slug);
       const now = new Date();
       const trialEndsAt = new Date(now.getTime() + TRIAL_DAYS * 86400000);
       const ip = clientIp(request);
@@ -149,6 +152,8 @@ const authRoutes: FastifyPluginAsyncZod = async (app) => {
               lifecycleStage: 'trial',
               planCode: 'pro',
               trialEndsAt,
+              waCode,
+              waMode: 'shared',
             })
             .returning();
           const [branch] = await tx
@@ -165,6 +170,8 @@ const authRoutes: FastifyPluginAsyncZod = async (app) => {
           await tx
             .insert(openingHours)
             .values([0, 1, 2, 3, 4, 5, 6].map((weekday) => ({ tenantId: tenant!.id, branchId: branch!.id, weekday, opensAt: '10:00', closesAt: '22:00' })));
+          // Ortak numara satırı: işletme kayıttan itibaren platform numarasıyla WhatsApp'tan sipariş alabilir
+          await ensureSharedWaAccount(tx, app.config, tenant!.id);
           const [user] = await tx
             .insert(users)
             .values({ email, phone, name: body.ownerName, passwordHash, lastLoginAt: now })
@@ -187,7 +194,7 @@ const authRoutes: FastifyPluginAsyncZod = async (app) => {
             action: 'tenant.signup',
             entityType: 'tenant',
             entityId: tenant!.id,
-            data: { slug, city: body.city ?? 'Yozgat' },
+            data: { slug, city: body.city ?? 'Yozgat', waCode },
             ip,
           });
           return { tenant: tenant!, branch: branch!, user: user! };

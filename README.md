@@ -1,15 +1,15 @@
 # siparisinonunde — Siparişin Önünde
 
-**İşletmenin kendi WhatsApp'ından komisyonsuz sipariş.** Türkiye'deki restoranlar ve yerel işletmeler için bir SaaS:
+**WhatsApp'tan komisyonsuz sipariş.** Türkiye'deki restoranlar ve yerel işletmeler için bir SaaS:
 
-- Müşteri işletmenin WhatsApp'ına yazar.
+- Müşteri dükkanın QR'ını okutur ya da WhatsApp'tan yazar (varsayılan: tüm dükkanlar için tek "Siparişin Önünde" numarası).
 - Sipariş web paneline sesli uyarıyla düşer.
 - İşletme tek dokunuşla onaylar.
 - Müşteri durum bildirimlerini WhatsApp'tan alır.
 
 İşletme sipariş başına komisyon değil, sabit aylık ücret öder.
 
-> **Durum:** Faz 1 çalışır durumda: pazarlama sitesi, işletme vitrini ve sipariş akışları (A, B, E), işletme paneli, admin paneli, kurye ekranı, WhatsApp (360dialog / Cloud API / geliştirme simülatörü), SMS yedeği, Docker ile kurulum. Canlıya çıkıştan önce kalanlar: [15 §12 kontrol listesi](docs/15-kurulum-ve-isletim.md) ve hukuki metinlerin incelemesi. Pilot: Yozgat / Merkez.
+> **Durum:** Faz 1 çalışır durumda: pazarlama sitesi, işletme vitrini ve sipariş akışları (A, B, E), işletme paneli, admin paneli, kurye ekranı, WhatsApp (ortak numara ya da işletmenin kendi numarası; 360dialog / Cloud API / geliştirme simülatörü), SMS yedeği, Docker ile kurulum. Canlıya çıkıştan önce kalanlar: [15 §12 kontrol listesi](docs/15-kurulum-ve-isletim.md) ve hukuki metinlerin incelemesi. Pilot: Yozgat / Merkez.
 
 ## Nereden başlamalı?
 
@@ -43,7 +43,7 @@ Ham araştırma raporları ve kaynak bağlantıları: [docs/arastirma/](docs/ara
 
 ## Bir bakışta
 
-- **Kanal:** Yalnız resmi WhatsApp Cloud API. Esnaf "Coexistence" ile numarasını ve telefondaki uygulamasını kaybetmeden bağlanır.
+- **Kanal:** Yalnız resmi WhatsApp Cloud API. Varsayılan **ortak numara**: tüm dükkanlar platformun tek numarasını kullanır, dükkan QR'daki kodla (#BOZOK) seçilir (aşağıda "Ortak numara"). Kendi numarasını isteyen işletme onu bağlar (üst paket; "Coexistence" ile numarasını ve telefondaki uygulamasını kaybetmeden).
 - **Sipariş akışı:**
   - Sohbet → "Menüyü aç" linki → web sepeti → panelde sesli uyarı → WhatsApp'tan durum bildirimleri.
   - QR ve Instagram'dan gelen web siparişleri WhatsApp ile, gerekirse SMS ile doğrulanır.
@@ -61,6 +61,17 @@ Ham araştırma raporları ve kaynak bağlantıları: [docs/arastirma/](docs/ara
   - Talep go/no-go: 20 Kasım 2026.
   - Pilot (10 işletme): Aralık 2026.
   - Ticari lansman hedefi: 15 Şubat 2027.
+
+## Ortak numara
+
+WhatsApp'ta numara başına aracı firma ücreti (360dialog ~49 €/ay) Esnaf paketinden (990 TL) pahalı olduğu için varsayılan model **tek numaradır** ([00 §12a madde 8](docs/00-kararlar-ve-sozluk.md)):
+
+- Tüm dükkanlar platformun tek WhatsApp numarasını ("Siparişin Önünde") kullanır. Her dükkanın kısa bir **dükkan kodu** (ör. `BOZOK`) ve bu kodla açılan QR'ı/bağlantısı vardır: `wa.me/<ortak numara>?text=Merhaba, Bozok Pide Salonu için sipariş vermek istiyorum. #BOZOK`.
+- Müşteri A dükkanının QR'ını okutursa bot A dükkanı adına yanıt verir (her mesajın ilk satırı kalın dükkan adıdır); B'nin QR'ını okutursa B adına.
+- Müşteri **sonra kodsuz yazarsa**: son 24 saatte konuştuğu dükkan varsa o devam eder. Yoksa "Hangi dükkandan sipariş vermek istersin?" sorulur: son sipariş verdiği en çok 2 dükkan düğme olarak + "Diğer dükkanlar"; hiç dükkanı yoksa dükkan listesi. Dükkan adını ya da kodunu yazmak da yeter; "dükkanlar", "değiştir" komutları seçiciyi açar.
+- Siparişler yine o dükkanın kendi paneline düşer; müşteri, sohbet ve sipariş verisi dükkanlar arasında ayrıdır.
+- İşletme sahibi kodunu, müşteri bağlantısını, QR'ını (PNG/SVG) ve yazdırılabilir masa kartını panelde **Ayarlar > WhatsApp**'ta görür. Kodu ve modu yalnız platform yöneticisi değiştirir (**admin > İşletmeler > WhatsApp**). Kendi numarasını isteyen işletme "kendi numarası" moduna alınır ve numarasını panelden bağlar.
+- Kurulum (tek numara: Meta Cloud API ya da 360dialog): [15 §5](docs/15-kurulum-ve-isletim.md).
 
 ## Geliştirme kuralları
 
@@ -82,7 +93,7 @@ Gereksinimler: Node.js 22+, pnpm 10 (`corepack enable`), PostgreSQL 16+.
    ```bash
    pnpm install
    pnpm db:migrate        # packages/db/migrations/*.sql
-   pnpm db:seed           # demo işletme "Bozok Pide Salonu" (yalnız geliştirme; üretimde çalıştırılmaz)
+   pnpm db:seed           # demo işletmeler "Bozok Pide Salonu" (#BOZOK) ve "Çamlık Döner" (#DONER) (yalnız geliştirme; üretimde çalıştırılmaz)
    # sıfırdan başlamak için: pnpm db:reset && pnpm db:seed   (yalnız *_dev / *_test veritabanları)
    ```
 4. **Çalıştırma:** `pnpm dev` → API `http://localhost:4000` (+ worker), web `http://localhost:3000`.
@@ -97,10 +108,13 @@ Demo hesapları (seed, yalnız geliştirme):
 | Kasiyer | `kasa@siparisinonunde.local` | `kasa1234` | `/panel/giris` |
 | Mutfak | `mutfak@siparisinonunde.local` | `mutfak1234` | `/panel/giris` |
 | Kurye | `kurye@siparisinonunde.local` | `kurye1234` | panel > Kuryeler > giriş bağlantısı |
+| İşletme sahibi (Çamlık Döner) | `doner@siparisinonunde.local` | `doner1234` | `/panel/giris` |
 
-Vitrin: `http://localhost:3000/s/bozok-pide` · Canlı sipariş ekranı: `/panel` ("Vardiyayı başlat").
+Yukarıdaki işletme hesapları Bozok Pide Salonu'na aittir; Çamlık Döner ikinci demo işletmedir (aynı ortak numarada, kodu `DONER`). Seed işletme başına tekrar çalıştırılabilir: var olan işletme atlanır, eksik olan eklenir.
 
-**WhatsApp simülatörü** (`/dev/whatsapp`, yalnız `DEV_TOOLS=1`): gerçek WhatsApp hesabı olmadan uçtan uca akış. İşletme numarası olarak "Bozok Pide Salonu · +905550000001"i seçin, müşteri telefonu yazın ve "merhaba" gönderin → gelen karşılama mesajındaki **Menüyü aç** vitrini Akış A bağlamıyla açar; sipariş verin, paneli izleyin. Akış B için vitrinden doğrudan sipariş verip doğrulama ekranındaki kodu simülatörden `Sipariş kodu: XXXXXX` olarak gönderin. "Bekleyen işleri çalıştır" worker'ı beklemeden kuyruğu işler; "SMS kutusu" ve "Platform uyarıları" sekmeleri mock SMS'leri ve işletme sahibine giden uyarıları gösterir. Aynı uçlar API'de: `/api/v1/dev/*` (14 §6.5).
+Vitrin: `http://localhost:3000/s/bozok-pide` ve `/s/camlik-doner` · Canlı sipariş ekranı: `/panel` ("Vardiyayı başlat").
+
+**WhatsApp simülatörü** (`/dev/whatsapp`, yalnız `DEV_TOOLS=1`): gerçek WhatsApp hesabı olmadan uçtan uca akış. Numara olarak "Siparişin Önünde · ortak numara"yı seçin, müşteri telefonu yazın ve sohbetin altındaki **#BOZOK** çipine basın (Bozok'un QR'ını okutmakla aynı: ön-dolu mesaj gider) → Bozok adına gelen karşılamadaki **Menüyü aç** vitrini Akış A bağlamıyla açar; sipariş verin, paneli izleyin. **#DONER** ile aynı müşteri Çamlık Döner'e geçer; kodsuz yazınca (ya da "değiştir", "dükkanlar") dükkan seçici gelir, butonlar ve liste satırları tıklanır. Sohbet, müşterinin ortak numaradaki tek sohbetidir: her mesajda hangi dükkana gittiği ya da dükkan seçici (platform) olduğu etiketlenir. Akış B için vitrinden doğrudan sipariş verip doğrulama ekranındaki kodu simülatörden `Sipariş kodu: XXXXXX` olarak gönderin. "Bekleyen işleri çalıştır" worker'ı beklemeden kuyruğu işler; "SMS kutusu" ve "Platform uyarıları" sekmeleri mock SMS'leri ve işletme sahibine giden uyarıları gösterir. Aynı uçlar API'de: `/api/v1/dev/*` (14 §6.5).
 
 ## Testler
 
@@ -111,7 +125,7 @@ pnpm --filter @siparis/web test    # web birim testleri
 pnpm e2e                           # Playwright uçtan uca senaryolar (e2e/)
 ```
 
-`pnpm e2e` kendi ortamını kurar: API + worker `:4200`, web `next dev :3200` (`NEXT_DIST_DIR=.next-e2e`), veritabanı `siparis_e2e_test` (yoksa oluşturulur; her koşuda sıfırlanır, migrate + seed edilir ve demo şube saatten bağımsız açık yapılır). Senaryolar 14 §10'dakilerdir: Akış A, Akış B, SMS OTP (WhatsApp'sız mod), ret + geri al, kurye, admin salt-okunur destek oturumu, kayıt + kurulum sihirbazı + test siparişi ve 360 px yatay taşma denetimi. Chromium `/opt/pw-browsers`'tan kullanılır; başka makinede `pnpm exec playwright install chromium`. Faydalı seçenekler: tek dosya `pnpm e2e e2e/01-akis-a.spec.ts`, tarayıcıyı görmek için `--headed`, konsol hatalarını yazdırmak için `E2E_PRINT_CONSOLE=1`; başarısız testin izi `test-results/e2e/**/trace.zip` → `pnpm exec playwright show-trace <dosya>`.
+`pnpm e2e` kendi ortamını kurar: API + worker `:4200`, web `next dev :3200` (`NEXT_DIST_DIR=.next-e2e`), veritabanı `siparis_e2e_test` (yoksa oluşturulur; her koşuda sıfırlanır, migrate + seed edilir ve iki demo şube saatten bağımsız açık yapılır). Senaryolar 14 §10'dakilerdir: Akış A (QR ile ortak numaradan), Akış B, SMS OTP (WhatsApp'sız mod), ret + geri al, kurye, admin salt-okunur destek oturumu, kayıt + kurulum sihirbazı + test siparişi, 360 px yatay taşma denetimi ve ortak numara (iki dükkanın QR'ı, dükkana özel sipariş, ertesi gün kodsuz yazınca dükkan seçici). Chromium `/opt/pw-browsers`'tan kullanılır; başka makinede `pnpm exec playwright install chromium`. Faydalı seçenekler: tek dosya `pnpm e2e e2e/01-akis-a.spec.ts`, tarayıcıyı görmek için `--headed`, konsol hatalarını yazdırmak için `E2E_PRINT_CONSOLE=1`; başarısız testin izi `test-results/e2e/**/trace.zip` → `pnpm exec playwright show-trace <dosya>`.
 
 ## Sunucuya kurulum
 

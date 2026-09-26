@@ -1,7 +1,7 @@
 // Mesaj ve konuşma görünümleri (panel sohbetleri ve dev simülatörü ortak).
 
 import { z } from 'zod';
-import type { messages } from '@siparis/db';
+import type { messages, sharedWaMessages } from '@siparis/db';
 import type { OutboundPayload } from './outbound';
 
 export type MessageRow = typeof messages.$inferSelect;
@@ -26,13 +26,19 @@ export const messageViewSchema = z.object({
   list: z
     .object({
       buttonTitle: z.string(),
-      rows: z.array(z.object({ id: z.string(), title: z.string(), description: z.string().optional() })),
+      /** Satırlar bölüm sırasıyla; `section` bölüm başlığı (ortak numara dükkan listesinde "İlçe, Şehir") */
+      rows: z.array(z.object({ id: z.string(), title: z.string(), description: z.string().optional(), section: z.string().optional() })),
     })
     .optional(),
   location: z.object({ lat: z.number(), lng: z.number(), name: z.string().nullable().optional() }).optional(),
   locationRequest: z.boolean().optional(),
   /** Gelen buton/liste yanıtının kimliği */
   replyId: z.string().optional(),
+  /**
+   * Ortak numara (00 §12a madde 8): mesajın taşıdığı dükkan adı. Gövde zaten "*Dükkan adı*" satırıyla başlar
+   * (WhatsApp'ta kalın); etkileşimli mesajda aynı ad başlıktır (header).
+   */
+  brand: z.string().optional(),
 });
 export type MessageView = z.infer<typeof messageViewSchema>;
 
@@ -57,13 +63,20 @@ export function toMessageView(row: MessageRow, extra: { sentByName?: string | nu
     createdAt: row.createdAt.toISOString(),
   };
   if (row.direction === 'out') {
+    const brand = (payload as unknown as OutboundPayload).brand;
+    if (typeof brand === 'string' && brand) view.brand = brand;
     const spec = (payload as unknown as OutboundPayload).spec;
     if (spec?.type === 'interactive') {
       const i = spec.interactive;
       if (i.kind === 'buttons' && i.buttons?.length) view.buttons = i.buttons.map((b) => ({ id: b.id, title: b.title }));
       if (i.kind === 'cta_url' && i.url) view.cta = { label: i.url.label, url: i.url.href };
       if (i.kind === 'list' && i.list) {
-        view.list = { buttonTitle: i.list.buttonTitle, rows: i.list.sections.flatMap((s) => s.rows.map((r) => ({ id: r.id, title: r.title, ...(r.description ? { description: r.description } : {}) }))) };
+        view.list = {
+          buttonTitle: i.list.buttonTitle,
+          rows: i.list.sections.flatMap((s) =>
+            s.rows.map((r) => ({ id: r.id, title: r.title, ...(r.description ? { description: r.description } : {}), ...(s.title ? { section: s.title } : {}) })),
+          ),
+        };
       }
       if (i.kind === 'location_request') view.locationRequest = true;
     }
@@ -79,4 +92,26 @@ export function toMessageView(row: MessageRow, extra: { sentByName?: string | nu
     }
   }
   return view;
+}
+
+/** Ortak numaranın platform düzeyi mesajı (dükkan seçici vb.; shared_wa_messages) → aynı görünüm. */
+export function toPlatformMessageView(row: typeof sharedWaMessages.$inferSelect): MessageView {
+  return toMessageView({
+    id: row.id,
+    tenantId: '',
+    conversationId: '',
+    direction: row.direction,
+    wamid: row.wamid,
+    kind: row.kind,
+    body: row.body,
+    payload: (row.payload ?? null) as Record<string, unknown> | null,
+    templateName: null,
+    status: row.status,
+    errorCode: row.errorCode,
+    sentBy: row.direction === 'in' ? 'customer' : 'bot',
+    sentByUserId: null,
+    orderId: null,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  });
 }

@@ -21,6 +21,8 @@ x-api-base: &api-base
   build:
     context: .
     dockerfile: docker/api.Dockerfile
+  # WhatsApp: PLATFORM_WA_PROVIDER/API_KEY/PHONE_NUMBER_ID ve ortak numara (00 §12a madde 8) PLATFORM_WA_DISPLAY_PHONE,
+  # PLATFORM_WA_WEBHOOK_TOKEN .env'den okunur (docker/env.production.example); mock dışı sağlayıcıda boşsa api açılmaz.
   env_file: .env
   environment:
     NODE_ENV: production

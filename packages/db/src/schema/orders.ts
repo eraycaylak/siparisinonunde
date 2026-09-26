@@ -340,6 +340,9 @@ export const orderVerificationCodes = pgTable(
   (t) => [
     uniqueIndex('order_verification_codes_order_uk').on(t.orderId),
     uniqueIndex('order_verification_codes_pending_uk').on(t.tenantId, t.code).where(sql`used_at is null`),
+    // Ortak numara (0900): bekleyen kod tüm işletmelerde tekil — yönlendirici kodu işletme bilmeden bulur
+    uniqueIndex('order_verification_codes_pending_code_uk').on(t.code).where(sql`used_at is null`),
+    index('order_verification_codes_code_idx').on(t.code, t.createdAt),
     check('order_verification_codes_code_ck', sql`${t.code} ~ '^[A-HJ-NP-Z2-9]{6}$'`),
   ],
 );

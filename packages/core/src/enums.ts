@@ -423,13 +423,31 @@ export const LEGAL_DOCUMENT_LABELS: Record<LegalDocument, string> = {
 export const LEGAL_DOCUMENT_VERSION = '2026-09-taslak';
 
 // WhatsApp (14 §4, §8)
-export const WA_PROVIDERS = ['mock', 'cloud', 'd360'] as const;
+/**
+ * `shared`: işletme ortak platform numarasını kullanır (00 §12a madde 8). Bu satırın kendi kimlik bilgisi yoktur;
+ * gönderim platform numarasının sağlayıcısıyla (PLATFORM_WA_*) yapılır.
+ */
+export const WA_PROVIDERS = ['mock', 'cloud', 'd360', 'shared'] as const;
 export type WaProvider = (typeof WA_PROVIDERS)[number];
 export const waProviderSchema = zEnum(WA_PROVIDERS);
 export const WA_PROVIDER_LABELS: Record<WaProvider, string> = {
   mock: 'Simülatör',
   cloud: 'Meta Cloud API',
   d360: '360dialog',
+  shared: 'Ortak numara',
+};
+/** İşletmenin kendi numarası için seçilebilen sağlayıcılar (panel "WhatsApp bağlantısı"). */
+export const WA_OWN_PROVIDERS = ['mock', 'cloud', 'd360'] as const;
+export type WaOwnProvider = (typeof WA_OWN_PROVIDERS)[number];
+export const waOwnProviderSchema = zEnum(WA_OWN_PROVIDERS);
+
+/** İşletmenin WhatsApp modu (00 §12a madde 8): ortak platform numarası (varsayılan) ya da kendi numarası. */
+export const WA_MODES = ['shared', 'own'] as const;
+export type WaMode = (typeof WA_MODES)[number];
+export const waModeSchema = zEnum(WA_MODES);
+export const WA_MODE_LABELS: Record<WaMode, string> = {
+  shared: 'Ortak numara',
+  own: 'Kendi numarası',
 };
 
 export const WA_ACCOUNT_STATUSES = ['connected', 'disconnected', 'error'] as const;

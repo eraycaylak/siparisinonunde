@@ -140,6 +140,16 @@ interface Ctx {
   /** Aynı işlemde giden mesajların sırası (createdAt = now + seq ms) */
   seq: number;
   schedule?: BranchSchedule;
+  /**
+   * Ortak numara (00 §12a madde 8): müşteri bu mesajla dükkanı AÇIKÇA seçti (#KOD, dükkan listesi, ad eşleşmesi).
+   * Soğuma süreleri beklenmeden durum kartı / kapalı bilgisi / karşılama (menü linki) gider.
+   */
+  selected?: boolean;
+}
+
+export interface InboundOptions {
+  /** Ortak numara yönlendiricisi: dükkan bu mesajla seçildi (Ctx.selected) */
+  selected?: boolean;
 }
 
 export interface InboundResult {
@@ -284,7 +294,7 @@ async function logNotification(
 // ---------------------------------------------------------------------------
 // Gelen mesaj kaydı
 
-function inboundRecord(ev: Extract<NormalizedWaEvent, { type: 'message' }>): { kind: MessageKind; body: string | null; payload: Record<string, unknown> } {
+export function inboundRecord(ev: Extract<NormalizedWaEvent, { type: 'message' }>): { kind: MessageKind; body: string | null; payload: Record<string, unknown> } {
   const m = ev.message;
   const base: Record<string, unknown> = { type: m.kind };
   if (ev.from.name) base.profileName = ev.from.name;
@@ -328,6 +338,7 @@ export async function handleInboundMessage(
   account: WaAccountRow,
   ev: Extract<NormalizedWaEvent, { type: 'message' }>,
   now: Date = new Date(),
+  opts: InboundOptions = {},
 ): Promise<InboundResult> {
   const senderKey = ev.from.bsuid ?? ev.from.phone;
   if (!senderKey) return { status: 'ignored' };
@@ -383,7 +394,7 @@ export async function handleInboundMessage(
     await tx.update(customers).set({ lastInboundAt: inboundAt }).where(eq(customers.id, customer.id));
 
     const bot = await ensureBotState(tx, tenant.id, conv!.id);
-    const ctx: Ctx = { tx, deps, now, account, tenant, branch, customer, conv: conv!, bot, msg: ev.message, seq: 0 };
+    const ctx: Ctx = { tx, deps, now, account, tenant, branch, customer, conv: conv!, bot, msg: ev.message, seq: 0, selected: opts.selected === true };
     await respond(ctx);
     // Gelen mesajın şube olayı en sonda: yanıt sırasında sipariş satırı (iptal, kod eşleşmesi) şube olay kilidinden
     // ÖNCE kilitlenir — panel işlemleriyle aynı kilit sırası (satır → şube), kilitlenme (40P01) olmaz.
@@ -438,8 +449,11 @@ async function respond(ctx: Ctx): Promise<void> {
     if (await routeButton(ctx, m.id)) return;
   }
 
-  // 5) "yetkili" → insana devir (her durumda)
+  // 5) "yetkili" → insana devir (her durumda; "#KOD yetkili ile görüşmek istiyorum" dükkan seçse de)
   if (m.kind === 'text' && isHandoffRequest(text)) return startHandoff(ctx);
+
+  // 5b) Ortak numara: dükkan bu mesajla seçildi → soğuma beklemeden durum kartı / kapalı bilgisi / karşılama
+  if (ctx.selected) return shopSelected(ctx, silent);
 
   // 6) İnsan modu / opt-out / bot kapalı → otomatik yanıt yok
   if (silent) return;
@@ -490,6 +504,35 @@ async function respond(ctx: Ctx): Promise<void> {
 
 // ---------------------------------------------------------------------------
 // Karşılama
+
+/**
+ * Ortak numarada dükkan seçimi (QR'daki #KOD, dükkan listesi, ad): müşteri bu dükkanla konuşmaya BAŞLADI; sessiz kalmak
+ * yanlış olur. İnsan modu / opt-out / bot kapalıysa yine sessiz (personel görür). Sıra 00 §7 ile aynı: açık sipariş
+ * durum kartı (mesaj iptal isteğiyse iptal akışı) → şube kapalı / duraklatılmış → tam karşılama (menü linki; Akış A).
+ * "yetkili" isteği bundan önce işlenir (respond 5).
+ */
+async function shopSelected(ctx: Ctx, silent: boolean): Promise<void> {
+  if (silent) return;
+  const active = await findActiveOrder(ctx.tx, ctx.tenant.id, ctx.customer.id);
+  if (active) {
+    if (ctx.msg.kind === 'text' && detectIntent(ctx.msg.text) === 'cancel') return cancelIntent(ctx, active);
+    await send(ctx, await statusCard(ctx, active));
+    await markSent(ctx, 'status_card');
+    return;
+  }
+  const sched = await schedule(ctx);
+  if (sched.state === 'closed') {
+    await send(ctx, m03Closed({ isletme: ctx.tenant.name, acilis: sched.acilis, menuUrl: await menuLink(ctx) }));
+    await markSent(ctx, 'closed');
+    return;
+  }
+  if (sched.state === 'paused') {
+    await send(ctx, m04Paused({ devamSaati: sched.pausedUntil ? formatClockTR(sched.pausedUntil) : null, menuUrl: await menuLink(ctx) }));
+    await markSent(ctx, 'paused');
+    return;
+  }
+  return welcome(ctx, { force: true });
+}
 
 async function welcome(ctx: Ctx, opts: { force: boolean }): Promise<void> {
   if (!opts.force) {

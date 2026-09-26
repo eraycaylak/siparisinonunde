@@ -17,6 +17,7 @@ import { storefrontHref } from '@/lib/storefront-url';
 import { VerificationScreen } from '@/components/storefront/checkout/verification-screen';
 import { availableImprintRows } from '@/components/storefront/legal/store-legal';
 import { ImprintDetails, StoreLegalLinks } from '@/components/storefront/legal/store-legal-links';
+import { orderWaHref, reorderWaHref } from '@/lib/wa-links';
 import { changeText, paymentShort, telHref } from './labels';
 
 const trackKey = (token: string) => ['store', 'track', token] as const;
@@ -103,9 +104,9 @@ function TrackingView({ token, data, refetch }: { token: string; data: TrackResp
   const showDelay = o.status === 'new' && noticeAt != null && now >= noticeAt;
   const leftMin = autoCancelAt ? Math.max(1, Math.ceil((autoCancelAt - now) / 60_000)) : null;
   const overdue = o.etaAt && !['delivered', 'rejected', 'cancelled'].includes(o.status) && now > new Date(o.etaAt).getTime() + 10 * 60_000;
-  const waHref = data.business.waPhone
-    ? `https://wa.me/${data.business.waPhone.replace(/\D/g, '')}?text=${encodeURIComponent(`Sipariş #${o.number} hakkında`)}`
-    : null;
+  // Ortak numarada mesaj dükkan koduyla gider (00 §12a madde 8); kendi numarada yalın wa.me
+  const waHref = orderWaHref(data.business, o.number);
+  const reorderHref = reorderWaHref(data.business);
 
   const cancel = async (reason?: string) => {
     setBusy(true);
@@ -278,10 +279,10 @@ function TrackingView({ token, data, refetch }: { token: string; data: TrackResp
         {o.note ? <p className="text-sm">Not: {o.note}</p> : null}
       </section>
 
-      {(o.channel === 'web' || o.channel === 'manual') && waHref ? (
+      {(o.channel === 'web' || o.channel === 'manual') && reorderHref ? (
         <p className="text-sm text-fg-muted">
           Bir dahaki siparişinizi WhatsApp&apos;tan verebilirsiniz.{' '}
-          <a href={`https://wa.me/${data.business.waPhone!.replace(/\D/g, '')}`} className="font-semibold underline underline-offset-4" target="_blank" rel="noreferrer">
+          <a href={reorderHref} className="font-semibold underline underline-offset-4" target="_blank" rel="noreferrer">
             WhatsApp&apos;ı aç
           </a>
         </p>

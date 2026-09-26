@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { ArrowLeft, ExternalLink, ScrollText, ShieldAlert, ShoppingBag } from 'lucide-react';
 import type { AdminOrderRow, AdminTenantDetail, AdminTenantOrdersResponse } from '@siparis/core/admin/contracts';
+import { WA_MODE_LABELS } from '@siparis/core/enums';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { buttonVariants } from '@/components/ui/button';
@@ -23,6 +24,7 @@ import { InfoRow, LoadMore, QueryError, StageBadge, StatCard, useAdminAccess, us
 import { ImpersonateButton } from './impersonate-dialog';
 import { TenantManageForm } from './tenant-manage-form';
 import { TenantNotes } from './tenant-notes';
+import { TenantWhatsappCard } from './tenant-whatsapp';
 import { WaAccountsTable } from './wa-table';
 
 type TabKey = 'genel' | 'whatsapp' | 'siparisler' | 'notlar' | 'uyeler';
@@ -77,6 +79,10 @@ export function TenantDetailScreen({ id }: { id: string }) {
             <Badge variant="outline">{PLAN_CODE_LABELS[t.planCode]}</Badge>
             {!t.orderingEnabled ? <Badge variant="danger">Online sipariş kapalı</Badge> : null}
             {t.isDemo ? <Badge variant="outline">Demo</Badge> : null}
+            <Badge variant={t.waMode === 'shared' ? 'info' : 'outline'}>
+              {WA_MODE_LABELS[t.waMode]}
+              {t.waCode ? ` · #${t.waCode}` : ''}
+            </Badge>
             <span className="text-sm text-fg-muted">{t.slug}</span>
           </div>
         </div>
@@ -119,11 +125,14 @@ export function TenantDetailScreen({ id }: { id: string }) {
           <GeneralTab d={d} />
         </TabsContent>
         <TabsContent value="whatsapp">
-          {d.waAccounts.length ? (
-            <WaAccountsTable items={d.waAccounts} showTenant={false} />
-          ) : (
-            <EmptyState title="WhatsApp hesabı yok" description="İşletme henüz WhatsApp bağlamadı; web siparişleri SMS ile doğrulanır." />
-          )}
+          <div className="flex flex-col gap-4">
+            <TenantWhatsappCard detail={d} />
+            {d.waAccounts.length ? (
+              <WaAccountsTable items={d.waAccounts} showTenant={false} />
+            ) : (
+              <EmptyState title="WhatsApp hesabı yok" description="İşletme henüz WhatsApp bağlamadı; web siparişleri SMS ile doğrulanır." />
+            )}
+          </div>
         </TabsContent>
         <TabsContent value="siparisler">
           <OrdersTab tenantId={t.id} />

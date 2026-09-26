@@ -1,6 +1,7 @@
 // `wa.send` işi: kuyruktaki giden mesajı sağlayıcıya gönderir ve messages.status'u günceller (02 §7.5, §10.1).
 // Hata eşlemesi: 131047 → şablona düş; 131026 → teslim edilemez; 190 / 131042 → hesap 'error' + platform uyarısı
-// (+ kritik durum için SMS yedeği); geçici hatalar → yeniden dene; tükenince 'failed'.
+// (+ kritik durum için SMS yedeği); geçici hatalar → yeniden dene; tükenince 'failed'. Ortak numara satırı
+// ('shared') platform sağlayıcısıyla gönderir (wa/registry.ts providerForAccount).
 
 import { customers, conversations, messages, waAccounts, type Database } from '@siparis/db';
 import { eq } from 'drizzle-orm';
@@ -9,10 +10,11 @@ import type { Config } from '../../config';
 import { enqueueJob } from '../../lib/jobs';
 import { interactiveBody, templateBody, textBody } from '../../wa/cloud-body';
 import { WaSendError, isWaSendError, waErrorSummary } from '../../wa/errors';
-import { getWaProvider, toAccountRef } from '../../wa/registry';
+import { numberSlotKey, providerForAccount, toAccountRef } from '../../wa/registry';
 import { acquireNumberSlot } from '../../wa/throttle';
 import type { WaAccountRef, WaRecipient, WhatsAppProvider } from '../../wa/types';
 import type { OutboundPayload, OutboundSpec } from './outbound';
+import { rememberSharedTenant } from './shared-router';
 import { renderTemplateBody } from './template-bodies';
 
 export interface SendContext {
@@ -123,9 +125,9 @@ export async function performWaSend(ctx: SendContext, messageId: string): Promis
     return 'failed';
   }
 
-  const provider = getWaProvider(account.provider);
+  const provider = providerForAccount(account, config);
   const ref = toAccountRef(account, config);
-  const slotOk = await acquireNumberSlot(account.phoneNumberId ?? account.id);
+  const slotOk = await acquireNumberSlot(numberSlotKey(account));
   if (!slotOk) throw new Error('Numara hız sınırı: gönderim ertelendi');
 
   const attempt = async (spec: OutboundSpec) => {
@@ -145,8 +147,15 @@ export async function performWaSend(ctx: SendContext, messageId: string): Promis
       .where(eq(messages.id, msg.id));
   };
 
+  /** Ortak numara: dükkanın mesajı gitti → kişinin güncel dükkanı yoksa bu dükkan (yanıtı doğru dükkana gider). */
+  const noteShared = async () => {
+    if (account.provider !== 'shared') return;
+    await rememberSharedTenant(db, to, account.tenantId).catch((e: unknown) => log.warn({ err: e, messageId: msg.id }, 'ortak numara yönlendirme kaydı güncellenemedi'));
+  };
+
   try {
     await attempt(payload.spec);
+    await noteShared();
     return 'sent';
   } catch (err) {
     if (!isWaSendError(err)) throw err;
@@ -157,6 +166,7 @@ export async function performWaSend(ctx: SendContext, messageId: string): Promis
           const tpl: OutboundSpec = { type: 'template', ...payload.templateFallback };
           try {
             await attempt(tpl);
+            await noteShared();
             return 'sent';
           } catch (err2) {
             const e2 = isWaSendError(err2) ? err2 : new WaSendError('unknown', String(err2));
@@ -169,7 +179,9 @@ export async function performWaSend(ctx: SendContext, messageId: string): Promis
       }
       case 'account_token':
       case 'account_payment':
-        await pauseAccount(db, account, err);
+        // Ortak numara platformundur: işletmenin satırı duraklatılmaz, işletmeye "bağlantı sorunu" uyarısı gitmez
+        if (account.provider === 'shared') log.error({ code: err.code, messageId: msg.id }, 'ortak numara hesabı hatası (platform)');
+        else await pauseAccount(db, account, err);
         await markFailed(db, msg.id, payload, err.code, waErrorSummary(err));
         await enqueueSmsFallback(db, msg.tenantId, msg.orderId, payload.smsFallback);
         return 'failed';

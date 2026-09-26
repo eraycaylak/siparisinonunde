@@ -11,3 +11,4 @@ export * from './settings-ext';
 export * from './admin-ext';
 export * from './notifications-ext';
 export * from './retention-ext';
+export * from './shared-wa-ext';

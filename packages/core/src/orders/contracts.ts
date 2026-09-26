@@ -434,8 +434,10 @@ export const trackResponseExtSchema = trackResponseSchema.extend({
   }),
   business: baseTrackBusiness.extend({
     slug: z.string(),
-    /** İşletmenin WhatsApp numarası (bağlıysa; "WhatsApp'tan yaz"). */
+    /** İşletmenin WhatsApp numarası (bağlıysa; "WhatsApp'tan yaz"). Ortak numarada platform numarası. */
     waPhone: z.string().nullable(),
+    /** "WhatsApp'tan yaz" bağlantısı: ortak numarada dükkan kodlu ön-dolu metin (#KOD), kendi numarada wa.me. */
+    waLink: z.string().nullable().optional(),
     /**
      * Satıcı künyesi (6563 s. K. m.3; 03 §4.4 S-10): takip sayfasındaki ön bilgilendirme ve mesafeli satış
      * belgeleri sipariş verisiyle birlikte bununla doldurulur.

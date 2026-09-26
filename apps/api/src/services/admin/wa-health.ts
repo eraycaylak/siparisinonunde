@@ -63,7 +63,8 @@ export async function loadWaHealth(db: Database, opts: { tenantId?: string; now?
     const schedule = schedules.get(a.branchId);
     const branchOpen = stateOf(schedule, now).isOpenBySchedule;
     const quietSince = a.lastWebhookAt ? now.getTime() - a.lastWebhookAt.getTime() : Number.POSITIVE_INFINITY;
-    const silent = a.status === 'connected' && quietSince > WA_SILENCE_MS && openThroughout(schedule, WA_SILENCE_MS, now);
+    // Ortak numarada webhook platformundur; tek dükkana mesaj gelmemesi bağlantı sorunu değildir (sessizlik sayılmaz)
+    const silent = a.provider !== 'shared' && a.status === 'connected' && quietSince > WA_SILENCE_MS && openThroughout(schedule, WA_SILENCE_MS, now);
     const failed24h = c?.failed ?? 0;
     const health: AdminWaAccount['health'] =
       a.status === 'error' ? 'red' : silent || a.status === 'disconnected' || failed24h > 0 ? 'yellow' : 'green';

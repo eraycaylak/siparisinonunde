@@ -15,16 +15,27 @@ import {
   lifecycleTransitionPermission,
 } from '@siparis/core/admin/lifecycle';
 import { SALES_REP_MAX_TRIAL_EXTENSION_DAYS, adminCan, type AdminPermission } from '@siparis/core/admin/permissions';
-import { LIFECYCLE_STAGE_LABELS, type LifecycleStage, type SubscriptionStatus, type SuspensionReason } from '@siparis/core';
+import {
+  LIFECYCLE_STAGE_LABELS,
+  WA_CODE_PROBLEM_MESSAGES,
+  normalizeWaCode,
+  waCodeProblem,
+  type LifecycleStage,
+  type SubscriptionStatus,
+  type SuspensionReason,
+  type WaMode,
+} from '@siparis/core';
 import { auditLog, subscriptions, tenants } from '@siparis/db';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, ne, sql } from 'drizzle-orm';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { AppError, badRequest, conflict, forbidden, notFound } from '../../lib/errors';
 import { currentSubscription, listTenantOrders, listTenants, loadTenantDetail } from '../../services/admin/tenants';
 import { adminActor, adminAudit, auditSensitiveRead, requireAdmin } from '../../services/admin/util';
+import { applyWaMode } from '../../services/messaging/shared';
 
 const paramsSchema = z.object({ id: z.uuid() });
+const waCodeTaken = () => conflict('wa_code_taken', 'Bu dükkan kodu başka bir işletmede kullanılıyor.');
 const DAY_MS = 86400000;
 
 type Change = { from: unknown; to: unknown };
@@ -72,7 +83,8 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     },
   );
 
-  // PATCH /admin/tenants/:id — plan, aşama, askı sebebi, sipariş alma, deneme bitişi, abonelik; gerekçe zorunlu
+  // PATCH /admin/tenants/:id — plan, aşama, askı sebebi, sipariş alma, deneme bitişi, abonelik, dükkan kodu ve
+  // WhatsApp modu (ortak numara / kendi numarası; 00 §12a madde 8); gerekçe zorunlu
   app.patch(
     '/tenants/:id',
     {
@@ -88,7 +100,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         if (!adminCan(role, perm)) throw forbidden(message ?? 'Bu değişiklik için yetkiniz yok.');
       };
 
-      await app.db.transaction(async (tx) => {
+      const saved = app.db.transaction(async (tx) => {
         const [t] = await tx.select().from(tenants).where(eq(tenants.id, tenantId)).for('update');
         if (!t) throw notFound('İşletme bulunamadı.');
         const sub = await currentSubscription(tx, tenantId);
@@ -221,12 +233,35 @@ const routes: FastifyPluginAsyncZod = async (app) => {
           }
         }
 
+        // Ortak numara (00 §12a madde 8): dükkan kodu (tekil, QR'daki #KOD) ve WhatsApp modu
+        if (body.waCode !== undefined) {
+          const code = normalizeWaCode(body.waCode);
+          const problem = code ? waCodeProblem(code) : 'format';
+          if (!code || problem) {
+            const message = WA_CODE_PROBLEM_MESSAGES[problem ?? 'format'];
+            throw new AppError(400, 'invalid_wa_code', message, { issues: [{ path: '/waCode', message }] });
+          }
+          if (code !== t.waCode) {
+            need('tenants:whatsapp', 'Dükkan kodunu yalnız platform yöneticisi değiştirebilir.');
+            const [taken] = await tx.select({ id: tenants.id }).from(tenants).where(and(eq(tenants.waCode, code), ne(tenants.id, tenantId)));
+            if (taken) throw waCodeTaken();
+            tenantPatch.waCode = code;
+            tenantChanges.waCode = { from: t.waCode ?? null, to: code };
+          }
+        }
+        let waModeChange: WaMode | null = null;
+        if (body.waMode !== undefined && body.waMode !== t.waMode) {
+          need('tenants:whatsapp', 'WhatsApp modunu yalnız platform yöneticisi değiştirebilir.');
+          waModeChange = body.waMode;
+          tenantChanges.waMode = { from: t.waMode, to: body.waMode };
+        }
+
         if (targetSubStatus && targetSubStatus !== sub?.status) {
           subPatch.status = targetSubStatus;
           subChanges.status = { from: sub?.status ?? null, to: targetSubStatus };
         }
 
-        const tenantChanged = Object.keys(tenantPatch).length > 0;
+        const tenantChanged = Object.keys(tenantPatch).length > 0 || waModeChange !== null;
         const subChanged = Object.keys(subChanges).length > 0;
         if (!tenantChanged && !subChanged) {
           throw badRequest('Değişiklik yok: gönderilen değerler zaten güncel.', undefined, 'no_changes');
@@ -237,6 +272,8 @@ const routes: FastifyPluginAsyncZod = async (app) => {
             .update(tenants)
             .set({ ...tenantPatch, version: sql`${tenants.version} + 1` })
             .where(eq(tenants.id, tenantId));
+          // Mod değişince WhatsApp hesap satırı da çevrilir (ortak numara satırı açılır ya da kapatılır)
+          if (waModeChange) await applyWaMode(tx, app.config, tenantId, waModeChange);
           await adminAudit(tx, actor, {
             tenantId,
             action: 'admin.tenant_update',
@@ -276,6 +313,11 @@ const routes: FastifyPluginAsyncZod = async (app) => {
             });
           }
         }
+      });
+      await saved.catch((err: unknown) => {
+        // Eşzamanlı aynı kod: benzersiz indeks (tenants_wa_code_uk)
+        if ((err as { code?: string } | null)?.code === '23505') throw waCodeTaken();
+        throw err;
       });
 
       const detail = await loadTenantDetail(app.db, tenantId, role);

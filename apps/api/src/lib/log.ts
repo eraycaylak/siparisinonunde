@@ -3,8 +3,11 @@
 
 const MASK = '***';
 
-/** Yolda belirteç taşıyan uçlar: /store/track/<token>…, /webhooks/wa/<token>… */
-const TOKEN_PATHS = [/(\/store\/track\/)[^/?#]+/, /(\/webhooks\/wa\/)[^/?#]+/];
+/**
+ * Yolda belirteç taşıyan uçlar: /store/track/<token>…, /webhooks/wa/<token>…, ortak numara /webhooks/wa/shared/<token>…
+ * (ortak numaranın belirteci platformun tek girişidir; 360dialog'da imza olmadığından tek kimlik doğrulamadır).
+ */
+const TOKEN_PATHS = [/(\/store\/track\/)[^/?#]+/, /(\/webhooks\/wa\/(?:shared\/)?)[^/?#]+/];
 
 /** Log için URL: sorgu değerleri ve yol belirteçleri maskeli ("?phone=***"). */
 export function redactUrlForLog(url: string | undefined): string | undefined {

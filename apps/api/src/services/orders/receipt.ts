@@ -48,6 +48,8 @@ export function buildReceipt(input: {
   settings?: unknown;
   /** Bağlı WhatsApp numarası (E.164); yoksa WhatsApp satırı basılmaz */
   waPhone?: string | null;
+  /** Ortak numarada dükkan kodu (00 §12a madde 8): satıra "#KOD" eklenir, müşteri doğru dükkana bağlanır */
+  waCode?: string | null;
   now?: Date;
 }): Receipt {
   const { order, type } = input;
@@ -99,7 +101,10 @@ export function buildReceipt(input: {
     trackingUrl: kitchen ? null : input.trackingUrl,
     footer: kitchen ? 'MUTFAK FİŞİ' : 'Mali değeri yoktur.',
     layout: { widthMm: st.width_mm, fontSize: st.font_size, copies: st.copies, showLogo: st.show_logo },
-    waLine: !kitchen && st.show_wa_line && input.waPhone ? `${RECEIPT_WA_LINE}: ${formatPhone(input.waPhone)}` : null,
+    waLine:
+      !kitchen && st.show_wa_line && input.waPhone
+        ? `${RECEIPT_WA_LINE}: ${formatPhone(input.waPhone)}${input.waCode ? ` · #${input.waCode}` : ''}`
+        : null,
     footerText: !kitchen && footerText ? footerText : null,
     printPlan: { auto: st.auto_print, kitchen: st.print_kitchen, delivery: st.print_delivery },
   };

@@ -1,5 +1,6 @@
 // Ortam değişkenleri (14 §3), Zod ile doğrulanır.
 
+import { MOCK_SHARED_WA_DISPLAY_PHONE } from '@siparis/core';
 import { resolve } from 'node:path';
 import { z } from 'zod';
 
@@ -42,6 +43,17 @@ export const configSchema = z.object({
   PLATFORM_WA_API_KEY: optionalString,
   /** cloud: platform numarasının Graph phone_number_id'si (d360'ta gerekmez) */
   PLATFORM_WA_PHONE_NUMBER_ID: optionalString,
+  /**
+   * Ortak numara (00 §12a madde 8): platform numarasının E.164 gösterimi (wa.me bağlantıları, QR, Akış B). Uyarılar ve
+   * müşteri siparişleri aynı platform numarasını kullanır. Boşsa mock'ta +905550000000; üretimde (mock dışı) zorunlu.
+   */
+  PLATFORM_WA_DISPLAY_PHONE: optionalString.refine((v) => v === undefined || /^\+[1-9]\d{7,14}$/.test(v), {
+    message: 'PLATFORM_WA_DISPLAY_PHONE E.164 biçiminde olmalı (ör. +908501234567)',
+  }),
+  /** Ortak numara webhook yolundaki gizli belirteç: /api/v1/webhooks/wa/shared/<belirteç>. Boşsa ortak webhook kapalı. */
+  PLATFORM_WA_WEBHOOK_TOKEN: optionalString.refine((v) => v === undefined || /^[A-Za-z0-9_-]{8,200}$/.test(v), {
+    message: 'PLATFORM_WA_WEBHOOK_TOKEN 8–200 karakter olmalı (harf, rakam, - ve _): openssl rand -hex 24',
+  }),
   SMS_PROVIDER: z.enum(['mock', 'netgsm']).default('mock'),
   NETGSM_USERCODE: optionalString,
   NETGSM_PASSWORD: optionalString,
@@ -129,6 +141,18 @@ export function productionConfigErrors(c: ParsedConfig): string[] {
   if (c.PLATFORM_WA_PROVIDER === 'cloud' && !c.PLATFORM_WA_PHONE_NUMBER_ID) {
     errors.push('PLATFORM_WA_PROVIDER=cloud için PLATFORM_WA_PHONE_NUMBER_ID zorunlu');
   }
+  // Ortak numaranın webhook'u platformun tek girişidir: Cloud API'de imzasız olay kabul edilmez (yalnız URL belirteci
+  // yetmez; belirteç loga ya da yedeğe sızarsa sahte olay gönderilebilir)
+  if (c.PLATFORM_WA_PROVIDER === 'cloud' && !c.WA_APP_SECRET) {
+    errors.push('PLATFORM_WA_PROVIDER=cloud için WA_APP_SECRET zorunlu (ortak numara webhook imzası, X-Hub-Signature-256)');
+  }
+  // Ortak numara (00 §12a madde 8): QR/wa.me bağlantıları ve ortak webhook
+  if (c.PLATFORM_WA_PROVIDER !== 'mock' && !c.PLATFORM_WA_DISPLAY_PHONE) {
+    errors.push(`PLATFORM_WA_PROVIDER=${c.PLATFORM_WA_PROVIDER} için PLATFORM_WA_DISPLAY_PHONE zorunlu (ortak numara, E.164)`);
+  }
+  if (c.PLATFORM_WA_PROVIDER !== 'mock' && (!c.PLATFORM_WA_WEBHOOK_TOKEN || c.PLATFORM_WA_WEBHOOK_TOKEN.length < 16 || c.PLATFORM_WA_WEBHOOK_TOKEN.startsWith('dev'))) {
+    errors.push(`PLATFORM_WA_PROVIDER=${c.PLATFORM_WA_PROVIDER} için PLATFORM_WA_WEBHOOK_TOKEN zorunlu (en az 16 karakter, örnek değer olamaz: openssl rand -hex 24)`);
+  }
   return errors;
 }
 
@@ -140,9 +164,24 @@ export function productionConfigWarnings(c: Pick<Config, 'NODE_ENV' | 'SMS_PROVI
   if (c.NODE_ENV !== 'production') return [];
   const out: string[] = [];
   if (c.SMS_PROVIDER === 'mock') out.push('SMS_PROVIDER=mock: SMS OTP ve alarm SMS\'leri gönderilmez');
-  if (c.PLATFORM_WA_PROVIDER === 'mock') out.push('PLATFORM_WA_PROVIDER=mock: işletme sahibine platform WhatsApp uyarıları gönderilmez');
+  if (c.PLATFORM_WA_PROVIDER === 'mock') {
+    out.push("PLATFORM_WA_PROVIDER=mock: ortak numara kapalı (vitrinde, QR'da ve sipariş onayında WhatsApp bağlantısı gösterilmez) ve işletme sahibine platform WhatsApp uyarıları gönderilmez");
+  }
   if (c.WA_DEFAULT_PROVIDER === 'mock') out.push('WA_DEFAULT_PROVIDER=mock: yeni WhatsApp hesapları taklit sağlayıcıyla açılır');
   return out;
+}
+
+/**
+ * Ortak numaranın E.164 gösterimi: yapılandırılmışsa o; mock'ta geliştirme numarası yalnız geliştirme/test ortamında ve
+ * dev dağıtımında (DEPLOY_ENV=dev, simülatör). Üretimde mock iken null: kimsenin okumadığı +905550000000 vitrinde, QR'da ve
+ * Akış B'de gösterilmez; ortak numara satırı numarasız kalır, web siparişleri SMS ile doğrulanır.
+ */
+export function platformDisplayPhone(
+  c: Pick<Config, 'PLATFORM_WA_DISPLAY_PHONE' | 'PLATFORM_WA_PROVIDER' | 'NODE_ENV' | 'DEPLOY_ENV'>,
+): string | null {
+  if (c.PLATFORM_WA_DISPLAY_PHONE) return c.PLATFORM_WA_DISPLAY_PHONE;
+  if (c.PLATFORM_WA_PROVIDER !== 'mock') return null;
+  return c.NODE_ENV !== 'production' || c.DEPLOY_ENV === 'dev' ? MOCK_SHARED_WA_DISPLAY_PHONE : null;
 }
 
 /** VAPID anahtarlarının üçü de dolu mu (Web Push açık). */

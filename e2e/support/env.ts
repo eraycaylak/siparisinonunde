@@ -71,8 +71,22 @@ export function ensureBrowsersPath(): void {
 export const DEMO = {
   slug: 'bozok-pide',
   tenantName: 'Bozok Pide Salonu',
-  waDisplayPhone: '+905550000001',
+  // Ortak numara (00 §12a madde 8): demo işletmeler platform numarasını kullanır (seed DEMO.waDisplayPhone)
+  waDisplayPhone: '+905550000000',
+  /** Dükkan kodu (QR'daki #KOD) */
+  waCode: 'BOZOK',
   owner: { email: 'demo@siparisinonunde.local', password: 'demo1234' },
   admin: { email: 'admin@siparisinonunde.local', password: 'admin1234' },
   courier: { name: 'Burak Kurye' },
 } as const;
+
+/** İkinci demo işletme (seed): aynı ortak numarada, kodu DONER. */
+export const DONER = {
+  slug: 'camlik-doner',
+  tenantName: 'Çamlık Döner',
+  waCode: 'DONER',
+  owner: { email: 'doner@siparisinonunde.local', password: 'doner1234' },
+} as const;
+
+/** Simülatördeki ortak numara seçeneği (components/whatsapp/simulator.tsx). */
+export const SHARED_NUMBER_LABEL = 'Siparişin Önünde · ortak numara';

@@ -603,7 +603,15 @@ export const onboardingStatusSchema = z.object({
   steps: z.array(onboardingStepSchema),
   doneCount: z.number().int(),
   totalCount: z.number().int(),
-  whatsapp: z.object({ connected: z.boolean(), whatsappless: z.boolean(), displayPhone: z.string().nullable() }),
+  whatsapp: z.object({
+    connected: z.boolean(),
+    whatsappless: z.boolean(),
+    displayPhone: z.string().nullable(),
+    /** 00 §12a madde 8: 'shared' ortak numara (kayıtta hazır), 'own' kendi numarası */
+    mode: z.enum(['shared', 'own']).optional(),
+    /** Ortak numarada dükkan kodu */
+    code: z.string().nullable().optional(),
+  }),
   testOrder: z.object({ id: uuid, number: z.number().int(), status: orderStatusSchema, testKind: testKindSchema }).nullable(),
   canGoLiveWeb: z.boolean(),
   canGoLiveFull: z.boolean(),

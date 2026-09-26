@@ -1,9 +1,26 @@
 'use client';
 
 import { useEffect, useState, type FormEvent } from 'react';
-import { CircleCheck, CircleX, Copy, MessageSquareOff, PlugZap, RefreshCw, Send, ShieldCheck, TriangleAlert, Unplug } from 'lucide-react';
+import {
+  CircleCheck,
+  CircleX,
+  Copy,
+  MessageCircle,
+  MessageSquareOff,
+  PlugZap,
+  QrCode,
+  RefreshCw,
+  Send,
+  ShieldCheck,
+  Smartphone,
+  TriangleAlert,
+  Unplug,
+  Users,
+} from 'lucide-react';
 import { toast } from 'sonner';
+import type { PanelWhatsappResponse } from '@siparis/core';
 import { PasswordInput } from '@/components/auth/password-input';
+import { useTenantSettings } from '@/components/settings/api';
 import {
   Alert,
   Badge,
@@ -19,37 +36,26 @@ import {
   PageHeader,
   RadioGroup,
   Skeleton,
+  buttonVariants,
 } from '@/components/ui';
 import { apiFetch, errorMessage, fieldErrorsOf, isApiError, useApiQuery } from '@/lib/api';
 import { formatDateTime, formatRelative } from '@/lib/format';
+import { supportWhatsappHref } from '@/lib/site';
 import { useQueryClient } from '@tanstack/react-query';
+import { CustomerLinkField, QrDownloadLinks, svgDataUri, TableCardPrinter } from './shop-qr';
 
+/** Kendi numara için sağlayıcılar (ortak numara satırı 'shared' bu formda seçilmez). */
 type Provider = 'mock' | 'cloud' | 'd360';
 
-interface WhatsappSettings {
-  account: {
-    id: string;
-    provider: Provider;
-    providerLabel: string;
-    displayPhone: string | null;
-    displayPhoneFormatted: string | null;
-    phoneNumberId: string | null;
-    wabaId: string | null;
-    hasApiKey: boolean;
-    apiKeyMasked: string | null;
-    status: 'connected' | 'disconnected' | 'error';
-    statusLabel: string;
-    lastWebhookAt: string | null;
-    lastError: string | null;
-    webhookUrl: string;
-    updatedAt: string;
-  } | null;
-  health: { level: 'ok' | 'warning' | 'error' | 'none'; message: string; sentLast24h: number; failedLast24h: number; lastOutboundAt: string | null; lastInboundAt: string | null };
-  smsFallback: { tenantEnabled: boolean; platformEnabled: boolean; active: boolean };
-  providers: { value: Provider; label: string }[];
-}
+/** GET /panel/whatsapp yanıtı (core contracts/whatsapp.ts panelWhatsappResponseSchema). */
+type WhatsappSettings = PanelWhatsappResponse;
 
 const KEY = ['panel', 'whatsapp'] as const;
+
+/** Hesabın kendi-numara sağlayıcısı ('shared' satırı formda 360dialog'a düşer). */
+function ownProvider(acc: WhatsappSettings['account']): Provider {
+  return !acc || acc.provider === 'shared' ? 'd360' : acc.provider;
+}
 
 /** Bağlantı kesilmiş hesap: webhook adresi çalışmaz, mesaj gitmez; yeniden bağlamak için anahtar girilir. */
 function isDisconnected(acc: WhatsappSettings['account']): boolean {
@@ -125,7 +131,7 @@ function HealthCard({ data }: { data: WhatsappSettings }) {
 function ConnectionForm({ data }: { data: WhatsappSettings }) {
   const qc = useQueryClient();
   const acc = data.account;
-  const [provider, setProvider] = useState<Provider>(acc?.provider ?? 'd360');
+  const [provider, setProvider] = useState<Provider>(ownProvider(acc));
   const [displayPhone, setDisplayPhone] = useState(acc?.displayPhoneFormatted ?? '');
   const [phoneNumberId, setPhoneNumberId] = useState(acc?.provider === 'mock' ? '' : (acc?.phoneNumberId ?? ''));
   const [wabaId, setWabaId] = useState(acc?.wabaId ?? '');
@@ -136,7 +142,7 @@ function ConnectionForm({ data }: { data: WhatsappSettings }) {
 
   useEffect(() => {
     if (!acc) return;
-    setProvider(acc.provider);
+    setProvider(ownProvider(acc));
     setDisplayPhone(acc.displayPhoneFormatted ?? '');
     setPhoneNumberId(acc.provider === 'mock' ? '' : (acc.phoneNumberId ?? ''));
     setWabaId(acc.wabaId ?? '');
@@ -300,7 +306,7 @@ function DisconnectCard({ data }: { data: WhatsappSettings }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const smsReady = data.smsFallback.tenantEnabled && data.smsFallback.platformEnabled;
-  const provider = data.account?.provider ?? 'd360';
+  const provider = ownProvider(data.account);
   const disconnect = async () => {
     setBusy(true);
     try {
@@ -354,7 +360,7 @@ function DisconnectCard({ data }: { data: WhatsappSettings }) {
   );
 }
 
-function TestCard({ enabled, disabledHint }: { enabled: boolean; disabledHint: string }) {
+function TestCard({ enabled, disabledHint, description }: { enabled: boolean; disabledHint: string; description?: string }) {
   const qc = useQueryClient();
   const [to, setTo] = useState('');
   const [sending, setSending] = useState(false);
@@ -377,7 +383,9 @@ function TestCard({ enabled, disabledHint }: { enabled: boolean; disabledHint: s
     <Card>
       <CardHeader>
         <CardTitle>Test mesajı</CardTitle>
-        <CardDescription>Boş bırakırsanız hesabınızdaki telefona gider. Gerçek sağlayıcıda, test numarası son 24 saatte işletme numaranıza yazmış olmalıdır.</CardDescription>
+        <CardDescription>
+          {description ?? 'Boş bırakırsanız hesabınızdaki telefona gider. Gerçek sağlayıcıda, test numarası son 24 saatte işletme numaranıza yazmış olmalıdır.'}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={send} className="flex flex-col gap-3 sm:flex-row sm:items-end">
@@ -455,34 +463,256 @@ function SmsModeCard({ data }: { data: WhatsappSettings }) {
   );
 }
 
-/** /panel/ayarlar/whatsapp (04 P-25) — yalnız işletme sahibi. */
+// ---------------------------------------------------------------------------
+// Ortak numara (00 §12a madde 8): varsayılan mod. İşletmenin bağlayacağı bir şey yoktur; QR ve bağlantı paylaşılır.
+
+type SharedInfo = NonNullable<WhatsappSettings['shared']>;
+
+function SharedNumberCard({ data, shared }: { data: WhatsappSettings; shared: SharedInfo }) {
+  const { health } = data;
+  const tone =
+    health.level === 'ok'
+      ? { Icon: CircleCheck, badge: 'success' as const, label: 'Sipariş alıyor' }
+      : health.level === 'error'
+        ? { Icon: CircleX, badge: 'danger' as const, label: 'Hata' }
+        : { Icon: TriangleAlert, badge: 'warning' as const, label: 'Dikkat' };
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle>Ortak numara</CardTitle>
+          <Badge variant={tone.badge}>
+            <tone.Icon aria-hidden />
+            {tone.label}
+          </Badge>
+        </div>
+        <p className="text-lg font-bold text-fg">Siparişleriniz ortak {shared.displayName} numarasından gelir.</p>
+        <CardDescription>
+          Ayrı bir WhatsApp numarası bağlamanız gerekmez. Müşteriniz QR kodunuzu okutunca ya da dükkan kodunuzu yazınca doğrudan size bağlanır;
+          her mesajda dükkanınızın adı görünür ve siparişler bu panele düşer. Başka dükkanların müşterileri ve siparişleri sizinkilerden ayrıdır.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+          <div>
+            <dt className="text-fg-muted">Dükkan kodunuz</dt>
+            <dd className="font-mono text-2xl font-bold tracking-wide">{shared.code ? `#${shared.code}` : '—'}</dd>
+          </div>
+          <div>
+            <dt className="text-fg-muted">WhatsApp numarası</dt>
+            <dd className="font-semibold">{shared.displayPhoneFormatted ?? 'Henüz yapılandırılmadı'}</dd>
+          </div>
+          <div>
+            <dt className="text-fg-muted">Müşterinin gördüğü ad</dt>
+            <dd className="font-semibold">{shared.displayName}</dd>
+          </div>
+        </dl>
+        {!shared.selectable && shared.selectableReason ? <Alert variant="warning">{shared.selectableReason}</Alert> : null}
+        {health.level !== 'ok' && health.message !== shared.selectableReason ? (
+          <Alert variant={health.level === 'error' ? 'danger' : 'warning'}>{health.message}</Alert>
+        ) : null}
+        <p className="text-sm text-fg-muted">
+          Dükkan kodunu yalnız Siparişin Önünde ekibi değiştirebilir; kod değişirse eski QR’lar çalışmaz. Son 24 saat: {health.sentLast24h} mesaj gönderildi
+          {health.failedLast24h ? ` · ${health.failedLast24h} gönderilemedi` : ''}
+          {health.lastInboundAt ? ` · son gelen mesaj ${formatRelative(health.lastInboundAt)}` : ''}.
+        </p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SharedHowItWorks({ shared }: { shared: SharedInfo }) {
+  const steps = [
+    { Icon: QrCode, text: 'Müşteri masadaki, kapıdaki ya da paketteki QR kodunuzu okutur.' },
+    {
+      Icon: MessageCircle,
+      text: `WhatsApp, “${shared.prefillText ?? `#${shared.code ?? ''}`}” mesajıyla ${shared.displayName} numarasına açılır; müşteri gönder’e basar.`,
+    },
+    { Icon: Smartphone, text: 'Bot dükkanınızın adıyla karşılar ve “Menüyü aç” bağlantısını gönderir; sipariş panelinize sesli düşer.' },
+    {
+      Icon: Users,
+      text: 'Müşteri sonra kodsuz yazarsa son sipariş verdiği dükkanlar düğme olarak sorulur; dükkan adınızı ya da kodunuzu yazması da yeterlidir.',
+    },
+  ];
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Nasıl çalışır?</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ol className="flex flex-col gap-3">
+          {steps.map((s, i) => (
+            <li key={s.text} className="flex items-start gap-3 text-sm leading-6">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-surface font-bold" aria-hidden>
+                {i + 1}
+              </span>
+              <span className="flex items-start gap-2">
+                <s.Icon aria-hidden className="mt-1 size-4 shrink-0 text-fg-muted" />
+                {s.text}
+              </span>
+            </li>
+          ))}
+        </ol>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SharedLinkCard({ shared }: { shared: SharedInfo }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Müşteri bağlantısı</CardTitle>
+        <CardDescription>
+          Instagram profilinize, Google işletme kaydınıza ya da müşterilerinize gönderin. Bağlantı WhatsApp’ı dükkan kodunuzla açar.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {shared.waLink ? (
+          <CustomerLinkField link={shared.waLink} />
+        ) : (
+          <Alert variant="warning">Ortak numara henüz yapılandırılmadığı için bağlantı oluşturulamadı.</Alert>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SharedQrCard({ shared }: { shared: SharedInfo }) {
+  const tenant = useTenantSettings();
+  const qrSrc = shared.qrSvg ? svgDataUri(shared.qrSvg) : null;
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>QR kodunuz</CardTitle>
+        <CardDescription>
+          PNG’yi matbaaya verebilir, SVG’yi tasarımcınıza gönderebilir ya da hazır masa kartını yazdırabilirsiniz. Afiş ve paket kartı için “QR ve afiş” sayfasına bakın.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-5">
+        {qrSrc ? (
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={qrSrc} alt={`Dükkan QR kodu (#${shared.code ?? ''})`} width={176} height={176} className="size-44 shrink-0 self-center rounded-md border border-border bg-white sm:self-auto" />
+            <div className="flex min-w-0 flex-1 flex-col gap-3">
+              <p className="text-sm text-fg-muted">
+                Okutunca WhatsApp’ta hazır mesaj: <span className="font-semibold text-fg">{shared.prefillText}</span>
+              </p>
+              <QrDownloadLinks />
+            </div>
+          </div>
+        ) : (
+          <Alert variant="warning">QR kodu oluşturulamadı: ortak numara henüz yapılandırılmadı.</Alert>
+        )}
+        {qrSrc && shared.code ? (
+          <div className="flex flex-col gap-2 border-t border-border pt-4">
+            <h3 className="text-base font-semibold text-fg">Masa kartı</h3>
+            <TableCardPrinter
+              shopName={tenant.data?.name ?? 'İşletmeniz'}
+              code={shared.code}
+              qrSrc={qrSrc}
+              phoneFormatted={shared.displayPhoneFormatted}
+              brandColor={tenant.data?.brandColor}
+              logoUrl={tenant.data?.logoUrl}
+            />
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Ortak numaradaki işletmeye kendi numara seçeneği: geçişi platform yapar (PUT ortak numarada 409 wa_shared_mode). */
+function OwnNumberOffer() {
+  const wa = supportWhatsappHref('Merhaba, kendi WhatsApp numaramla sipariş almak istiyorum. İşletme adı: ');
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Kendi numaranızı bağlayın</CardTitle>
+        <CardDescription>İsteğe bağlı. Çoğu işletme için ortak numara yeterlidir.</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <ul className="flex list-disc flex-col gap-1 ps-5 text-sm leading-6">
+          <li>Müşterileriniz sohbet başlığında kendi işletme adınızı görür; dükkan kodu gerekmez.</li>
+          <li>Numaranız resmi WhatsApp Business Platform’a bir aracı firma (360dialog) ya da doğrudan Meta üzerinden bağlanır.</li>
+          <li>Numara başına aylık aracı firma ücreti ve Meta mesaj ücretleri ayrıca faturalanır; bu nedenle üst pakette sunulur.</li>
+          <li>Geçişi ekibimiz yapar; ardından bu sayfada sağlayıcı bilgilerinizi girersiniz. Sohbet ve sipariş geçmişiniz korunur.</li>
+        </ul>
+        {wa ? (
+          <a href={wa} target="_blank" rel="noreferrer" className={buttonVariants({ variant: 'secondary', className: 'self-start' })}>
+            <MessageCircle aria-hidden />
+            Bize yazın
+          </a>
+        ) : (
+          <p className="text-sm font-semibold text-fg">Kendi numaranıza geçmek için destek hattımızdan bize ulaşın.</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SharedModeView({ data, shared }: { data: WhatsappSettings; shared: SharedInfo }) {
+  return (
+    <>
+      <SharedNumberCard data={data} shared={shared} />
+      <SharedLinkCard shared={shared} />
+      <SharedQrCard shared={shared} />
+      <SharedHowItWorks shared={shared} />
+      <TestCard
+        enabled={!!data.account && data.account.status === 'connected'}
+        disabledHint="Ortak numara henüz hazır değil."
+        description={`Ortak numaradan (${shared.displayName}) test mesajı gönderir. Boş bırakırsanız hesabınızdaki telefona gider; başka bir numaraya yalnız son 24 saatte size yazmış bir müşterinize gönderebilirsiniz (10 dakikada en çok 3 test). Gerçek numarada, test telefonundan son 24 saatte ortak numaraya yazılmış olmalıdır (ör. QR kodunuzu okutup mesajı gönderin).`}
+      />
+      <OwnNumberOffer />
+    </>
+  );
+}
+
+function OwnModeView({ data }: { data: WhatsappSettings }) {
+  const acc = data.account;
+  return (
+    <>
+      <HealthCard data={data} />
+      <ConnectionForm data={data} />
+      {acc && !isDisconnected(acc) && acc.webhookUrl ? <WebhookCard url={acc.webhookUrl} provider={ownProvider(acc)} /> : null}
+      <TestCard
+        enabled={!!acc && !isDisconnected(acc)}
+        disabledHint={isDisconnected(acc) ? 'Bağlantı kesik. Yeniden bağlamak için yukarıdaki bilgileri kaydedin.' : 'Önce numaranızı kaydedin.'}
+      />
+      <SmsModeCard data={data} />
+      <Guide360 />
+      {acc && !isDisconnected(acc) ? <DisconnectCard data={data} /> : null}
+    </>
+  );
+}
+
+/** /panel/ayarlar/whatsapp (04 P-25) — yalnız işletme sahibi. Ortak numarada QR ve bağlantı, kendi numarada bağlantı ayarları. */
 export function WhatsappSettingsPage() {
   const q = useApiQuery<WhatsappSettings>([...KEY], '/panel/whatsapp');
+  const shared = q.data?.mode === 'shared' ? q.data.shared : null;
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
-      <PageHeader title="WhatsApp bağlantısı" description="Numaranız, bağlantı sağlığı ve test mesajı. Siparişin Önünde yalnız resmi WhatsApp Business Platform’u kullanır." />
+      <PageHeader
+        title="WhatsApp"
+        description={
+          shared
+            ? 'Ortak numara, dükkan kodunuz, müşteri bağlantınız ve QR kodunuz. Siparişin Önünde yalnız resmi WhatsApp Business Platform’u kullanır.'
+            : 'Numaranız, bağlantı sağlığı ve test mesajı. Siparişin Önünde yalnız resmi WhatsApp Business Platform’u kullanır.'
+        }
+      />
       {q.isPending ? (
         <div className="flex flex-col gap-4">
           <Skeleton className="h-40" />
           <Skeleton className="h-80" />
         </div>
       ) : q.isError ? (
-        <Alert variant={isApiError(q.error) && q.error.status === 403 ? 'warning' : 'danger'} title="Bağlantı bilgileri açılamadı">
-          {isApiError(q.error) && q.error.status === 403 ? 'WhatsApp bağlantısını yalnız işletme sahibi yönetebilir.' : errorMessage(q.error)}
+        <Alert variant={isApiError(q.error) && q.error.status === 403 ? 'warning' : 'danger'} title="WhatsApp bilgileri açılamadı">
+          {isApiError(q.error) && q.error.status === 403 ? 'WhatsApp ayarlarını yalnız işletme sahibi yönetebilir.' : errorMessage(q.error)}
         </Alert>
+      ) : shared ? (
+        <SharedModeView data={q.data} shared={shared} />
       ) : (
-        <>
-          <HealthCard data={q.data} />
-          <ConnectionForm data={q.data} />
-          {q.data.account && !isDisconnected(q.data.account) ? <WebhookCard url={q.data.account.webhookUrl} provider={q.data.account.provider} /> : null}
-          <TestCard
-            enabled={!!q.data.account && !isDisconnected(q.data.account)}
-            disabledHint={isDisconnected(q.data.account) ? 'Bağlantı kesik. Yeniden bağlamak için yukarıdaki bilgileri kaydedin.' : 'Önce numaranızı kaydedin.'}
-          />
-          <SmsModeCard data={q.data} />
-          <Guide360 />
-          {q.data.account && !isDisconnected(q.data.account) ? <DisconnectCard data={q.data} /> : null}
-        </>
+        <OwnModeView data={q.data} />
       )}
     </div>
   );

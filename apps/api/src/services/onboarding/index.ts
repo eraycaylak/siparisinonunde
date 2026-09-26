@@ -1,6 +1,6 @@
 // Onboarding sihirbazı (04 §3): adım durumları, "WhatsApp'sız başla", test siparişi ve canlıya geçiş (Kapı 1/2).
 
-import type { OrderSummary } from '@siparis/core';
+import { formatPhone, type OrderSummary } from '@siparis/core';
 import { ONBOARDING_STEP_LABELS, type OnboardingStatus, type OnboardingStep, type OnboardingStepCode } from '@siparis/core/settings/contracts';
 import {
   branches,
@@ -128,7 +128,13 @@ export async function onboardingStatus(db: Database, tenantId: string): Promise<
     Boolean(connected) || whatsappless,
     false,
     ['WhatsApp bağlantısı ya da "WhatsApp\'sız başla"'],
-    connected ? `Bağlı: ${connected.displayPhone ?? ''}`.trim() : whatsappless ? 'WhatsApp\'sız mod: siparişler web ve SMS ile' : null,
+    connected
+      ? connected.provider === 'shared'
+        ? `Ortak numara${connected.displayPhone ? `: ${formatPhone(connected.displayPhone)}` : ''}${tenant.waCode ? ` · Dükkan kodu ${tenant.waCode}` : ''}`
+        : `Bağlı: ${connected.displayPhone ?? ''}`.trim()
+      : whatsappless
+        ? 'WhatsApp\'sız mod: siparişler web ve SMS ile'
+        : null,
   );
 
   push('test_order', Boolean(testOrder), false, ['Test siparişi'], testOrder ? `#${testOrder.number}` : null);
@@ -162,7 +168,7 @@ export async function onboardingStatus(db: Database, tenantId: string): Promise<
     steps,
     doneCount: steps.filter((s) => s.done).length,
     totalCount: steps.length,
-    whatsapp: { connected: Boolean(connected), whatsappless, displayPhone: connected?.displayPhone ?? null },
+    whatsapp: { connected: Boolean(connected), whatsappless, displayPhone: connected?.displayPhone ?? null, mode: tenant.waMode, code: tenant.waCode ?? null },
     testOrder: testOrder && testOrder.testKind ? { id: testOrder.id, number: testOrder.number, status: testOrder.status, testKind: testOrder.testKind } : null,
     canGoLiveWeb: missingForWeb.length === 0,
     canGoLiveFull: missingForFull.length === 0,

@@ -77,7 +77,7 @@ export function buildInboundPayload(
   acc: DevAccount,
   from: DevSender,
   message: DevInboundMessage,
-  opts: { wamid?: string; at?: Date } = {},
+  opts: { wamid?: string; at?: Date; contextWamid?: string } = {},
 ): { payload: Record<string, unknown>; wamid: string } {
   const wamid = opts.wamid ?? `wamid.dev.${randomUUID()}`;
   const at = opts.at ?? new Date();
@@ -87,6 +87,8 @@ export function buildInboundPayload(
   if (from.bsuid) contact.user_id = from.bsuid;
   if (from.username) contact.username = from.username;
   const msg: Record<string, unknown> = { id: wamid, timestamp: ts(at), ...messageObject(message) };
+  // Yanıtlanan mesaj (buton/liste yanıtında ve "yanıtla"da Meta context.id gönderir)
+  if (opts.contextWamid) msg.context = { id: opts.contextWamid };
   if (phone) msg.from = phone;
   else if (from.bsuid) msg.from = from.bsuid;
   if (from.bsuid) msg.from_user_id = from.bsuid;

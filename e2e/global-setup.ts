@@ -1,10 +1,10 @@
 // Playwright globalSetup: e2e veritabanını sıfırlar (packages/db betikleri: reset + migrate + seed),
-// demo şubesini saatten bağımsız açık yapar (00:00–23:59) ve next dev'in ilk derlemesini ısıtır.
+// demo şubelerini (Bozok, Çamlık Döner) saatten bağımsız açık yapar (00:00–23:59) ve next dev'in ilk derlemesini ısıtır.
 // Not: Playwright webServer'ları globalSetup'tan ÖNCE başlatır; API/worker yeniden bağlanmaya dayanıklıdır.
 
 import type { FullConfig } from '@playwright/test';
 import { ensureDatabase, makeBranchAlwaysOpen, runDbScript } from './support/db';
-import { DEMO, WEB_URL } from './support/env';
+import { DEMO, DONER, WEB_URL } from './support/env';
 
 /** next dev rotaları ilk istekte derler; testlerde zaman aşımı olmasın diye önceden istenir. */
 const WARM_ROUTES = [
@@ -40,5 +40,7 @@ export default async function globalSetup(_config: FullConfig): Promise<void> {
   runDbScript('migrate');
   runDbScript('seed');
   await makeBranchAlwaysOpen(DEMO.slug);
+  // Ortak numaranın ikinci dükkanı (09-ortak-numara): seçilince karşılama gelsin (kapalı bilgisi değil)
+  await makeBranchAlwaysOpen(DONER.slug);
   if (process.env.E2E_SKIP_WARMUP !== '1') await warmUp();
 }

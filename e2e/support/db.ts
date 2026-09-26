@@ -74,3 +74,31 @@ export async function setWaAccountStatus(slug: string, status: 'connected' | 'di
       where tenant_id = (select id from tenants where slug = ${slug})`;
   });
 }
+
+/**
+ * İşletmeyi "kendi numarası, henüz bağlanmamış" moduna alır (admin PATCH waMode 'own' ile aynı etki; 00 §12a madde 8):
+ * kayıtta açılan ortak numara satırı bağlantısız mock satırına döner. WhatsApp'sız mod (SMS OTP) senaryosu için.
+ */
+export async function setOwnNumberNotConnected(slug: string): Promise<void> {
+  await withSql(async (sql) => {
+    await sql`update tenants set wa_mode = 'own' where slug = ${slug}`;
+    await sql`
+      update wa_accounts set provider = 'mock', status = 'disconnected', display_phone = null, last_error = null, updated_at = now()
+      where tenant_id = (select id from tenants where slug = ${slug})`;
+  });
+}
+
+/**
+ * Ortak numara yönlendirme kaydını geriye alır ("ertesi gün"): son yönlendirme `hours` saat önceye çekilir, seçici
+ * soğuması temizlenir. Böylece kodsuz mesaj etkin dükkana değil dükkan seçiciye düşer (24 saat kuralı, 14 §8.1).
+ */
+export async function ageSharedRoute(phoneE164: string, hours: number): Promise<void> {
+  await withSql(async (sql) => {
+    const rows = await sql`
+      update shared_wa_routes
+         set last_routed_at = now() - make_interval(hours => ${hours}), last_inbound_at = now() - make_interval(hours => ${hours}), last_picker_at = null
+       where phone_e164 = ${phoneE164}
+       returning id`;
+    if (!rows.length) throw new Error(`Yönlendirme kaydı yok: ${phoneE164}`);
+  });
+}

@@ -1,6 +1,7 @@
 import { MessageCircle, Phone } from 'lucide-react';
 import type { StorefrontView } from '@siparis/core/menu/contracts';
 import { formatPhone } from '@/lib/format';
+import { storefrontWaHref } from '@/lib/wa-links';
 import { availableImprintRows } from './legal/store-legal';
 import { ImprintDetails, StoreLegalLinks } from './legal/store-legal-links';
 
@@ -12,11 +13,13 @@ import { ImprintDetails, StoreLegalLinks } from './legal/store-legal-links';
 export function StorefrontFooter({ store }: { store: StorefrontView }) {
   const phone = store.branch.phone ?? store.tenant.phone;
   const rows = availableImprintRows({ name: store.tenant.name, legal: store.legal, branchAddress: store.branch.address });
+  // Ortak numarada bağlantı dükkan kodlu ön-dolu mesajla açılır (#KOD; 00 §12a madde 8)
+  const waHref = storefrontWaHref(store.tenant);
   return (
     <div className="flex w-full flex-col items-center gap-2">
-      {store.tenant.whatsappPhone ? (
+      {waHref ? (
         <a
-          href={`https://wa.me/${store.tenant.whatsappPhone.replace(/\D/g, '')}`}
+          href={waHref}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex min-h-hit-sf items-center gap-2 rounded-md px-3 text-base font-semibold text-[var(--brand-strong)] underline-offset-4 hover:underline"

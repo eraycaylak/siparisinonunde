@@ -2,7 +2,7 @@
 // Seçiciler rol + erişilebilir ad üzerinden (metinler 14 §9 / 03 §9 ile aynı).
 
 import { expect, type Locator, type Page } from '@playwright/test';
-import { DEMO } from './env';
+import { DEMO, SHARED_NUMBER_LABEL } from './env';
 
 /** Tam etiket eşleşmesi; zorunlu alanlardaki "*" işaretini (aria-hidden) yok sayar. */
 export function labelRe(text: string): RegExp {
@@ -31,15 +31,26 @@ export function orderCard(page: Page, number: number | string): Locator {
   return page.getByRole('article', { name: `Sipariş ${number}`, exact: true });
 }
 
-/** /dev/whatsapp simülatöründe müşteri kimliğini ayarlar (işletme numarası: demo hesap). */
+/**
+ * /dev/whatsapp simülatöründe müşteri kimliğini ayarlar. Numara: ortak numara (00 §12a madde 8; demo işletmeler
+ * platformun tek numarasını kullanır). Dükkan QR'ı `scanShopQr` ile okutulur.
+ */
 export async function openSimulator(page: Page, customer: { phone: string; name: string }): Promise<void> {
   await page.goto('/dev/whatsapp');
   await expect(page.getByRole('heading', { name: 'WhatsApp simülatörü' })).toBeVisible();
-  const account = page.getByLabel('İşletme numarası');
-  await expect(account.locator('option', { hasText: DEMO.tenantName })).toHaveCount(1);
-  await account.selectOption({ label: `${DEMO.tenantName} · ${DEMO.waDisplayPhone}` });
+  const number = page.getByLabel('WhatsApp numarası');
+  await expect(number.locator('option', { hasText: SHARED_NUMBER_LABEL })).toHaveCount(1);
+  await number.selectOption({ label: SHARED_NUMBER_LABEL });
   await page.getByLabel('Müşteri telefonu').fill(customer.phone);
   await page.getByLabel('Profil adı').fill(customer.name);
+}
+
+/** Simülatörde dükkanın QR'ını okutur: QR'daki ön-dolu mesaj ("… için sipariş vermek istiyorum. #KOD") ortak numaraya gider. */
+export async function scanShopQr(page: Page, code: string): Promise<void> {
+  const sent = page.getByText(new RegExp(`için sipariş vermek istiyorum\\. #${code}$`));
+  const before = await sent.count();
+  await page.getByRole('button', { name: `#${code}`, exact: true }).click();
+  await expect.poll(() => sent.count(), { message: `#${code} mesajı sohbete düşmeli` }).toBeGreaterThan(before);
 }
 
 /** Simülatörde müşteri olarak yazar. */

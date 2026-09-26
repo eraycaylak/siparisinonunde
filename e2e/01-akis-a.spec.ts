@@ -1,21 +1,24 @@
-// Senaryo 1 — Akış A (00 §7, 14 §10): WhatsApp sohbeti → "Menüyü aç" linki → vitrinde seçenekli ürün →
-// checkout → sipariş doğrudan `new` → panel canlı ekranında görünür → "Onayla" → müşteriye "onaylandı" mesajı.
+// Senaryo 1 — Akış A (00 §7, 14 §10): müşteri dükkanın QR'ını okutur (ortak numaraya #BOZOK; 00 §12a madde 8) →
+// Bozok adına karşılama + "Menüyü aç" linki → vitrinde seçenekli ürün → checkout → sipariş doğrudan `new` → panel
+// canlı ekranında görünür → "Onayla" → müşteriye "onaylandı" mesajı.
 // 60 sn "alındı" debounce'u beklenmez: onay birleşik M06c'yi hemen kuyruğa atar, /api/v1/dev/jobs/flush işler.
 
 import { expect, test } from './support/test';
 import { apiLogin, demoWaAccount, flushJobs, newApiContext, uniqueName, uniquePhone, waThread } from './support/api';
 import { DEMO } from './support/env';
-import { goToCheckout, labelRe, loginPanel, openSimulator, orderCard, simulatorSend, skipShiftStart } from './support/ui';
+import { goToCheckout, labelRe, loginPanel, openSimulator, orderCard, scanShopQr, skipShiftStart } from './support/ui';
 
 test('Akış A: sohbetten menü linki, seçenekli ürün, panelde onay ve WhatsApp "onaylandı" mesajı', async ({ page, openContext, request }) => {
   const customer = { phone: uniquePhone(), name: uniqueName('Ayşe') };
 
-  // 1) Müşteri WhatsApp'tan "merhaba" yazar → karşılama + "Menüyü aç" CTA
+  // 1) Müşteri dükkanın QR'ını okutur → ortak numaraya "… #BOZOK" gider → Bozok adına karşılama + "Menüyü aç" CTA
   await openSimulator(page, customer);
-  await simulatorSend(page, 'merhaba');
+  await scanShopQr(page, DEMO.waCode);
   const menuLink = page.getByRole('link', { name: 'Menüyü aç' });
   await expect(menuLink).toBeVisible();
-  await expect(page.getByText(/WhatsApp sipariş hattına hoş geldiniz/)).toBeVisible();
+  await expect(page.getByText(`${DEMO.tenantName} WhatsApp sipariş hattına hoş geldiniz`, { exact: false })).toBeVisible();
+  // Ortak numarada her mesaj dükkan adıyla (kalın ilk satır) başlar
+  await expect(page.locator('strong', { hasText: DEMO.tenantName })).toBeVisible();
   const menuUrl = await menuLink.getAttribute('href');
   expect(menuUrl).toMatch(new RegExp(`/s/${DEMO.slug}\\?l=`));
 
@@ -92,7 +95,7 @@ test('Akış A: sohbetten menü linki, seçenekli ürün, panelde onay ve WhatsA
 test('Akış A gel-al: telefon boş bırakılır, WhatsApp bağlantısındaki numara kullanılır', async ({ page }) => {
   const customer = { phone: uniquePhone(), name: uniqueName('Fatma') };
   await openSimulator(page, customer);
-  await simulatorSend(page, 'merhaba');
+  await scanShopQr(page, DEMO.waCode);
   const menuUrl = await page.getByRole('link', { name: 'Menüyü aç' }).getAttribute('href');
 
   const shop = await page.context().newPage();

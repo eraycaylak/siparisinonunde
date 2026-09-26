@@ -19,6 +19,10 @@ const PLATFORM_TABLES = new Set([
   'sms_messages',
   // İmha tutanağı: tüm tabloya uygulanan saklama adımlarında tenant yoktur; tenant silinse de satır kalır (08 §2.8 satır 18)
   'retention_runs',
+  // Ortak numara (00 §12a madde 8): kişinin hangi dükkanla konuştuğu (yönlendirme; birden çok tenant'ı kapsar, 24 ay
+  // hareketsizlikte silinir) ve hiçbir dükkanın sohbetine girmeyen platform mesajları (dükkan seçici; 30 gün)
+  'shared_wa_routes',
+  'shared_wa_messages',
 ]);
 
 describe('şema', () => {

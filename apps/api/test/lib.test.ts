@@ -1,7 +1,10 @@
 // DB gerektirmeyen yardımcılar: parola, şifreleme, token, takip token'ı, hız sınırı, yapılandırma.
 
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { devToolsAllowed, loadConfig, productionConfigWarnings } from '../src/config';
+import { devToolsAllowed, loadConfig, platformDisplayPhone, productionConfigWarnings } from '../src/config';
 import { createEncryptor } from '../src/lib/encryption';
 import { redactUrlForLog } from '../src/lib/log';
 import { hashPassword, verifyPassword } from '../src/lib/password';
@@ -135,7 +138,32 @@ describe('config', () => {
       expect(loadConfig({ ...prod, SMS_PROVIDER: 'netgsm', NETGSM_USERCODE: 'u', NETGSM_PASSWORD: 'p', NETGSM_HEADER: 'SIPARISNDE' }).SMS_PROVIDER).toBe('netgsm');
       expect(() => loadConfig({ ...prod, PLATFORM_WA_PROVIDER: 'd360', PLATFORM_WA_API_KEY: '' })).toThrow(/PLATFORM_WA_API_KEY/);
       expect(() => loadConfig({ ...prod, PLATFORM_WA_PROVIDER: 'cloud', PLATFORM_WA_API_KEY: 'k' })).toThrow(/PLATFORM_WA_PHONE_NUMBER_ID/);
-      expect(loadConfig({ ...prod, PLATFORM_WA_PROVIDER: 'd360', PLATFORM_WA_API_KEY: 'k' }).PLATFORM_WA_PROVIDER).toBe('d360');
+      // Ortak numara (00 §12a madde 8): gerçek platform sağlayıcısında gösterim numarası ve webhook belirteci zorunlu
+      const shared = { PLATFORM_WA_DISPLAY_PHONE: '+908501234567', PLATFORM_WA_WEBHOOK_TOKEN: 'a'.repeat(32) };
+      expect(() => loadConfig({ ...prod, PLATFORM_WA_PROVIDER: 'd360', PLATFORM_WA_API_KEY: 'k', PLATFORM_WA_WEBHOOK_TOKEN: shared.PLATFORM_WA_WEBHOOK_TOKEN })).toThrow(
+        /PLATFORM_WA_DISPLAY_PHONE/,
+      );
+      expect(() => loadConfig({ ...prod, PLATFORM_WA_PROVIDER: 'd360', PLATFORM_WA_API_KEY: 'k', PLATFORM_WA_DISPLAY_PHONE: shared.PLATFORM_WA_DISPLAY_PHONE })).toThrow(
+        /PLATFORM_WA_WEBHOOK_TOKEN/,
+      );
+      expect(() => loadConfig({ ...prod, PLATFORM_WA_PROVIDER: 'd360', PLATFORM_WA_API_KEY: 'k', ...shared, PLATFORM_WA_WEBHOOK_TOKEN: 'dev-shared-webhook-token' })).toThrow(
+        /PLATFORM_WA_WEBHOOK_TOKEN/,
+      );
+      expect(() => loadConfig({ ...prod, PLATFORM_WA_PROVIDER: 'd360', PLATFORM_WA_API_KEY: 'k', ...shared, PLATFORM_WA_DISPLAY_PHONE: '0850 123 45 67' })).toThrow(
+        /PLATFORM_WA_DISPLAY_PHONE/,
+      );
+      expect(loadConfig({ ...prod, PLATFORM_WA_PROVIDER: 'd360', PLATFORM_WA_API_KEY: 'k', ...shared }).PLATFORM_WA_PROVIDER).toBe('d360');
+      // mock'ta zorunlu değil; üretimde geliştirme numarası (+905550000000) GÖSTERİLMEZ (kimse okumaz): numara yok
+      expect(platformDisplayPhone(loadConfig(prod))).toBeNull();
+      expect(platformDisplayPhone(loadConfig({ ...prod, PLATFORM_WA_DISPLAY_PHONE: '+908501234567' }))).toBe('+908501234567');
+      expect(platformDisplayPhone(loadConfig({ ...prod, DEPLOY_ENV: 'dev', DEV_TOOLS: '1' }))).toBe('+905550000000');
+      expect(platformDisplayPhone(loadConfig({ ...base }))).toBe('+905550000000');
+      expect(platformDisplayPhone(loadConfig({ ...prod, PLATFORM_WA_PROVIDER: 'd360', PLATFORM_WA_API_KEY: 'k', ...shared }))).toBe('+908501234567');
+    });
+    it('Cloud API ortak numarasında webhook imzası (WA_APP_SECRET) zorunlu', () => {
+      const cloud = { ...prod, PLATFORM_WA_PROVIDER: 'cloud', PLATFORM_WA_API_KEY: 'k', PLATFORM_WA_PHONE_NUMBER_ID: '123', PLATFORM_WA_DISPLAY_PHONE: '+908501234567', PLATFORM_WA_WEBHOOK_TOKEN: 'a'.repeat(32) };
+      expect(() => loadConfig(cloud)).toThrow(/WA_APP_SECRET/);
+      expect(loadConfig({ ...cloud, WA_APP_SECRET: 'meta-app-secret' }).PLATFORM_WA_PROVIDER).toBe('cloud');
     });
     it('dev dağıtımı (DEPLOY_ENV=dev): DEV_TOOLS yalnız tüm sağlayıcılar mock iken kabul edilir', () => {
       const dev = { ...prod, DEPLOY_ENV: 'dev', DEV_TOOLS: '1' };
@@ -162,7 +190,28 @@ describe('log URL maskeleme', () => {
     expect(redactUrlForLog('/api/v1/panel/conversations?q=0532&limit=20')).toBe('/api/v1/panel/conversations?q=***&limit=***');
     expect(redactUrlForLog('/api/v1/store/track/abc.def/cancel')).toBe('/api/v1/store/track/***/cancel');
     expect(redactUrlForLog('/api/v1/webhooks/wa/wh-token-1?hub.verify_token=x')).toBe('/api/v1/webhooks/wa/***?hub.verify_token=***');
+    // Ortak numara: belirteç "shared/" parçasından sonra gelir
+    expect(redactUrlForLog('/api/v1/webhooks/wa/shared/gizli-ortak-belirtec-0123456789?hub.mode=subscribe')).toBe(
+      '/api/v1/webhooks/wa/shared/***?hub.mode=***',
+    );
+    expect(redactUrlForLog('/api/v1/webhooks/wa/shared/gizli-ortak-belirtec-0123456789')).not.toContain('gizli');
     expect(redactUrlForLog('/api/v1/health')).toBe('/api/v1/health');
     expect(redactUrlForLog('/api/v1/health?')).toBe('/api/v1/health');
+  });
+
+  it('Caddy erişim logu kuralı (Caddyfile) ortak numara belirtecini de maskeler', () => {
+    const caddyfile = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../../../Caddyfile'), 'utf8');
+    const rules = [...caddyfile.matchAll(/request>uri regexp "([^"]+)" "([^"]+)"/g)];
+    expect(rules.length).toBeGreaterThanOrEqual(2);
+    for (const [, pattern, replacement] of rules) {
+      // RE2 sözdizimi burada JS ile aynı; Caddy'nin ${1} → JS'de $1
+      const re = new RegExp(pattern!, 'g');
+      const repl = replacement!.replace(/\$\{(\d)\}/g, '$$$1');
+      expect('/api/v1/webhooks/wa/shared/gizli-ortak-belirtec-0123'.replace(re, repl)).toBe('/api/v1/webhooks/wa/shared/***');
+      expect('/wa/shared/gizli-ortak-belirtec-0123'.replace(re, repl)).toBe('/wa/shared/***');
+      expect('/api/v1/webhooks/wa/wh-token-1'.replace(re, repl)).toBe('/api/v1/webhooks/wa/***');
+      expect('/api/v1/store/track/abc.def/cancel'.replace(re, repl)).toBe('/api/v1/store/track/***/cancel');
+      expect('/kurye/giris?t=gizli&x=1'.replace(re, repl)).toBe('/kurye/giris?t=***&x=1');
+    }
   });
 });

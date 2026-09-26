@@ -2,7 +2,7 @@
 // Kurallar: yalnız aktif ve silinmemiş kayıtlar; wa_restricted ürünler listelenmez (00 §6.10);
 // sold_out_until > now → soldOut; zorunlu grubu karşılanamayan ürün de tükendi sayılır (04 §6.3).
 
-import { computeOrderingState, DEFAULT_TIMEZONE, isValidSlug, localDateString, type LifecycleStage, type OrderingState } from '@siparis/core';
+import { computeOrderingState, DEFAULT_TIMEZONE, isValidSlug, localDateString, sharedPrefillText, type LifecycleStage, type OrderingState } from '@siparis/core';
 import type { StorefrontView } from '@siparis/core/menu/contracts';
 import {
   branches,
@@ -19,6 +19,7 @@ import {
   type Database,
 } from '@siparis/db';
 import { and, asc, desc, eq, gte, inArray, isNull } from 'drizzle-orm';
+import { whatsappLinkFor } from '../messaging/shared';
 
 /** Online sipariş kapalı sayılan yaşam döngüsü aşamaları (05 §dunning: askı ve kapanış). */
 export const ORDERING_BLOCKED_STAGES: readonly LifecycleStage[] = ['suspended', 'churned'];
@@ -137,7 +138,7 @@ export async function loadStorefront(db: Database, rawSlug: string, now: Date = 
       )
       .orderBy(asc(products.sort), asc(products.name)),
     db
-      .select({ displayPhone: waAccounts.displayPhone })
+      .select({ displayPhone: waAccounts.displayPhone, provider: waAccounts.provider })
       .from(waAccounts)
       .where(and(eq(waAccounts.tenantId, tenant.id), eq(waAccounts.branchId, branch.id), eq(waAccounts.status, 'connected')))
       .limit(1),
@@ -213,6 +214,9 @@ export async function loadStorefront(db: Database, rawSlug: string, now: Date = 
   // Canlıya geçmeden (künye onaylanmadan) kayıttaki telefonlar işletme telefonu olarak yayımlanmaz
   const live = tenant.webLiveAt != null;
   const pub = <T,>(v: T | null | undefined): T | null => (live ? (v ?? null) : null);
+  // WhatsApp: ortak numarada platform numarası + dükkan kodlu ön-dolu bağlantı (00 §12a madde 8), kendi numarada wa.me
+  const wa = waRows[0]?.displayPhone ? waRows[0] : null;
+  const sharedWa = wa?.provider === 'shared' && tenant.waCode ? { code: tenant.waCode, prefill: sharedPrefillText(tenant.name, tenant.waCode) } : null;
 
   return {
     tenant: {
@@ -222,7 +226,11 @@ export async function loadStorefront(db: Database, rawSlug: string, now: Date = 
       logoUrl: tenant.logoUrl,
       coverUrl: tenant.coverUrl,
       phone: pub(tenant.phone ?? branch.phone),
-      whatsappPhone: pub(waRows[0]?.displayPhone),
+      whatsappPhone: pub(wa?.displayPhone),
+      whatsappLink: pub(wa ? whatsappLinkFor(wa, tenant) : null),
+      whatsappMode: pub(wa ? (wa.provider === 'shared' ? 'shared' : 'own') : null),
+      whatsappCode: pub(sharedWa?.code),
+      whatsappPrefillText: pub(sharedWa?.prefill),
     },
     branch: {
       id: branch.id,

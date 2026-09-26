@@ -78,8 +78,12 @@ export interface TestContext {
   truncateAll(): Promise<void>;
   createUser(opts?: Partial<Omit<TestUser, 'id'>> & { isPlatformAdmin?: boolean; platformRole?: string | null }): Promise<TestUser>;
   addMember(tenantId: string, userId: string, role: TenantRole, branchId?: string | null): Promise<void>;
-  /** Tenant + şube (7/24 açık) + sahip + üyelik + deneme aboneliği; sahibin çerezi hazır. */
-  createTenantWithOwner(opts?: { name?: string; slug?: string }): Promise<TestTenant>;
+  /**
+   * Tenant + şube (7/24 açık) + sahip + üyelik + deneme aboneliği; sahibin çerezi hazır. WhatsApp modu varsayılan
+   * 'own' (mevcut testler işletmeye özel numarayla yazılmıştır); ortak numara testleri waMode 'shared' verir
+   * (wa-helpers setupSharedTenant 'shared' satırını da açar).
+   */
+  createTenantWithOwner(opts?: { name?: string; slug?: string; waMode?: 'shared' | 'own'; waCode?: string | null }): Promise<TestTenant>;
   /** Tenant'a rol ile personel ekler ve çerezini döner. */
   createStaff(tenantId: string, role: TenantRole, opts?: { branchId?: string | null }): Promise<{ user: TestUser; cookie: string }>;
   /** Doğrudan oturum (scrypt olmadan hızlı): "sid=…" */
@@ -161,7 +165,15 @@ export async function createTestContext(opts: { config?: Config } = {}): Promise
       const [t] = await db
         .insert(tenants)
         // Canlı işletme (web_live_at dolu): storefront sipariş alır
-        .values({ name: o.name ?? `Test İşletme ${slug}`, slug, lifecycleStage: 'trial', planCode: 'pro', webLiveAt: new Date() })
+        .values({
+          name: o.name ?? `Test İşletme ${slug}`,
+          slug,
+          lifecycleStage: 'trial',
+          planCode: 'pro',
+          webLiveAt: new Date(),
+          waMode: o.waMode ?? 'own',
+          waCode: o.waCode ?? null,
+        })
         .returning();
       const [b] = await db.insert(branches).values({ tenantId: t!.id, name: 'Merkez', lat: 39.8181, lng: 34.8147 }).returning();
       await db

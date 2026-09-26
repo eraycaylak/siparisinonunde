@@ -1,10 +1,13 @@
 // Dilim 4 — onboarding: adım durumları, WhatsApp'sız başla, test siparişi (onboarding_test, 'new', SSE olayı),
 // canlıya geçiş (Kapı 1 / Kapı 2), eksik listesi; yetki ve yalıtım. Kayıttan (signup) başlayan gerçek akış.
+// Ortak numara (00 §12a madde 8): kayıtta işletme ortak numarada ve WhatsApp adımı hazırdır; WhatsApp'sız akışı sınamak
+// için işletme sonra kendi numara moduna (bağlantısız) alınır.
 
 import { auditLog, branchEvents, orders, products, tenantOnboarding, tenants, waAccounts } from '@siparis/db';
 import { and, desc, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { cookieFrom, createTestContext, expectError, type TestContext, type TestTenant } from './helpers';
+import { applyWaMode } from '../src/services/messaging/shared';
 import { createProduct } from './settings-helpers';
 
 let ctx: TestContext;
@@ -17,7 +20,7 @@ let other: TestTenant;
 const req = (method: 'GET' | 'POST' | 'PATCH' | 'PUT', url: string, cookie: string, body?: unknown) =>
   ctx.request({ method, url: `/api/v1/panel${url}`, cookie, body });
 
-type Step = { code: string; done: boolean; missing: string[] };
+type Step = { code: string; done: boolean; missing: string[]; detail: string | null };
 const stepOf = (body: { steps: Step[] }, code: string) => body.steps.find((s) => s.code === code)!;
 
 beforeAll(async () => {
@@ -51,12 +54,17 @@ describe('GET /panel/onboarding', () => {
     expect(stepOf(body, 'business_info').missing).toEqual(expect.arrayContaining(['VKN/TCKN', 'Unvan ya da ad-soyad']));
     expect(stepOf(body, 'menu').done).toBe(false);
     expect(stepOf(body, 'zones').done).toBe(false);
-    expect(stepOf(body, 'whatsapp').done).toBe(false);
+    // Ortak numara kayıtta hazır: dükkan kodu slug'dan (kurulum-pide → KURULUM)
+    expect(stepOf(body, 'whatsapp').done).toBe(true);
+    expect(stepOf(body, 'whatsapp').detail).toBe('Ortak numara: 0555 000 00 00 · Dükkan kodu KURULUM');
+    expect(body.whatsapp).toMatchObject({ connected: true, whatsappless: false, displayPhone: '+905550000000', mode: 'shared', code: 'KURULUM' });
     expect(body.canGoLiveWeb).toBe(false);
     expect(body.missingForWeb.length).toBeGreaterThan(0);
     expect(body).toMatchObject({ branchId, lifecycleStage: 'trial', testOrder: null, liveAt: null, webLiveAt: null });
     const [ob] = await ctx.db.select().from(tenantOnboarding).where(eq(tenantOnboarding.tenantId, tenantId));
-    expect(ob!.step).toBe('account_created');
+    expect(ob!.step).toBe('wa_connected');
+    const [acc] = await ctx.db.select().from(waAccounts).where(eq(waAccounts.tenantId, tenantId));
+    expect(acc).toMatchObject({ provider: 'shared', status: 'connected', branchId, displayPhone: '+905550000000', apiKeyEnc: null, phoneNumberId: null });
   });
 
   it('canlıya geçiş eksikken 409 ve eksikler; test siparişi menüsüz 409', async () => {
@@ -69,6 +77,8 @@ describe('GET /panel/onboarding', () => {
 
 describe('adımları tamamla → test siparişi → canlıya geç', () => {
   it('işletme bilgisi, menü, bölge + WhatsApp\'sız başla', async () => {
+    // Kendi numara moduna geçmiş ama henüz bağlamamış işletme (admin PATCH waMode 'own' ile aynı)
+    await applyWaMode(ctx.db, ctx.config, tenantId, 'own');
     expect(
       (await req('PATCH', '/tenant', owner, { legalName: 'Eray Çaylak', taxNo: '12345678901', address: 'Yozgat Merkez' })).statusCode,
     ).toBe(200);
@@ -154,7 +164,7 @@ describe('adımları tamamla → test siparişi → canlıya geç', () => {
     const view = await ctx.request({ method: 'GET', url: `/api/v1/store/${slug}` });
     expect(view.json()).toMatchObject({ live: true, orderingEnabled: true, tenant: { phone: '+905327654321' } });
 
-    await ctx.db.insert(waAccounts).values({ tenantId, branchId, provider: 'mock', webhookToken: `wh-${tenantId}`, status: 'connected', displayPhone: '+905550001122' });
+    await ctx.db.update(waAccounts).set({ provider: 'mock', status: 'connected', displayPhone: '+905550001122' }).where(eq(waAccounts.tenantId, tenantId));
     const full = await req('POST', '/onboarding/go-live', owner);
     expect(full.json()).toMatchObject({ webLive: true, live: true, missingForFull: [] });
     const [t2] = await ctx.db.select().from(tenants).where(eq(tenants.id, tenantId));

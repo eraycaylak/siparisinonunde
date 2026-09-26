@@ -24,6 +24,8 @@ export const ADMIN_PERMISSIONS = {
   'tenants:subscription': ['platform_owner', 'finance'],
   /** Tenant bazında ordering_enabled kill-switch'i (A-13). */
   'tenants:ordering': ['platform_owner', 'platform_admin'],
+  /** Dükkan kodu (wa_code) ve WhatsApp modu (ortak numara / kendi numarası; 00 §12a madde 8). */
+  'tenants:whatsapp': ['platform_owner', 'platform_admin'],
   /** A-09 salt-okunur impersonation. */
   'impersonation:start': ['platform_owner', 'platform_admin', 'support_agent'],
   /** A-10 not ve etiket ekleme (herkes). */

@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/cn';
 import { formatTime } from '@/lib/format';
 import type { ChatMessage } from './types';
+import { parseWaFormat } from './wa-format';
 
 export interface MessageBubbleProps {
   message: ChatMessage;
@@ -33,10 +34,33 @@ export interface MessageBubbleProps {
   showCode?: boolean;
   /** CTA bağlantıları açılabilir mi (panelde müşteri token'ı tüketilmesin diye kapalı). */
   openLinks?: boolean;
+  /** Başlık satırında ek etiket (simülatör: ortak numarada mesajın dükkanı / dükkan seçici). */
+  tag?: ReactNode;
 }
 
 const URL_RE = /(https?:\/\/[^\s]+)/g;
 const IS_URL = /^https?:\/\//;
+
+/** Bağlantı olmayan parça: WhatsApp biçimi (*kalın*, _italik_, ~üstü çizili~). */
+function Formatted({ text }: { text: string }) {
+  return (
+    <>
+      {parseWaFormat(text).map((part, i) =>
+        part.bold ? (
+          <strong key={i} className="font-bold">
+            {part.text}
+          </strong>
+        ) : part.italic ? (
+          <em key={i}>{part.text}</em>
+        ) : part.strike ? (
+          <s key={i}>{part.text}</s>
+        ) : (
+          <span key={i}>{part.text}</span>
+        ),
+      )}
+    </>
+  );
+}
 
 function Linkified({ text, openLinks }: { text: string; openLinks: boolean }) {
   const parts = text.split(URL_RE);
@@ -47,14 +71,30 @@ function Linkified({ text, openLinks }: { text: string; openLinks: boolean }) {
           <a key={i} href={p} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2 [overflow-wrap:anywhere]">
             {p}
           </a>
-        ) : (
-          <span key={i} className={IS_URL.test(p) ? '[overflow-wrap:anywhere]' : undefined}>
+        ) : IS_URL.test(p) ? (
+          <span key={i} className="[overflow-wrap:anywhere]">
             {p}
           </span>
+        ) : (
+          <Formatted key={i} text={p} />
         ),
       )}
     </>
   );
+}
+
+type ListRow = NonNullable<ChatMessage['list']>['rows'][number];
+
+/** Liste satırlarını bölüm başlığına göre gruplar (sıra korunur). */
+function groupRows(rows: ListRow[]): { section: string | null; rows: ListRow[] }[] {
+  const out: { section: string | null; rows: ListRow[] }[] = [];
+  for (const r of rows) {
+    const section = r.section ?? null;
+    const last = out[out.length - 1];
+    if (last && last.section === section) last.rows.push(r);
+    else out.push({ section, rows: [r] });
+  }
+  return out;
 }
 
 function senderLabel(m: ChatMessage): string {
@@ -116,6 +156,7 @@ export function MessageBubble({
   onSendLocation,
   showCode = false,
   openLinks = false,
+  tag,
 }: MessageBubbleProps) {
   const [listOpen, setListOpen] = useState(false);
   const mine = side === 'right';
@@ -136,6 +177,7 @@ export function MessageBubble({
           {showCode && m.code ? <span className="rounded bg-surface px-1.5 py-0.5 font-mono text-[11px]">{m.code}</span> : null}
           {m.templateName ? <span className="rounded bg-surface px-1.5 py-0.5 font-mono text-[11px]">{m.templateName}</span> : null}
           {m.orderNumber ? <span className="rounded bg-surface px-1.5 py-0.5">Sipariş #{m.orderNumber}</span> : null}
+          {tag}
         </div>
 
         {m.body ? (
@@ -198,20 +240,26 @@ export function MessageBubble({
                   {m.list.buttonTitle}
                 </Button>
                 {listOpen
-                  ? m.list.rows.map((r) => (
-                      <Button
-                        key={r.id}
-                        variant="ghost"
-                        size="md"
-                        block
-                        className="justify-start border border-border"
-                        onClick={() => {
-                          setListOpen(false);
-                          onListSelect(r.id, r.title);
-                        }}
-                      >
-                        {r.title}
-                      </Button>
+                  ? groupRows(m.list.rows).map((g, gi) => (
+                      <div key={`${g.section ?? ''}-${gi}`} role="group" aria-label={g.section ?? undefined} className="flex flex-col gap-1.5">
+                        {g.section ? <p className="px-1 pt-1 text-xs font-semibold uppercase tracking-wide text-fg-muted">{g.section}</p> : null}
+                        {g.rows.map((r) => (
+                          <Button
+                            key={r.id}
+                            variant="ghost"
+                            size="md"
+                            block
+                            className="h-auto flex-col items-start gap-0 whitespace-normal border border-border py-2 text-start"
+                            onClick={() => {
+                              setListOpen(false);
+                              onListSelect(r.id, r.title);
+                            }}
+                          >
+                            <span>{r.title}</span>
+                            {r.description ? <span className="text-sm font-normal text-fg-muted">{r.description}</span> : null}
+                          </Button>
+                        ))}
+                      </div>
                     ))
                   : null}
               </>

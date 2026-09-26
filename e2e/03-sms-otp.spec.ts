@@ -1,5 +1,6 @@
 // Senaryo 3 — WhatsApp'sız mod / SMS OTP yedeği (00 §4, §7; 14 §7.3):
-// (a) WhatsApp'ı henüz bağlanmamış yeni işletme ("WhatsApp'sız başla" + Kapı 1 web canlıya geçiş, API ile kurulur) → vitrinden sipariş →
+// (a) Kendi numarasını henüz bağlamamış yeni işletme (kayıtta ortak numaradadır; test onu "kendi numarası" moduna alır;
+//     "WhatsApp'sız başla" + Kapı 1 web canlıya geçiş, API ile kurulur) → vitrinden sipariş →
 //     doğrulama ekranı SMS'e düşer → kod mock SMS kutusundan (/api/v1/dev/sms) alınır → sipariş `new` →
 //     onay müşteriye SMS ile bildirilir (kritik durum).
 // (b) Demo işletmenin WhatsApp kanalı arızalı (hesap devre dışı) → Akış B otomatik olarak SMS OTP'ye döner.
@@ -19,7 +20,7 @@ import {
   uniqueName,
   uniquePhone,
 } from './support/api';
-import { setWaAccountStatus } from './support/db';
+import { setOwnNumberNotConnected, setWaAccountStatus } from './support/db';
 import { DEMO } from './support/env';
 import { goToCheckout, labelRe } from './support/ui';
 
@@ -44,6 +45,9 @@ test('WhatsApp bağlı olmayan işletme: SMS koduyla doğrulama ve onayın SMS i
   expect(signup.ok(), await signup.text()).toBeTruthy();
   const { tenant } = (await signup.json()) as { tenant: { slug: string } };
   const branchId = await branchIdOf(owner);
+  // Kayıtta işletme ortak numarada WhatsApp'a hazırdır (00 §12a madde 8); WhatsApp'sız mod kendi numarasını henüz
+  // bağlamamış işletmede görülür (admin modu "Kendi numarası" yapmış gibi)
+  await setOwnNumberNotConnected(tenant.slug);
 
   const hours = await owner.put(`/api/v1/panel/branches/${branchId}/hours`, {
     data: { days: [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({ weekday, intervals: [{ opensAt: '00:00', closesAt: '23:59' }] })) },

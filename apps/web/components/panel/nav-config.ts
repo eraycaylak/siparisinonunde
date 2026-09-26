@@ -74,7 +74,7 @@ export const SETTINGS_NAV: readonly PanelNavItem[] = [
     roles: PERSONAL,
   },
   // WhatsApp bağlantısı yalnız işletme sahibinde (00 §4; API de owner-only).
-  { href: '/panel/ayarlar/whatsapp', label: 'WhatsApp bağlantısı', description: 'Numara, bağlantı sağlığı, test mesajı', icon: MessageCircle, roles: ['owner'] },
+  { href: '/panel/ayarlar/whatsapp', label: 'WhatsApp', description: 'Dükkan kodu, QR, müşteri bağlantısı, numara', icon: MessageCircle, roles: ['owner'] },
   { href: '/panel/ayarlar/personel', label: 'Personel', description: 'Kullanıcılar, roller, kurye giriş linki', icon: UserCog, roles: OM },
   { href: '/panel/ayarlar/fis', label: 'Fiş', description: 'Mutfak ve paket fişi ayarları', icon: Receipt, roles: OM },
   { href: '/panel/ayarlar/qr', label: 'QR ve afiş', description: 'QR kod ve A5 afiş yazdırma', icon: QrCode, roles: OM },

@@ -3,7 +3,7 @@
 #
 # Container diski geçicidir: her başlangıçta boş bir veritabanı kurulur ve son yedek R2'den geri yüklenir.
 # Yedek, Worker'daki "yedek.internal" çıkış işleyicisi üzerinden R2'ye yazılır/okunur (deploy/cloudflare/src/index.ts).
-# Sıra: PostgreSQL → yedekten geri yükle (yoksa seed) → migrate → api + worker + web → 10 dk'da bir yedek.
+# Sıra: PostgreSQL → yedekten geri yükle → migrate → seed (idempotent) → api + worker + web → 10 dk'da bir yedek.
 # SIGTERM (uyku, yeniden dağıtım): uygulamalar durur, son yedek alınır, PostgreSQL kapanır.
 set -Eeuo pipefail
 
@@ -141,9 +141,16 @@ DB_READY=1
 cd "$APP_DIR/apps/api"
 log "migration"
 node --import tsx "$APP_DIR/packages/db/src/migrate.ts"
+# Seed her açılışta çalışır: işletme başına idempotenttir (var olan demo işletme atlanır), yedekten dönen ortama
+# sonradan eklenen demo işletmeler (ör. ortak numaranın ikinci dükkanı Çamlık Döner) de böylece gelir. Yedekten dönen
+# ortamda seed hatası (ör. elle açılmış kayıtla çakışma) açılışı durdurmaz: demo eksik kalır ama site açılır.
+log "demo verisi (seed; var olanlar atlanır)"
 if [ "$fresh" = 1 ]; then
-  log "demo verisi (seed)"
   node --import tsx "$APP_DIR/packages/db/src/seed.ts"
+else
+  node --import tsx "$APP_DIR/packages/db/src/seed.ts" || log "UYARI: seed başarısız; var olan veriyle devam ediliyor"
+fi
+if [ "$fresh" = 1 ]; then
   backup_now || true
 fi
 

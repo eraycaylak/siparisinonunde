@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { toast } from 'sonner';
 import { Copy, Download, Printer, TriangleAlert } from 'lucide-react';
-import { normalizeTrMobile } from '@siparis/core';
+import { normalizeTrMobile, SHARED_WA_DISPLAY_NAME, sharedWaLink } from '@siparis/core';
 import { brandPalette } from '@siparis/core/settings/brand';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
@@ -58,8 +58,11 @@ export function QrTools() {
   const slug = tenant.data?.slug ?? '';
   const storeUrl = slug && origin ? publicStorefrontUrl(slug, '?src=afis') : null;
   const standUrl = slug && origin ? publicStorefrontUrl(slug, '?src=stand') : null;
-  const e164 = normalizeTrMobile(waNumber);
-  const waUrl = e164 ? waMeUrl(e164) : null;
+  // Ortak numara (00 §12a madde 8): QR platform numarasına dükkan kodlu ön-dolu mesajla açılır (#KOD); numara elle girilmez
+  const wa = onboarding.data?.whatsapp;
+  const shared = wa?.mode === 'shared' && wa.connected && wa.displayPhone && wa.code && tenant.data ? { phone: wa.displayPhone, code: wa.code } : null;
+  const e164 = shared ? shared.phone : normalizeTrMobile(waNumber);
+  const waUrl = shared ? sharedWaLink(shared.phone, tenant.data!.name, shared.code) : e164 ? waMeUrl(e164) : null;
   const storeQr = useQr(storeUrl);
   const standQr = useQr(standUrl);
   const waQr = useQr(waUrl);
@@ -77,7 +80,9 @@ export function QrTools() {
   if (tenant.isError) return <SettingsError error={tenant.error} onRetry={() => void tenant.refetch()} />;
   const t = tenant.data;
   const palette = brandPalette(t.brandColor);
-  const kvkk = `WhatsApp'tan yazdığınızda numaranız yalnız ${t.name} tarafından siparişiniz için kullanılır.`;
+  const kvkk = shared
+    ? `Sohbette “${SHARED_WA_DISPLAY_NAME}” adı görünür; numaranızı yalnız ${t.name} siparişiniz için kullanır.`
+    : `WhatsApp'tan yazdığınızda numaranız yalnız ${t.name} tarafından siparişiniz için kullanılır.`;
 
   async function copy(text: string | null) {
     if (!text) return;
@@ -104,9 +109,16 @@ export function QrTools() {
         <div className="grid gap-4 md:grid-cols-2">
           <QrCard title="Mağaza (menü) bağlantısı" url={storeUrl} qr={storeQr} fileName={`${slug}-menu-qr.png`} onCopy={() => void copy(storeUrl)} />
           <div className="flex flex-col gap-3">
-            <Field label="WhatsApp numaranız" hint="Müşteri QR'ı okutunca bu numaraya “Merhaba” yazar." error={waNumber && !e164 ? 'Geçerli bir cep numarası girin.' : undefined}>
-              <Input value={waNumber ? formatPhone(waNumber) : ''} onChange={(e) => setWaNumber(e.target.value)} inputMode="tel" placeholder="0532 000 00 00" />
-            </Field>
+            {shared ? (
+              <p className="rounded-md bg-info-bg p-3 text-sm text-fg">
+                Ortak numara ({SHARED_WA_DISPLAY_NAME}) · {formatPhone(shared.phone)} · Dükkan kodu <strong className="font-mono">#{shared.code}</strong>. Müşteri QR’ı
+                okutunca WhatsApp dükkan kodunuzla açılır ve bot dükkanınızın adıyla yanıt verir.
+              </p>
+            ) : (
+              <Field label="WhatsApp numaranız" hint="Müşteri QR'ı okutunca bu numaraya “Merhaba” yazar." error={waNumber && !e164 ? 'Geçerli bir cep numarası girin.' : undefined}>
+                <Input value={waNumber ? formatPhone(waNumber) : ''} onChange={(e) => setWaNumber(e.target.value)} inputMode="tel" placeholder="0532 000 00 00" />
+              </Field>
+            )}
             <QrCard title="WhatsApp sohbet bağlantısı" url={waUrl} qr={waQr} fileName={`${slug}-whatsapp-qr.png`} onCopy={() => void copy(waUrl)} />
           </div>
         </div>
@@ -117,7 +129,14 @@ export function QrTools() {
         ) : null}
       </Section>
 
-      <Section title="Afiş ve paket kartı" description="İşletme adınız ve renginiz öne çıkar; basılı materyalde platform adı yer almaz.">
+      <Section
+        title="Afiş ve paket kartı"
+        description={
+          shared
+            ? 'İşletme adınız ve renginiz öne çıkar; platform adı yalnız müşterinin WhatsApp’ta göreceği sohbet adını açıklayan küçük notta geçer.'
+            : 'İşletme adınız ve renginiz öne çıkar; basılı materyalde platform adı yer almaz.'
+        }
+      >
         <RadioGroup legend="Başlık" variant="chips" value={headline} onValueChange={setHeadline} options={HEADLINES.map((h) => ({ value: h, label: h }))} />
         <Field label="Alt satır (isteğe bağlı)" hint="Ör. Bu kartla siparişe ayran bizden.">
           <Input value={subline} onChange={(e) => setSubline(e.target.value)} maxLength={60} />
@@ -155,7 +174,12 @@ export function QrTools() {
                   <PosterQr label="Menüye bak" qr={storeQr} />
                   <PosterQr label="WhatsApp’tan yaz" qr={waQr} />
                 </div>
-                {e164 ? <span className="text-[4.5cqw] font-semibold">{formatPhone(e164)}</span> : null}
+                {e164 ? (
+                  <span className="text-[4.5cqw] font-semibold">
+                    {formatPhone(e164)}
+                    {shared ? ` · #${shared.code}` : ''}
+                  </span>
+                ) : null}
               </div>
               <p className="px-[6cqw] pb-[4cqw] text-[2.4cqw] leading-snug text-[#374151]">{kvkk}</p>
             </div>
@@ -179,7 +203,12 @@ export function QrTools() {
                   </span>
                   <span className="text-[4.8cqw] font-bold leading-tight">{headline}</span>
                   {subline ? <span className="text-[3.8cqw]">{subline}</span> : null}
-                  {e164 ? <span className="text-[4.2cqw] font-semibold">{formatPhone(e164)}</span> : null}
+                  {e164 ? (
+                    <span className="text-[4.2cqw] font-semibold">
+                      {formatPhone(e164)}
+                      {shared ? ` · #${shared.code}` : ''}
+                    </span>
+                  ) : null}
                   <span className="mt-auto text-[2.6cqw] leading-snug text-[#374151]">{kvkk}</span>
                 </div>
                 <div className="flex w-[32cqw] items-center">

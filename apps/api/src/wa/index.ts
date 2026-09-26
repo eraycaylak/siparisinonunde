@@ -4,7 +4,7 @@ export { clip, interactiveBody, recipientFields, templateBody, textBody, type Cl
 export { WaSendError, classifyWaErrorCode, isWaSendError, waErrorSummary, type WaErrorAction } from './errors';
 export { fetchWithTimeout, httpFetch, setHttpFetch, type FetchLike } from './http';
 export { parseCloudWebhook, waIdToE164 } from './parse';
-export { getWaProvider, maskApiKey, toAccountRef, encryptorFor, type WaAccountRow } from './registry';
+export { getWaProvider, maskApiKey, numberSlotKey, platformAccountRef, providerForAccount, toAccountRef, encryptorFor, type WaAccountRow } from './registry';
 export { signMetaPayload, verifyMetaSignature } from './signature';
 export { acquireNumberSlot, NUMBER_RATE_PER_SEC, PAIR_INTERVAL_MS, resetNumberSlots } from './throttle';
 export { clearMockSent, mockFailNext, mockSentMessages, type MockSentEntry } from './providers/mock';

@@ -439,8 +439,30 @@ export async function eraseCustomer(
       .where(and(eq(conversations.tenantId, c.tenantId), inArray(conversations.id, convs.map((x) => x.id))));
   }
   await tx.delete(storefrontLinkTokens).where(and(eq(storefrontLinkTokens.tenantId, c.tenantId), eq(storefrontLinkTokens.customerId, c.id)));
+  await forgetSharedRoute(tx, c);
   await tx.insert(customerErasures).values({ customerId: c.id, tenantId: c.tenantId, erasedByUserId: actorUserId });
   return { orderCount: orderIds.length, messageCount };
+}
+
+/**
+ * Ortak numara (00 §12a madde 8): silinen müşterinin yönlendirme kaydından bu işletme çıkarılır (güncel dükkan ve son
+ * dükkanlar). Kayıtta başka dükkan kalmazsa kayıt da silinir. Diğer işletmelerin verisine dokunulmaz.
+ */
+async function forgetSharedRoute(tx: Database, c: CustomerRow): Promise<void> {
+  if (!c.waBsuid && !c.phoneE164) return;
+  const key = c.waBsuid && c.phoneE164
+    ? sql`(wa_bsuid = ${c.waBsuid} or phone_e164 = ${c.phoneE164})`
+    : c.waBsuid
+      ? sql`wa_bsuid = ${c.waBsuid}`
+      : sql`phone_e164 = ${c.phoneE164}`;
+  await tx.execute(sql`
+    update shared_wa_routes
+       set recent_tenant_ids = array_remove(recent_tenant_ids, ${c.tenantId}::uuid),
+           current_tenant_id = case when current_tenant_id = ${c.tenantId}::uuid then null else current_tenant_id end,
+           last_routed_at = case when current_tenant_id = ${c.tenantId}::uuid then null else last_routed_at end,
+           updated_at = now()
+     where ${key}`);
+  await tx.execute(sql`delete from shared_wa_routes where ${key} and current_tenant_id is null and cardinality(recent_tenant_ids) = 0`);
 }
 
 // ---------------------------------------------------------------------------

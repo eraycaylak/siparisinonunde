@@ -12,8 +12,10 @@ import {
   type PlatformRole,
   type SuspensionReason,
   type WaAccountStatus,
+  sharedWaLink,
+  type WaMode,
 } from '@siparis/core';
-import { adminNotes, branches, memberships, orders, sessions, subscriptions, tenants, users, type Database } from '@siparis/db';
+import { adminNotes, branches, memberships, orders, sessions, subscriptions, tenants, users, waAccounts, type Database } from '@siparis/db';
 import { and, asc, desc, eq, gt, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { loadSchedules, stateOf } from './schedule';
@@ -62,6 +64,8 @@ interface ListRow {
   last_order_at: string | null;
   orders_7d: number;
   wa_status: WaAccountStatus | null;
+  wa_mode: WaMode;
+  wa_code: string | null;
 }
 
 export async function listTenants(
@@ -88,7 +92,7 @@ export async function listTenants(
   const list = await rows<ListRow>(
     db,
     sql`select t.id, t.name, t.slug, t.lifecycle_stage, t.plan_code, t.suspension_reason, t.ordering_enabled, t.is_demo,
-               t.trial_ends_at, t.live_at, t.created_at, b.city, b.district,
+               t.trial_ends_at, t.live_at, t.created_at, t.wa_mode, t.wa_code, b.city, b.district,
                (select max(o.placed_at) from orders o where o.tenant_id = t.id and o.test_kind is null) as last_order_at,
                (select count(*)::int from orders o
                  where o.tenant_id = t.id and o.test_kind is null and o.status <> 'awaiting_customer'
@@ -121,6 +125,8 @@ export async function listTenants(
     lastOrderAt: isoOrNull(r.last_order_at),
     orders7d: Number(r.orders_7d ?? 0),
     waStatus: r.wa_status,
+    waMode: r.wa_mode,
+    waCode: r.wa_code,
   }));
   return paginate(mapped, limit, (t) => ({ at: t.createdAt, id: t.id }));
 }
@@ -241,6 +247,16 @@ export async function loadTenantDetail(db: Database, tenantId: string, viewerRol
     .where(and(eq(sessions.tenantId, tenantId), eq(sessions.kind, 'impersonation'), gt(sessions.expiresAt, now)))
     .orderBy(desc(sessions.createdAt));
 
+  // Ortak numarada QR bağlantısı (satırın gösterim numarası = platform numarası; syncSharedWaAccounts)
+  const [sharedAcc] =
+    t.waMode === 'shared'
+      ? await db
+          .select({ displayPhone: waAccounts.displayPhone })
+          .from(waAccounts)
+          .where(and(eq(waAccounts.tenantId, tenantId), eq(waAccounts.provider, 'shared')))
+          .limit(1)
+      : [];
+
   return {
     tenant: {
       id: t.id,
@@ -262,6 +278,9 @@ export async function loadTenantDetail(db: Database, tenantId: string, viewerRol
       liveAt: isoOrNull(t.liveAt),
       webLiveAt: isoOrNull(t.webLiveAt),
       isDemo: t.isDemo,
+      waMode: t.waMode,
+      waCode: t.waCode ?? null,
+      sharedWaLink: sharedAcc?.displayPhone && t.waCode ? sharedWaLink(sharedAcc.displayPhone, t.name, t.waCode) : null,
       createdAt: iso(t.createdAt),
       updatedAt: iso(t.updatedAt),
     },

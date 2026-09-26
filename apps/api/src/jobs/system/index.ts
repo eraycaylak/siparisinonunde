@@ -27,6 +27,8 @@ export const RETENTION_DAYS = {
   locationsMedia: 30,
   /** Sipariş notu ve ürün notu: final durumdan (teslim, ret, iptal) itibaren (08 §2.8 satır 1 retention.order_notes, §2.7) */
   orderNotes: 30,
+  /** Ortak numaranın platform düzeyi mesajları (dükkan seçici, yönlenmemiş gelen mesaj; 00 §12a madde 8) */
+  sharedWaMessages: 30,
 } as const;
 
 /** Ay cinsinden saklama süreleri (08 §2.8). */
@@ -41,6 +43,8 @@ export const RETENTION_MONTHS = {
   auditLog: 24,
   /** Hareketsiz müşteri: son sipariş ya da son gelen mesajdan 24 ay (satır 6 retention.customer_inactive) */
   customerInactive: CUSTOMER_INACTIVE_MONTHS,
+  /** Ortak numara yönlendirme kaydı (kişi → dükkanlar): son gelen mesajdan 24 ay (müşteriyle aynı süre) */
+  sharedWaRoutes: CUSTOMER_INACTIVE_MONTHS,
 } as const;
 
 /** WhatsApp mesaj içeriği (ay): metin silinir; wamid, yön, zaman ve durum kalır (08 §2.8 satır 4 retention.wa_messages). */
@@ -182,6 +186,11 @@ export async function runRetention(db: Database, log: FastifyBaseLogger): Promis
     sql`delete from courier_login_links where expires_at < now() - make_interval(days => ${r.courierLoginLinks}) returning id`,
   );
   await step('retention.technical.sessions', sql`delete from sessions where expires_at < now() returning id`);
+  // Ortak numara (00 §12a madde 8): platform düzeyi mesajlar (dükkan seçici vb.) 30 gün
+  await step(
+    'retention.technical.shared_wa_messages',
+    sql`delete from shared_wa_messages where created_at < now() - make_interval(days => ${r.sharedWaMessages}) returning id`,
+  );
 
   // Satır 3: konum mesajı satırı (sohbet geçmişi) kalır; koordinat, adres ve ham webhook gövdesi silinir
   await step(
@@ -264,6 +273,15 @@ export async function runRetention(db: Database, log: FastifyBaseLogger): Promis
   for (const tenantId of tenantIds) {
     await record('retention.customer_inactive', tenantId, () => eraseInactiveCustomersOfTenant(db, tenantId));
   }
+
+  // Ortak numara yönlendirme kaydı (kişinin konuştuğu dükkanlar): son gelen mesajdan 24 ay hareketsizlikte silinir
+  await step(
+    'retention.shared_wa_routes',
+    sql`delete from shared_wa_routes
+         where greatest(created_at, coalesce(last_inbound_at, created_at), coalesce(last_routed_at, created_at))
+               < now() - make_interval(months => ${m.sharedWaRoutes})
+       returning id`,
+  );
 
   // Satır 10 benzeri: sipariş onayındaki ve son müşterinin belge kabulündeki IP/tarayıcı 1 yıl sonra boşaltılır; kayıt kalır
   await step(

@@ -834,3 +834,44 @@ export const PAYMENT_OBLIGATION_NOTICE = 'Siparişi onayladığınızda ödeme y
 /** Cayma hakkı istisnası notu (03 M18). */
 export const WITHDRAWAL_EXCEPTION_NOTICE =
   'Gıda siparişleri çabuk bozulabilen ürünler olduğundan cayma hakkı kapsamı dışındadır.';
+
+// ---------------------------------------------------------------------------
+// Ortak numara (00 §12a madde 8): platformun dükkan seçici mesajları. Bu mesajlar hiçbir dükkanın sohbetine girmez
+// (platform düzeyi, shared_wa_messages). Kodlar P01–P05. Dükkanın kendi mesajları dükkan adıyla başlar (brandedText).
+
+/** Ortak numaradan giden dükkan mesajının ilk satırı (WhatsApp'ta kalın). */
+export function sharedBrandLine(shopName: string): string {
+  return `*${shopName.trim()}*`;
+}
+
+/** Ortak numaradan giden serbest metnin dükkan adıyla başlayan hâli. */
+export function brandedText(shopName: string, text: string): string {
+  return `${sharedBrandLine(shopName)}\n${text}`;
+}
+
+export const SHARED_PICKER_TEXTS = {
+  /** P01 · Son dükkanlar (reply butonları) */
+  question: 'Hangi dükkandan sipariş vermek istersin?',
+  otherShops: 'Diğer dükkanlar',
+  /** P02 · Dükkan listesi */
+  listBody: 'Sipariş vermek istediğin dükkanı listeden seç. Dükkan adını ya da kodunu da yazabilirsin.',
+  listButton: 'Dükkanları gör',
+  listNextPage: 'Diğer dükkanlar',
+  listFirstPage: 'Listenin başı',
+  matchesBody: 'Yazdığına uyan birden fazla dükkan var. Hangisinden sipariş vermek istersin?',
+  codeNotFound: 'Bu sipariş kodunu bulamadık. Kodu, siparişi verdiğin sayfadan kontrol edebilirsin.',
+  footer: 'Siparişin Önünde',
+  /** P05 · Seçilebilir dükkan yok */
+  noShops: 'Şu an bu numaradan sipariş alan dükkan yok. Daha sonra tekrar yazabilirsin.',
+} as const;
+
+/** P03 · Kodu yazılan dükkan kendi numarasından sipariş alıyor. */
+export function sharedOwnNumberText(v: { isletme: string; tel?: string | null; link?: string | null }): string {
+  if (!v.tel || !v.link) return `${v.isletme} şu an bu numaradan sipariş almıyor. Başka bir dükkan için "dükkanlar" yazabilirsin.`;
+  return `${v.isletme} siparişlerini kendi WhatsApp numarasından alıyor: ${v.tel}\nBu bağlantıdan yazabilirsin: ${v.link}`;
+}
+
+/** P04 · Kodu yazılan dükkan şu an ortak numaradan sipariş almıyor (canlı değil, kapalı ya da askıda). */
+export function sharedUnavailableText(v: { isletme: string }): string {
+  return `${v.isletme} şu an bu numaradan sipariş almıyor. Başka bir dükkan için "dükkanlar" yazabilirsin.`;
+}

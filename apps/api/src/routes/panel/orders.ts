@@ -1080,7 +1080,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     const items = (await loadItems(app.db, [order.id])).get(order.id) ?? [];
     // "WhatsApp'tan sipariş verin" satırı için şubenin bağlı numarası
     const [wa] = await app.db
-      .select({ displayPhone: waAccounts.displayPhone })
+      .select({ displayPhone: waAccounts.displayPhone, provider: waAccounts.provider })
       .from(waAccounts)
       .where(and(eq(waAccounts.tenantId, auth.tenantId), eq(waAccounts.branchId, order.branchId), eq(waAccounts.status, 'connected')))
       .limit(1);
@@ -1093,6 +1093,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       trackingUrl: trackingUrl(app.config.APP_BASE_URL, order.id, app.config.TRACKING_SECRET),
       settings: branch?.receiptSettings,
       waPhone: wa?.displayPhone ?? null,
+      waCode: wa?.provider === 'shared' ? (tenant!.waCode ?? null) : null,
     });
     reply.header('cache-control', 'no-store');
     if (q.format === 'html') {

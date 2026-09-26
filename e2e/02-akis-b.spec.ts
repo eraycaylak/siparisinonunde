@@ -26,6 +26,11 @@ test('Akış B: vitrinden sipariş, WhatsApp koduyla doğrulama ve takip sayfas�
   await page.getByRole('link', { name: 'Menüye dön' }).click();
   await expect(page.getByRole('heading', { name: DEMO.tenantName, level: 1 })).toBeVisible();
 
+  // Altbilgideki "WhatsApp'tan yaz": ortak numaraya dükkan kodlu ön-dolu mesaj (00 §12a madde 8)
+  const footerHref = (await page.getByRole('link', { name: "WhatsApp'tan yaz" }).getAttribute('href'))!;
+  expect(footerHref).toMatch(new RegExp(`^https://wa\\.me/${DEMO.waDisplayPhone.replace('+', '')}\\?text=`));
+  expect(new URL(footerHref).searchParams.get('text')).toMatch(new RegExp(`#${DEMO.waCode}$`));
+
   await page.getByRole('button', { name: 'Mercimek Çorbası sepete ekle' }).click();
   await page.getByRole('button', { name: 'Lahmacun: seçenekleri gör' }).click();
   const sheet = page.getByRole('dialog', { name: 'Lahmacun' });
@@ -51,7 +56,8 @@ test('Akış B: vitrinden sipariş, WhatsApp koduyla doğrulama ve takip sayfas�
   await expect(waLink).toHaveAttribute('href', new RegExp(`^https://wa\\.me/${DEMO.waDisplayPhone.replace('+', '')}\\?text=`));
   expect(decodeURIComponent((await waLink.getAttribute('href'))!.split('text=')[1]!)).toBe(`Sipariş kodu: ${code}`);
 
-  // 3) Müşteri WhatsApp'tan hazır mesajı gönderir (simülatör, ayrı sekme)
+  // 3) Müşteri WhatsApp'tan hazır mesajı ortak numaraya gönderir (simülatör, ayrı sekme); kod tüm dükkanlarda tekil
+  // olduğundan yönlendirici siparişin dükkanını koddan bulur
   const wa = await page.context().newPage();
   await openSimulator(wa, customer);
   await simulatorSend(wa, `Sipariş kodu: ${code}`);

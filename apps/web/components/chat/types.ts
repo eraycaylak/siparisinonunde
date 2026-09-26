@@ -17,10 +17,13 @@ export interface ChatMessage {
   createdAt: string;
   buttons?: { id: string; title: string }[];
   cta?: { label: string; url: string };
-  list?: { buttonTitle: string; rows: { id: string; title: string; description?: string }[] };
+  /** Satırlar bölüm sırasıyla; `section` bölüm başlığı (ortak numara dükkan listesinde "İlçe, Şehir") */
+  list?: { buttonTitle: string; rows: { id: string; title: string; description?: string; section?: string }[] };
   location?: { lat: number; lng: number; name?: string | null };
   locationRequest?: boolean;
   replyId?: string;
+  /** Ortak numara (00 §12a madde 8): mesajın taşıdığı dükkan adı (gövde "*Dükkan adı*" satırıyla başlar) */
+  brand?: string;
 }
 
 export interface ConversationItem {

@@ -1,12 +1,17 @@
 // Geliştirme verisi (14 §4 Seed): platform admini, demo işletme "Bozok Pide Salonu" (Yozgat Merkez),
-// menü, saatler, bölgeler, mock WhatsApp hesabı, personel, kill-switch'ler ve birkaç geçmiş sipariş.
-// Parolalar yalnız geliştirme içindir.
+// menü, saatler, bölgeler, WhatsApp hesabı, personel, kill-switch'ler ve birkaç geçmiş sipariş; ikinci demo işletme
+// "Çamlık Döner" (Yozgat Merkez, küçük menü, yalnız sahip hesabı). İkisi de ortak numarada (00 §12a madde 8):
+// Bozok #BOZOK, Çamlık Döner #DONER; ortak numara geliştirmede +90 555 000 00 00 (mock). Her işletme ayrı ayrı
+// eklenir (var olan atlanır). Parolalar yalnız geliştirme içindir.
 
 import {
   KILL_SWITCHES,
   LEGAL_DOCUMENT_VERSION,
+  MOCK_SHARED_WA_DISPLAY_PHONE,
   localDateString,
   quoteCart,
+  waCodeCandidate,
+  waCodeProblem,
   zonedTimeToUtc,
   type CancelReason,
   type CancelledBy,
@@ -60,8 +65,17 @@ export const DEMO = {
     { email: 'mutfak@siparisinonunde.local', password: 'mutfak1234', name: 'Mutfak Ekranı', phone: null, role: 'kitchen' },
     { email: 'kurye@siparisinonunde.local', password: 'kurye1234', name: 'Burak Kurye', phone: '+905550000014', role: 'courier' },
   ] as { email: string; password: string; name: string; phone: string | null; role: TenantRole }[],
-  waDisplayPhone: '+905550000001',
+  /** Ortak numara (00 §12a madde 8): Bozok ve Çamlık Döner aynı platform numarasını kullanır */
+  waDisplayPhone: MOCK_SHARED_WA_DISPLAY_PHONE,
+  waCode: 'BOZOK',
   waWebhookToken: 'dev-bozok-pide-mock-webhook',
+  /** İkinci demo işletme (ortak numarada dükkan seçimi için) */
+  doner: {
+    slug: 'camlik-doner',
+    name: 'Çamlık Döner',
+    waCode: 'DONER',
+    owner: { email: 'doner@siparisinonunde.local', password: 'doner1234', name: 'Kadir Usta', phone: '+905550000020' },
+  },
 } as const;
 
 export interface SeedResult {
@@ -71,6 +85,8 @@ export interface SeedResult {
   branchId: string | null;
   ownerUserId: string | null;
   waAccountId: string | null;
+  /** Çamlık Döner (eklendiyse ya da zaten varsa) */
+  donerTenantId: string | null;
 }
 
 type Log = (msg: string) => void;
@@ -119,6 +135,184 @@ function daysAgoAt(now: Date, days: number, hhmm: string): Date {
 
 const addMin = (d: Date, m: number) => new Date(d.getTime() + m * 60000);
 
+/** Teslimat bölgeleri (her iki demo işletmede aynı desen). Mahalle adları ÖRNEKTİR; işletme panelden düzenler. */
+function demoZones(tenantId: string, branchId: string) {
+  return [
+    {
+      tenantId,
+      branchId,
+      name: 'Merkez yakın',
+      kind: 'neighborhoods' as const,
+      neighborhoods: ['Aşağınohutlu', 'Yukarınohutlu', 'Medrese', 'Çapanoğlu', 'Tekke'],
+      feeKurus: 0,
+      minOrderKurus: 15000,
+      etaMinutes: 25,
+      sort: 0,
+    },
+    {
+      tenantId,
+      branchId,
+      name: 'Merkez orta',
+      kind: 'neighborhoods' as const,
+      neighborhoods: ['Bahçeşehir', 'Erdoğan Akdağ', 'Karatepe', 'Köseoğlu', 'Şeyh Osman'],
+      feeKurus: 2000,
+      minOrderKurus: 20000,
+      etaMinutes: 35,
+      sort: 1,
+    },
+    {
+      tenantId,
+      branchId,
+      name: 'Çevre (4 km)',
+      kind: 'radius' as const,
+      radiusM: 4000,
+      feeKurus: 4000,
+      minOrderKurus: 30000,
+      etaMinutes: 45,
+      sort: 2,
+    },
+  ];
+}
+
+/**
+ * Demo işletmenin dükkan kodu: tercih edilen kod boştaysa o, doluysa (ör. yedekten dönen ortamda "Döner Evi" kayıtla
+ * DONER'i almışsa) rakam sonekli ilk boş aday (DONER2…). Seed her açılışta çalıştığından çakışma süreci düşürmemeli.
+ */
+async function freeWaCode(tx: Database, preferred: string): Promise<string> {
+  for (let n = 1; n < 1000; n++) {
+    const c = waCodeCandidate(preferred, n);
+    if (waCodeProblem(c)) continue;
+    const [hit] = await tx.select({ id: tenants.id }).from(tenants).where(eq(tenants.waCode, c)).limit(1);
+    if (!hit) return c;
+  }
+  throw new Error(`Dükkan kodu bulunamadı: ${preferred}`);
+}
+
+/** İkinci demo işletme: Çamlık Döner (ortak numara #DONER), küçük menü, yalnız sahip hesabı. */
+async function seedDoner(tx: Database, now: Date, log: Log): Promise<string | null> {
+  const d = DEMO.doner;
+  const [existing] = await tx.select({ id: tenants.id }).from(tenants).where(eq(tenants.slug, d.slug));
+  if (existing) {
+    log(`"${d.slug}" zaten var; atlandı.`);
+    return existing.id;
+  }
+  // Sahip e-postası başka bir hesapta kayıtlıysa (elle açılmış) demo işletme eklenmez; seed yine de tamamlanır
+  const [emailTaken] = await tx.select({ id: users.id }).from(users).where(eq(users.email, d.owner.email));
+  if (emailTaken) {
+    log(`"${d.owner.email}" başka bir hesapta kayıtlı; "${d.slug}" atlandı.`);
+    return null;
+  }
+  const waCode = await freeWaCode(tx, d.waCode);
+  if (waCode !== d.waCode) log(`#${d.waCode} başka işletmede; "${d.slug}" kodu #${waCode}.`);
+  const [tenant] = await tx
+    .insert(tenants)
+    .values({
+      name: d.name,
+      slug: d.slug,
+      legalName: 'Çamlık Döner (örnek şahıs işletmesi)',
+      taxNo: '9876543210',
+      taxOffice: 'Yozgat',
+      phone: '+903542125050',
+      email: 'iletisim@camlikdoner.local',
+      address: 'Atatürk Bulvarı No: 45, Merkez / Yozgat',
+      lifecycleStage: 'pilot',
+      planCode: 'esnaf',
+      brandColor: '#B91C1C',
+      isDemo: true,
+      trialEndsAt: addMin(now, 14 * 24 * 60),
+      liveAt: now,
+      webLiveAt: now,
+      waCode,
+      waMode: 'shared',
+    })
+    .returning();
+  const tenantId = tenant!.id;
+  const [branch] = await tx
+    .insert(branches)
+    .values({
+      tenantId,
+      name: 'Merkez',
+      phone: '+903542125050',
+      addressLine: 'Atatürk Bulvarı No: 45',
+      neighborhood: 'Çapanoğlu',
+      district: 'Merkez',
+      city: 'Yozgat',
+      lat: 39.8205,
+      lng: 34.8078,
+      defaultPrepMinutes: 15,
+      acceptsDelivery: true,
+      acceptsPickup: true,
+      paymentMethods: ['cash_on_delivery', 'card_on_delivery', 'meal_card_on_delivery', 'pay_at_counter'],
+      mealCardBrands: ['multinet', 'pluxee', 'edenred'],
+    })
+    .returning();
+  const branchId = branch!.id;
+
+  const [owner] = await tx
+    .insert(users)
+    .values({ email: d.owner.email, phone: d.owner.phone, name: d.owner.name, passwordHash: await hashPasswordForSeed(d.owner.password) })
+    .returning({ id: users.id });
+  await tx.insert(memberships).values({ tenantId, userId: owner!.id, role: 'owner' });
+  await tx.insert(subscriptions).values({ tenantId, planCode: 'esnaf', status: 'trialing', trialEndsAt: tenant!.trialEndsAt, notes: 'Pilot işletme (3 ay ücretsiz)' });
+  for (const document of ['abonelik', 'kvkk_aydinlatma'] as const) {
+    await tx.insert(legalAcceptances).values({ userId: owner!.id, tenantId, document, version: LEGAL_DOCUMENT_VERSION });
+  }
+  await tx.insert(openingHours).values([0, 1, 2, 3, 4, 5, 6].map((weekday) => ({ tenantId, branchId, weekday, opensAt: '10:00', closesAt: '23:30' })));
+
+  const [gAci] = await tx.insert(optionGroups).values({ tenantId, name: 'Acı', minSelect: 1, maxSelect: 1, sort: 0 }).returning();
+  await tx.insert(options).values([
+    { tenantId, groupId: gAci!.id, name: 'Acılı', priceDeltaKurus: 0, sort: 0 },
+    { tenantId, groupId: gAci!.id, name: 'Acısız', priceDeltaKurus: 0, sort: 1 },
+  ]);
+  const menu: { category: string; items: { name: string; price: number; desc?: string; aci?: boolean }[] }[] = [
+    {
+      category: 'Dürümler',
+      items: [
+        { name: 'Tavuk Döner Dürüm', price: 12000, desc: 'Lavaşta, domates, turşu, patates', aci: true },
+        { name: 'Et Döner Dürüm', price: 18000, desc: 'Lavaşta, soğan, domates', aci: true },
+        { name: 'Tavuk Döner Ekmek Arası', price: 11000, desc: 'Yarım ekmek, turşu, patates', aci: true },
+      ],
+    },
+    {
+      category: 'Porsiyonlar',
+      items: [
+        { name: 'İskender', price: 32000, desc: 'Et döner, tereyağı, yoğurt, domates sosu' },
+        { name: 'Tavuk Döner Porsiyon', price: 20000, desc: 'Pilav ve közlenmiş biber ile' },
+        { name: 'Et Döner Porsiyon', price: 28000, desc: 'Pilav ve közlenmiş biber ile' },
+      ],
+    },
+    {
+      category: 'İçecekler',
+      items: [
+        { name: 'Ayran', price: 3000 },
+        { name: 'Kola (330 ml)', price: 5000 },
+      ],
+    },
+  ];
+  for (const [ci, cat] of menu.entries()) {
+    const [c] = await tx.insert(categories).values({ tenantId, name: cat.category, sort: ci }).returning();
+    for (const [pi, p] of cat.items.entries()) {
+      const [row] = await tx
+        .insert(products)
+        .values({ tenantId, categoryId: c!.id, name: p.name, description: p.desc ?? null, priceKurus: p.price, sort: pi })
+        .returning();
+      if (p.aci) await tx.insert(productOptionGroups).values({ tenantId, productId: row!.id, groupId: gAci!.id, sort: 0 });
+    }
+  }
+  await tx.insert(deliveryZones).values(demoZones(tenantId, branchId));
+  // Ortak numara satırı (gösterim numarası API açılışında PLATFORM_WA_DISPLAY_PHONE'a eşitlenir)
+  await tx.insert(waAccounts).values({
+    tenantId,
+    branchId,
+    provider: 'shared',
+    displayPhone: DEMO.waDisplayPhone,
+    webhookToken: 'dev-camlik-doner-shared',
+    status: 'connected',
+  });
+  log(`Demo işletme oluşturuldu: ${d.name} (${d.slug}, #${waCode}).`);
+  return tenantId;
+}
+
 export async function seedDemo(db: Database, opts: { now?: Date; log?: Log } = {}): Promise<SeedResult> {
   const now = opts.now ?? new Date();
   const log: Log = opts.log ?? (() => {});
@@ -126,11 +320,12 @@ export async function seedDemo(db: Database, opts: { now?: Date; log?: Log } = {
   return db.transaction(async (tx) => {
     await ensureFeatureFlags(tx);
     const adminUserId = await ensureAdmin(tx);
+    const donerTenantId = await seedDoner(tx, now, log);
 
     const [existingTenant] = await tx.select({ id: tenants.id }).from(tenants).where(eq(tenants.slug, DEMO.tenantSlug));
     if (existingTenant) {
       log(`"${DEMO.tenantSlug}" zaten var; demo verisi atlandı.`);
-      return { skipped: true, adminUserId, tenantId: existingTenant.id, branchId: null, ownerUserId: null, waAccountId: null };
+      return { skipped: true, adminUserId, tenantId: existingTenant.id, branchId: null, ownerUserId: null, waAccountId: null, donerTenantId };
     }
 
     // --- İşletme ve şube
@@ -152,6 +347,8 @@ export async function seedDemo(db: Database, opts: { now?: Date; log?: Log } = {
         trialEndsAt: addMin(now, 14 * 24 * 60),
         liveAt: now,
         webLiveAt: now,
+        waCode: await freeWaCode(tx, DEMO.waCode),
+        waMode: 'shared',
       })
       .returning();
     const tenantId = tenant!.id;
@@ -331,55 +528,16 @@ export async function seedDemo(db: Database, opts: { now?: Date; log?: Log } = {
     }
 
     // --- Teslimat bölgeleri. Mahalle adları ÖRNEKTİR; işletme gerçek listeyle panelden düzenler.
-    const zoneRows = await tx
-      .insert(deliveryZones)
-      .values([
-        {
-          tenantId,
-          branchId,
-          name: 'Merkez yakın',
-          kind: 'neighborhoods',
-          neighborhoods: ['Aşağınohutlu', 'Yukarınohutlu', 'Medrese', 'Çapanoğlu', 'Tekke'],
-          feeKurus: 0,
-          minOrderKurus: 15000,
-          etaMinutes: 25,
-          sort: 0,
-        },
-        {
-          tenantId,
-          branchId,
-          name: 'Merkez orta',
-          kind: 'neighborhoods',
-          neighborhoods: ['Bahçeşehir', 'Erdoğan Akdağ', 'Karatepe', 'Köseoğlu', 'Şeyh Osman'],
-          feeKurus: 2000,
-          minOrderKurus: 20000,
-          etaMinutes: 35,
-          sort: 1,
-        },
-        {
-          tenantId,
-          branchId,
-          name: 'Çevre (4 km)',
-          kind: 'radius',
-          radiusM: 4000,
-          feeKurus: 4000,
-          minOrderKurus: 30000,
-          etaMinutes: 45,
-          sort: 2,
-        },
-      ])
-      .returning();
+    const zoneRows = await tx.insert(deliveryZones).values(demoZones(tenantId, branchId)).returning();
 
-    // --- Mock WhatsApp hesabı (simülatör)
+    // --- WhatsApp: ortak numara (00 §12a madde 8; simülatörde +90 555 000 00 00, dükkan kodu #BOZOK)
     const [wa] = await tx
       .insert(waAccounts)
       .values({
         tenantId,
         branchId,
-        provider: 'mock',
+        provider: 'shared',
         displayPhone: DEMO.waDisplayPhone,
-        phoneNumberId: 'mock-bozok-pide',
-        wabaId: 'mock-waba-bozok-pide',
         webhookToken: DEMO.waWebhookToken,
         status: 'connected',
       })
@@ -647,8 +805,8 @@ export async function seedDemo(db: Database, opts: { now?: Date; log?: Log } = {
       await tx.update(customers).set({ orderCount: delivered.length, lastOrderAt: last }).where(eq(customers.id, c.id));
     }
 
-    log(`Demo işletme oluşturuldu: ${DEMO.tenantName} (${DEMO.tenantSlug}), ${past.length} geçmiş sipariş.`);
-    return { skipped: false, adminUserId, tenantId, branchId, ownerUserId, waAccountId: wa!.id };
+    log(`Demo işletme oluşturuldu: ${DEMO.tenantName} (${DEMO.tenantSlug}, #${DEMO.waCode}), ${past.length} geçmiş sipariş.`);
+    return { skipped: false, adminUserId, tenantId, branchId, ownerUserId, waAccountId: wa!.id, donerTenantId };
   });
 }
 
@@ -666,7 +824,8 @@ async function main() {
       console.log(`  Platform admini : ${DEMO.admin.email} / ${DEMO.admin.password}`);
       for (const u of DEMO.users) console.log(`  ${u.role.padEnd(15)} : ${u.email} / ${u.password}`);
       console.log(`  Storefront      : /s/${DEMO.tenantSlug}`);
-      console.log(`  Mock WhatsApp   : ${DEMO.waDisplayPhone} (webhook token ${DEMO.waWebhookToken})`);
+      console.log(`  ${DEMO.doner.name.padEnd(15)} : ${DEMO.doner.owner.email} / ${DEMO.doner.owner.password} (/s/${DEMO.doner.slug})`);
+      console.log(`  Ortak numara    : ${DEMO.waDisplayPhone} (mock) — dükkan kodları #${DEMO.waCode}, #${DEMO.doner.waCode}`);
     }
   } finally {
     await handle.close();

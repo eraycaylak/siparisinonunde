@@ -21,6 +21,8 @@ interface Env {
   TRACKING_SECRET: string;
   ENCRYPTION_KEY: string;
   WA_VERIFY_TOKEN: string;
+  /** Ortak numara webhook yolundaki gizli belirteç (/api/v1/webhooks/wa/shared/<belirteç>); scripts/secrets.mjs üretir */
+  PLATFORM_WA_WEBHOOK_TOKEN: string;
   VAPID_PUBLIC_KEY: string;
   VAPID_PRIVATE_KEY: string;
 }
@@ -29,7 +31,11 @@ const API_PORT = 4000;
 const WEB_PORT = 3000;
 const INSTANCE = 'main';
 
-/** Parolasız erişilen yollar: WhatsApp sağlayıcı webhook'ları ve tarayıcının kimlik bilgisi göndermediği PWA dosyaları. */
+/**
+ * Parolasız erişilen yollar: WhatsApp sağlayıcı webhook'ları (işletmeye özel /api/v1/webhooks/wa/<belirteç> ve ortak
+ * numara /api/v1/webhooks/wa/shared/<belirteç>; ikisi de gizli belirteçle korunur) ve tarayıcının kimlik bilgisi
+ * göndermediği PWA dosyaları.
+ */
 const PUBLIC_PREFIXES = ['/api/v1/webhooks/', '/_next/static/'];
 const PUBLIC_PATHS = new Set(['/panel-sw.js', '/panel/manifest.webmanifest', '/icon.svg', '/favicon.ico', '/robots.txt']);
 
@@ -83,6 +89,10 @@ export class AppContainer extends Container<Env> {
       // Dev ortamında hiçbir gerçek mesaj gönderilmez (DEPLOY_ENV=dev yalnız bu koşulda DEV_TOOLS'a izin verir)
       WA_DEFAULT_PROVIDER: 'mock',
       PLATFORM_WA_PROVIDER: 'mock',
+      // Ortak numara (00 §12a madde 8): tüm dükkanların tek numarası (mock; simülatörde "Siparişin Önünde · ortak
+      // numara"). Webhook belirteci tanımsızsa ortak webhook 404 döner; dev'de de gerçek yol denenebilsin diye verilir.
+      PLATFORM_WA_DISPLAY_PHONE: '+905550000000',
+      PLATFORM_WA_WEBHOOK_TOKEN: env.PLATFORM_WA_WEBHOOK_TOKEN,
       SMS_PROVIDER: 'mock',
       // Site dev parolasıyla korunuyor; yönetici girişinde 2FA dev ortamında isteğe bağlı
       ADMIN_TOTP_REQUIRED: 'false',

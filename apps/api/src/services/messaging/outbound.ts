@@ -1,9 +1,11 @@
 // Giden mesaj outbox'ı: messages satırı (status 'queued') + `wa.send` işi, aynı transaction'da (02 §7.5).
 // Alıcı başı ~6 sn aralık: conversation_bot_state.next_send_at ile iş zamanı ileri kaydırılır (02 §7.6).
 // SSE: conversation.message / conversation.updated (14 §7.1).
+// Ortak numara (00 §12a madde 8): konuşmanın hesabı 'shared' ise her serbest mesaj dükkan adını taşır — metinde kalın
+// ilk satır, etkileşimli mesajda başlık (header). Şablonların hepsi dükkan adını değişken olarak içerir (CUSTOMER_TEMPLATES).
 
-import type { MessageKind, MessageSentBy, WaDraft } from '@siparis/core';
-import { conversationBotState, conversations, messages, type Database } from '@siparis/db';
+import { brandedText, sharedBrandLine, type MessageKind, type MessageSentBy, type WaDraft } from '@siparis/core';
+import { conversationBotState, conversations, messages, tenants, waAccounts, type Database } from '@siparis/db';
 import { eq, sql } from 'drizzle-orm';
 import { appendBranchEvent } from '../../lib/events';
 import { enqueueJob } from '../../lib/jobs';
@@ -35,6 +37,8 @@ export interface OutboundPayload {
   statusMessage?: boolean;
   /** Sipariş olayı (accepted, delivered…) */
   orderEvent?: string | null;
+  /** Ortak numarada mesajın taşıdığı dükkan adı (00 §12a madde 8); kendi numarada yok */
+  brand?: string | null;
   /** Gönderimden sonra: sağlayıcıya giden gövde */
   request?: Record<string, unknown>;
   error?: { code: string; message: string } | null;
@@ -54,12 +58,29 @@ export function specKind(spec: OutboundSpec): MessageKind {
   return spec.type === 'template' ? 'template' : spec.type === 'interactive' ? 'interactive' : 'text';
 }
 
+/** Ortak numara: serbest mesaja dükkan adı (metin → kalın ilk satır; etkileşimli → başlık). Şablon değişmez. */
+export function brandSpec(spec: OutboundSpec, shopName: string): OutboundSpec {
+  switch (spec.type) {
+    case 'text':
+      return { type: 'text', text: brandedText(shopName, spec.text) };
+    case 'interactive':
+      // Konum isteği mesajı başlık desteklemez: ad gövdenin ilk satırına yazılır
+      if (spec.interactive.kind === 'location_request') {
+        return { type: 'interactive', interactive: { ...spec.interactive, body: brandedText(shopName, spec.interactive.body) } };
+      }
+      return { type: 'interactive', interactive: { ...spec.interactive, header: spec.interactive.header ?? shopName } };
+    case 'template':
+      return spec;
+  }
+}
+
 export function specBody(spec: OutboundSpec): string {
   switch (spec.type) {
     case 'text':
       return spec.text;
     case 'interactive':
-      return spec.interactive.body;
+      // Başlık (ortak numarada dükkan adı) görünümde kalın ilk satırdır
+      return spec.interactive.header ? `${sharedBrandLine(spec.interactive.header)}\n${spec.interactive.body}` : spec.interactive.body;
     case 'template':
       return renderTemplateBody(spec.name, spec.params);
   }
@@ -106,12 +127,26 @@ async function reserveSendSlot(tx: Database, tenantId: string, conversationId: s
   return v ? new Date(v) : new Date();
 }
 
+/** Konuşma ortak numaradaysa dükkan adı (marka), değilse null. */
+async function sharedBrandOf(tx: Database, conversationId: string): Promise<string | null> {
+  const [row] = await tx
+    .select({ provider: waAccounts.provider, name: tenants.name })
+    .from(conversations)
+    .innerJoin(waAccounts, eq(waAccounts.id, conversations.waAccountId))
+    .innerJoin(tenants, eq(tenants.id, conversations.tenantId))
+    .where(eq(conversations.id, conversationId));
+  return row?.provider === 'shared' ? row.name : null;
+}
+
 /** Giden mesajı kuyruğa alır (outbox). Çağıranın transaction'ında. */
 export async function queueOutbound(tx: Database, input: QueueOutboundInput): Promise<QueuedMessage> {
-  const body = specBody(input.spec);
+  const brand = await sharedBrandOf(tx, input.conversationId);
+  const spec = brand ? brandSpec(input.spec, brand) : input.spec;
+  const body = specBody(spec);
   const payload: OutboundPayload = {
     code: input.code ?? null,
-    spec: input.spec,
+    spec,
+    ...(brand ? { brand } : {}),
     templateFallback: input.templateFallback ?? null,
     smsFallback: input.smsFallback ?? null,
     statusMessage: input.statusMessage ?? false,
@@ -123,10 +158,10 @@ export async function queueOutbound(tx: Database, input: QueueOutboundInput): Pr
       tenantId: input.tenantId,
       conversationId: input.conversationId,
       direction: 'out',
-      kind: specKind(input.spec),
+      kind: specKind(spec),
       body,
       payload: payload as unknown as Record<string, unknown>,
-      templateName: input.spec.type === 'template' ? input.spec.name : null,
+      templateName: spec.type === 'template' ? spec.name : null,
       status: 'queued',
       sentBy: input.sentBy,
       sentByUserId: input.sentByUserId ?? null,

@@ -6,6 +6,7 @@ import pino from 'pino';
 import { loadConfig, productionConfigWarnings, webPushConfigWarnings } from './config';
 import { registerAllJobs } from './jobs/index';
 import { runWorker } from './lib/jobs';
+import { syncSharedWaAccounts } from './services/messaging/shared';
 
 /** Bir şerit bu süre boyunca yeni tura başlamazsa (takılı DB/sağlayıcı çağrısı) süreç yeniden başlatılır. */
 const WATCHDOG_STALL_MS = 10 * 60_000;
@@ -19,6 +20,8 @@ async function main() {
   for (const w of [...productionConfigWarnings(config), ...webPushConfigWarnings(config)]) log.warn(w);
   const handle = createDb(config.DATABASE_URL, { applicationName: 'siparis-worker', max: 5 });
   registerAllJobs();
+  // Ortak numara satırlarının gösterim numarası (API açılışıyla aynı; hangisi önce açılırsa)
+  await syncSharedWaAccounts(handle.db, config).catch((err: unknown) => log.warn({ err }, 'ortak numara satırları güncellenemedi'));
 
   const controller = new AbortController();
   const stop = (signal: string) => {

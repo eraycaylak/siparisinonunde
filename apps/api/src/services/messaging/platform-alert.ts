@@ -1,6 +1,6 @@
 // `platform.alert` işi: platform WhatsApp numarasından işletme sahibine uyarı şablonu (02 §5.3, §10.3 basamak 3).
 // PLATFORM_WA_PROVIDER=mock → gönderim notifications tablosuna ('platform_wa') + log. cloud/d360 → platform hesabı
-// (config: PLATFORM_WA_API_KEY + PLATFORM_WA_PHONE_NUMBER_ID). onboarding_test'te sipariş no "TEST #<no>".
+// (config: PLATFORM_WA_API_KEY + PLATFORM_WA_PHONE_NUMBER_ID). Ortak numara (00 §12a madde 8) aynı platform numarasıdır. onboarding_test'te sipariş no "TEST #<no>".
 // ops bayrağı platform_wa_alerts kapalıysa gönderilmez (Meta kesintisi, 10 §6.6).
 // panel_offline (cron.panel_presence, 06 §7.7): şablon isletme_panel_cevrimdisi_v1 [işletme(· şube), dakika]; kayıt metni
 // tr.ts panelOfflineAlertText. Tekillik (şube başına 60 dk'da 1) dedektördedir.
@@ -12,8 +12,7 @@ import type { FastifyBaseLogger } from 'fastify';
 import type { Config } from '../../config';
 import { isFlagEnabled } from '../../lib/flags';
 import { isWaSendError } from '../../wa/errors';
-import { getWaProvider } from '../../wa/registry';
-import type { WaAccountRef } from '../../wa/types';
+import { getWaProvider, platformAccountRef } from '../../wa/registry';
 import { loadBranch, loadTenant } from './context';
 import { renderTemplateBody } from './template-bodies';
 
@@ -37,19 +36,6 @@ export interface PlatformAlertDeps {
 }
 
 export type PlatformAlertOutcome = { status: 'sent' | 'skipped' | 'failed'; reason?: string; notificationIds: string[] };
-
-function platformAccount(config: Config): WaAccountRef {
-  return {
-    id: 'platform',
-    tenantId: 'platform',
-    branchId: 'platform',
-    provider: config.PLATFORM_WA_PROVIDER,
-    displayPhone: null,
-    phoneNumberId: config.PLATFORM_WA_PHONE_NUMBER_ID ?? null,
-    wabaId: null,
-    apiKey: config.PLATFORM_WA_API_KEY ?? null,
-  };
-}
 
 async function record(
   db: Database,
@@ -167,7 +153,7 @@ export async function handlePlatformAlert(deps: PlatformAlertDeps, p: PlatformAl
     }
     try {
       const provider = getWaProvider(config.PLATFORM_WA_PROVIDER);
-      const acc = platformAccount(config);
+      const acc = platformAccountRef(config);
       const res = template
         ? await provider.sendTemplate(acc, { phone: owner.phone! }, template, 'tr', params)
         : await provider.sendText(acc, { phone: owner.phone! }, text);

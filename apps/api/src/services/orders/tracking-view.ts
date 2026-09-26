@@ -168,6 +168,7 @@ export async function buildTrackView(
       phone: branch?.phone ?? tenant.phone ?? null,
       slug: tenant.slug,
       waPhone: waConnectedForBusiness,
+      waLink: channels.waLink,
       legal: {
         legalName: tenant.legalName ?? null,
         taxNo: tenant.taxNo ?? null,

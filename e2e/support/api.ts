@@ -93,6 +93,23 @@ export async function waThread(api: APIRequestContext, waAccountId: string, phon
   return res.messages;
 }
 
+export interface SharedThreadMessage extends ThreadMessage {
+  /** Mesajın dükkanı (platform düzeyi dükkan seçici mesajında null) */
+  tenantName: string | null;
+  platform: boolean;
+  brand?: string;
+}
+
+export interface SharedThread {
+  messages: SharedThreadMessage[];
+  route: { currentTenantId: string | null; currentTenantName: string | null; recentTenantIds: string[] } | null;
+}
+
+/** Müşterinin ortak numaradaki tek sohbeti (tüm dükkanlar + dükkan seçici; 00 §12a madde 8). */
+export async function sharedThread(api: APIRequestContext, phone: string): Promise<SharedThread> {
+  return json<SharedThread>(await api.get('/api/v1/dev/wa/thread', { params: { shared: '1', phone } }), 'dev/wa/thread (ortak)');
+}
+
 /** Vadesi gelmiş WhatsApp/bildirim işlerini çalıştırır (worker'ı beklemeden). */
 export async function flushJobs(api: APIRequestContext): Promise<number> {
   const res = await json<{ processed: number }>(await api.post('/api/v1/dev/jobs/flush'), 'dev/jobs/flush');

@@ -7,6 +7,7 @@ import {
   messages,
   orderVerificationCodes,
   orders,
+  tenants,
   users,
   waAccounts,
   deliveryZones,
@@ -18,6 +19,8 @@ import { getJobHandler, type JobRow } from '../src/lib/jobs';
 import { randomToken } from '../src/lib/tokens';
 import { buildEchoPayload, buildInboundPayload, buildStatusPayload, type DevInboundMessage, type DevSender } from '../src/services/messaging/dev-payload';
 import { ingestWebhookPayload, processWebhookEvent } from '../src/services/messaging/ingest';
+import { ensureSharedWaAccount } from '../src/services/messaging/shared';
+import { ingestSharedWebhookPayload } from '../src/services/messaging/shared-router';
 import type { OutboundPayload } from '../src/services/messaging/outbound';
 import { recordOrderCreated, transitionOrderTx } from '../src/services/orders/transition';
 import type { WaAccountRow } from '../src/wa/registry';
@@ -57,6 +60,48 @@ export async function setupWaTenant(ctx: TestContext, opts: { name?: string; own
     etaMinutes: 30,
   });
   return { ...t, account: account! };
+}
+
+/**
+ * Ortak numara (00 §12a madde 8) işletmesi: tenant (wa_mode 'shared', dükkan kodu) + sahip (telefonlu) + 'shared'
+ * wa_accounts satırı (ensureSharedWaAccount) + bir teslimat bölgesi. `live: false` → canlı değil (listede görünmez).
+ */
+export async function setupSharedTenant(
+  ctx: TestContext,
+  opts: { name: string; code: string | null; live?: boolean; ownerPhone?: string },
+): Promise<WaSetup> {
+  const t = await ctx.createTenantWithOwner({ name: opts.name, waMode: 'shared', waCode: opts.code });
+  await ctx.db.update(users).set({ phone: opts.ownerPhone ?? `+90555${Math.floor(1000000 + Math.random() * 8999999)}` }).where(eq(users.id, t.owner.id));
+  if (opts.live === false) await ctx.db.update(tenants).set({ webLiveAt: null }).where(eq(tenants.id, t.tenantId));
+  const account = await ensureSharedWaAccount(ctx.db, ctx.config, t.tenantId);
+  await ctx.db.insert(deliveryZones).values({
+    tenantId: t.tenantId,
+    branchId: t.branchId,
+    name: 'Merkez',
+    kind: 'neighborhoods',
+    neighborhoods: ['Merkez'],
+    feeKurus: 2000,
+    minOrderKurus: 15000,
+    etaMinutes: 30,
+  });
+  return { ...t, account: account! };
+}
+
+/** Ortak numaranın simülatör hesabı (webhook yükü metadata'sı). */
+export const SHARED_DEV_ACCOUNT = { phoneNumberId: 'platform-shared', displayPhone: '+905550000000', wabaId: 'platform-waba' } as const;
+
+/** Müşteri mesajını ORTAK numaranın webhook hattından geçirir (ham olay + yönlendirici + motor); `now` sahte saat. */
+export async function sharedInbound(
+  ctx: TestContext,
+  from: DevSender,
+  message: DevInboundMessage,
+  opts: { now?: Date; wamid?: string; contextWamid?: string } = {},
+) {
+  const now = opts.now ?? new Date();
+  const { payload, wamid } = buildInboundPayload(SHARED_DEV_ACCOUNT, from, message, { at: now, wamid: opts.wamid, contextWamid: opts.contextWamid });
+  const { webhookEventId } = await ingestSharedWebhookPayload(ctx.db, payload);
+  const summary = await processWebhookEvent({ db: ctx.db, config: ctx.config, log: silentLog }, webhookEventId, { now });
+  return { wamid, webhookEventId, summary };
 }
 
 /** Müşteri mesajını webhook hattından (ham olay + işleme) geçirir; `now` sahte saat. */

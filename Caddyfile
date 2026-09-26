@@ -27,14 +27,15 @@
 #   - stdout → `docker compose logs caddy` (sorun giderme; Docker 5×20 MB ile sınırlar)
 #   - caddy_logs birimi /var/log/caddy/access.log → 100 MB'ta döner, 366 gün saklanır (yasal kayıt)
 # Cookie/Authorization başlıkları Caddy tarafından zaten maskelenir. Yoldaki gizli belirteçler (WhatsApp webhook
-# belirteci, müşteri takip belirteci) ve kurye giriş linkindeki ?t= kırpılır; IP, zaman, yöntem, durum kalır.
+# belirteci — ortak numaranın /wa/shared/<belirteç> adresi dahil —, müşteri takip belirteci) ve kurye giriş linkindeki
+# ?t= kırpılır; IP, zaman, yöntem, durum kalır.
 (access_log) {
 	log {
 		output stdout
 		format filter {
 			wrap json
 			fields {
-				request>uri regexp "(^/(?:api/v1/webhooks/wa|wa|t|api/v1/store/track)/)[^/?#]+|([?&]t=)[^&#]*" "${1}${2}***"
+				request>uri regexp "(^/(?:api/v1/webhooks/wa(?:/shared)?|wa(?:/shared)?|t|api/v1/store/track)/)[^/?#]+|([?&]t=)[^&#]*" "${1}${2}***"
 			}
 		}
 	}
@@ -47,7 +48,7 @@
 		format filter {
 			wrap json
 			fields {
-				request>uri regexp "(^/(?:api/v1/webhooks/wa|wa|t|api/v1/store/track)/)[^/?#]+|([?&]t=)[^&#]*" "${1}${2}***"
+				request>uri regexp "(^/(?:api/v1/webhooks/wa(?:/shared)?|wa(?:/shared)?|t|api/v1/store/track)/)[^/?#]+|([?&]t=)[^&#]*" "${1}${2}***"
 			}
 		}
 	}

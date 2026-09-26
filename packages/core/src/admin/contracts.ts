@@ -22,6 +22,7 @@ import {
   TENANT_ROLES,
   TEST_KINDS,
   WA_ACCOUNT_STATUSES,
+  WA_MODES,
   WA_PROVIDERS,
 } from '../enums';
 import { SUPPORT_NOTE_TAGS } from './support-tags';
@@ -141,6 +142,10 @@ export const adminTenantListItemSchema = z.object({
   lastOrderAt: isoOrNull,
   orders7d: int,
   waStatus: z.enum(WA_ACCOUNT_STATUSES).nullable(),
+  /** 00 §12a madde 8: ortak numara ya da kendi numarası */
+  waMode: z.enum(WA_MODES),
+  /** Dükkan kodu (ortak numarada QR/#KOD) */
+  waCode: z.string().nullable(),
 });
 export type AdminTenantListItem = z.infer<typeof adminTenantListItemSchema>;
 
@@ -209,9 +214,38 @@ export const adminWaListQuerySchema = z.object({
     .optional()
     .transform((v) => v === '1' || v === 'true'),
 });
+/**
+ * Ortak numara özeti (00 §12a madde 8): platformun tek WhatsApp numarasının yapılandırması ve son 24 saat. Webhook
+ * belirteci gizlidir; yalnız son 4 karakteri gösterilir.
+ */
+export const adminWaSharedNumberSchema = z.object({
+  displayName: z.string(),
+  /** Ortak numara (E.164; platformun numarası, müşteri verisi değildir); yapılandırılmamışsa null */
+  displayPhone: z.string().nullable(),
+  displayPhoneFormatted: z.string().nullable(),
+  provider: z.enum(['mock', 'cloud', 'd360']),
+  providerLabel: z.string(),
+  /** PLATFORM_WA_WEBHOOK_TOKEN tanımlı mı (değilse ortak webhook 404) */
+  webhookConfigured: z.boolean(),
+  /** Webhook adresi, belirteç maskeli (…/webhooks/wa/shared/••••abcd) */
+  webhookUrlMasked: z.string().nullable(),
+  /** Ortak webhook'a son olay */
+  lastWebhookAt: isoOrNull,
+  /** Ortak numaradaki işletmeler / dükkan listesinde seçilebilenler */
+  shops: z.object({ total: int, selectable: int }),
+  /** Platform düzeyi mesajlar (dükkan seçici, yönlendirilemeyen gelenler), son 24 saat */
+  platform24h: z.object({ inbound: int, outbound: int, failed: int }),
+  health: z.enum(['red', 'yellow', 'green']),
+  /** Türkçe sorun/uyarı satırları (boşsa sorun yok) */
+  problems: z.array(z.string()),
+});
+export type AdminWaSharedNumber = z.infer<typeof adminWaSharedNumberSchema>;
+
 export const adminWaListResponseSchema = z.object({
   items: z.array(adminWaAccountSchema),
   summary: z.object({ total: int, red: int, yellow: int, green: int, silent: int }),
+  /** Ortak numara özeti (00 §12a madde 8) */
+  sharedNumber: adminWaSharedNumberSchema.optional(),
 });
 export type AdminWaListResponse = z.infer<typeof adminWaListResponseSchema>;
 
@@ -276,6 +310,12 @@ export const adminTenantDetailSchema = z.object({
     liveAt: isoOrNull,
     webLiveAt: isoOrNull,
     isDemo: z.boolean(),
+    /** 00 §12a madde 8: ortak numara ya da kendi numarası */
+    waMode: z.enum(WA_MODES),
+    /** Dükkan kodu; yalnız platform yöneticisi değiştirir (PATCH waCode) */
+    waCode: z.string().nullable(),
+    /** Ortak numarada QR bağlantısı (wa.me/<ortak numara>?text=…#KOD); kendi numarada ya da numara yoksa null */
+    sharedWaLink: z.string().nullable(),
     createdAt: iso,
     updatedAt: iso,
   }),
@@ -332,6 +372,10 @@ export const adminTenantPatchSchema = z.object({
   suspensionReason: z.enum(SUSPENSION_REASONS).nullable().optional(),
   orderingEnabled: z.boolean().optional(),
   trialEndsAt: isoInput.nullable().optional(),
+  /** Dükkan kodu (A–Z, 0–9; 3–12 karakter, tekil). Türkçe harf ve küçük harf normalize edilir. */
+  waCode: z.string().trim().min(1).max(20).optional(),
+  /** Ortak numara ↔ kendi numarası. 'own'a geçişte işletme sahibi panelden kendi numarasını bağlar. */
+  waMode: z.enum(WA_MODES).optional(),
   subscription: z
     .object({
       status: z.enum(SUBSCRIPTION_STATUSES).optional(),

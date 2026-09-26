@@ -27,6 +27,8 @@ const generators = {
   TRACKING_SECRET: () => randomBytes(32).toString('base64url'),
   ENCRYPTION_KEY: () => randomBytes(32).toString('base64'),
   WA_VERIFY_TOKEN: () => randomBytes(16).toString('hex'),
+  // Ortak numara webhook yolu (/api/v1/webhooks/wa/shared/<belirteç>): en az 16 karakter, "dev" ile başlamaz (hex)
+  PLATFORM_WA_WEBHOOK_TOKEN: () => randomBytes(24).toString('hex'),
 };
 
 const out = {};

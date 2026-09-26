@@ -209,7 +209,7 @@ describe('bağlantıyı kes ve webhook adresini yenile (owner)', () => {
     // Vitrin numarayı göstermez; Akış B SMS OTP'ye düşer (platform + işletme SMS yedeği açık)
     expect((await store(c.slug)).tenant.whatsappPhone).toBeNull();
     const [tenantRow] = await ctx.db.select().from(tenants).where(eq(tenants.id, c.tenantId));
-    expect(await loadVerificationChannels(ctx.db, tenantRow!, c.branchId)).toEqual({ waConnected: false, waDisplayPhone: null, smsAvailable: true });
+    expect(await loadVerificationChannels(ctx.db, tenantRow!, c.branchId)).toEqual({ waConnected: false, waDisplayPhone: null, waLink: null, smsAvailable: true });
 
     // Kuyruktaki gönderim işi çökmez: mesaj 'account_unavailable' ile başarısız
     await flushOutbound(ctx);
