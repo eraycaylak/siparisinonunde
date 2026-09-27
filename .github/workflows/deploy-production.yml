@@ -1,6 +1,8 @@
-# Canlı ortam: Türkiye'deki VPS (00 §12a madde 10; docs/15 §14). Docker Compose yığını (postgres, migrate, api, worker,
-# web, caddy) + Cloudflare yalnız DNS ve proxy (turuncu bulut). Demo verisi YOK: veritabanı boş başlar, yalnız platform
-# yöneticisi açılır; işletmeler kendileri kaydolur (signup_open açık) ya da yönetici ekler.
+# İSTEĞE BAĞLI alternatif: Türkiye'deki VPS (docs/15 §14). Canlı ortam Cloudflare'dedir ve VPS planlanmıyor (00 §12a
+# madde 10; "Canlı ortam (Cloudflare)" iş akışı). Bu iş akışı yalnız VPS_HOST secret'ı eklenirse çalışır: Docker Compose
+# yığını (postgres, migrate, api, worker, web, caddy) + Cloudflare yalnız DNS ve proxy (turuncu bulut). Veritabanı boş
+# başlar, yalnız platform yöneticisi açılır. DİKKAT: DNS geçişi alan adını VPS'e taşır; Cloudflare'deki canlı veri
+# kendiliğinden TAŞINMAZ (önce R2'deki son yedek VPS'e geri yüklenmelidir; docs/15 §14).
 #
 # Gereken GitHub secret'ları (Settings > Secrets and variables > Actions):
 #   VPS_HOST              — sunucunun IPv4 adresi (ya da IPv4'e çözülen ad). YOKSA bu iş akışı push'ta atlanır.
@@ -60,7 +62,7 @@ env:
   ADMIN_EMAIL: admin@yemekgelsin.net
 
 jobs:
-  # VPS secret'ları yoksa push'ta atlanır (uyarı); elle çalıştırmada hata verir
+  # VPS secret'ları yoksa (olağan durum: canlı ortam Cloudflare'de) push'ta bilgi notuyla atlanır; elle çalıştırmada hata
   kontrol:
     runs-on: ubuntu-latest
     outputs:
@@ -76,9 +78,9 @@ jobs:
           [ -n "$VPS_PASSWORD" ] || missing+=(VPS_PASSWORD)
           if [ ${#missing[@]} -eq 0 ]; then echo "ready=true" >> "$GITHUB_OUTPUT"; exit 0; fi
           echo "ready=false" >> "$GITHUB_OUTPUT"
-          msg="Eksik GitHub secret: ${missing[*]} — Türkiye VPS'i alınınca Settings > Secrets and variables > Actions'a ekleyin (docs/15 §14)."
+          msg="Eksik GitHub secret: ${missing[*]} — isteğe bağlı Türkiye VPS yolu için gerekir (docs/15 §14). Canlı ortam Cloudflare'dedir; VPS_HOST eklemek alan adını VPS'e taşır."
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then echo "::error::$msg"; exit 1; fi
-          echo "::warning::Canlı ortam dağıtımı atlandı (VPS henüz yok). $msg"
+          echo "::notice::İsteğe bağlı VPS yolu kullanılmıyor (canlı ortam Cloudflare'de; 00 §12a madde 10). Bu iş akışı atlandı."
 
   deploy:
     needs: kontrol
@@ -338,14 +340,14 @@ jobs:
       - name: Duman testi (gerçek alan adı)
         run: |
           fail() { echo "::error::$1"; exit 1; }
-          # Cloudflare kenarı yeni kayıtları birkaç saniye-dakika içinde uygular. Worker (dev ortamı) her yanıta
-          # x-robots-tag: noindex ekler; VPS eklemez: başlık kalkınca trafik VPS'tedir.
+          # Cloudflare kenarı yeni kayıtları birkaç saniye-dakika içinde uygular. Cloudflare Worker'ı her yanıta
+          # x-yg-ortam: cloudflare (eski sürümleri x-robots-tag) ekler; VPS eklemez: başlık kalkınca trafik VPS'tedir.
           deadline=$((SECONDS + 600)); ok=0; i=0
           while [ "$SECONDS" -lt "$deadline" ]; do
             i=$((i + 1))
             code="$(curl -sS -D "$RUNNER_TEMP/h.txt" -o "$RUNNER_TEMP/b.txt" -w '%{http_code}' --max-time 30 "$SITE_URL/api/v1/health" 2>/dev/null || true)"
-            if [ "$code" = "200" ] && grep -q '"ok":true' "$RUNNER_TEMP/b.txt" && ! grep -qi '^x-robots-tag:' "$RUNNER_TEMP/h.txt"; then ok=1; break; fi
-            echo "deneme $i: HTTP $code$(grep -qi '^x-robots-tag:' "$RUNNER_TEMP/h.txt" 2>/dev/null && echo ' (hâlâ Worker)')"
+            if [ "$code" = "200" ] && grep -q '"ok":true' "$RUNNER_TEMP/b.txt" && ! grep -qiE '^(x-yg-ortam|x-robots-tag):' "$RUNNER_TEMP/h.txt"; then ok=1; break; fi
+            echo "deneme $i: HTTP $code$(grep -qiE '^(x-yg-ortam|x-robots-tag):' "$RUNNER_TEMP/h.txt" 2>/dev/null && echo ' (hâlâ Worker)')"
             sleep 15
           done
           [ "$ok" = "1" ] || fail "$SITE_URL/api/v1/health VPS'ten 200 dönmedi (son: $code). SSL/TLS modu 'Full (strict)' mı, DNS kayıtları proxy'li mi? (docs/15 §14 Sorun giderme)"

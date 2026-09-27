@@ -1,11 +1,11 @@
 // Worker'ın erişim ve yönlendirme kuralları (15 §13). Saf fonksiyonlar: scripts/access.test.mjs ile denenir
 // (node --test; Node'un tür ayıklamasıyla çalışır, bu yüzden yalnız silinebilir TypeScript sözdizimi kullanılır).
 //
-// - Alan adı kipinde (DEPLOY_MODE=domain; VPS hazır olana kadar yemekgelsin.net) site herkese açıktır: pazarlama, vitrin
-//   (/s/*), takip (/t/*), yasal sayfalar, panel/admin giriş ekranları ve API. HTTP Basic (DEV_PASSWORD) yalnız geliştirici
-//   araçlarını korur: /dev/* ve /api/v1/dev/*.
-// - Gizli staging kipinde (DEPLOY_MODE=staging; Türkiye VPS'i canlıya geçtikten sonra, yalnız workers.dev; 00 §12a
-//   madde 10) sitenin TAMAMI parolalıdır; yalnız sağlık uçları (/api/v1/health, /api/v1/health/worker) açıktır.
+// - Alan adı kipinde (DEPLOY_MODE=domain; CANLI ORTAM, https://yemekgelsin.net; 00 §12a madde 10) site herkese açıktır ve
+//   parola yoktur. Geliştirici araçlarının yolları (/dev/*, /api/v1/dev/*) Worker'da doğrudan 404 döner (isDevToolsPath;
+//   src/mode.ts blockDevTools); container'da da kapalıdırlar (DEV_TOOLS=0).
+// - Gizli staging kipinde (DEPLOY_MODE=staging; yalnız isteğe bağlı Türkiye VPS'i canlıdayken, yalnız workers.dev) sitenin
+//   TAMAMI parolalıdır (HTTP Basic, DEV_PASSWORD); yalnız sağlık uçları (/api/v1/health, /api/v1/health/worker) açıktır.
 // - www.<alan adı>/* → https://<alan adı>/* (301); workers.dev adresindeki sayfa gezinmeleri (GET text/html) özel alan
 //   adına geçici (302) yönlenir. API ve webhook istekleri workers.dev'de de çalışmaya devam eder (yedek adres).
 
@@ -28,15 +28,18 @@ export function normalizePathForAuth(pathname: string): string {
   return p.replace(/\\/g, '/').replace(/\/{2,}/g, '/').toLowerCase();
 }
 
-const PROTECTED_PREFIXES = ['/dev', '/api/v1/dev'];
+const DEV_TOOLS_PREFIXES = ['/dev', '/api/v1/dev'];
 
-/** Parola isteyen yol mu: /dev, /dev/…, /api/v1/dev, /api/v1/dev/… (ör. /devices korunmaz; /dev;x korunur). */
-export function isProtectedPath(pathname: string): boolean {
+/**
+ * Geliştirici araçlarının yolu mu: /dev, /dev/…, /api/v1/dev, /api/v1/dev/… (ör. /devices değil; /dev;x ve kodlanmış
+ * biçimler de sayılır). Canlı ortamda Worker bu yollara 404 döner.
+ */
+export function isDevToolsPath(pathname: string): boolean {
   const p = normalizePathForAuth(pathname);
-  return PROTECTED_PREFIXES.some((prefix) => p.startsWith(prefix) && !/^[a-z0-9_-]/.test(p.slice(prefix.length)));
+  return DEV_TOOLS_PREFIXES.some((prefix) => p.startsWith(prefix) && !/^[a-z0-9_-]/.test(p.slice(prefix.length)));
 }
 
-/** Dağıtım kipi: domain (yemekgelsin.net, demo verisi yok) | staging (gizli, workers.dev, demo verili). */
+/** Dağıtım kipi: domain (canlı ortam, yemekgelsin.net) | staging (gizli, workers.dev, demo verili). */
 export type DeployMode = 'domain' | 'staging';
 
 export function normalizeDeployMode(raw: string | undefined | null): DeployMode {
@@ -51,10 +54,12 @@ export function isHealthPath(pathname: string): boolean {
   return HEALTH_PATHS.includes(p);
 }
 
-/** HTTP Basic (DEV_PASSWORD) gereken yol mu: staging'de sağlık uçları dışında her şey, alan adı kipinde geliştirici araçları. */
+/**
+ * HTTP Basic (DEV_PASSWORD) gereken yol mu: yalnız gizli staging'de, sağlık uçları dışında her şey. Canlı ortamda (alan
+ * adı kipi) parola sorulmaz; geliştirici araçları orada 404'tür (isDevToolsPath).
+ */
 export function requiresAuth(pathname: string, mode: DeployMode): boolean {
-  if (mode === 'staging') return !isHealthPath(pathname);
-  return isProtectedPath(pathname);
+  return mode === 'staging' && !isHealthPath(pathname);
 }
 
 /** Tarayıcı sayfa gezintisi mi (bekleme sayfası ve workers.dev yönlendirmesi yalnız bunlara uygulanır). */

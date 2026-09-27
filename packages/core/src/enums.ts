@@ -419,8 +419,8 @@ export const LEGAL_DOCUMENT_LABELS: Record<LegalDocument, string> = {
   mesafeli_satis: 'Mesafeli satış sözleşmesi',
   on_bilgilendirme: 'Ön bilgilendirme formu',
 };
-/** Taslak yasal metin sürümü (hukuki inceleme bekliyor). */
-export const LEGAL_DOCUMENT_VERSION = '2026-09-taslak';
+/** Taslak yasal metin sürümü (hukuki inceleme bekliyor). 27.09.2026: barındırma Cloudflare, yurt dışına aktarım KVKK m.9 (00 §12a madde 10). */
+export const LEGAL_DOCUMENT_VERSION = '2026-09-27-taslak';
 
 // WhatsApp (14 §4, §8)
 /**

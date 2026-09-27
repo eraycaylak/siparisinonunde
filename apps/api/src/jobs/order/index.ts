@@ -9,8 +9,9 @@
 // Bu fonksiyon hem API hem worker sürecinde çağrılır; kayıtlar ada göre tekildir.
 
 import { AWAITING_CUSTOMER_TIMEOUT_MS, REJECTION_UNDO_WINDOW_MS, formatOrderNo, formatTL } from '@siparis/core';
-import { branches, customers, memberships, orderEvents, orders, tenants, users, type Database } from '@siparis/db';
+import { branches, customers, memberships, orderEvents, orders, tenants, users, waAccounts, type Database } from '@siparis/db';
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
+import { channelDelivers, mockDelivers, type Config } from '../../config';
 import { appendBranchEvent } from '../../lib/events';
 import { cancelJobs, enqueueJob, registerJobHandler } from '../../lib/jobs';
 import {
@@ -112,8 +113,17 @@ async function recordAlarmEvent(tx: Database, order: OrderRow, step: number, not
   });
 }
 
-/** Tek alarm adımı (idempotent: sipariş `new` değilse hiçbir şey yapmaz). */
-export async function runAlarmStep(db: Database, payload: AlarmStepPayload): Promise<void> {
+/** Alarm zincirinin kanal durumunu belirleyen yapılandırma alanları (channelDelivers). */
+export type AlarmConfig = Pick<Config, 'NODE_ENV' | 'DEPLOY_ENV' | 'PLATFORM_WA_PROVIDER' | 'SMS_PROVIDER'>;
+
+/**
+ * Tek alarm adımı (idempotent: sipariş `new` değilse hiçbir şey yapmaz). config verilirse canlı ortamda taklit (mock)
+ * kanala gönderim yapılmaz: adım "…_unavailable" notuyla kaydedilir ve panel kartı uyarının gittiğini söylemez
+ * (panel-dto alarmNotice; 00 §12a madde 10). Kayıt notu dolu adımlar "gitti" sayılmaz.
+ */
+export async function runAlarmStep(db: Database, payload: AlarmStepPayload, config?: AlarmConfig): Promise<void> {
+  const platformWaLive = !config || channelDelivers(config, 'platform_wa');
+  const smsLive = !config || channelDelivers(config, 'sms');
   await db.transaction(async (tx) => {
     const [order] = await tx
       .select()
@@ -151,6 +161,11 @@ export async function runAlarmStep(db: Database, payload: AlarmStepPayload): Pro
           await recordAlarmEvent(tx, order, ALARM_STEP.PLATFORM_WA, 'platform_wa_disabled');
           return;
         }
+        // Canlı ortamda ortak numara taklitse (META secret'ları yok) uyarı hiçbir yere gitmez: gönderilmiş gibi kaydedilmez
+        if (!platformWaLive) {
+          await recordAlarmEvent(tx, order, ALARM_STEP.PLATFORM_WA, 'platform_wa_unavailable');
+          return;
+        }
         await enqueueJob(tx, {
           queue: 'notify',
           type: 'platform.alert',
@@ -172,6 +187,10 @@ export async function runAlarmStep(db: Database, payload: AlarmStepPayload): Pro
       }
       case ALARM_STEP.SMS: {
         if (order.testKind || !policy.smsEnabled) return;
+        if (!smsLive) {
+          await recordAlarmEvent(tx, order, ALARM_STEP.SMS, 'sms_unavailable');
+          return;
+        }
         const to = await ownerAlertPhone(tx, order.tenantId, branch?.phone ?? null);
         if (!to) {
           await recordAlarmEvent(tx, order, ALARM_STEP.SMS, 'no_owner_phone');
@@ -196,6 +215,23 @@ export async function runAlarmStep(db: Database, payload: AlarmStepPayload): Pro
       }
       case ALARM_STEP.CUSTOMER_NOTICE: {
         if (order.testKind) return;
+        // Müşteriye ulaşan yollar işletmenin WhatsApp numarası (ortak numara ya da kendi hesabı) ve SMS'tir; canlı ortamda
+        // hepsi taklitse bilgi mesajı gidemez, gitmiş gibi de kaydedilmez
+        if (config && !smsLive) {
+          let waLive = platformWaLive;
+          if (tenant?.waMode === 'own') {
+            const [acc] = await tx
+              .select({ provider: waAccounts.provider })
+              .from(waAccounts)
+              .where(and(eq(waAccounts.tenantId, order.tenantId), eq(waAccounts.branchId, order.branchId)))
+              .limit(1);
+            waLive = !!acc && (acc.provider !== 'mock' || mockDelivers(config));
+          }
+          if (!waLive) {
+            await recordAlarmEvent(tx, order, ALARM_STEP.CUSTOMER_NOTICE, 'customer_channel_unavailable');
+            return;
+          }
+        }
         await enqueueJob(tx, {
           queue: 'notify',
           type: 'order.notify_customer',
@@ -283,7 +319,7 @@ export async function runAwaitingTimeout(db: Database, payload: AwaitingTimeoutP
 }
 
 export function registerOrderJobs(): void {
-  registerJobHandler<AlarmStepPayload>('order.alarm_step', (payload, { db }) => runAlarmStep(db, payload));
+  registerJobHandler<AlarmStepPayload>('order.alarm_step', (payload, { db, config }) => runAlarmStep(db, payload, config));
   registerJobHandler<FinalizeRejectionPayload>('order.finalize_rejection', (payload, { db }) => runFinalizeRejection(db, payload));
   registerJobHandler<AwaitingTimeoutPayload>('order.awaiting_timeout', (payload, { db }) => runAwaitingTimeout(db, payload));
 

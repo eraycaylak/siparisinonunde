@@ -1,14 +1,18 @@
-// Canlı ortam .env'i (scripts/vps/env-merge.mjs) uygulamanın gerçek açılış denetiminden geçer mi (00 §12a madde 10;
-// 15 §14): her secret birleşiminde loadConfig (üretimde productionConfigErrors) hata vermemeli. Ortam, docker-compose.yml
-// api servisindeki gibi kurulur: env_file (.env) + environment (NODE_ENV, DATABASE_URL, APP_BASE_URL, DEV_TOOLS,
-// ADMIN_TOTP_REQUIRED …).
+// Canlı ortamın container ortamı uygulamanın gerçek açılış denetiminden geçer mi (00 §12a madde 10): loadConfig (üretimde
+// productionConfigErrors) hata vermemeli.
+//   - Cloudflare (canlı ortam; 15 §13): Worker'ın container'a verdiği ortam (deploy/cloudflare/src/mode.ts containerEnv +
+//     src/whatsapp-env.ts), WhatsApp mock ve gerçek kipte.
+//   - İsteğe bağlı Türkiye VPS'i (15 §14): .env (scripts/vps/env-merge.mjs) docker-compose.yml api servisindeki gibi kurulur:
+//     env_file (.env) + environment (NODE_ENV, DATABASE_URL, APP_BASE_URL, DEV_TOOLS, ADMIN_TOTP_REQUIRED …).
 
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
+import { containerEnv } from '../../../deploy/cloudflare/src/mode';
+import { whatsappContainerEnv } from '../../../deploy/cloudflare/src/whatsapp-env';
 import { mergeEnv, parseDotenv } from '../../../scripts/vps/env-merge.mjs';
-import { loadConfig, platformDisplayPhone, productionConfigErrors, configSchema } from '../src/config';
+import { channelDelivers, devToolsAllowed, loadConfig, platformDisplayPhone, productionConfigErrors, productionConfigWarnings, configSchema } from '../src/config';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 
@@ -56,7 +60,82 @@ function composeBlock(compose: string, header: RegExp): string {
   return out.join('\n');
 }
 
-describe('canlı ortam .env → API yapılandırması', () => {
+/** Worker'ın secret'ları gibi üretilmiş değerler (deploy/cloudflare/scripts/secrets.mjs biçimleri). */
+const CF_SECRETS = {
+  APP_BASE_URL: 'https://yemekgelsin.net',
+  APP_VERSION: '0123abcd',
+  DATA_EPOCH: '3',
+  SEED_MODE: 'admin',
+  DEV_PASSWORD: 'yonetici-parolasi-123',
+  SESSION_SECRET: 'Zk3n0bq9X1v8m2L7c4R6t5Y0u9I8o7P6a5S4d3F2g1H0j9K8l7Z6x5C4v3B2n1M0q9W8e7R6t5Y4u3I2o1P0aA',
+  TRACKING_SECRET: 'Tq9w8E7r6T5y4U3i2O1p0A9s8D7f6G5h4J3k2L1z0X9',
+  ENCRYPTION_KEY: Buffer.alloc(32, 7).toString('base64'),
+  WA_VERIFY_TOKEN: '0f1e2d3c4b5a69788796a5b4c3d2e1f0',
+  PLATFORM_WA_WEBHOOK_TOKEN: '9a8b7c6d5e4f30211203f4e5d6c7b8a99a8b7c6d5e4f3021',
+  VAPID_PUBLIC_KEY: `B${'A'.repeat(86)}`,
+  VAPID_PRIVATE_KEY: 'C'.repeat(43),
+};
+
+/** Container içindeki API süreci: Worker ortamı + entrypoint.sh'in eklediği DATABASE_URL, API_PORT, API_HOST. */
+function cloudflareApiEnv(mode: 'domain' | 'staging', wa: Record<string, string | undefined>): Record<string, string> {
+  return {
+    ...containerEnv(mode, CF_SECRETS, whatsappContainerEnv(mode === 'staging' ? {} : wa).env),
+    DATABASE_URL: 'postgres://siparis:siparis@127.0.0.1:5432/siparis',
+    API_PORT: '4000',
+    API_HOST: '0.0.0.0',
+  };
+}
+
+describe('canlı ortam, Cloudflare container ortamı → API yapılandırması', () => {
+  it('WhatsApp mock (META secret\'ları yok): üretimde açılır, 2FA zorunlu, geliştirici araçları kapalı, ortak numara gösterilmez', () => {
+    const config = loadConfig(cloudflareApiEnv('domain', {}));
+    expect(config.NODE_ENV).toBe('production');
+    expect(config.DEPLOY_ENV).toBe('production');
+    expect(config.DEV_TOOLS).toBe(false);
+    expect(devToolsAllowed(config)).toBe(false);
+    expect(config.ADMIN_TOTP_REQUIRED).toBe(true);
+    expect(config.PUBLIC_LEADS_ENABLED).toBe(true);
+    expect(config.PLATFORM_WA_PROVIDER).toBe('mock');
+    expect(config.SMS_PROVIDER).toBe('mock');
+    expect(config.pushEnabled).toBe(true);
+    // Çalışan WhatsApp yok: vitrin, QR ve Akış B numara göstermez (geliştirme numarası +905550000000 canlıda görünmez)
+    expect(platformDisplayPhone(config)).toBeNull();
+    // Açılışta uyarı yazılır (başlatmayı engellemez)
+    expect(productionConfigWarnings(config).join(' ')).toMatch(/PLATFORM_WA_PROVIDER=mock/);
+    // Taklit kanallar canlıda hiçbir yere göndermez: alarm zinciri bunları "gitti" saymaz (jobs/order runAlarmStep)
+    expect(channelDelivers(config, 'platform_wa')).toBe(false);
+    expect(channelDelivers(config, 'sms')).toBe(false);
+  });
+
+  it('gerçek WhatsApp (META secret\'ları tam): üretimde açılır, ortak numara gösterilir, webhook imzası zorunlu', () => {
+    const config = loadConfig(cloudflareApiEnv('domain', META));
+    expect(config.DEPLOY_ENV).toBe('production');
+    expect(config.DEV_TOOLS).toBe(false);
+    expect(config.ADMIN_TOTP_REQUIRED).toBe(true);
+    expect(config.PLATFORM_WA_PROVIDER).toBe('cloud');
+    expect(config.WA_APP_SECRET).toBe(META.META_APP_SECRET);
+    expect(platformDisplayPhone(config)).toBe('+905321234567');
+    expect(channelDelivers(config, 'platform_wa')).toBe(true);
+    expect(channelDelivers(config, 'sms')).toBe(false);
+  });
+
+  it('DEV_TOOLS=1 canlı ortamda açılışı durdurur (Worker hiçbir kipte vermemeli)', () => {
+    expect(() => loadConfig({ ...cloudflareApiEnv('domain', {}), DEV_TOOLS: '1' })).toThrow(/DEV_TOOLS üretimde 0 olmalı/);
+  });
+
+  it('gizli staging (isteğe bağlı VPS yolu): DEPLOY_ENV=dev, simülatör açık, geliştirme numarası', () => {
+    const config = loadConfig(cloudflareApiEnv('staging', META));
+    expect(config.DEPLOY_ENV).toBe('dev');
+    expect(config.PLATFORM_WA_PROVIDER).toBe('mock');
+    expect(devToolsAllowed(config)).toBe(true);
+    expect(config.ADMIN_TOTP_REQUIRED).toBe(false);
+    expect(platformDisplayPhone(config)).toBe('+905550000000');
+    // Simülatörlü staging'de mock simülatöre "teslim eder"
+    expect(channelDelivers(config, 'platform_wa')).toBe(true);
+  });
+});
+
+describe('isteğe bağlı Türkiye VPS\'i: .env → API yapılandırması', () => {
   it('compose ortamı varsayımı docker-compose.yml ile aynı', () => {
     const compose = readFileSync(resolve(ROOT, 'docker-compose.yml'), 'utf8');
     expect(compose).toContain('env_file: .env');

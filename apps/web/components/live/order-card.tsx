@@ -12,6 +12,7 @@ import { autoPrintKinds, openReceipt } from '@/components/orders/api';
 import { changeText, paymentShort, rejectLabel } from '@/components/orders/labels';
 import { OrderItems } from '@/components/orders/order-items';
 import { useOrderSheets } from '@/components/orders/order-sheets';
+import { alarmBadgeText } from './alarm-state';
 import { acceptWithAutoPrint } from './receipt-window';
 
 const ETA_OPTIONS = [15, 20, 30, 45, 60];
@@ -201,9 +202,9 @@ export function OrderCardView({ card, now, usePreparingStep, alarming, onSeen, a
             <BellRing aria-hidden className="size-3.5" /> Görülmedi
           </Badge>
         ) : null}
-        {card.status === 'new' && (card.alarmStep ?? 0) >= 3 ? (
+        {card.status === 'new' && alarmBadgeText(card) ? (
           <Badge variant="warning" size="sm">
-            {(card.alarmStep ?? 0) >= 5 ? 'Müşteriye bilgi verildi · Bekliyor' : (card.alarmStep ?? 0) >= 4 ? 'SMS gönderildi' : 'Sahibine bildirildi'}
+            {alarmBadgeText(card)}
           </Badge>
         ) : null}
         {card.cancelRequestId ? (

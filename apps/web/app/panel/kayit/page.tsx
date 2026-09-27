@@ -11,8 +11,8 @@ import { SIGNUP_SOON, probeSignupStatus } from '@/lib/signup-status';
 
 export const metadata: Metadata = { title: 'Ücretsiz dene' };
 
-// Kayıt açık mı her istekte sorulur (signup_open; 00 §12a madde 10): kapalıyken (Cloudflare ortamı, acil durdurma) form
-// yerine "Kayıtlar çok yakında açılıyor" bilgisi ve iletişim formu bağlantısı gösterilir.
+// Kayıt açık mı her istekte sorulur (signup_open; 00 §12a madde 10): canlı ortamda açık; platform yöneticisi kapatırsa
+// (acil durdurma) form yerine "Kayıtlar çok yakında açılıyor" bilgisi ve iletişim formu bağlantısı gösterilir.
 export default async function PanelSignupPage() {
   await connection();
   const status = await probeSignupStatus();

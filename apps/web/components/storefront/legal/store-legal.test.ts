@@ -159,6 +159,14 @@ describe('aydınlatma metni (08 §2.4-B)', () => {
     expect(text).toMatch(/WhatsApp.*yurt dışı/);
     expect(text).toContain('KVKK m.9');
     expect(text).toContain("Türkiye'deki SMS hizmet sağlayıcısı");
+    // Barındırma Cloudflare'de, yurt dışında (00 §12a madde 10): alıcı, ülke ve m.9 dayanağı açıkça yazılır
+    expect(text).toContain('Cloudflare, Inc.');
+    expect(text).toMatch(/Cloudflare, Inc\.[^.]*yurt dışı/);
+    expect(text).toContain('ABD ve Avrupa Birliği');
+    expect(text).toContain("KVKK m.9 uyarınca Kişisel Verileri Koruma Kurulu'nun ilan ettiği standart sözleşmeye dayanır");
+    // Artık doğru olmayan "Türkiye'de barındırılır" ifadesi yok
+    expect(text).not.toMatch(/Türkiye'de(ki sunucularda)? barındırıl/);
+    expect(text).not.toContain("Türkiye'deki barındırma");
     expect(text).toContain('30 gün sonra silinir');
     expect(text).toContain('7 gün sonra geçersiz olur');
     expect(text).toContain('24 ay');

@@ -4,10 +4,10 @@
 //         ikinci demo işletme "Çamlık Döner" (Yozgat Merkez, küçük menü, yalnız sahip hesabı). İkisi de ortak numarada
 //         (00 §12a madde 8): Bozok #BOZOK, Çamlık Döner #DONER; ortak numara geliştirmede +90 555 000 00 00 (mock). Her
 //         işletme ayrı ayrı eklenir (var olan atlanır).
-//   admin (Cloudflare ortamı, Türkiye VPS'i hazır olana kadar): YALNIZ platform yöneticisi (admin@yemekgelsin.net,
-//         parola SEED_PASSWORD — zorunlu) ve bayraklar (üretim varsayılanları, bootstrap.ts). Demo işletme, demo hesap,
-//         örnek sipariş yok.
-// Türkiye VPS'inde (canlı ortam) seed HİÇ çalışmaz: scripts/bootstrap-production.ts + scripts/create-admin.ts.
+//   admin (CANLI ORTAM, Cloudflare container'ı; DEPLOY_ENV=production): YALNIZ platform yöneticisi
+//         (admin@yemekgelsin.net, parola SEED_PASSWORD — zorunlu) ve bayraklar (üretim varsayılanları, bootstrap.ts:
+//         kayıt açık). Demo işletme, demo hesap, örnek sipariş yok.
+// İsteğe bağlı Türkiye VPS yolunda seed HİÇ çalışmaz: scripts/bootstrap-production.ts + scripts/create-admin.ts.
 // Parolalar: SEED_PASSWORD tanımlıysa tüm seed hesapları onu kullanır (Cloudflare'de DEV_PASSWORD; 00 §12a madde 9),
 // değilse aşağıdaki yerel geliştirme parolaları (admin1234 …; yalnız demo kipinde).
 
@@ -34,7 +34,7 @@ import {
 } from '@siparis/core';
 import { and, eq, inArray } from 'drizzle-orm';
 import { pathToFileURL } from 'node:url';
-import { FLAG_DESCRIPTIONS, countDemoTenants, ensureProductionFlags, isSmsConfigured, type FlagOutcome } from './bootstrap';
+import { FLAG_DESCRIPTIONS, countDemoTenants, ensureProductionFlags, flagOutcomeNote, isSmsConfigured, type FlagOutcome } from './bootstrap';
 import { createDb, type Database } from './client';
 import { nextOrderNumber } from './helpers';
 import {
@@ -125,9 +125,9 @@ export interface SeedOptions {
    */
   password?: string | null;
   /**
-   * Herkese açık demo dağıtımı (DEPLOY_ENV=dev, Cloudflare; 15 §13). Yeni işletme kaydı (signup_open) kapalı kurulur:
-   * veriler Türkiye dışında tutulur ve tüm sağlayıcılar mock olduğundan gerçek işletme kaydolmamalı. Bayrak yalnız ilk
-   * kurulumda yazılır; platform yöneticisi /admin/bayraklar'dan açabilir, sonraki açılışlar dokunmaz.
+   * Demo dağıtımı (DEPLOY_ENV=dev: gizli staging; 15 §13). Yeni işletme kaydı (signup_open) kapalı kurulur: tüm
+   * sağlayıcılar mock olduğundan ve veriler örnek olduğundan gerçek işletme kaydolmamalı. Bayrak yalnız ilk kurulumda
+   * yazılır; platform yöneticisi /admin/bayraklar'dan açabilir, sonraki açılışlar dokunmaz.
    */
   demoDeployment?: boolean;
 }
@@ -903,8 +903,9 @@ export function resolveSeedMode(raw: string | null | undefined): SeedMode {
 }
 
 /**
- * Canlı ortamda (NODE_ENV=production, DEPLOY_ENV=production: Türkiye VPS'i) demo seed çalışmaz: demo işletmeler ve
- * parolası bilinen hesaplar gerçek veriye karışmasın (00 §12a madde 10). Cloudflare ortamı DEPLOY_ENV=dev'dir.
+ * Canlı ortamda (NODE_ENV=production, DEPLOY_ENV=production: Cloudflare container'ı ya da isteğe bağlı VPS) demo seed
+ * çalışmaz: demo işletmeler ve parolası bilinen hesaplar gerçek veriye karışmasın (00 §12a madde 10). Yalnız gizli
+ * staging DEPLOY_ENV=dev'dir.
  */
 export function assertSeedAllowed(mode: SeedMode, env: Record<string, string | undefined>): void {
   if (mode === 'demo' && env.NODE_ENV === 'production' && (env.DEPLOY_ENV ?? 'production') === 'production') {
@@ -917,7 +918,10 @@ export function assertSeedAllowed(mode: SeedMode, env: Record<string, string | u
 export interface AdminSeedOptions {
   /** Platform yöneticisinin parolası (SEED_PASSWORD): zorunlu, en az 8 karakter */
   password: string | null | undefined;
-  /** Cloudflare ortamı (DEPLOY_ENV=dev; veriler Türkiye dışında): yeni işletme kaydı kapalı başlar */
+  /**
+   * Üretim dışı deneme ortamı (DEPLOY_ENV=dev): kaydın varsayılanı kapalı. Canlı ortamda (DEPLOY_ENV=production) verilmez:
+   * kayıt açık; hiç elle değiştirilmemiş signup_open bu varsayılanı izler (bootstrap.ts)
+   */
   demoDeployment?: boolean;
   /** Netgsm tanımlı mı (sms_fallback üretim varsayılanı; bootstrap.ts) */
   smsConfigured?: boolean;
@@ -937,8 +941,8 @@ export interface AdminSeedResult {
 
 /**
  * SEED_MODE=admin: yalnız platform yöneticisi (admin@yemekgelsin.net, parola SEED_PASSWORD) ve bayraklar (üretim
- * varsayılanları; Cloudflare'de signup_open kapalı). Idempotent: var olan yöneticinin parolası SEED_PASSWORD değiştiyse
- * eşitlenir; iki adımlı doğrulamasına dokunulmaz. Aynı e-posta platform yöneticisi olmayan bir hesaptaysa yetki
+ * varsayılanları: canlı ortamda kayıt açık; yöneticinin bayrak kararlarına dokunulmaz, bootstrap.ts). Idempotent: var
+ * olan yöneticinin parolası SEED_PASSWORD değiştiyse eşitlenir; iki adımlı doğrulamasına dokunulmaz. Aynı e-posta platform yöneticisi olmayan bir hesaptaysa yetki
  * verilmez, seed durur.
  */
 export async function seedAdminOnly(db: Database, opts: AdminSeedOptions): Promise<AdminSeedResult> {
@@ -998,7 +1002,8 @@ async function main() {
   // Ortak parola (Cloudflare: DEV_PASSWORD). Tanımlıysa loga yazılmaz.
   const password = resolveSeedPassword(process.env.SEED_PASSWORD);
   const shown = (local: string) => (password ? 'SEED_PASSWORD' : local);
-  // Cloudflare ortamı (15 §13): yeni işletme kaydı kapalı başlar
+  // Üretim dışı dağıtım (DEPLOY_ENV=dev: gizli staging; 15 §13): kayıt kapalı başlar. Canlı ortamda (DEPLOY_ENV=production)
+  // kayıt açık; hiç elle değiştirilmemiş signup_open açılır (bootstrap.ts)
   const demoDeployment = process.env.DEPLOY_ENV === 'dev';
   const handle = createDb(url, { max: 2 });
   try {
@@ -1012,8 +1017,7 @@ async function main() {
       console.log('Admin kipi (SEED_MODE=admin): yalnız platform yöneticisi ve bayraklar; demo işletme ve demo hesap yok.');
       console.log(`  Platform yöneticisi: ${DEMO.admin.email} / SEED_PASSWORD (${res.created ? 'oluşturuldu' : 'zaten vardı'})`);
       for (const f of res.flags) {
-        const note = f.action === 'created' ? 'yeni' : f.action === 'updated' ? 'SMS yapılandırmasına göre güncellendi' : 'dokunulmadı';
-        console.log(`  ${f.key.padEnd(18)} ${f.enabled ? 'açık' : 'kapalı'} (${note})`);
+        console.log(`  ${f.key.padEnd(18)} ${f.enabled ? 'açık' : 'kapalı'} (${flagOutcomeNote(f)})`);
       }
       return;
     }

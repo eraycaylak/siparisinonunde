@@ -1,29 +1,32 @@
-# Cloudflare ortamı (docs/15 §13; 00 §12a madde 10): Worker + tek container (PostgreSQL + API + worker + web). İki kip:
-#   - VPS_HOST secret'ı YOKSA (Türkiye VPS'i henüz yok) → ALAN ADI kipi: https://yemekgelsin.net (Custom Domain), push'ta
-#     ve elle çalışır. Demo verisi YOK: seed yalnız platform yöneticisini (admin@yemekgelsin.net, parola DEV_PASSWORD) ve
-#     bayrakları kurar; "Demo ortamı" uyarısı yok; yeni işletme kaydı kapalı (veriler Türkiye dışında; kayıt sayfası
-#     "Kayıtlar çok yakında açılıyor" der). Aynı nedenle /demo lead formu da kapalıdır (kişisel veri Türkiye dışında
-#     saklanmaz; CLAUDE.md kural 7): sayfa bilgi kartı ve SUPPORT_WHATSAPP secret'ı varsa destek hattının WhatsApp
-#     bağlantısını gösterir, API lead almaz. META_* secret'ları tamsa ortak numara gerçek WhatsApp'la çalışır.
-#   - VPS_HOST secret'ı VARSA → GİZLİ STAGING: yalnız elle çalıştırılır (push'ta atlanır), yalnız workers.dev adresine
-#     dağıtır, Custom Domain eklemez (alan adı canlı ortama, "Canlı ortam (Türkiye VPS)" iş akışına aittir), tüm site
-#     DEV_PASSWORD ile parolalı, demo verili (SEED_MODE=demo), WhatsApp her zaman simülatör, kendi veri dönemi
-#     (wrangler.jsonc STAGING_DATA_EPOCH). Canlı ortam DNS geçişini tamamlamadan staging çalışmaz.
+# CANLI ORTAM, Cloudflare (docs/15 §13; 00 §12a madde 10): Worker + tek container (PostgreSQL + API + worker + web) + R2
+# yedek. yemekgelsin.net gerçek verilerle burada çalışır; kişisel veri yurt dışında (KVKK m.9 standart sözleşme). İki kip:
+#   - VPS_HOST secret'ı YOKSA (olağan durum) → ALAN ADI kipi = canlı ortam: https://yemekgelsin.net (Custom Domain), push'ta
+#     ve elle çalışır. Üretim kipi (DEPLOY_ENV=production): platform yöneticisi için iki adımlı doğrulama zorunlu (ilk
+#     girişte kurulur), geliştirici araçları ve WhatsApp simülatörü kapalı (/dev/* ve /api/v1/dev/* 404), arama motorlarına
+#     açık. Demo verisi YOK: seed yalnız platform yöneticisini (admin@yemekgelsin.net, parola DEV_PASSWORD) ve üretim
+#     bayraklarını kurar; yeni işletme kaydı ve /demo lead formu AÇIK; "Demo ortamı" uyarısı yok. META_* secret'ları tamsa
+#     ortak numara gerçek WhatsApp'la çalışır; değilse çalışan WhatsApp yoktur (vitrinde ve QR'da bağlantı gösterilmez).
+#     Yedek: 2 dakikada bir (değişiklik varsa) ve her kapanışta R2'ye; beklenmedik çökme en çok ~2 dakikayı kaybettirir.
+#   - VPS_HOST secret'ı VARSA (isteğe bağlı Türkiye VPS'i canlıda; PLANLANMIYOR, 00 §12a madde 10) → GİZLİ STAGING: yalnız
+#     elle çalıştırılır (push'ta atlanır), yalnız workers.dev adresine dağıtır, Custom Domain eklemez (alan adı o zaman
+#     "Canlı ortam (Türkiye VPS)" iş akışına aittir), tüm site DEV_PASSWORD ile parolalı, demo verili (SEED_MODE=demo),
+#     WhatsApp her zaman simülatör, kendi veri dönemi (wrangler.jsonc STAGING_DATA_EPOCH). DİKKAT: VPS_HOST eklemek alan
+#     adını boş veritabanlı VPS'e taşır; buradaki canlı veri kendiliğinden taşınmaz (docs/15 §14).
 # Gereken GitHub secret'ları (Settings > Secrets and variables > Actions):
 #   CLOUDFLARE_API_TOKEN  — "Edit Cloudflare Workers" şablonuyla oluşturulan token (Containers için Workers Paid plan).
 #                           Özel alan adı için ayrıca yemekgelsin.net bölgesinde: Zone > Workers Routes > Edit ve
-#                           Zone > Zone > Read (Zone Resources: Include > Specific zone > yemekgelsin.net). Canlı ortam
-#                           aynı token'a Zone > DNS > Edit ister (docs/15 §14).
-#   DEV_PASSWORD          — geliştirici araçlarının (/dev/*, /api/v1/dev/*) parolası; alan adı kipinde platform
-#                           yöneticisinin, staging'de tüm sitenin ve demo hesaplarının parolası (en az 8 karakter)
+#                           Zone > Zone > Read (Zone Resources: Include > Specific zone > yemekgelsin.net).
+#   DEV_PASSWORD          — platform yöneticisinin (admin@yemekgelsin.net) parolası; her açılışta buna eşitlenir (en az 8,
+#                           önerilen en az 12 karakter). Staging'de ayrıca tüm sitenin ve demo hesaplarının parolası
 #   CLOUDFLARE_ACCOUNT_ID — isteğe bağlı; token birden fazla hesaba erişiyorsa zorunlu
-#   SUPPORT_WHATSAPP      — isteğe bağlı; destek hattı (ülke koduyla, ör. 905321234567). Alan adı kipinde /demo ve kayıt
-#                           sayfasının "Bize ulaşın" bağlantısı bu numaraya WhatsApp'tan yazdırır (bilgi saklanmaz)
+#   SUPPORT_WHATSAPP      — isteğe bağlı; destek hattı (ülke koduyla, ör. 905321234567): "Parolamı unuttum" ve kayıt
+#                           kapalıyken "Bize ulaşın" bağlantıları bu numaraya WhatsApp'tan yazdırır
 # Gerçek WhatsApp (isteğe bağlı, yalnız alan adı kipi; docs/15 §6.2a). META_WA_TOKEN, META_WA_PHONE_NUMBER_ID,
-# META_APP_SECRET ve WA_PHONE dördü birlikte varsa ortak numara gerçek Meta Cloud API ile çalışır; biri eksikse simülatör:
+# META_APP_SECRET ve WA_PHONE dördü birlikte varsa ortak numara gerçek Meta Cloud API ile çalışır; biri eksikse mock:
 #   META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_WA_WABA_ID (isteğe bağlı), META_APP_SECRET, WA_PHONE (E.164)
-# Secret eklemek/değiştirmek dağıtımı kendiliğinden başlatmaz: Actions > "Dev ortamı (Cloudflare)" > Run workflow.
-name: Dev ortamı (Cloudflare)
+# Secret eklemek/değiştirmek dağıtımı kendiliğinden başlatmaz: Actions > "Canlı ortam (Cloudflare)" > Run workflow.
+# Dosya adı (deploy-dev-cloudflare.yml) ve Worker adı (siparisinonunde-dev) iç tanımlayıcıdır, değişmez (00 §12a madde 9).
+name: Canlı ortam (Cloudflare)
 
 on:
   push:
@@ -63,7 +66,7 @@ jobs:
             mode=staging
             if [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ]; then
               echo "ready=false" >> "$GITHUB_OUTPUT"
-              echo "::notice::Türkiye VPS'i var (VPS_HOST): yemekgelsin.net canlı ortamdadır ('Canlı ortam (Türkiye VPS)' iş akışı). Cloudflare ortamı artık gizli staging'dir ve yalnız elle çalıştırılır: Actions > Dev ortamı (Cloudflare) > Run workflow (docs/15 §13)."
+              echo "::notice::VPS_HOST secret'ı var: isteğe bağlı Türkiye VPS yolu seçilmiş, yemekgelsin.net 'Canlı ortam (Türkiye VPS)' iş akışına aittir. Cloudflare ortamı artık gizli staging'dir ve yalnız elle çalıştırılır: Actions > Canlı ortam (Cloudflare) > Run workflow (docs/15 §13, §14). Cloudflare'de canlı kalmak için VPS_HOST secret'ını silin."
               exit 0
             fi
           else
@@ -77,7 +80,7 @@ jobs:
           echo "ready=false" >> "$GITHUB_OUTPUT"
           msg="Eksik GitHub secret: ${missing[*]} — Settings > Secrets and variables > Actions (docs/15 §13)"
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then echo "::error::$msg"; exit 1; fi
-          echo "::warning::Dev dağıtımı atlandı. $msg"
+          echo "::warning::Canlı ortam dağıtımı atlandı. $msg"
 
   deploy:
     needs: kontrol
@@ -123,7 +126,7 @@ jobs:
             echo "CLOUDFLARE_ACCOUNT_ID=$ids" >> "$GITHUB_ENV"
           fi
 
-          # workers.dev adresi: alan adı kipinde yalnız yedek adresin duman testi için, staging'de sitenin kendisi
+          # workers.dev adresi: canlı ortamda (alan adı kipi) yalnız yedek adresin duman testi için, staging'de sitenin kendisi
           sub=$(api "/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" | jq -r '.result.subdomain // empty')
           workers_dev=""
           [ -n "$sub" ] && workers_dev="https://siparisinonunde-dev.${sub}.workers.dev"
@@ -147,7 +150,7 @@ jobs:
             fi
             attached=$(printf '%s' "$st" | jq -r --arg z "$ZONE" '[.workerDomains[] | select(.service == "siparisinonunde-dev" and (.hostname == $z or .hostname == ("www." + $z))) | .hostname] | join(", ")')
             if [ -n "$attached" ]; then
-              echo "::error::$attached hâlâ bu Worker'a bağlı: canlı ortam (Türkiye VPS) DNS geçişini henüz tamamlamadı. Önce 'Canlı ortam (Türkiye VPS)' iş akışı başarıyla bitmeli; staging ondan sonra çalıştırılır (docs/15 §13, §14)."
+              echo "::error::$attached hâlâ bu Worker'a bağlı: isteğe bağlı Türkiye VPS'inin DNS geçişi tamamlanmadı. Önce 'Canlı ortam (Türkiye VPS)' iş akışı başarıyla bitmeli; staging ondan sonra çalıştırılır. Cloudflare'de canlı kalmak istiyorsanız VPS_HOST secret'ını silin (docs/15 §13, §14)."
               exit 1
             fi
             echo "Gizli staging: $workers_dev (özel alan adı yok; yemekgelsin.net canlı ortamda)"
@@ -178,9 +181,9 @@ jobs:
           echo "$zone erişimi tamam (bölge $zone_id, $zstatus)"
           [ -n "$workers_dev" ] || echo "::warning::workers.dev alt alan adı bulunamadı; yedek adres denetimi atlanacak"
 
-      # Ortak numara kipi: alan adı kipinde dört secret tamsa gerçek Meta Cloud API, değilse simülatör (Worker aynı kuralı
-      # uygular: src/whatsapp-env.ts). Staging her zaman simülatördür. Değerler loga yazılmaz.
-      - name: WhatsApp kipi (gerçek numara ya da simülatör)
+      # Ortak numara kipi: alan adı kipinde dört secret tamsa gerçek Meta Cloud API, değilse mock (canlı ortamda çalışan
+      # WhatsApp yok; Worker aynı kuralı uygular: src/whatsapp-env.ts). Staging her zaman simülatördür. Değerler loga yazılmaz.
+      - name: WhatsApp kipi (gerçek numara ya da mock)
         id: wa
         env:
           META_WA_TOKEN: ${{ secrets.META_WA_TOKEN }}
@@ -206,9 +209,9 @@ jobs:
           else
             echo "mode=mock" >> "$GITHUB_OUTPUT"
             if [ "$present" -gt 0 ]; then
-              echo "::warning::Gerçek WhatsApp için eksik GitHub secret: ${missing[*]}. Hepsi eklenene kadar simülatör (mock) çalışır (docs/15 §6.2a)."
+              echo "::warning::Gerçek WhatsApp için eksik GitHub secret: ${missing[*]}. Hepsi eklenene kadar canlı ortamda çalışan WhatsApp yoktur (mock; docs/15 §6.2a)."
             else
-              echo "WhatsApp: simülatör (mock)"
+              echo "WhatsApp: mock (META_* secret'ları yok; canlı ortamda çalışan WhatsApp yok)"
             fi
           fi
 
@@ -241,7 +244,7 @@ jobs:
             fi
           done
 
-      - name: Dağıt (Worker + container imajı; alan adı kipinde özel alan adı)
+      - name: Dağıt (Worker + container imajı; canlı ortamda özel alan adı)
         run: |
           set +e
           npx wrangler deploy -c wrangler.generated.jsonc --secrets-file "$RUNNER_TEMP/secrets.json" --containers-rollout=immediate 2>&1 | tee "$RUNNER_TEMP/deploy.log"
@@ -256,7 +259,7 @@ jobs:
             [ -n "$n" ] && err=$(tail -n +"$n" "$RUNNER_TEMP/deploy.log")
             if printf '%s' "$err" | grep -qiE '/workers/domains|/workers/routes|custom domain'; then
               if printf '%s' "$err" | grep -qiE 'dns record|cname|already exists|externally managed|conflict'; then
-                echo "::error::Özel alan adı eklenemedi: $ZONE ya da www.$ZONE için DNS'te çakışan bir kayıt var. Cloudflare > $ZONE > DNS > Records'ta bu adların A/AAAA/CNAME kayıtlarını silip iş akışını yeniden çalıştırın (docs/15 §13). Canlı ortam (Türkiye VPS) varsa VPS_HOST secret'ı eklenmiş olmalı: bu iş akışı o zaman alan adına dokunmaz."
+                echo "::error::Özel alan adı eklenemedi: $ZONE ya da www.$ZONE için DNS'te çakışan bir kayıt var. Cloudflare > $ZONE > DNS > Records'ta bu adların A/AAAA/CNAME kayıtlarını silip iş akışını yeniden çalıştırın (docs/15 §13). İsteğe bağlı Türkiye VPS'i canlıdaysa VPS_HOST secret'ı eklenmiş olmalı: bu iş akışı o zaman alan adına dokunmaz."
               elif printf '%s' "$err" | grep -qiE 'authentication error|code: 10000|not authorized|unauthorized|forbidden|permission'; then
                 echo "::error::Özel alan adı eklenemedi (token izni). Cloudflare > My Profile > API Tokens > token'ı düzenleyin ve $ZONE bölgesi için şu izinleri ekleyin: Zone > Workers Routes > Edit ve Zone > Zone > Read (Zone Resources: Include > Specific zone > $ZONE). Sonra iş akışını yeniden çalıştırın (docs/15 §13)."
               else
@@ -326,52 +329,54 @@ jobs:
             exit 0
           fi
 
-          # --- Alan adı kipi (VPS yokken): herkese açık, demo verisi yok ---
-          for path in / /panel/giris /admin/giris /panel/kayit /demo /yasal/gizlilik /api/v1/health/worker; do
+          # --- Canlı ortam (alan adı kipi): herkese açık, gerçek veri, üretim kipi, demo verisi yok ---
+          # Duman testi canlı veriye YAZMAZ: lead ucunu yalnız bal küpüyle dener (sessiz 204, kayıt oluşmaz).
+          for path in / /panel/giris /admin/giris /panel/kayit /demo /yasal/gizlilik /yasal/kvkk-aydinlatma /api/v1/health/worker /robots.txt; do
             code=$(code_of "$SITE_URL$path" 60)
-            echo "$path → HTTP $code (parolasız)"
-            [ "$code" = "200" ] || fail "$path parolasız 200 dönmedi ($code)"
+            echo "$path → HTTP $code"
+            [ "$code" = "200" ] || fail "$path 200 dönmedi ($code)"
           done
           # Demo verisi yok: demo vitrinleri 404, "Demo ortamı" uyarısı ve demo vitrin bağlantısı yok
           for path in /s/bozok-pide /s/camlik-doner; do
             code=$(code_of "$SITE_URL$path" 60)
             [ "$code" = "404" ] || fail "$path 404 dönmeli (demo verisi olmamalı; $code)"
           done
-          page=$(curl -s --max-time 60 "$SITE_URL/" || true)
+          home_headers=$(curl -s -D - -o "$RUNNER_TEMP/home.html" --max-time 60 "$SITE_URL/" || true)
+          page=$(cat "$RUNNER_TEMP/home.html" 2>/dev/null || true)
           if grep -q 'Demo ortam' <<< "$page"; then fail "Ana sayfada \"Demo ortamı\" uyarısı var (NEXT_PUBLIC_DEMO_BANNER kapalı olmalı)"; fi
+          # Arama motorlarına açık: noindex başlığı ve meta etiketi yok, robots.txt siteyi kapatmıyor
+          if grep -qi '^x-robots-tag:' <<< "$home_headers"; then fail "Ana sayfa x-robots-tag başlığı gönderiyor; canlı ortam arama motorlarına açık olmalı (src/mode.ts noindex)"; fi
+          if grep -qiE '<meta[^>]+name="robots"[^>]+noindex' <<< "$page"; then fail "Ana sayfada robots noindex meta etiketi var"; fi
+          grep -qi '^x-yg-ortam: cloudflare' <<< "$home_headers" || fail "Ana sayfa x-yg-ortam: cloudflare başlığını göndermiyor (Worker yeni sürümde değil mi?)"
+          robots=$(curl -s --max-time 60 "$SITE_URL/robots.txt" || true)
+          if grep -qiE '^disallow:[[:space:]]*/[[:space:]]*$' <<< "$robots"; then fail "robots.txt tüm siteyi kapatıyor (Disallow: /)"; fi
+          echo "Arama motorları: noindex yok, robots.txt açık"
+          # /demo: lead formu açık, demo vitrin bağlantısı yok
           page=$(curl -s --max-time 60 "$SITE_URL/demo" || true)
           if grep -q 'Demo menüyü aç' <<< "$page"; then fail "/demo sayfası demo vitrin bağlantısı gösteriyor (demo işletme yok)"; fi
-          # Lead formu kapalı (kişisel veri Türkiye dışında saklanmaz): sayfa bilgi kartını gösterir, API lead almaz (403)
-          grep -q 'sunucumuzda açılıyor' <<< "$page" || fail "/demo lead formu yerine \"Başvurular Türkiye'deki sunucumuzda açılıyor\" bilgisini göstermiyor (NEXT_PUBLIC_LEAD_FORM=0 olmalı)"
-          if grep -q 'name="businessName"' <<< "$page"; then fail "/demo lead formunu gösteriyor (bu ortamda kişisel veri toplanmamalı)"; fi
-          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 -X POST -H 'content-type: application/json' --data '{"name":"Duman Testi","businessName":"Duman","phone":"05000000000","city":"Yozgat","source":"demo_form"}' "$SITE_URL/api/v1/public/leads" || true)
-          [ "$code" = "403" ] || fail "POST /api/v1/public/leads 403 (leads_closed) dönmedi ($code): bu ortamda lead saklanmamalı (PUBLIC_LEADS_ENABLED=0)"
-          echo "/demo: lead formu kapalı, API 403 leads_closed"
-          # Yeni işletme kaydı kapalı (veriler Türkiye dışında): kayıt sayfası "çok yakında" der
+          grep -q 'name="businessName"' <<< "$page" || fail "/demo lead formunu göstermiyor (NEXT_PUBLIC_LEAD_FORM=1 olmalı)"
+          # Lead ucu açık: bal küpü dolu istek sessizce 204 alır ve hiçbir şey saklanmaz (kapalıysa 403 leads_closed dönerdi)
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 -X POST -H 'content-type: application/json' --data '{"name":"Duman Testi","businessName":"Duman","phone":"05000000000","city":"Yozgat","source":"demo_form","website":"duman-testi"}' "$SITE_URL/api/v1/public/leads" || true)
+          [ "$code" = "204" ] || fail "POST /api/v1/public/leads (bal küpü) 204 dönmedi ($code): lead ucu kapalı mı (PUBLIC_LEADS_ENABLED)?"
+          echo "/demo: lead formu açık (API bal küpüyle 204; kayıt oluşmadı)"
+          # Yeni işletme kaydı açık: kayıt formu görünür, "çok yakında" bilgisi yok
           page=$(curl -s --max-time 60 "$SITE_URL/panel/kayit" || true)
-          grep -q 'Kayıtlar çok yakında açılıyor' <<< "$page" || fail "/panel/kayit \"Kayıtlar çok yakında açılıyor\" bilgisini göstermiyor (signup_open kapalı olmalı)"
+          grep -q 'İşletme hesabını aç' <<< "$page" || fail "/panel/kayit kayıt formunu göstermiyor (signup_open kapalı mı? Yönetici /admin/bayraklar'dan kapattıysa bilinçli bir karardır)"
+          if grep -q 'Kayıtlar çok yakında açılıyor' <<< "$page"; then fail "/panel/kayit hâlâ \"Kayıtlar çok yakında açılıyor\" diyor (signup_open açık olmalı)"; fi
+          code=$(curl -s --max-time 60 "$SITE_URL/api/v1/public/signup-status" || true)
+          grep -q '"open":true' <<< "$code" || fail "GET /api/v1/public/signup-status kayıt açık demiyor ($code)"
+          echo "/panel/kayit: kayıt formu açık"
 
-          # Geliştirici araçları: parolasız 401, parolayla 200
-          code=$(code_of "$SITE_URL/dev/whatsapp" 60)
-          [ "$code" = "401" ] || fail "/dev/whatsapp parolasız 401 dönmedi ($code)"
-          code=$(code_of "$SITE_URL/api/v1/dev/wa/accounts" 60)
-          [ "$code" = "401" ] || fail "/api/v1/dev/* parolasız 401 dönmedi ($code)"
-          code=$(code_of "$SITE_URL/dev/whatsapp" 60 -u "dev:$DEV_PASSWORD")
-          [ "$code" = "200" ] || fail "/dev/whatsapp parolayla 200 dönmedi ($code)"
-          echo "/dev/whatsapp → 401 parolasız, 200 parolayla"
-          # Gerçek WhatsApp kipinde simülatör kapalıdır: sayfa bildirimi gösterir, API'nin geliştirici uçları yoktur (404)
-          code=$(code_of "$SITE_URL/api/v1/dev/wa/accounts" 60 -u "dev:$DEV_PASSWORD")
-          if [ "$WA_MODE" = "cloud" ]; then
-            [ "$code" = "404" ] || fail "Gerçek WhatsApp kipinde /api/v1/dev/* parolayla 404 dönmedi ($code): simülatör kapanmamış"
-            page=$(curl -s --max-time 60 -u "dev:$DEV_PASSWORD" "$SITE_URL/dev/whatsapp" || true)
-            grep -q 'Gerçek WhatsApp bağlı' <<< "$page" || fail "/dev/whatsapp \"Gerçek WhatsApp bağlı; simülatör kapalı\" bildirimini göstermiyor"
-            echo "Gerçek WhatsApp: /api/v1/dev/* 404, /dev/whatsapp bildirim gösteriyor"
-          else
-            [ "$code" = "200" ] || fail "/api/v1/dev/* parolayla 200 dönmedi ($code)"
-            echo "Simülatör: /api/v1/dev/* parolayla 200"
-          fi
+          # Geliştirici araçları canlı ortamda yok: Worker 404 döner (parolalı ya da parolasız)
+          for path in /dev/whatsapp /api/v1/dev/wa/accounts /api/v1/%64ev/wa/accounts; do
+            code=$(code_of "$SITE_URL$path" 60)
+            [ "$code" = "404" ] || fail "$path 404 dönmedi ($code): canlı ortamda geliştirici araçları kapalı olmalı"
+            code=$(code_of "$SITE_URL$path" 60 -u "dev:$DEV_PASSWORD")
+            [ "$code" = "404" ] || fail "$path parolayla 404 dönmedi ($code)"
+          done
+          echo "Geliştirici araçları: /dev/* ve /api/v1/dev/* 404"
 
-          # Ortak numara webhook'u parolasız API'ye ulaşır (Meta çağırır); yanlış belirteç API'den 404 döner
+          # Ortak numara webhook'u API'ye ulaşır (Meta çağırır); yanlış belirteç API'den 404 döner
           code=$(code_of "$SITE_URL/api/v1/webhooks/wa/shared/yanlis-belirtec-0000000000" 60)
           [ "$code" = "404" ] || fail "Ortak webhook yolu API'ye ulaşmadı ($code)"
 
@@ -402,15 +407,16 @@ jobs:
           fi
 
           {
-            echo "### Cloudflare ortamı hazır (alan adı kipi; Türkiye VPS'i henüz yok)"
+            echo "### Canlı ortam hazır (Cloudflare)"
             echo ""
-            echo "- Adres: $SITE_URL (herkese açık; arama motorlarına kapalı). Demo verisi yok: veritabanı yalnız platform yöneticisiyle başlar."
-            echo "- Admin: $SITE_URL/admin/giris — admin@yemekgelsin.net, parola: DEV_PASSWORD. İki adımlı doğrulamayı /admin/guvenlik'ten açmanız önerilir."
-            echo "- Yeni işletme kaydı ve /demo lead formu kapalı (veriler Türkiye dışında; kişisel veri toplanmaz): $SITE_URL/panel/kayit \"Kayıtlar çok yakında açılıyor\" der, \"Bize ulaşın\" $SITE_URL/demo'ya gider; orada SUPPORT_WHATSAPP secret'ı varsa destek hattının WhatsApp bağlantısı görünür. Kayıt ve form Türkiye VPS'inde açılır (docs/15 §14)."
+            echo "- Adres: $SITE_URL — herkese açık, arama motorlarına açık, gerçek veri (üretim kipi). Demo verisi yok. Kişisel veri Cloudflare'de (yurt dışı): KVKK m.9 standart sözleşmesi ve Kurum bildirimi proje sahibinin yapılacaklarıdır (docs/08 §2.11)."
+            echo "- Admin: $SITE_URL/admin/giris — admin@yemekgelsin.net, parola: DEV_PASSWORD. İki adımlı doğrulama zorunlu: ilk girişte /admin/guvenlik'te kurun, kurtarma kodlarını saklayın."
+            echo "- Yeni işletme kaydı ($SITE_URL/panel/kayit) ve demo talep formu ($SITE_URL/demo) açık. Yönetici kaydı /admin/bayraklar'dan kapatabilir; dağıtımlar bu karara dokunmaz."
             if [ "$WA_MODE" = "cloud" ]; then
-              echo "- WhatsApp: gerçek numara (Meta Cloud API), simülatör kapalı. Kurulum: $SITE_URL/admin/whatsapp > WhatsApp kurulumu (docs/15 §6.2a). Yalnız kendi telefonlarınızla deneyin (veriler Türkiye dışında)."
+              echo "- WhatsApp: gerçek numara (Meta Cloud API). Kurulum: $SITE_URL/admin/whatsapp > WhatsApp kurulumu (docs/15 §6.2a)."
             else
-              echo "- WhatsApp: simülatör (mock); işletme olmadığı için mesaj akışı yok. Simülatör: $SITE_URL/dev/whatsapp (kullanıcı adı: dev, parola: DEV_PASSWORD)"
+              echo "- WhatsApp: çalışan WhatsApp yok (META_* secret'ları eksik; mock). Vitrinde ve QR'da WhatsApp bağlantısı gösterilmez. Bağlamak: docs/15 §6.2a."
             fi
-            echo "- Canlı ortam: Türkiye VPS'i alınıp VPS_HOST/VPS_PASSWORD secret'ları eklenince 'Canlı ortam (Türkiye VPS)' iş akışı alan adını VPS'e taşır; bu iş akışı o zaman gizli staging olur (docs/15 §14)."
+            echo "- SMS: mock (SMS gönderilmez; SMS yedeği kapalı). Geliştirici araçları ve simülatör kapalı (/dev/* 404)."
+            echo "- Yedek: R2'ye 2 dakikada bir (değişiklik varsa) ve her kapanışta/dağıtımda; beklenmedik çökmede en çok ~2 dakika kaybolabilir (docs/15 §13)."
           } >> "$GITHUB_STEP_SUMMARY"

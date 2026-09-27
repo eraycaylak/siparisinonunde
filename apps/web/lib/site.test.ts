@@ -28,7 +28,7 @@ describe('site sabitleri', () => {
     expect(demoStoreSlug('../admin')).toBeNull();
   });
 
-  it('lead formu varsayılan açık; Türkiye dışı ortamda (NEXT_PUBLIC_LEAD_FORM=0) kapalı (kişisel veri Türkiye\'de)', () => {
+  it('lead formu varsayılan açık (canlı ortam); operatör 0 ile derlerse (NEXT_PUBLIC_LEAD_FORM=0) kapalı', () => {
     expect(isLeadFormEnabled(undefined)).toBe(true);
     expect(isLeadFormEnabled('')).toBe(true);
     expect(isLeadFormEnabled('1')).toBe(true);

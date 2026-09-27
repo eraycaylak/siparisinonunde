@@ -1,11 +1,11 @@
-// src/whatsapp-env.ts: ortak numaranın dev kipi (15 §13). Çalıştır: npm test.
+// src/whatsapp-env.ts: ortak numaranın kipi, Cloudflare ortamı (15 §13). Çalıştır: npm test.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { MOCK_DISPLAY_PHONE, REQUIRED_WA_SECRETS, isMetaId, normalizeE164, whatsappContainerEnv } from '../src/whatsapp-env.ts';
+import { REQUIRED_WA_SECRETS, isMetaId, normalizeE164, whatsappContainerEnv } from '../src/whatsapp-env.ts';
 
 const FULL = {
   META_WA_TOKEN: ' EAAG-token ',
@@ -15,12 +15,11 @@ const FULL = {
   WA_PHONE: '+905321234567',
 };
 
-test('dört secret tamsa gerçek Meta Cloud API, simülatör kapalı', () => {
+test('dört secret tamsa gerçek Meta Cloud API (geliştirici araçlarını kip belirler, src/mode.ts)', () => {
   const r = whatsappContainerEnv(FULL);
   assert.equal(r.mode, 'cloud');
   assert.deepEqual(r.missing, []);
   assert.deepEqual(r.env, {
-    DEV_TOOLS: '0',
     PLATFORM_WA_PROVIDER: 'cloud',
     PLATFORM_WA_API_KEY: 'EAAG-token',
     PLATFORM_WA_PHONE_NUMBER_ID: '109876543210',
@@ -34,8 +33,8 @@ test('dört secret tamsa gerçek Meta Cloud API, simülatör kapalı', () => {
   assert.equal('PLATFORM_WA_WABA_ID' in noWaba.env, false);
 });
 
-test('biri bile eksikse ya da telefon geçersizse simülatör (mevcut dev düzeni)', () => {
-  const mockEnv = { DEV_TOOLS: '1', PLATFORM_WA_PROVIDER: 'mock', PLATFORM_WA_DISPLAY_PHONE: MOCK_DISPLAY_PHONE };
+test('biri bile eksikse ya da telefon geçersizse mock; gösterim numarası verilmez (canlı vitrinde sahte numara görünmesin)', () => {
+  const mockEnv = { PLATFORM_WA_PROVIDER: 'mock' };
   assert.deepEqual(whatsappContainerEnv({}), { mode: 'mock', missing: [...REQUIRED_WA_SECRETS], env: mockEnv });
   for (const k of REQUIRED_WA_SECRETS) {
     const r = whatsappContainerEnv({ ...FULL, [k]: '  ' });

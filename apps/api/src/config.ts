@@ -80,16 +80,17 @@ export const configSchema = z.object({
   }),
   DEV_TOOLS: bool01.default(false),
   /**
-   * Dağıtım türü: `production` (gerçek işletmeler) ya da `dev` (Cloudflare dev/demo ortamı, 15 §13). `dev`,
-   * NODE_ENV=production altında geliştirici araçlarına (WhatsApp simülatörü) yalnız tüm sağlayıcılar mock iken izin verir.
+   * Dağıtım türü: `production` (gerçek işletmeler: canlı ortam, Cloudflare container'ı ya da isteğe bağlı VPS) ya da `dev`
+   * (demo verili gizli staging, 15 §13). `dev`, NODE_ENV=production altında geliştirici araçlarına (WhatsApp simülatörü)
+   * yalnız tüm sağlayıcılar mock iken izin verir.
    */
   DEPLOY_ENV: z.enum(['production', 'dev']).default('production'),
   /** Platform yöneticileri için TOTP zorunlu (00 §12a madde 7). Verilmezse: üretimde açık, diğer ortamlarda kapalı. */
   ADMIN_TOTP_REQUIRED: optionalBool01,
   /**
-   * Herkese açık lead formu (POST /api/v1/public/leads: demo formu, hesaplayıcı) kayıt alır mı. Verilmezse açık. Kişisel
-   * veri yalnız Türkiye'deki altyapıda tutulur (CLAUDE.md kural 7; 00 §12a madde 10): Türkiye dışındaki Cloudflare
-   * ortamının alan adı kipi 0 verir, form kapalıdır ve uç 403 leads_closed döner.
+   * Herkese açık lead formu (POST /api/v1/public/leads: demo formu, hesaplayıcı) kayıt alır mı. Verilmezse açık; canlı
+   * ortamda (Cloudflare, 00 §12a madde 10) açıktır. 0 verilirse (formu geçici kapatmak için) uç 403 leads_closed döner ve
+   * hiçbir şey saklanmaz.
    */
   PUBLIC_LEADS_ENABLED: z
     .union([z.string(), z.boolean()])
@@ -196,6 +197,25 @@ export function platformDisplayPhone(
   if (c.PLATFORM_WA_DISPLAY_PHONE) return c.PLATFORM_WA_DISPLAY_PHONE;
   if (c.PLATFORM_WA_PROVIDER !== 'mock') return null;
   return c.NODE_ENV !== 'production' || c.DEPLOY_ENV === 'dev' ? MOCK_SHARED_WA_DISPLAY_PHONE : null;
+}
+
+/**
+ * Bu kanalın mesajı gerçekten bir alıcıya ulaşır mı. Taklit (mock) sağlayıcı geliştirme/test ortamında ve simülatörlü
+ * dev dağıtımında (DEPLOY_ENV=dev) mesajı simülatöre "teslim eder"; canlı ortamda (NODE_ENV=production +
+ * DEPLOY_ENV=production) mock hiçbir yere göndermez. Canlı ortamda mock kanal için gönderim yapılmaz ve hiçbir ekran
+ * mesajın gittiğini söylemez (alarm zinciri: jobs/order; panel kartı: alarmNotice).
+ */
+export function channelDelivers(
+  c: Pick<Config, 'NODE_ENV' | 'DEPLOY_ENV' | 'PLATFORM_WA_PROVIDER' | 'SMS_PROVIDER'>,
+  channel: 'platform_wa' | 'sms',
+): boolean {
+  const provider = channel === 'platform_wa' ? c.PLATFORM_WA_PROVIDER : c.SMS_PROVIDER;
+  return provider !== 'mock' || mockDelivers(c);
+}
+
+/** Taklit (mock) sağlayıcı bir yere "teslim eder" mi: geliştirme/test ve simülatörlü dev dağıtımında evet, canlıda hayır. */
+export function mockDelivers(c: Pick<Config, 'NODE_ENV' | 'DEPLOY_ENV'>): boolean {
+  return c.NODE_ENV !== 'production' || c.DEPLOY_ENV === 'dev';
 }
 
 /** VAPID anahtarlarının üçü de dolu mu (Web Push açık). */

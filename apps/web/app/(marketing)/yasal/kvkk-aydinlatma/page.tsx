@@ -52,8 +52,20 @@ export default function KvkkPage() {
           title: 'Aktarılan taraflar',
           body: (
             <p>
-              Yurt içi barındırma ve SMS hizmet sağlayıcıları, WhatsApp mesaj iletimi için Meta ve aracı hizmet sağlayıcıları (yurt dışı),
-              muhasebe ve e-fatura hizmet sağlayıcısı ile yetkili kamu kurumları. Aktarımlar yalnız belirtilen amaçlarla sınırlıdır.
+              Barındırma hizmet sağlayıcısı Cloudflare, Inc. (yurt dışı; internet sitesi, işletme paneli, veritabanı ve yedeklerin
+              barındırılması), yurt içi SMS hizmet sağlayıcısı, WhatsApp mesaj iletimi için Meta Platforms ve aracı hizmet sağlayıcıları (yurt
+              dışı), muhasebe ve e-fatura hizmet sağlayıcısı ile yetkili kamu kurumları. Aktarımlar yalnız belirtilen amaçlarla sınırlıdır.
+            </p>
+          ),
+        },
+        {
+          title: 'Yurt dışına aktarım',
+          body: (
+            <p>
+              Verileriniz Cloudflare, Inc. altyapısında işlendiği ve saklandığı için başta ABD ve Avrupa Birliği olmak üzere Türkiye dışındaki
+              veri merkezlerine aktarılır. Aktarım, KVKK m.9 uyarınca Kişisel Verileri Koruma Kurulu’nun ilan ettiği standart sözleşmeye
+              dayanılarak yapılır ve standart sözleşme imzadan itibaren 5 iş günü içinde Kurum’a bildirilir. WhatsApp mesajlarının iletiminde
+              Meta Platforms’a yapılan aktarım da aynı madde kapsamındadır.
             </p>
           ),
         },

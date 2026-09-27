@@ -17,7 +17,7 @@
 4. **Sipariş kaçmaz:** Sipariş durum değişiklikleri `branch_events` olay günlüğüne yazılır. Panel SSE + `Last-Event-ID` ile beslenir. Yan etkiler (WhatsApp mesajı, yazdırma, bildirim) **outbox** üzerinden gider.
 5. **Durum makineleri** (sipariş ve konuşma) `packages/core` içinde, tablo güdümlü ve %100 birim testlidir. Geçişler kararlar dosyasındaki tabloyla birebir aynıdır.
 6. **Idempotency:** WhatsApp `wamid` UNIQUE'tir. Webhook işleyici ham olayı kaydeder, hemen 200 döner, kuyruğa atar. Dış çağrılarda idempotency anahtarı kullanılır.
-7. **Kişisel veri:** Loglarda telefon ve adres maskelenir. Sentry'de PII temizlenir. LLM'e giden metinde telefon ve adres maskelenir. Kişisel veri Türkiye'deki altyapıda tutulur.
+7. **Kişisel veri:** Loglarda telefon ve adres maskelenir. Sentry'de PII temizlenir. LLM'e giden metinde telefon ve adres maskelenir. Kişisel veri Cloudflare altyapısında (yurt dışı) tutulur; aktarım KVKK m.9 standart sözleşme + Kurul bildirimi ile yapılır ve aydınlatma metinlerinde alıcısıyla yazılır (00 §12a madde 10). Yeni bir yurt dışı alt işleyen eklenmeden önce 08 §2.11 envanteri ve yasal metinler güncellenir.
 8. **Mesaj bütçesi:** Sipariş başına en fazla 4 durum mesajı gönderilir (gecikme/iptal gibi olağan dışı bilgilendirmeler bütçe dışıdır; Akış A'daki karşılama + "Menüyü aç" ek 1 mesajdır). 60 sn debounce ("alındı" + "onaylandı" tek mesaj) **yalnız Akış A'da** uygulanır; Akış B'de kod mesajına "alındı" yanıtı anında gider. Sipariş durum şablonlarına promosyon veya indirim kodu eklenmez; bunlar İYS kapsamındaki ticari ileti sayılır.
 9. **Para** integer kuruş + `currency` olarak tutulur. Zaman `timestamptz` (UTC) olarak saklanır, `Europe/Istanbul` ile gösterilir.
 10. Müşteri parası hiçbir akışta platform hesabından geçmez (6493 sayılı Kanun).
@@ -30,6 +30,7 @@ pnpm monorepo (`packages/core`, `packages/db`, `apps/api`, `apps/web`, `e2e`). B
 - Kendi oturum sistemi (scrypt + HttpOnly çerez), TOTP 2FA
 - Zod 4 sözleşmeleri `packages/core/src/contracts`
 - WhatsApp: `WhatsAppProvider` (`mock` / `cloud` / `d360` = 360dialog)
+- Canlı ortam: Cloudflare (Worker + tek container: PostgreSQL + API + worker + web; yedekler R2'de), `deploy/cloudflare/` ve `.github/workflows/deploy-dev-cloudflare.yml` (00 §12a madde 10, 15 §13). Docker Compose / Türkiye VPS yolu isteğe bağlı alternatiftir.
 
 ## Komutlar
 - `pnpm dev` (API :4000 + worker + web :3000), `pnpm typecheck`, `ALLOW_DB_RESET=1 pnpm test`, `pnpm --filter @siparis/web test`, `pnpm e2e`

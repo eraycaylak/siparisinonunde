@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import {
+  isDevToolsPath,
   isHealthPath,
   isNavigation,
-  isProtectedPath,
   normalizeDeployMode,
   normalizeEpoch,
   normalizePathForAuth,
@@ -18,18 +18,18 @@ import { stripJsonc } from './jsonc.mjs';
 const SITE = 'https://yemekgelsin.net';
 const HTML = 'text/html,application/xhtml+xml';
 
-test('yalnız geliştirici araçları parolalı', () => {
+test('geliştirici araçları yolları (canlı ortamda Worker 404 döner)', () => {
   for (const p of ['/dev', '/dev/', '/dev/whatsapp', '/api/v1/dev', '/api/v1/dev/wa/accounts', '/DEV/whatsapp', '/api/v1/Dev/x']) {
-    assert.equal(isProtectedPath(p), true, p);
+    assert.equal(isDevToolsPath(p), true, p);
   }
   for (const p of ['/', '/s/bozok-pide', '/t/abc', '/panel/giris', '/admin/giris', '/api/v1/health', '/api/v1/webhooks/wa/x', '/devices', '/api/v1/devtools', '/yasal/gizlilik']) {
-    assert.equal(isProtectedPath(p), false, p);
+    assert.equal(isDevToolsPath(p), false, p);
   }
 });
 
-test('kodlanmış ya da çift eğik çizgili yollar korumayı aşamaz', () => {
+test('kodlanmış ya da çift eğik çizgili yollar engeli aşamaz', () => {
   for (const p of ['/api/v1/%64ev/x', '/api/v1/%2564ev/x', '//api/v1/dev/x', '/api//v1/dev', '/%64ev/whatsapp', '/dev;x', '/api/v1/dev%2Fx', '/api/v1/dev%']) {
-    assert.equal(isProtectedPath(p), true, p);
+    assert.equal(isDevToolsPath(p), true, p);
   }
   assert.equal(normalizePathForAuth('/A%20b//c'), '/a b/c');
 });
@@ -88,7 +88,7 @@ test('yedek yolu: dönem container\'ın yolundan okunur, dönemsiz yol eski öne
   }
 });
 
-test('gizli staging (DEPLOY_MODE=staging): sağlık uçları dışında her yol parolalı; alan adı kipinde yalnız geliştirici araçları', () => {
+test('gizli staging (DEPLOY_MODE=staging): sağlık uçları dışında her yol parolalı; canlı ortamda (alan adı kipi) parola yok', () => {
   assert.equal(normalizeDeployMode('staging'), 'staging');
   assert.equal(normalizeDeployMode(undefined), 'domain');
   assert.equal(normalizeDeployMode('x'), 'domain');
@@ -99,13 +99,12 @@ test('gizli staging (DEPLOY_MODE=staging): sağlık uçları dışında her yol 
   }
   assert.equal(requiresAuth('/api/v1/health', 'staging'), false);
   assert.equal(requiresAuth('/api/v1/%68ealth', 'staging'), false);
-  assert.equal(requiresAuth('/', 'domain'), false);
-  assert.equal(requiresAuth('/panel/giris', 'domain'), false);
-  assert.equal(requiresAuth('/dev/whatsapp', 'domain'), true);
-  assert.equal(requiresAuth('/api/v1/dev/wa/accounts', 'domain'), true);
+  for (const p of ['/', '/panel/giris', '/admin/giris', '/s/x', '/api/v1/auth/login', '/dev/whatsapp', '/api/v1/dev/wa/accounts']) {
+    assert.equal(requiresAuth(p, 'domain'), false, p);
+  }
 });
 
-test('wrangler.jsonc: alan adı kipi (demo verisi yok), DATA_EPOCH geçerli, özel alan adları ve workers.dev yedeği tanımlı', () => {
+test('wrangler.jsonc: alan adı kipi = canlı ortam (demo verisi yok, lead formu açık, simülatör yok), DATA_EPOCH geçerli, özel alan adları ve workers.dev yedeği tanımlı', () => {
   const config = JSON.parse(stripJsonc(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8')));
   assert.match(String(config.vars.DATA_EPOCH), /^[0-9]{1,6}$/);
   assert.match(String(config.vars.STAGING_DATA_EPOCH), /^[0-9]{1,6}$/);
@@ -114,6 +113,11 @@ test('wrangler.jsonc: alan adı kipi (demo verisi yok), DATA_EPOCH geçerli, öz
   assert.equal(config.vars.SEED_MODE, 'admin');
   assert.equal(config.containers[0].image_vars.NEXT_PUBLIC_DEMO_BANNER, '0');
   assert.equal(config.containers[0].image_vars.NEXT_PUBLIC_DEMO_STORE_SLUG, '');
+  assert.equal(config.containers[0].image_vars.NEXT_PUBLIC_LEAD_FORM, '1');
+  assert.equal(config.containers[0].image_vars.NEXT_PUBLIC_DEV_TOOLS, '0');
+  // DEPLOY_ENV kipten türetilir (src/mode.ts); canlı veri dönemi korunur
+  assert.equal('DEPLOY_ENV' in config.vars, false);
+  assert.equal(config.vars.DATA_EPOCH, '3');
   assert.equal(config.workers_dev, true);
   const host = new URL(config.vars.APP_BASE_URL).hostname;
   const patterns = config.routes.filter((r) => r.custom_domain).map((r) => r.pattern);

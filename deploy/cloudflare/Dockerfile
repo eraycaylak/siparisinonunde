@@ -1,10 +1,11 @@
 # syntax=docker/dockerfile:1.7
-# Yemek Gelsin — Cloudflare container'ı (15 §13): PostgreSQL 16 + API + worker + web tek imajda.
-# Derleme bağlamı depo köküdür (wrangler.jsonc image_build_context). Wrangler, image_vars'ı --build-arg olarak geçirir
-# (scripts/config-modes.mjs: NEXT_PUBLIC_SITE_URL, NEXT_PUBLIC_DEMO_BANNER, NEXT_PUBLIC_DEMO_STORE_SLUG).
-# Canlı ortam bu imajı KULLANMAZ (docker/*.Dockerfile + docker-compose.yml, Türkiye'de VPS; 00 §12a madde 10).
-# NEXT_PUBLIC_DEMO_BANNER=1 yalnız demo verili gizli staging'de: sayfaların üstünde "Demo ortamı" uyarısı
-# (apps/web/components/common/demo-notice.tsx); alan adı kipinde 0.
+# Yemek Gelsin — CANLI ORTAM container'ı, Cloudflare (00 §12a madde 10; 15 §13): PostgreSQL 16 + API + worker + web tek
+# imajda. Derleme bağlamı depo köküdür (wrangler.jsonc image_build_context). Wrangler, image_vars'ı --build-arg olarak
+# geçirir (scripts/config-modes.mjs: NEXT_PUBLIC_SITE_URL, NEXT_PUBLIC_DEMO_BANNER, NEXT_PUBLIC_DEMO_STORE_SLUG,
+# NEXT_PUBLIC_LEAD_FORM, NEXT_PUBLIC_DEV_TOOLS, NEXT_PUBLIC_SUPPORT_WHATSAPP). Varsayılanlar canlı ortamındır: uyarı yok,
+# lead formu açık, WhatsApp simülatörü derlenmez. NEXT_PUBLIC_DEMO_BANNER=1 ve NEXT_PUBLIC_DEV_TOOLS=1 yalnız demo verili
+# gizli staging'de (isteğe bağlı VPS yolu; apps/web/components/common/demo-notice.tsx, app/dev/whatsapp).
+# İsteğe bağlı Türkiye VPS yolu bu imajı kullanmaz (docker/*.Dockerfile + docker-compose.yml; 15 §14).
 
 ARG NODE_VERSION=22
 
@@ -40,15 +41,17 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 ARG NEXT_PUBLIC_SITE_URL=https://yemekgelsin.net
 ARG NEXT_PUBLIC_DEMO_BANNER=0
 ARG NEXT_PUBLIC_DEMO_STORE_SLUG=
-# Lead formu (/demo): alan adı kipinde 0 (Türkiye dışında kişisel veri saklanmaz); destek hattı (WhatsApp) isteğe bağlı
-ARG NEXT_PUBLIC_LEAD_FORM=0
+# Lead formu (/demo): açık; destek hattı (WhatsApp) isteğe bağlı
+ARG NEXT_PUBLIC_LEAD_FORM=1
+# WhatsApp simülatörü (/dev/whatsapp): canlı ortamda 0 (sayfa 404), yalnız gizli staging'de 1
+ARG NEXT_PUBLIC_DEV_TOOLS=0
 ARG NEXT_PUBLIC_SUPPORT_WHATSAPP=
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
     APP_BASE_URL=$NEXT_PUBLIC_SITE_URL \
     NEXT_PUBLIC_ROOT_DOMAIN= \
-    NEXT_PUBLIC_DEV_TOOLS=1 \
+    NEXT_PUBLIC_DEV_TOOLS=$NEXT_PUBLIC_DEV_TOOLS \
     NEXT_PUBLIC_DEMO_BANNER=$NEXT_PUBLIC_DEMO_BANNER \
-    DEV_TOOLS=1 \
+    DEV_TOOLS=$NEXT_PUBLIC_DEV_TOOLS \
     NEXT_PUBLIC_DEMO_STORE_SLUG=$NEXT_PUBLIC_DEMO_STORE_SLUG \
     NEXT_PUBLIC_LEAD_FORM=$NEXT_PUBLIC_LEAD_FORM \
     NEXT_PUBLIC_SUPPORT_WHATSAPP=$NEXT_PUBLIC_SUPPORT_WHATSAPP \

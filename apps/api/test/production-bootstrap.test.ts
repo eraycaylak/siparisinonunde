@@ -80,7 +80,7 @@ describe('SEED_MODE', () => {
 });
 
 describe('seedAdminOnly (SEED_MODE=admin)', () => {
-  it('yalnız platform yöneticisi ve bayraklar: demo işletme, demo hesap, sipariş yok; Cloudflare\'de kayıt kapalı', async () => {
+  it('yalnız platform yöneticisi ve bayraklar: demo işletme, demo hesap, sipariş yok; üretim dışı ortamda (DEPLOY_ENV=dev) kayıt kapalı', async () => {
     const res = await seedAdminOnly(ctx.db, { password: 'dev-parola-9', demoDeployment: true });
     expect(res).toMatchObject({ created: true, passwordSynced: false, demoTenants: 0 });
     expect(await ctx.db.select().from(tenants)).toHaveLength(0);
@@ -106,7 +106,7 @@ describe('seedAdminOnly (SEED_MODE=admin)', () => {
     // Demo hesapları yok
     const owner = DEMO.users.find((u) => u.role === 'owner')!;
     expect(await ctx.db.select().from(users).where(eq(users.email, owner.email))).toHaveLength(0);
-    // Kayıt kapalı (Cloudflare: veriler Türkiye dışında)
+    // Kayıt kapalı (üretim dışı deneme ortamı; canlı ortamda açık, aşağıdaki testler)
     const status = await ctx.request({ method: 'GET', url: '/api/v1/public/signup-status' });
     expect(status.json()).toEqual({ open: false });
   });
@@ -149,6 +149,32 @@ describe('seedAdminOnly (SEED_MODE=admin)', () => {
     expect(res.demoTenants).toBe(2);
     expect((await flagMap()).signup_open).toBe(true);
     expect(await ctx.db.select().from(tenants)).toHaveLength(2);
+  });
+
+  it('canlı ortama geçiş (00 §12a madde 10): önceki dönemde seed\'in kapalı yazdığı kayıt açılır; yöneticinin kararı korunur', async () => {
+    // Önceki dönem: Cloudflare ortamı canlı değilken (DEPLOY_ENV=dev) seed kaydı kapalı yazdı, kimse elle değiştirmedi
+    await seedAdminOnly(ctx.db, { password: 'dev-parola-5', demoDeployment: true });
+    expect((await flagMap()).signup_open).toBe(false);
+    // Canlı ortam (DEPLOY_ENV=production): elle değiştirilmemiş bayrak ortam varsayılanını izler
+    const live = await seedAdminOnly(ctx.db, { password: 'dev-parola-5' });
+    expect(live.flags.find((f) => f.key === 'signup_open')).toEqual({ key: 'signup_open', enabled: true, action: 'updated' });
+    expect((await ctx.request({ method: 'GET', url: '/api/v1/public/signup-status' })).json()).toEqual({ open: true });
+    // Diğer bayraklar üretim varsayılanlarında kalır
+    expect(await flagMap()).toEqual({
+      signup_open: true,
+      wa_onboarding: true,
+      campaigns_global: false,
+      llm_parsing: false,
+      sms_fallback: false,
+      platform_wa_alerts: true,
+    });
+
+    // Yönetici kaydı bilerek kapattı (acil durdurma): sonraki açılışlar dokunmaz
+    const [admin] = await ctx.db.select({ id: users.id }).from(users).where(eq(users.email, DEMO.admin.email));
+    await ctx.db.update(featureFlags).set({ enabled: false, updatedByUserId: admin!.id }).where(eq(featureFlags.key, 'signup_open'));
+    const again = await seedAdminOnly(ctx.db, { password: 'dev-parola-5' });
+    expect(again.flags.find((f) => f.key === 'signup_open')).toEqual({ key: 'signup_open', enabled: false, action: 'kept' });
+    expect((await flagMap()).signup_open).toBe(false);
   });
 });
 
@@ -232,6 +258,27 @@ describe('betikler (canlı ortam dağıtımı)', () => {
     expect(again.code, again.stderr).toBe(0);
     expect(again.stdout).toMatch(/signup_open\s+açık \(dokunulmadı\)/);
     expect(again.stderr).toMatch(/2 demo işletme/);
+  });
+
+  it('seed.ts SEED_MODE=admin + DEPLOY_ENV=production (canlı ortam container\'ı): yalnız yönetici; elle değiştirilmemiş kapalı kayıt açılır; demo seed reddedilir', async () => {
+    await seedAdminOnly(ctx.db, { password: 'dev-parola-6', demoDeployment: true });
+    expect((await flagMap()).signup_open).toBe(false);
+    const env = { NODE_ENV: 'production', DEPLOY_ENV: 'production', SEED_MODE: 'admin', SEED_PASSWORD: 'dev-parola-6', SMS_PROVIDER: 'mock' };
+    const r = await script('packages/db/src/seed.ts', [], env);
+    expect(r.code, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/signup_open\s+açık \(elle değiştirilmemişti; ortam varsayılanına göre güncellendi\)/);
+    expect(r.stdout).not.toContain('dev-parola-6');
+    expect(await flagMap()).toMatchObject({ signup_open: true, sms_fallback: false });
+    expect(await ctx.db.select().from(tenants)).toHaveLength(0);
+    // Tekrar: dokunulmaz
+    const again = await script('packages/db/src/seed.ts', [], env);
+    expect(again.code, again.stderr).toBe(0);
+    expect(again.stdout).toMatch(/signup_open\s+açık \(dokunulmadı\)/);
+    // Canlı ortamda demo seed kod düzeyinde reddedilir
+    const demo = await script('packages/db/src/seed.ts', [], { ...env, SEED_MODE: 'demo' });
+    expect(demo.code).not.toBe(0);
+    expect(demo.stderr).toMatch(/demo seed çalıştırılmaz/);
+    expect(await ctx.db.select().from(tenants)).toHaveLength(0);
   });
 
   it('create-admin --if-missing: yoksa oluşturur; varsa parolaya ve iki adımlı doğrulamaya dokunmaz', async () => {

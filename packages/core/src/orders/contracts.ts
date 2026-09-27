@@ -54,6 +54,12 @@ export const orderCardSchema = orderSummarySchema.extend({
   cancelRequestId: z.string().nullable(),
   /** Ulaşılan en yüksek alarm adımı (ALARM_STEP). */
   alarmStep: z.number().int().nullable(),
+  /**
+   * Alarm zincirinde gerçekten GİDEN en yüksek bildirim: owner_wa (sahibe platform WhatsApp uyarısı), owner_sms (sahibe
+   * SMS), customer (müşteriye gecikme bilgisi). Kapalı ya da kullanılamayan kanal (ör. canlı ortamda taklit sağlayıcı)
+   * sayılmaz; hiçbiri gitmediyse null. Kart "bildirildi" yazısını buna göre gösterir.
+   */
+  alarmNotice: z.enum(['owner_wa', 'owner_sms', 'customer']).nullable().optional(),
   outOfZoneOverride: z.boolean(),
   /** Bölge konum/mahalle ile doğrulanmadı; müşteri listeden seçti (personel adresi kontrol etmeli). */
   zoneDeclared: z.boolean().optional(),

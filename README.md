@@ -11,7 +11,7 @@
 
 Marka ve alan adı kararı: [00 §12a madde 9](docs/00-kararlar-ve-sozluk.md). Depo, paket (`@siparis/*`) ve veritabanı adlarındaki `siparisinonunde` / `siparis` iç çalışma adıdır ve değişmez.
 
-**Canlı ortam:** https://yemekgelsin.net, Türkiye'deki VPS'te gerçek verilerle çalışır; demo verisi yoktur ([00 §12a madde 10](docs/00-kararlar-ve-sozluk.md)). Kurulum ve her güncelleme GitHub Actions ile yapılır ("Canlı ortam (Türkiye VPS)", [15 §14](docs/15-kurulum-ve-isletim.md)); Cloudflare yalnız DNS ve proxy'dir. VPS alınana kadar alan adı Cloudflare ortamında durur: demo işletme ve demo hesap yoktur, yeni işletme kaydı ve `/demo` başvuru formu kapalıdır ("Kayıtlar çok yakında açılıyor"; kişisel veri toplanmaz), çünkü veriler Türkiye dışındadır ([15 §13](docs/15-kurulum-ve-isletim.md)). VPS'e geçince Cloudflare ortamı yalnız workers.dev'de, parolalı bir gizli staging olur.
+**Canlı ortam:** https://yemekgelsin.net, tamamen **Cloudflare**'de (Worker + tek container: PostgreSQL + API + worker + web; yedekler R2'de) gerçek verilerle çalışır; demo verisi yoktur ([00 §12a madde 10](docs/00-kararlar-ve-sozluk.md)). Kurulum ve her güncelleme GitHub Actions ile yapılır ("Canlı ortam (Cloudflare)", [15 §13](docs/15-kurulum-ve-isletim.md)). Üretim kipindedir: yeni işletme kaydı ve `/demo` başvuru formu açık, platform yöneticisi için iki adımlı doğrulama zorunlu, geliştirici araçları kapalı, arama motorlarına açık. Kişisel veri yurt dışında (Cloudflare) tutulur; aktarım KVKK m.9 standart sözleşmesi ve Kurum bildirimiyle yapılır ([08 §2.12](docs/08-mevzuat-kvkk-odeme-fatura.md)). Türkiye VPS'i yalnız isteğe bağlı alternatiftir, planlanmıyor ([15 §14](docs/15-kurulum-ve-isletim.md)).
 
 > **Durum:** Faz 1 çalışır durumda: pazarlama sitesi, işletme vitrini ve sipariş akışları (A, B, E), işletme paneli, admin paneli, kurye ekranı, WhatsApp (ortak numara ya da işletmenin kendi numarası; 360dialog / Cloud API / geliştirme simülatörü), SMS yedeği, Docker ile kurulum. Canlıya çıkıştan önce kalanlar: [15 §12 kontrol listesi](docs/15-kurulum-ve-isletim.md) ve hukuki metinlerin incelemesi. Pilot: Yozgat / Merkez.
 
@@ -60,7 +60,7 @@ Ham araştırma raporları ve kaynak bağlantıları: [docs/arastirma/](docs/ara
   - Fastify 5 API (REST, SSE, WhatsApp webhook) + aynı kod tabanından worker süreci.
   - Yalnız PostgreSQL: Drizzle, `jobs` tablosu (`FOR UPDATE SKIP LOCKED`), outbox, `LISTEN/NOTIFY`. Redis yok.
   - Kendi oturum sistemimiz (scrypt, HttpOnly çerez), yöneticiler için TOTP 2FA.
-  - Kişisel veri Türkiye'deki tek VPS'te (Docker Compose + Caddy).
+  - Canlı ortam Cloudflare'de (Worker + tek container + R2 yedek); kişisel veri yurt dışında, KVKK m.9 standart sözleşmesiyle. Docker Compose + Caddy (Türkiye VPS'i) isteğe bağlı alternatif.
 - **Takvim:**
   - Talep go/no-go: 20 Kasım 2026.
   - Pilot (10 işletme): Aralık 2026.
@@ -102,7 +102,7 @@ Gereksinimler: Node.js 22+, pnpm 10 (`corepack enable`), PostgreSQL 16+.
    ```
 4. **Çalıştırma:** `pnpm dev` → API `http://localhost:4000` (+ worker), web `http://localhost:3000`.
 
-Demo hesapları (seed `SEED_MODE=demo`; yalnız yerel geliştirme, testler ve gizli staging — canlı ortamda ve alan adındaki Cloudflare ortamında yoktur):
+Demo hesapları (seed `SEED_MODE=demo`; yalnız yerel geliştirme, testler ve gizli staging — canlı ortamda yoktur):
 
 | Rol | Giriş | Parola (yerel) | Adres |
 |---|---|---|---|
@@ -114,7 +114,7 @@ Demo hesapları (seed `SEED_MODE=demo`; yalnız yerel geliştirme, testler ve gi
 | Kurye | `kurye@yemekgelsin.net` | `kurye1234` | panel > Kuryeler > giriş bağlantısı |
 | İşletme sahibi (Çamlık Döner) | `doner@yemekgelsin.net` | `doner1234` | `/panel/giris` |
 
-`SEED_PASSWORD` (en az 8 karakter) tanımlıysa seed **tüm** demo hesaplarına bu parolayı verir ve var olan demo hesaplarının parolasını da buna eşitler; tanımlı değilse tablodaki yerel parolalar geçerlidir. `SEED_MODE=admin` yalnız platform yöneticisini (`admin@yemekgelsin.net`, parola `SEED_PASSWORD` — zorunlu) ve bayrakları kurar; Cloudflare ortamı VPS öncesinde bu kiple çalışır (`SEED_PASSWORD = DEV_PASSWORD`). Canlı ortamda seed hiç çalışmaz (kod da reddeder): `admin@yemekgelsin.net` orada gerçek yöneticidir ve `ADMIN_PASSWORD` ile açılır (15 §14).
+`SEED_PASSWORD` (en az 8 karakter) tanımlıysa seed **tüm** demo hesaplarına bu parolayı verir ve var olan demo hesaplarının parolasını da buna eşitler; tanımlı değilse tablodaki yerel parolalar geçerlidir. `SEED_MODE=admin` yalnız platform yöneticisini (`admin@yemekgelsin.net`, parola `SEED_PASSWORD` — zorunlu) ve üretim bayraklarını kurar; canlı ortam (Cloudflare) bu kiple çalışır (`SEED_PASSWORD = DEV_PASSWORD`, `DEPLOY_ENV=production`; demo seed orada kod düzeyinde reddedilir). İsteğe bağlı VPS yolunda seed hiç çalışmaz: yönetici `ADMIN_PASSWORD` ile açılır (15 §14).
 
 Yukarıdaki işletme hesapları Bozok Pide Salonu'na aittir; Çamlık Döner ikinci demo işletmedir (aynı ortak numarada, kodu `DONER`). Seed işletme başına tekrar çalıştırılabilir: var olan işletme atlanır, eksik olan eklenir.
 
@@ -136,4 +136,6 @@ pnpm test:vps                      # canlı ortam betikleri: .env birleştirme v
 
 ## Sunucuya kurulum
 
-Canlı ortam Türkiye'deki tek VPS'te Docker Compose ile çalışır (postgres, api, worker, web, caddy): `docker-compose.yml`, `Caddyfile`, `docker/`. Kurulum ve güncelleme GitHub Actions'tandır: VPS'i alıp `VPS_HOST`, `VPS_PASSWORD`, `ADMIN_PASSWORD` ve `CLOUDFLARE_API_TOKEN` (Zone > DNS > Edit) secret'larını eklemek yeter (sunucudaki Caddy için yalnız DNS yetkili ayrı bir `CADDY_CLOUDFLARE_API_TOKEN` önerilir); iş akışı sunucuyu hazırlar (Docker, güvenlik duvarı, fail2ban, otomatik güncellemeler), `.env`'i üretir, derler, ilk yöneticiyi açar, günlük yedeği kurar ve alan adını VPS'e taşır ([15 §14](docs/15-kurulum-ve-isletim.md)). Alan adı/DNS, `.env` değişkenleri, ilk kurulum ve admin oluşturma (`scripts/create-admin.ts`), 360dialog ile WhatsApp bağlama, Netgsm, yedekleme/geri yükleme (`scripts/backup.sh`, `scripts/restore.sh`), güncelleme, izleme, sorun giderme ve canlıya çıkış kontrol listesi: **[15 — Kurulum ve işletim rehberi](docs/15-kurulum-ve-isletim.md)**.
+**Canlı ortam: Cloudflare** (`deploy/cloudflare/`, iş akışı "Canlı ortam (Cloudflare)"): Workers Paid planı, `CLOUDFLARE_API_TOKEN` ("Edit Cloudflare Workers" + `yemekgelsin.net` için Zone > Workers Routes > Edit ve Zone > Zone > Read) ve `DEV_PASSWORD` (platform yöneticisinin parolası) GitHub secret'larını eklemek yeter; her push Worker'ı ve container imajını dağıtır, duman testi gerçek alan adında yapılır. Veritabanı 2 dakikada bir (değişiklik varsa) ve her kapanışta R2'ye yedeklenir; beklenmedik çökmede en çok ~2 dakika kaybolabilir ([15 §13](docs/15-kurulum-ve-isletim.md)). İlk girişte yönetici iki adımlı doğrulamayı kurar.
+
+**İsteğe bağlı: Türkiye VPS'i** (planlanmıyor): Docker Compose (postgres, api, worker, web, caddy): `docker-compose.yml`, `Caddyfile`, `docker/`. Kurulum ve güncelleme GitHub Actions'tandır: VPS'i alıp `VPS_HOST`, `VPS_PASSWORD`, `ADMIN_PASSWORD` ve `CLOUDFLARE_API_TOKEN` (Zone > DNS > Edit) secret'larını eklemek yeter (sunucudaki Caddy için yalnız DNS yetkili ayrı bir `CADDY_CLOUDFLARE_API_TOKEN` önerilir); iş akışı sunucuyu hazırlar (Docker, güvenlik duvarı, fail2ban, otomatik güncellemeler), `.env`'i üretir, derler, ilk yöneticiyi açar, günlük yedeği kurar ve alan adını VPS'e taşır; Cloudflare'deki canlı veri kendiliğinden taşınmaz ([15 §14](docs/15-kurulum-ve-isletim.md)). Alan adı/DNS, `.env` değişkenleri, ilk kurulum ve admin oluşturma (`scripts/create-admin.ts`), 360dialog ile WhatsApp bağlama, Netgsm, yedekleme/geri yükleme (`scripts/backup.sh`, `scripts/restore.sh`), güncelleme, izleme, sorun giderme ve canlıya çıkış kontrol listesi: **[15 — Kurulum ve işletim rehberi](docs/15-kurulum-ve-isletim.md)**.

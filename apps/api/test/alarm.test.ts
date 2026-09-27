@@ -154,6 +154,73 @@ describe('zincir (varsayılan politika 15/10 dk)', () => {
   });
 });
 
+describe('canlı ortamda taklit (mock) kanal: gönderilmiş sayılmaz (00 §12a madde 10)', () => {
+  const noticeOf = async (orderId: string) => {
+    const res = await ctx.request({ method: 'GET', url: `/api/v1/panel/orders/active?branchId=${s.branchId}`, cookie: s.ownerCookie });
+    expect(res.statusCode).toBe(200);
+    const card = (res.json().items as { id: string; alarmStep: number | null; alarmNotice: string | null }[]).find((c) => c.id === orderId);
+    return { step: card?.alarmStep ?? null, notice: card?.alarmNotice ?? null };
+  };
+
+  it('geliştirme/test (mock = simülatör): uyarılar gider, kart giden en yüksek bildirimi söyler', async () => {
+    const o = await createHookedOrder(ctx, s);
+    await runJobsAt(ctx, 2 * MIN + 1000);
+    expect(byOrder('platform.alert', o.id)).toHaveLength(1);
+    expect(await noticeOf(o.id)).toEqual({ step: 3, notice: 'owner_wa' });
+    await runJobsAt(ctx, 5 * MIN + 1000);
+    expect(await noticeOf(o.id)).toEqual({ step: 4, notice: 'owner_sms' });
+    await runJobsAt(ctx, 10 * MIN + 1000);
+    expect(await noticeOf(o.id)).toEqual({ step: 5, notice: 'customer' });
+  });
+
+  it('NODE_ENV=production + DEPLOY_ENV=production + mock WhatsApp/SMS: uyarı, SMS ve müşteri bilgisi kuyruğa girmez; kart "gönderildi" demez', async () => {
+    const saved = { NODE_ENV: ctx.config.NODE_ENV, DEPLOY_ENV: ctx.config.DEPLOY_ENV };
+    expect(ctx.config.PLATFORM_WA_PROVIDER).toBe('mock');
+    expect(ctx.config.SMS_PROVIDER).toBe('mock');
+    const o = await createHookedOrder(ctx, s);
+    Object.assign(ctx.config, { NODE_ENV: 'production', DEPLOY_ENV: 'production' });
+    try {
+      await runJobsAt(ctx, 10 * MIN + 1000);
+    } finally {
+      Object.assign(ctx.config, saved);
+    }
+    expect(byOrder('platform.alert', o.id)).toHaveLength(0);
+    expect(byOrder('sms.send', o.id)).toHaveLength(0);
+    expect(byOrder('order.notify_customer', o.id).filter((p) => p.event === 'approval_delay')).toHaveLength(0);
+    const notes = (await ctx.db.select().from(orderEvents).where(and(eq(orderEvents.orderId, o.id), eq(orderEvents.type, 'alarm_step'))))
+      .map((e) => [(e.data as { step: number }).step, e.note])
+      .sort((a, b) => Number(a[0]) - Number(b[0]));
+    expect(notes).toEqual([
+      [2, null],
+      [3, 'platform_wa_unavailable'],
+      [4, 'sms_unavailable'],
+      [5, 'customer_channel_unavailable'],
+    ]);
+    // Eskalasyon (panel sesi) sürer ama hiçbir bildirim "gitti" sayılmaz
+    expect(await noticeOf(o.id)).toEqual({ step: 5, notice: null });
+    // Otomatik iptal yine çalışır
+    await runJobsAt(ctx, 15 * MIN + 1000);
+    expect((await statusOf(o.id)).cancelReason).toBe('tenant_no_response');
+  });
+
+  it('politikayla kapatılan platform uyarısı da "bildirildi" sayılmaz', async () => {
+    await ctx.db
+      .update(branches)
+      .set({ alarmPolicy: { auto_cancel_minutes: 15, customer_notice_minutes: 10, platform_wa_enabled: false, sms_enabled: true } })
+      .where(eq(branches.id, s.branchId));
+    try {
+      const o = await createHookedOrder(ctx, s);
+      await runJobsAt(ctx, 2 * MIN + 1000);
+      expect(await noticeOf(o.id)).toEqual({ step: 3, notice: null });
+    } finally {
+      await ctx.db
+        .update(branches)
+        .set({ alarmPolicy: { auto_cancel_minutes: 15, customer_notice_minutes: 10, platform_wa_enabled: true, sms_enabled: true } })
+        .where(eq(branches.id, s.branchId));
+    }
+  });
+});
+
 describe('test siparişleri', () => {
   it('onboarding_test: yalnız 60 sn + 2 dk (TEST etiketiyle); SMS, müşteri ve otomatik iptal yok', async () => {
     const o = await createHookedOrder(ctx, s, { testKind: 'onboarding_test' });

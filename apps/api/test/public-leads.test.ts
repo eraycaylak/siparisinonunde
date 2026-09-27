@@ -55,7 +55,7 @@ describe('POST /public/leads', () => {
     expect(row!.calculatorInput).toEqual(calc);
   });
 
-  it('PUBLIC_LEADS_ENABLED=0 (Türkiye dışı ortam): 403 leads_closed, hiçbir şey saklanmaz; varsayılan açık', async () => {
+  it('PUBLIC_LEADS_ENABLED=0 (form geçici kapalı): 403 leads_closed, hiçbir şey saklanmaz; varsayılan açık', async () => {
     expect(ctx.config.PUBLIC_LEADS_ENABLED).toBe(true);
     const before = (await ctx.db.select().from(leads)).length;
     ctx.config.PUBLIC_LEADS_ENABLED = false;

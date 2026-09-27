@@ -1,8 +1,9 @@
-// Cloudflare dev ortamında ortak numaranın kipi (15 §13). GitHub secret'ları META_WA_TOKEN, META_WA_PHONE_NUMBER_ID,
+// Cloudflare ortamında ortak numaranın kipi (15 §13). GitHub secret'ları META_WA_TOKEN, META_WA_PHONE_NUMBER_ID,
 // META_APP_SECRET ve WA_PHONE birlikte varsa container gerçek Meta WhatsApp Cloud API ile açılır (META_WA_WABA_ID isteğe
-// bağlı: admin "WhatsApp kurulumu"ndaki abonelik ve şablon adımları için). Biri bile eksikse simülatör (mock) kalır.
-// Gerçek kipte geliştirici araçları kapanır (DEV_TOOLS=0): API, DEPLOY_ENV=dev'de simülatöre yalnız tüm sağlayıcılar
-// mock iken izin verir, aksi halde açılmaz (apps/api/src/config.ts devToolsAllowed / productionConfigErrors).
+// bağlı: admin "WhatsApp kurulumu"ndaki abonelik ve şablon adımları için). Biri bile eksikse taklit (mock) kalır: canlı
+// ortamda (DEPLOY_ENV=production) bu, çalışan WhatsApp olmadığı anlamına gelir (vitrinde ve QR'da WhatsApp bağlantısı
+// gösterilmez; apps/api/src/config.ts platformDisplayPhone). Geliştirici araçlarını (DEV_TOOLS) bu modül değil dağıtım
+// kipi belirler (src/mode.ts): canlı ortamda her zaman 0, gizli staging'de 1.
 // Hem Worker (src/index.ts) hem iş akışının gizli değer betiği (scripts/secrets.mjs) bu dosyayı kullanır.
 
 export interface WhatsAppSecrets {
@@ -14,8 +15,6 @@ export interface WhatsAppSecrets {
   WA_PHONE?: string;
 }
 
-/** Simülatör kipinde ortak numara (packages/core MOCK_SHARED_WA_DISPLAY_PHONE ile aynı). */
-export const MOCK_DISPLAY_PHONE = '+905550000000';
 /** Gerçek kip için birlikte gereken secret'lar. */
 export const REQUIRED_WA_SECRETS = ['META_WA_TOKEN', 'META_WA_PHONE_NUMBER_ID', 'META_APP_SECRET', 'WA_PHONE'] as const;
 /** Tüm WhatsApp secret'ları (isteğe bağlı META_WA_WABA_ID dahil). */
@@ -46,7 +45,7 @@ export interface WhatsAppContainerEnv {
   mode: 'cloud' | 'mock';
   /** Gerçek kip için eksik (ya da geçersiz) secret adları */
   missing: string[];
-  /** Container ortam değişkenleri (ortak numara, sağlayıcı, geliştirici araçları) */
+  /** Container ortam değişkenleri (ortak numara ve sağlayıcı) */
   env: Record<string, string>;
 }
 
@@ -55,14 +54,16 @@ export function whatsappContainerEnv(s: WhatsAppSecrets): WhatsAppContainerEnv {
   const phone = normalizeE164(s.WA_PHONE);
   if (clean(s.WA_PHONE) && !phone) missing.push('WA_PHONE (E.164 değil)');
   if (missing.length) {
-    return { mode: 'mock', missing, env: { DEV_TOOLS: '1', PLATFORM_WA_PROVIDER: 'mock', PLATFORM_WA_DISPLAY_PHONE: MOCK_DISPLAY_PHONE } };
+    // Gösterim numarası verilmez: API, simülatörlü staging'de (DEPLOY_ENV=dev) geliştirme numarasını (+905550000000)
+    // kendisi kullanır; canlı ortamda (DEPLOY_ENV=production) mock iken numara göstermez. PLATFORM_WA_DISPLAY_PHONE burada
+    // verilseydi kimsenin okumadığı numara canlı vitrinde ve QR'da görünürdü (apps/api/src/config.ts platformDisplayPhone).
+    return { mode: 'mock', missing, env: { PLATFORM_WA_PROVIDER: 'mock' } };
   }
   const waba = clean(s.META_WA_WABA_ID);
   return {
     mode: 'cloud',
     missing: [],
     env: {
-      DEV_TOOLS: '0',
       PLATFORM_WA_PROVIDER: 'cloud',
       PLATFORM_WA_API_KEY: clean(s.META_WA_TOKEN),
       PLATFORM_WA_PHONE_NUMBER_ID: clean(s.META_WA_PHONE_NUMBER_ID),

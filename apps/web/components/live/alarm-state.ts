@@ -34,6 +34,24 @@ export function isHighLevel(alarming: readonly AlarmCard[], escalated: ReadonlyS
   );
 }
 
+/**
+ * Kartın alarm rozeti (alarm 3. adıma, yani 2. dakikaya ulaşmış `new` sipariş). Yalnız gerçekten GİDEN bildirimi söyler
+ * (sunucu: alarmNotice). Kanal kapalı ya da kullanılamıyorsa (ör. canlı ortamda WhatsApp/SMS bağlı değil) "gitti" denmez.
+ */
+export function alarmBadgeText(card: Pick<OrderCard, 'alarmStep' | 'alarmNotice'>): string | null {
+  if ((card.alarmStep ?? 0) < 3) return null;
+  switch (card.alarmNotice) {
+    case 'customer':
+      return 'Müşteriye bilgi verildi · Bekliyor';
+    case 'owner_sms':
+      return 'SMS gönderildi';
+    case 'owner_wa':
+      return 'Sahibine bildirildi';
+    default:
+      return 'Uyarı gönderilemedi · Bekliyor';
+  }
+}
+
 const TITLE_PREFIX_RE = /^\(\d+\) Yeni sipariş · /;
 
 /** Sekme başlığına "(2) Yeni sipariş · " ön eki koyar ya da kaldırır; sayfanın kendi başlığı korunur. */

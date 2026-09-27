@@ -47,8 +47,8 @@ export function supportWhatsappHref(text: string): string | null {
 
 /**
  * "Demo ortamı" uyarısı açık mı (components/common/demo-notice.tsx): yalnız kendi derleme bayrağıyla,
- * NEXT_PUBLIC_DEMO_BANNER=1 (00 §12a madde 10). Varsayılan kapalıdır: canlı ortam (Türkiye VPS) ve demo verisi olmayan
- * Cloudflare ortamı uyarı göstermez; yalnız demo verili gizli staging (deploy/cloudflare, SEED_MODE=demo) açar.
+ * NEXT_PUBLIC_DEMO_BANNER=1 (00 §12a madde 10). Varsayılan kapalıdır: canlı ortam (Cloudflare, gerçek veri) uyarı
+ * göstermez; yalnız demo verili gizli staging (deploy/cloudflare, SEED_MODE=demo) açar.
  */
 export function isDemoBannerEnabled(value: string | undefined = process.env.NEXT_PUBLIC_DEMO_BANNER): boolean {
   return value === '1' || value === 'true';
@@ -73,9 +73,9 @@ export function demoStoreSlug(value: string | undefined = process.env.NEXT_PUBLI
 
 /**
  * Herkese açık lead formu (/demo: demo talebi, hesaplayıcıdan gelen talep) açık mı (NEXT_PUBLIC_LEAD_FORM; derleme
- * anında gömülür). Varsayılan açık. Kişisel veri yalnız Türkiye'deki altyapıda tutulur (CLAUDE.md kural 7; 00 §12a
- * madde 10): Türkiye dışındaki Cloudflare ortamının alan adı kipi 0 ile derler; /demo formu göstermez (API de kayıt
- * almaz: PUBLIC_LEADS_ENABLED=0), varsa destek hattının WhatsApp bağlantısını gösterir.
+ * anında gömülür). Varsayılan açık; canlı ortamda açıktır (00 §12a madde 10). Operatör formu geçici kapatmak için 0 ile
+ * derler: /demo formu göstermez (API de kayıt almaz: PUBLIC_LEADS_ENABLED=0), varsa destek hattının WhatsApp
+ * bağlantısını gösterir.
  */
 export function isLeadFormEnabled(value: string | undefined = process.env.NEXT_PUBLIC_LEAD_FORM): boolean {
   const v = (value ?? '').trim().toLowerCase();
@@ -99,7 +99,7 @@ export const LEGAL_ENTITY = {
 } as const;
 
 /** Yasal metinlerin taslak sürüm bilgisi. */
-export const LEGAL_DRAFT = { version: '0.1-taslak', date: '24 Eylül 2026' } as const;
+export const LEGAL_DRAFT = { version: '0.2-taslak', date: '27 Eylül 2026' } as const;
 
 export const MARKETING_NAV = [
   { href: '/nasil-calisir', label: 'Nasıl çalışır' },

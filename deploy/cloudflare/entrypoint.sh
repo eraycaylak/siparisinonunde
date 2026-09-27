@@ -1,15 +1,21 @@
 #!/usr/bin/env bash
-# Yemek Gelsin — Cloudflare container'ı (15 §13): PostgreSQL + API + worker + web tek container'da.
+# Yemek Gelsin — CANLI ORTAM container'ı, Cloudflare (00 §12a madde 10; 15 §13): PostgreSQL + API + worker + web tek
+# container'da.
 #
 # Container diski geçicidir: her başlangıçta boş bir veritabanı kurulur ve son yedek R2'den geri yüklenir.
 # Yedek, Worker'daki "yedek.internal" çıkış işleyicisi üzerinden R2'ye yazılır/okunur (deploy/cloudflare/src/index.ts).
 # Veri dönemi (DATA_EPOCH) container'a açılışta verilir ve ömrü boyunca sabittir: yedek yolu /e<dönem>/db olur, R2
-# anahtarı e2/db/son.dump. Worker dönemi yoldan okur; yeniden dağıtımda kapanan eski container'ın son yedeği yeni
+# anahtarı e3/db/son.dump. Worker dönemi yoldan okur; yeniden dağıtımda kapanan eski container'ın son yedeği yeni
 # döneme düşmez. DATA_EPOCH artırılınca yeni container yedek bulamaz, veri sıfırdan kurulur.
-# Seed kipi SEED_MODE ile gelir (00 §12a madde 10): admin (alan adı kipi) yalnız platform yöneticisini ve bayrakları kurar,
+# Seed kipi SEED_MODE ile gelir (00 §12a madde 10): admin (canlı ortam) yalnız platform yöneticisini ve bayrakları kurar,
 # demo (gizli staging) demo işletmeleri de kurar. SEED_PASSWORD (= DEV_PASSWORD) seed hesaplarının parolasıdır.
-# Sıra: PostgreSQL → yedekten geri yükle → migrate → seed (idempotent) → api + worker + web → 10 dk'da bir yedek.
-# SIGTERM (uyku, yeniden dağıtım): uygulamalar durur, son yedek alınır, PostgreSQL kapanır.
+# Sıra: PostgreSQL → yedekten geri yükle → migrate → seed (idempotent) → api + worker + web → yedek döngüsü.
+#
+# Yedek ve dayanıklılık (gerçek veri): döngü BACKUP_INTERVAL_SEC'te bir (varsayılan 120 sn) veritabanında ya da görsellerde
+# değişiklik olup olmadığına bakar; yalnız değiştiyse yükler (boştaki ortam R2'ye her 2 dakikada yazmaz). SIGTERM (uyku,
+# yeniden dağıtım): uygulamalar durur, son yedek her durumda alınır, PostgreSQL kapanır; platform yeni container'ı eski
+# kapanmadan başlatmaz, bu yüzden düzgün kapanış veri kaybettirmez. Bir süreç düşerse de son yedek alınıp çıkılır.
+# Beklenmedik çökmede (container'ın zorla sonlanması) son yedekten sonraki en çok ~2 dakikalık veri kaybolabilir.
 set -Eeuo pipefail
 
 APP_DIR="${APP_DIR:-/app}"
@@ -18,7 +24,7 @@ PGDATA="${PGDATA:-/data/pg}"
 PGPORT="${PGPORT:-5432}"
 UPLOAD_DIR="${UPLOAD_DIR:-/data/uploads}"
 BACKUP_URL="${BACKUP_URL:-http://yedek.internal}"
-BACKUP_INTERVAL_SEC="${BACKUP_INTERVAL_SEC:-600}"
+BACKUP_INTERVAL_SEC="${BACKUP_INTERVAL_SEC:-120}"
 DATA_EPOCH="${DATA_EPOCH:-}"
 DB_NAME=siparis
 export PGHOST=127.0.0.1 PGPORT PGUSER=siparis PGPASSWORD=siparis
@@ -73,20 +79,53 @@ upload_backup() {
   curl -fsS --max-time 300 -X PUT --data-binary @"$file" -H 'content-type: application/octet-stream' "$BACKUP_BASE/$path" >/dev/null
 }
 
+# Değişiklik izi (yalnız karşılaştırma için; yedeğin kendisi pg_dump'tır). Veritabanı: kullanıcı tablolarındaki ekleme,
+# güncelleme ve silme sayaçlarının toplamı (pg_stat_user_tables). jobs tablosu sayılmaz: worker'ın zamanlanmış işleri onu
+# her dakika yazar; asıl veri değişikliği (sipariş, olay günlüğü, outbox, mesaj …) başka tablolara da yazar. İstatistikler
+# birkaç saniye gecikebilir: kaçan değişiklik bir sonraki turda yakalanır. Görseller: dosya adı, boyut ve zaman listesi.
+db_fingerprint() {
+  psql -d "$DB_NAME" -Atc "select coalesce(sum(n_tup_ins + n_tup_upd + n_tup_del), 0) || ':' || count(*) from pg_stat_user_tables where relname <> 'jobs'" 2>/dev/null || true
+}
+uploads_fingerprint() {
+  if [ -d "$UPLOAD_DIR" ]; then
+    { find "$UPLOAD_DIR" -type f -printf '%P %s %T@\n' 2>/dev/null || true; } | LC_ALL=C sort | sha256sum | cut -d' ' -f1
+  fi
+}
+
+LAST_DB_FP=""
+LAST_UPLOADS_FP=""
+
+# backup_now [force]: force (kapanış, ilk kurulum) her durumda yükler; döngü yalnız değişiklik varsa. İz, dökümden ÖNCE
+# okunur ve yalnız yükleme başarılıysa saklanır: döküm sırasında gelen değişiklik bir sonraki turda yeniden yüklenir.
 backup_now() {
   [ "$DB_READY" = 1 ] || return 0
-  local dump=/tmp/yedek.dump tarball=/tmp/yukleme.tar.gz
-  if pg_dump -Fc -d "$DB_NAME" -f "$dump"; then
-    upload_backup db "$dump" && log "veritabanı yedeği R2'ye yazıldı ($(du -h "$dump" | cut -f1))" || log "veritabanı yedeği yazılamadı"
-  else
-    log "pg_dump başarısız"
+  local force="${1:-}" dump=/tmp/yedek.dump tarball=/tmp/yukleme.tar.gz fp
+  fp=$(db_fingerprint)
+  if [ "$force" = force ] || [ -z "$fp" ] || [ "$fp" != "$LAST_DB_FP" ]; then
+    if pg_dump -Fc -d "$DB_NAME" -f "$dump"; then
+      if upload_backup db "$dump"; then
+        LAST_DB_FP="$fp"
+        log "veritabanı yedeği R2'ye yazıldı ($(du -h "$dump" | cut -f1))"
+      else
+        log "veritabanı yedeği yazılamadı"
+      fi
+    else
+      log "pg_dump başarısız"
+    fi
   fi
-  if [ -d "$UPLOAD_DIR" ] && [ -n "$(ls -A "$UPLOAD_DIR" 2>/dev/null)" ]; then
-    tar -czf "$tarball" -C "$UPLOAD_DIR" . && upload_backup uploads "$tarball" || log "görsel yedeği yazılamadı"
+  fp=$(uploads_fingerprint)
+  if [ -d "$UPLOAD_DIR" ] && [ -n "$(ls -A "$UPLOAD_DIR" 2>/dev/null)" ] && { [ "$force" = force ] || [ "$fp" != "$LAST_UPLOADS_FP" ]; }; then
+    if tar -czf "$tarball" -C "$UPLOAD_DIR" . && upload_backup uploads "$tarball"; then
+      LAST_UPLOADS_FP="$fp"
+    else
+      log "görsel yedeği yazılamadı"
+    fi
   fi
   rm -f "$dump" "$tarball"
 }
 
+# Döngü ayrı bir alt kabukta çalışır ve son izleri orada tutar (başlangıç değerleri ana kabuktan: ilk kurulumda az önce
+# alınan yedeğin izi; yedekten dönen ortamda boş, yani ilk tur bir kez yükler)
 backup_loop() {
   while true; do
     sleep "$BACKUP_INTERVAL_SEC"
@@ -105,7 +144,7 @@ shutdown() {
   local pid
   for pid in "${APP_PIDS[@]}"; do kill -TERM "$pid" 2>/dev/null || true; done
   for pid in "${APP_PIDS[@]}"; do wait "$pid" 2>/dev/null || true; done
-  backup_now || true
+  backup_now force || true
   pg_ctl -D "$PGDATA" -m fast -w stop >/dev/null 2>&1 || true
   log "kapandı"
   exit "$code"
@@ -168,7 +207,7 @@ else
   node --import tsx "$APP_DIR/packages/db/src/seed.ts" || log "UYARI: seed başarısız; var olan veriyle devam ediliyor"
 fi
 if [ "$fresh" = 1 ]; then
-  backup_now || true
+  backup_now force || true
 fi
 
 # --- Uygulamalar ------------------------------------------------------------------------------------

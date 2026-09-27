@@ -560,7 +560,7 @@ Her alarmın runbook'u `infra/runbooks/` altındadır ([06](06-teknik-mimari.md)
 **Hedefler**
 1. **Nitelikli lead:** paket servis yapan, kendi kuryesi olan, günde ≥ 10 paket çıkaran bağımsız restoran (A06 R04 segmentasyonu).
 2. **Acıyı sayıya dökmek:** komisyon hesaplayıcı birincil satış aracıdır (A02 §13.6).
-3. **Güven:** resmi Meta altyapısı, numaranın ve uygulamanın yerinde kalması, verinin Türkiye'de barındırılması, taahhütsüzlük.
+3. **Güven:** resmi Meta altyapısı, numaranın ve uygulamanın yerinde kalması, müşteri verisinin işletmeye ait olması ve başka işletmeyle paylaşılmaması, taahhütsüzlük. ("Verinin Türkiye'de barındırılması" 00 §12a madde 10 ile çıktı: barındırma Cloudflare'de, yurt dışında.)
 4. **Sürtünmeyi önceden anlatmak:** Meta'ya kart ekleme zorunluluğu ve Meta ücretinin abonelik dışında olması fiyat sayfasında ve SSS'de açıkça yazılır ([01](01-vizyon-pazar-is-modeli.md) §6.5).
 5. **Meta doğrulaması için ön koşul (Faz 0):** Business Verification ve App Review, künyesi şirket belgeleriyle birebir aynı bir web sitesi ve gizlilik politikası URL'si ister ([08](08-mevzuat-kvkk-odeme-fatura.md) §7.2). Bu yüzden **Faz 0'da tek sayfalık site + yasal sayfalar** yayında olur.
 
@@ -628,7 +628,7 @@ yemekgelsin.net
 | Bölüm | İçerik |
 |---|---|
 | **Hero** | Başlık: **"Keşif pazaryerinde, sadakat sende."** · Alt başlık: **"Müşterin sana zaten WhatsApp'tan yazıyor. Siparişini komisyonsuz al, panelde sesli uyarıyla yönet; müşterine 'Onaylandı' ve 'Yolda' mesajı kendiliğinden gitsin."** · Birincil CTA: **[Ne kadar tasarruf ederim?]** → hesaplayıcı · İkincil CTA: **[Demo iste]** · Faz 2'de üçüncü CTA: **[14 gün ücretsiz dene]** · CTA altı mikro metin: **"Sipariş başına ücret yok. Ciro yüzdesi yok. Taahhüt yok."** |
-| Güven şeridi | "Resmi WhatsApp Business Platform altyapısı" · "Numaran ve WhatsApp Business uygulaman yerinde kalır" · "Verilerin Türkiye'de barındırılır". Pilot işletme sayısı yalnız gerçek sayı olduğunda gösterilir |
+| Güven şeridi | "Resmi WhatsApp Business Platform altyapısı" · "Numaran ve WhatsApp Business uygulaman yerinde kalır" · "Müşteri verin senin; başka işletmeyle paylaşılmaz" ("Verilerin Türkiye'de barındırılır" 00 §12a madde 10 ile kaldırıldı). Pilot işletme sayısı yalnız gerçek sayı olduğunda gösterilir |
 | Problem | "Seni zaten tanıyan müşterin için de her siparişte komisyon ödüyorsun." Kaynaklı bant: "%15–40 arası kesinti (sözleşmeye ve kurye modeline göre değişir)", marka adı yok |
 | Nasıl çalışır | §C.3.2'deki 3 adımın kısa hâli + [Nasıl çalışır?] linki |
 | Mini hesaplayıcı | 3 girdi (günlük pazaryeri siparişi, ortalama sepet, komisyon çipi) → aylık kesinti + başa baş; [Ayrıntılı hesapla] |
@@ -683,7 +683,7 @@ Aylık/yıllık anahtarı. Büyük rakam KDV hariç, hemen altında KDV dahil ([
 11. **Kurye veriyor musunuz?** Hayır, kurye senin. Kuryen uygulama indirmeden siparişlerini görür, "Yola çıktım" ve "Teslim ettim"e basar; müşterine mesaj kendiliğinden gider.
 12. **Kurulum ne kadar sürer?** WhatsApp bağlantısı kısa bir adımdır; asıl süreyi menünün büyüklüğü belirler. Web siparişini WhatsApp bağlantısı bitmeden de almaya başlayabilirsin. İstersen biz kurarız. (Süre rakamı pilot ölçümünden sonra eklenir.)
 13. **Taahhüt var mı, nasıl bırakırım?** Aylık planda taahhüt yok; dönem sonunda iptal edersin. Müşteri listeni ve sipariş geçmişini istediğin zaman dışa aktarırsın.
-14. **Müşteri verileri kimin?** Senin. Biz yalnız hizmeti sağlamak için işleriz. Verilerin Türkiye'deki sunucularda barındırılır, başka işletmelerle paylaşılmaz, müşterilerine biz pazarlama yapmayız.
+14. **Müşteri verileri kimin?** Senin. Biz yalnız hizmeti sağlamak için işleriz. Verilerin Cloudflare'in bulut altyapısında (yurt dışı) KVKK'nın yurt dışına aktarım kurallarına uygun olarak barındırılır (00 §12a madde 10), başka işletmelerle paylaşılmaz, müşterilerine biz pazarlama yapmayız.
 15. **Bot müşterilerimle kendi kafasına göre konuşur mu?** Hayır. Bot selam verir, menü linkini ve sipariş bilgisini yollar. Müşteri "Yetkiliyle görüş" dediğinde sen devralırsın; istersen botu tamamen kapatırsın. Alkol, tütün ve ilaç ise WhatsApp'tan satılamaz.
 
 ### C.3.5 Demo `/demo`
@@ -879,7 +879,7 @@ Rakip marka adları yalnız bilgi amaçlı blog içeriğinde ve §C.8 kuralları
 | "Pazaryerine bağımlı kalma." | "Yemeksepeti'ni bırak." / herhangi bir platformu bırakma çağrısı |
 | "Sipariş başına ücret, ciro yüzdesi yok." | Yalın "tamamen ücretsiz", "sıfır maliyet" |
 | "Resmi WhatsApp Business Platform altyapısı." | "Ban riski sıfır", "Meta onaylı" (Tech Provider statüsü alınmadan ve Meta marka kurallarına uyulmadan) |
-| "Verilerin Türkiye'de barındırılır." | "%100 KVKK uyumlu" ([08](08-mevzuat-kvkk-odeme-fatura.md) §2.11) |
+| "Müşteri verin senin; başka işletmeyle paylaşılmaz." ("Verilerin Türkiye'de barındırılır" artık doğru değil: 00 §12a madde 10) | "%100 KVKK uyumlu", "Verilerin Türkiye'de" ([08](08-mevzuat-kvkk-odeme-fatura.md) §2.11) |
 | "WhatsApp mesaj ücretleri Meta'ya ayrıca ödenir." | "Mesajlar dahil", "sınırsız ücretsiz mesaj" (MPS Faz 3'e kadar) |
 | "Bot yalnız menü ve sipariş için; istediğin an sen devralırsın." | "WhatsApp'ta ChatGPT", "yapay zekâ asistanın" ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §6 madde 9) |
 | "Ayda ~21 sipariş kendi kanalına geçerse kendini amorti eder (%25 kesintide)." | Koşulsuz "kesin tasarruf", "en ucuz" |
@@ -955,6 +955,6 @@ Rakip marka adları yalnız bilgi amaçlı blog içeriğinde ve §C.8 kuralları
 **Proje sahibi kararları ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13; bu doküman varsayılanla yazıldı)**
 24. **Marka ve alan adı (00 §13 #6, §12a madde 9):** marka "Yemek Gelsin", alan adı `yemekgelsin.net` (alındı); site, admin ve bayi adresleri buna göre yazıldı. Marka tescili açık; ad yeniden değişirse §C.2 sayfa haritası, §C.8 metinleri ve künye güncellenir.
 25. **Pilot şehir/ilçeler (00 §13 #2):** demo formundaki "sıcak lead" kuralı (§C.5.1) ve lead dağıtımı (A-20) bu karara bağlıdır.
-26. **Barındırma sağlayıcısı (00 §13 #4):** "Verilerin Türkiye'de barındırılır" iddiası (§C.3.1, SSS #14) sağlayıcı seçimi ve alt işleyen envanteriyle (A-17) teyit edilmeden yayınlanmaz.
+26. **Barındırma sağlayıcısı (00 §13 #4):** karara bağlandı (00 §12a madde 10): Cloudflare, yurt dışı. "Verilerin Türkiye'de barındırılır" iddiası kullanılmaz; sitede ve SSS'de yerine yurt dışı aktarım açıkça yazılır (SSS "Müşteri verileri kimin?", yasal metinler).
 27. **AI siparişin paketi ve kotası (00 §13 #8):** fiyat sayfasında AI sipariş varsayılan olarak Pro'da "yakında" gösterilir.
 28. **SLO hedefleri (00 §13 #10):** A-12 SLO kutuları varsayılan %99,9 aylık erişilebilirlik, RPO ≤ 5 dk, RTO ≤ 1 saat ile kurulur.

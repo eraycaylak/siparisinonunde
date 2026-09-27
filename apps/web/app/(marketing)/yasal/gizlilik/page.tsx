@@ -54,13 +54,22 @@ export default function PrivacyPage() {
           ),
         },
         {
-          title: 'Verilerin saklandığı yer ve aktarım',
+          title: 'Verilerin saklandığı yer ve yurt dışına aktarım',
           body: (
-            <p>
-              Kişisel veriler Türkiye’deki sunucularda barındırılır. WhatsApp mesajlarının iletimi için Meta ve aracı hizmet sağlayıcıları (yurt
-              dışı), SMS gönderimi için yurt içi SMS sağlayıcısı kullanılır. Yurt dışına aktarım, mevzuattaki güvencelere uygun olarak yapılır.
-              Güncel alt işleyen listesi yayımlanacaktır.
-            </p>
+            <>
+              <p>
+                {SITE_NAME}’in internet sitesi, işletme paneli ve veritabanı barındırma hizmet sağlayıcımız Cloudflare, Inc. (ABD) altyapısında
+                çalışır; veritabanı ve görsel yedekleri de Cloudflare’de (R2) tutulur. Bu nedenle kişisel verileriniz başta ABD ve Avrupa Birliği
+                olmak üzere Türkiye dışındaki veri merkezlerinde işlenebilir ve saklanabilir. Siteye bağlandığınızda bağlantınız (IP adresiniz
+                dahil) Cloudflare ağından geçer.
+              </p>
+              <p>
+                Yurt dışına aktarım, 6698 sayılı KVKK’nın 9. maddesi uyarınca Kişisel Verileri Koruma Kurulu’nun ilan ettiği standart sözleşmeye
+                dayanılarak yapılır; standart sözleşme imzalandıktan sonra 5 iş günü içinde Kurum’a bildirilir. WhatsApp mesajlarının iletimi
+                için Meta Platforms ve aracı hizmet sağlayıcıları (yurt dışı), SMS gönderimi için yurt içi SMS sağlayıcısı kullanılır. Güncel alt
+                işleyen listesi yayımlanacaktır.
+              </p>
+            </>
           ),
         },
         {

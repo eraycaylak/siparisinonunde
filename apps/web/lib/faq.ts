@@ -81,7 +81,7 @@ export const FAQ: readonly FaqItem[] = [
   {
     id: 'veriler',
     q: 'Müşteri verileri kimin?',
-    a: 'Senin. Biz yalnız hizmeti sağlamak için işleriz. Verilerin Türkiye’deki sunucularda barındırılır, başka işletmelerle paylaşılmaz, müşterilerine biz pazarlama yapmayız.',
+    a: 'Senin. Biz yalnız hizmeti sağlamak için işleriz. Verilerin Cloudflare’in bulut altyapısında (yurt dışı) KVKK’nın yurt dışına aktarım kurallarına uygun olarak barındırılır, başka işletmelerle paylaşılmaz, müşterilerine biz pazarlama yapmayız.',
   },
   {
     id: 'bot',

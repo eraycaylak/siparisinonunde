@@ -17,8 +17,8 @@ export const metadata: Metadata = pageMetadata({
 // ve "Demo menüye göz at" kartı gösterilmez
 const DEMO_STORE_SLUG = demoStoreSlug();
 
-// Lead formu: Türkiye dışındaki Cloudflare ortamında kapalı (kişisel veri yalnız Türkiye'de; CLAUDE.md kural 7, 00 §12a
-// madde 10). Kapalıyken form yerine bilgi kartı ve (tanımlıysa) destek hattının WhatsApp bağlantısı; bilgi saklanmaz.
+// Lead formu: canlı ortamda açık (00 §12a madde 10). Operatör geçici olarak kapatırsa (NEXT_PUBLIC_LEAD_FORM=0) form
+// yerine bilgi kartı ve (tanımlıysa) destek hattının WhatsApp bağlantısı gösterilir; bilgi saklanmaz.
 const LEAD_FORM = isLeadFormEnabled();
 const SUPPORT_WA = supportWhatsappHref('Merhaba, Yemek Gelsin hakkında bilgi almak istiyorum. İşletme adı: ');
 
@@ -26,10 +26,9 @@ function LeadsPausedCard() {
   return (
     <div className="flex flex-col items-start gap-4 rounded-xl border border-border bg-surface-raised p-5 sm:p-6">
       <ShieldCheck aria-hidden className="size-8 text-fg" />
-      <h2 className="text-2xl font-bold text-fg">Başvurular Türkiye’deki sunucumuzda açılıyor</h2>
+      <h2 className="text-2xl font-bold text-fg">Demo talepleri kısa bir süre kapalı</h2>
       <p className="text-lg text-fg-muted">
-        Başvuru bilgilerini yalnız Türkiye’deki altyapımızda saklıyoruz. Canlı sunucumuz hazır olunca demo talebi ve işletme
-        kaydı bu sayfada açılacak.
+        Başvuru formunu şu an geçici olarak kapattık; bu sayfadan bilgi toplamıyoruz. Çok yakında yeniden açılacak.
       </p>
       {SUPPORT_WA ? (
         <a href={SUPPORT_WA} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: 'primary' })}>

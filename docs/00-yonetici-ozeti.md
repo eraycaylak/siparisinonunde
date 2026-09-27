@@ -85,7 +85,7 @@ Bunu destekleyen altyapı:
   - Fastify 5: API, SSE, webhook
   - BullMQ, PostgreSQL 18 + PostGIS (RLS ile tenant yalıtımı), Redis, Better Auth
   - Alternatif: ekip Laravel'de çok güçlüyse Laravel 13 + Filament.
-- **Kişisel veri Türkiye'de barındırılır.** KVKK'nın yurt dışı aktarım rejimi en büyük hukuki gri alan. Meta aktarımı için avukat görüşü alınacak.
+- **Kişisel veri Cloudflare'de, yurt dışında barındırılır** (00 §12a madde 10, 27.09.2026; önceki plan "Türkiye'de" idi). Dayanak KVKK m.9 standart sözleşmesi: Cloudflare ile imza + 5 iş günü içinde Kurum bildirimi (proje sahibinin yapılacağı). KVKK'nın yurt dışı aktarım rejimi en büyük hukuki gri alan; Meta aktarımı için avukat görüşü alınacak.
 - **Hukuki rol:** İşletme, son müşterinin veri sorumlusu; biz veri işleyeniz.
 - **Pazaryeri sayılmamak için yapmadıklarımız:** müşteri parası hiçbir zaman bizim hesabımızdan geçmez (6493 sayılı Kanun). Keşif/dizin sayfası, ortak müşteri hesabı ve ücretli öne çıkarma yoktur (ETAHS riski).
 - **Kampanya mesajları:** İşletmenin İYS kaydı, müşterinin önceden onayı ve yazılımda zorunlu İYS kontrolü olmadan gönderilmez.
@@ -145,7 +145,7 @@ Ayrıntı: [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13.
 1. Ekip ve stack: TypeScript mi, Laravel mi? (Varsayılan: TypeScript.)
 2. Pilot şehir ve 2–3 ilçe.
 3. Şirket türü (Ltd/AŞ) ve Teknokent.
-4. Yurt içi barındırma sağlayıcısı (teklifler).
+4. ~~Yurt içi barındırma sağlayıcısı (teklifler).~~ Karara bağlandı: Cloudflare (00 §12a madde 10).
 5. Meta modeli: Tech Provider mı, baştan Solution Partner mı? (Varsayılan: Tech Provider + Plan B.)
 6. Marka ve alan adı müsaitliği.
 7. Kurye stratejisi.

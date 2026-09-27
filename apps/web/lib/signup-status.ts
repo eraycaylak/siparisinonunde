@@ -29,9 +29,9 @@ export async function probeSignupStatus(
 }
 
 /**
- * Kayıt kapalıyken gösterilen pazarlama dilindeki bilgi (kayıt sayfası ve formun signup_closed hatası). "Bize ulaşın"
- * /demo'ya gider: canlı ortamda iletişim formu; Türkiye dışındaki Cloudflare ortamında form kapalıdır (kişisel veri
- * orada saklanmaz; lib/site.ts isLeadFormEnabled) ve sayfa varsa destek hattının WhatsApp bağlantısını gösterir.
+ * Kayıt kapalıyken (platform yöneticisinin acil durdurması, signup_open) gösterilen pazarlama dilindeki bilgi (kayıt
+ * sayfası ve formun signup_closed hatası). "Bize ulaşın" /demo'daki iletişim formuna gider (form kapalıysa sayfa varsa
+ * destek hattının WhatsApp bağlantısını gösterir; lib/site.ts isLeadFormEnabled).
  */
 export const SIGNUP_SOON = {
   title: 'Kayıtlar çok yakında açılıyor',

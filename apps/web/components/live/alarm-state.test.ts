@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alarmingOrdersOf, bandOrdersOf, isHighLevel, newOrdersOf, orderAnchorHref, withNewOrderCount, type AlarmCard } from './alarm-state';
+import { alarmBadgeText, alarmingOrdersOf, bandOrdersOf, isHighLevel, newOrdersOf, orderAnchorHref, withNewOrderCount, type AlarmCard } from './alarm-state';
 
 const T0 = Date.parse('2026-09-25T12:00:00Z');
 
@@ -70,5 +70,26 @@ describe('yeni sipariş alarm kuralları', () => {
 
   it('bant bağlantısı canlı ekrandaki karta gider', () => {
     expect(orderAnchorHref('abc')).toBe('/panel#siparis-abc');
+  });
+});
+
+describe('alarm rozeti: yalnız gerçekten giden bildirim söylenir (00 §12a madde 10)', () => {
+  it('3. adımdan önce rozet yok; giden en yüksek bildirime göre metin', () => {
+    expect(alarmBadgeText({ alarmStep: null, alarmNotice: null })).toBeNull();
+    expect(alarmBadgeText({ alarmStep: 2, alarmNotice: null })).toBeNull();
+    expect(alarmBadgeText({ alarmStep: 3, alarmNotice: 'owner_wa' })).toBe('Sahibine bildirildi');
+    expect(alarmBadgeText({ alarmStep: 4, alarmNotice: 'owner_sms' })).toBe('SMS gönderildi');
+    expect(alarmBadgeText({ alarmStep: 5, alarmNotice: 'customer' })).toBe('Müşteriye bilgi verildi · Bekliyor');
+    // WhatsApp gitti, SMS kullanılamadı: son giden bildirim söylenir
+    expect(alarmBadgeText({ alarmStep: 5, alarmNotice: 'owner_wa' })).toBe('Sahibine bildirildi');
+  });
+
+  it('hiçbir bildirim gitmediyse (canlı ortamda WhatsApp/SMS bağlı değil ya da kanal kapalı) "gönderildi" denmez', () => {
+    for (const step of [3, 4, 5]) {
+      const text = alarmBadgeText({ alarmStep: step, alarmNotice: null });
+      expect(text).toBe('Uyarı gönderilemedi · Bekliyor');
+      expect(text).not.toMatch(/bildirildi|gönderildi|bilgi verildi/);
+    }
+    expect(alarmBadgeText({ alarmStep: 4 })).toBe('Uyarı gönderilemedi · Bekliyor');
   });
 });

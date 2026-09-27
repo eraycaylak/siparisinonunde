@@ -90,18 +90,25 @@ export async function buildCards(db: Database, rows: OrderRow[]): Promise<OrderC
     .select({ id: cancellationRequests.id, orderId: cancellationRequests.orderId })
     .from(cancellationRequests)
     .where(and(inArray(cancellationRequests.orderId, ids), eq(cancellationRequests.status, 'pending')));
+  // step: ulaşılan en yüksek adım (panel sesi ve eskalasyon); notified: gerçekten giden en yüksek bildirim adımı. Notlu
+  // adımlar (platform_wa_disabled, platform_wa_unavailable, sms_unavailable, no_owner_phone, customer_channel_unavailable)
+  // gitmemiştir (jobs/order runAlarmStep).
   const alarmRows = (await db.execute(sql`
-    select order_id, max((data->>'step')::int) as step from order_events
+    select order_id, max((data->>'step')::int) as step,
+           max((data->>'step')::int) filter (where note is null and (data->>'step')::int in (3, 4, 5)) as notified
+      from order_events
      where order_id in (${sql.join(
        ids.map((id) => sql`${id}::uuid`),
        sql`, `,
      )}) and type = 'alarm_step'
-     group by order_id`)) as unknown as { order_id: string; step: number | null }[];
+     group by order_id`)) as unknown as { order_id: string; step: number | null; notified: number | null }[];
 
   const custMap = new Map(custRows.map((c) => [c.id, c]));
   const courierMap = new Map(courierRows.map((c) => [c.id, c.name]));
   const reqMap = new Map(reqRows.map((r) => [r.orderId, r.id]));
   const alarmMap = new Map(alarmRows.map((a) => [a.order_id, a.step == null ? null : Number(a.step)]));
+  const NOTICE_BY_STEP: Record<number, 'owner_wa' | 'owner_sms' | 'customer'> = { 3: 'owner_wa', 4: 'owner_sms', 5: 'customer' };
+  const noticeMap = new Map(alarmRows.map((a) => [a.order_id, a.notified == null ? null : (NOTICE_BY_STEP[Number(a.notified)] ?? null)]));
   const zoneEta = new Map(zoneRows.map((z) => [z.id, z.etaMinutes]));
   const branchMap = new Map(branchRows.map((b) => [b.id, b]));
   const suggest = (r: OrderRow): number => {
@@ -134,6 +141,7 @@ export async function buildCards(db: Database, rows: OrderRow[]): Promise<OrderC
       courierName: r.courierUserId ? (courierMap.get(r.courierUserId) ?? null) : null,
       cancelRequestId: reqMap.get(r.id) ?? null,
       alarmStep: alarmMap.get(r.id) ?? null,
+      alarmNotice: noticeMap.get(r.id) ?? null,
       outOfZoneOverride: r.outOfZoneOverride,
       zoneDeclared: (r.sourceMeta as { zoneDeclared?: unknown } | null)?.zoneDeclared === true,
       verifiedAt: iso(r.verifiedAt),

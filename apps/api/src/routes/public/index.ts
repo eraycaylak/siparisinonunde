@@ -1,8 +1,9 @@
 // Herkese açık uç noktalar (14 §6.5) — dilim 5.
 // GET /public/signup-status: yeni işletme kaydı açık mı (signup_open; 00 §12a madde 10). Kayıt sayfası sunucu tarafında
 // sorar; kapalıysa form yerine "Kayıtlar çok yakında açılıyor" bilgisini gösterir. Kişisel veri içermez.
-// POST /public/leads: demo formu + hesaplayıcı lead'i (05 C.5.1, C.4.5). PUBLIC_LEADS_ENABLED=0 iken (Türkiye dışındaki
-// Cloudflare ortamı; kişisel veri yalnız Türkiye'de, 00 §12a madde 10) hiçbir şey saklanmaz: 403 leads_closed. Bal küpü doluysa 204 (sessiz);
+// POST /public/leads: demo formu + hesaplayıcı lead'i (05 C.5.1, C.4.5). PUBLIC_LEADS_ENABLED=0 iken (operatörün formu
+// geçici olarak kapattığı ortam; canlı ortamda açık, 00 §12a madde 10) hiçbir şey saklanmaz: 403 leads_closed. Bal küpü
+// doluysa 204 (sessiz);
 // IP başına saatte 5 istek; telefon E.164'e normalize edilir. Aynı telefonla açık lead varsa yenisi açılmaz,
 // mevcut kayda eklenir (05 A-20 tekrar kontrolü).
 
@@ -40,7 +41,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request, reply) => {
       if (!app.config.PUBLIC_LEADS_ENABLED) {
-        throw new AppError(403, 'leads_closed', 'Başvuru formu bu ortamda kapalı; bilgilerin kaydedilmedi. Kayıtlar Türkiye’deki sunucumuzda açılıyor.');
+        throw new AppError(403, 'leads_closed', 'Başvuru formu şu an kapalı; bilgilerin kaydedilmedi. Bize WhatsApp ya da e-postayla ulaşabilirsin.');
       }
       const raw = request.body ?? {};
       if (typeof raw.website === 'string' && raw.website.trim() !== '') {

@@ -4,9 +4,9 @@ export function devToolsEnabled(): boolean {
 }
 
 /**
- * API'nin geliştirici uçları (/api/v1/dev/*) açık mı. Web derlemesi simülatörü açık derlenmiş olsa da (Cloudflare dev:
- * NEXT_PUBLIC_DEV_TOOLS=1) API gerçek WhatsApp bağlıyken bu uçları kaydetmez (DEV_TOOLS=0; apps/api/src/config.ts
- * devToolsAllowed) ve 404 döner. 'disabled' → simülatör yerine "Gerçek WhatsApp bağlı" bildirimi; ağ hatası ya da başka
+ * API'nin geliştirici uçları (/api/v1/dev/*) açık mı. Web derlemesi simülatörü açık derlenmiş olsa da (gizli staging:
+ * NEXT_PUBLIC_DEV_TOOLS=1) API bu uçları yalnız tüm sağlayıcılar mock iken kaydeder (apps/api/src/config.ts
+ * devToolsAllowed), aksi halde 404 döner. Canlı ortamda simülatör hiç derlenmez (NEXT_PUBLIC_DEV_TOOLS=0). 'disabled' → simülatör yerine "Gerçek WhatsApp bağlı" bildirimi; ağ hatası ya da başka
  * durum → 'unknown' (simülatör açılır, kendi hatasını gösterir).
  */
 export type DevApiAvailability = 'available' | 'disabled' | 'unknown';

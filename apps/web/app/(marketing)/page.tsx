@@ -65,7 +65,8 @@ const FEATURES = [
 const TRUST = [
   { text: 'Resmi WhatsApp Business Platform altyapısı', Icon: ShieldCheck },
   { text: 'Numara bağlamadan başla: ortak WhatsApp hattı hazır', Icon: Smartphone },
-  { text: 'Verilerin Türkiye’de barındırılır', Icon: Server },
+  // Barındırma Cloudflare'de, yurt dışında (00 §12a madde 10): "verilerin Türkiye'de" denmez (08 §2.11)
+  { text: 'Müşteri verin senin; başka işletmeyle paylaşılmaz', Icon: Server },
 ];
 
 export default function HomePage() {

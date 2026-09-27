@@ -24,6 +24,7 @@ export {
   productionFlagDefaults,
   isSmsConfigured,
   countDemoTenants,
+  flagOutcomeNote,
   FLAG_DESCRIPTIONS,
   type FlagOutcome,
   type ProductionFlagKey,
