@@ -2,7 +2,8 @@
 
 > **Kime:** Sunucuyu kuran, güncelleyen ve nöbet tutan kişi (00 §12a: sistemi Claude yazar ve bakımını yapar, proje sahibi ürün/saha tarafını yürütür). Esnafa dönük değildir.
 > **Bağlayıcı kaynaklar:** [00](00-kararlar-ve-sozluk.md) §10, §12a · [14](14-uygulama-sartnamesi.md) §1, §3, §11 · [08](08-mevzuat-kvkk-odeme-fatura.md) §9 · [13](13-varsayim-ve-teyit-kaydi.md) §2.
-> **Dağıtım dosyaları:** `docker-compose.yml`, `Caddyfile`, `docker/*.Dockerfile`, `docker/env.production.example`, `scripts/*`.
+> **Dağıtım dosyaları:** `docker-compose.yml`, `Caddyfile`, `docker/*.Dockerfile`, `docker/env.production.example`, `scripts/*`; canlı ortam otomasyonu `.github/workflows/deploy-production.yml` ve `scripts/vps/*` (§14).
+> **Canlı ortam (00 §12a madde 10):** Türkiye'deki VPS, demo verisi yok, kurulum ve güncelleme GitHub Actions ile (§14). Aşağıdaki elle kurulum adımları aynı yığının ayrıntısı ve yedek yoldur.
 > "(teyit edilmeli)" ile işaretli her madde üçüncü taraf davranışıdır; canlıya çıkmadan önce sağlayıcının güncel belgesinden ya da denemeyle doğrulanır ve [13](13-varsayim-ve-teyit-kaydi.md)'e işlenir.
 
 ## İçindekiler
@@ -19,13 +20,14 @@
 10. [İzleme](#10-izleme)
 11. [Sorun giderme](#11-sorun-giderme)
 12. [Canlıya çıkış kontrol listesi](#12-canlıya-çıkış-kontrol-listesi)
-13. [Cloudflare dev (demo) ortamı](#13-cloudflare-dev-demo-ortamı)
+13. [Cloudflare ortamı (VPS öncesi alan adı, sonra gizli staging)](#13-cloudflare-ortamı-vps-öncesi-alan-adı-sonra-gizli-staging)
+14. [Canlı ortam: Türkiye VPS'i GitHub Actions ile](#14-canlı-ortam-türkiye-vpsi-github-actions-ile)
 
 ---
 
 ## 1. Mimari özet
 
-Tek VPS üzerinde Docker Compose (00 §12a):
+Tek VPS üzerinde Docker Compose (00 §12a). Canlı ortam budur (00 §12a madde 10): Türkiye'deki VPS, önünde yalnız DNS ve proxy olarak Cloudflare (turuncu bulut); kurulum ve güncelleme GitHub Actions ile (§14).
 
 | Servis | İmaj | Görev | Dışarı açık |
 |---|---|---|---|
@@ -42,22 +44,22 @@ Tek VPS üzerinde Docker Compose (00 §12a):
 - `{slug}.DOMAIN` (wildcard) → web; `proxy.ts` isteği `/s/{slug}` vitrinine yazar (`/t/`, `/api/`, `/_next/` olduğu gibi geçer).
 - `www.DOMAIN` → `DOMAIN`'e kalıcı yönlendirme. `hooks.DOMAIN/wa/<token>` → `api /api/v1/webhooks/wa/<token>` (00 §2; isteğe bağlı).
 
-Kalıcı veriler adlandırılmış Docker birimlerindedir: `pgdata` (veritabanı), `uploads` (menü görselleri), `caddy_data` (sertifikalar), `caddy_logs` (HTTP erişim logları, 1 yıl). Yedekler sunucuda `./backups` klasörüne (`siparis` kullanıcısına ait, izin `700`) `scripts/backup.sh` tarafından yazılır; bu klasör hiçbir konteynere bağlanmaz.
+Kalıcı veriler adlandırılmış Docker birimlerindedir: `pgdata` (veritabanı), `uploads` (menü görselleri), `caddy_data` (sertifikalar), `caddy_logs` (HTTP erişim logları, 1 yıl). Yedekleri `scripts/backup.sh` yazar: otomatik kurulumda (§14) `/opt/yemekgelsin/backups` (root, izin `700`), elle kurulumda `./backups` (`siparis` kullanıcısına ait, izin `700`); bu klasör hiçbir konteynere bağlanmaz.
 
 ## 2. Gereksinimler
 
 | Kalem | Başlangıç (pilot, ≤ 50 işletme) | Not |
 |---|---|---|
 | Sunucu | **Türkiye'de** VPS, 2 vCPU / 4 GB RAM / 80 GB SSD, IPv4 | Kişisel veri Türkiye'de (00 §10, 08 §2.12). Aday sağlayıcılar: Turkcell Bulut, Türk Telekom, Huawei Cloud İstanbul, Radore, Bulutistan (V-009 teklifleri). ISO 27001 ve DPA belgesi alınır. |
-| İşletim sistemi | Ubuntu 24.04 LTS | Saat dilimi UTC kalsın (uygulama Europe/Istanbul'u kendi hesaplar). |
+| İşletim sistemi | Ubuntu 24.04 LTS | Otomatik kurulum sunucu saat dilimini Europe/Istanbul yapar (yedek cron'u 03:30 İstanbul). Konteynerler UTC'dir; uygulama İstanbul saatini kendisi hesaplar. |
 | Docker | Docker Engine 27+ ve Compose v2.24+ (BuildKit açık) | `docker compose version` |
 | Disk | Veritabanı + 14 günlük yedek + görseller için en az 40 GB boş | Yedekler ayrıca ikinci bir Türkiye lokasyonuna kopyalanır (§8). |
-| Ağ | Gelen: 22 (yalnız anahtarla), 80, 443. Giden: Let's Encrypt, Cloudflare API, Meta Graph API (`graph.facebook.com`) ya da 360dialog, Netgsm, Web Push servisleri (`fcm.googleapis.com`, `web.push.apple.com`, `*.push.services.mozilla.com`) | 80 portu HTTP-01 doğrulaması ve HTTPS yönlendirmesi için açık kalmalı. |
+| Ağ | Gelen: 22 (otomatik kurulum parola ile bağlanır, fail2ban korur; sonra anahtara geçiş önerilir), 80, 443. Giden: Let's Encrypt, Cloudflare API, Meta Graph API (`graph.facebook.com`) ya da 360dialog, Netgsm, Web Push servisleri (`fcm.googleapis.com`, `web.push.apple.com`, `*.push.services.mozilla.com`) | 80 portu HTTP-01 doğrulaması ve HTTPS yönlendirmesi için açık kalmalı. |
 | Hesaplar | Cloudflare (DNS), WhatsApp ortak numarası için Meta Business + geliştirici uygulaması ya da 360dialog, Netgsm, ACME e-postası | §3, §6, §7 |
 
 Ölçeklenme notu: sipariş hacmi büyüdüğünde önce `postgres` ayrı sunucuya taşınır (00 §10: tek sunucu → app + pg primary + pg standby). "Sipariş kaçmaz" paketi için ikinci ucuz VPS'te webhook alımı ve dış izleme pilot öncesi zorunludur (00 §11).
 
-Sunucu hazırlığı (bir kez):
+Sunucu hazırlığı (bir kez). Otomatik kurulumda bunları ve fazlasını (fail2ban, Docker log döndürme, saat dilimi) `scripts/vps/bootstrap.sh` yapar (§14); elle kurulum için:
 
 ```bash
 adduser --disabled-password siparis && usermod -aG sudo,docker siparis    # docker grubu kurulumdan sonra
@@ -71,30 +73,31 @@ curl -fsSL https://get.docker.com | sh                                     # Doc
 
 Alan adı `yemekgelsin.net` Cloudflare'de (Registrar + DNS) yönetilir (00 §10: Faz 1 wildcard alt alan adı; 00 §12a madde 9). Kayıtlar (`203.0.113.10` yerine sunucu IP'si):
 
-> **Bugünkü durum (27.09.2026):** `yemekgelsin.net` ve `www.yemekgelsin.net` Cloudflare dev ortamının Worker'ına **Custom Domain** olarak bağlıdır (§13); DNS kayıtlarını ve sertifikayı Cloudflare kendisi yönetir. Üretim VPS'ine geçerken önce `deploy/cloudflare/wrangler.jsonc`'deki `routes` kaldırılıp dev ortamı yeniden dağıtılır (ya da Workers & Pages > `siparisinonunde-dev` > Settings > Domains & Routes'tan silinir); Custom Domain'in oluşturduğu kayıtlar böylece kalkar. Ardından aşağıdaki kayıtlar eklenir. Dev ortamı için ayrı bir alt alan adı (ör. `demo.yemekgelsin.net`) seçilirse: `wrangler.jsonc`'de `routes` yalnız `{ "pattern": "demo.yemekgelsin.net", "custom_domain": true }` olur (kök ve `www` satırları çıkar), `vars.APP_BASE_URL` ve `image_vars.NEXT_PUBLIC_SITE_URL` bu adrese çevrilir, iş akışındaki `SITE_URL` `https://demo.yemekgelsin.net` yapılır. İş akışındaki `ZONE` `yemekgelsin.net` olarak kalır (token izinleri bu bölge içindir); `www` → kök denetimi `SITE_URL` alt alan adındayken kendiliğinden atlanır.
+> **Bugünkü durum (27.09.2026):** Türkiye VPS'i alınana kadar `yemekgelsin.net` ve `www.yemekgelsin.net` Cloudflare ortamının Worker'ına **Custom Domain** olarak bağlıdır (§13; demo verisi yok, kayıt kapalı). **Geçiş otomatiktir:** canlı ortam iş akışı (§14) VPS'te sağlık denetimi geçince Worker'ın Custom Domain'lerini kaldırır ve aşağıdaki A kayıtlarını proxy'li (turuncu bulut) olarak yazar (`scripts/vps/cloudflare-dns.mjs`; SSL/TLS modu "Flexible" ise önce "Full (strict)" yapar). Elle yapmak gerekirse: Workers & Pages > `siparisinonunde-dev` > Settings > Domains & Routes'tan alan adlarını silin, sonra kayıtları ekleyin. Dev ortamı için ayrı bir alt alan adı (ör. `demo.yemekgelsin.net`) seçilirse: `wrangler.jsonc`'de `routes` yalnız `{ "pattern": "demo.yemekgelsin.net", "custom_domain": true }` olur (kök ve `www` satırları çıkar), `vars.APP_BASE_URL` ve `image_vars.NEXT_PUBLIC_SITE_URL` bu adrese çevrilir, iş akışındaki `SITE_URL` `https://demo.yemekgelsin.net` yapılır. İş akışındaki `ZONE` `yemekgelsin.net` olarak kalır (token izinleri bu bölge içindir); `www` → kök denetimi `SITE_URL` alt alan adındayken kendiliğinden atlanır.
 
 | Tür | Ad | Değer | Proxy |
 |---|---|---|---|
-| A | `@` (yemekgelsin.net) | 203.0.113.10 | Yalnız DNS (gri bulut) |
-| A | `*` (tüm vitrinler: `{slug}.yemekgelsin.net`) | 203.0.113.10 | Yalnız DNS |
-| A | `www`, `panel`, `admin`, `hooks` | 203.0.113.10 | Yalnız DNS (wildcard kapsar; açık kayıt okunurluk içindir) |
-| AAAA | yukarıdakilerin aynısı | sunucunun IPv6'sı | Sunucuda IPv6 varsa |
-| CAA | `@` | `0 issue "letsencrypt.org"` ve `0 issuewild "letsencrypt.org"` | — |
+| A | `@` (yemekgelsin.net) | 203.0.113.10 | Proxy'li (turuncu bulut) |
+| A | `*` (tüm vitrinler: `{slug}.yemekgelsin.net`) | 203.0.113.10 | Proxy'li |
+| A | `www`, `hooks` | 203.0.113.10 | Proxy'li (`panel`, `admin` wildcard'la kapsanır) |
+| CAA | `@` | `0 issue "letsencrypt.org"` ve `0 issuewild "letsencrypt.org"` (isteğe bağlı) | — |
 
-- **Wildcard sertifika** Let's Encrypt'te yalnız DNS-01 doğrulamasıyla alınır. Bu yüzden Caddy imajı Cloudflare DNS modülüyle derlenir (`docker/caddy.Dockerfile`) ve `.env`'de `CLOUDFLARE_API_TOKEN` gerekir. Belirteç: Cloudflare > My Profile > API Tokens > "Edit zone DNS" şablonu, yalnız bu bölge (Zone.DNS:Edit + Zone.Zone:Read).
-- **Proxy (turuncu bulut) başlangıçta kapalı** önerilir: SSE bağlantısı Cloudflare'in 100 sn boşta kalma sınırına ve tamponlamasına takılabilir (15 sn ping bunu çoğu zaman aşar ama doğrulanmadı — teyit edilmeli). Proxy açılacaksa SSL modu "Full (strict)" olmalı ve `Caddyfile`'daki `trusted_proxies` bloğu açılmalıdır (aksi halde hız sınırı tüm istekleri Cloudflare IP'sine sayar).
+İş akışı yalnız bu A kayıtlarını yönetir; aynı adlardaki CNAME/AAAA kayıtlarını siler (Cloudflare proxy'si kaynağa IPv4 ile bağlanır), TXT/MX/CAA gibi diğer kayıtlara dokunmaz.
+
+- **Sertifikaların hepsi DNS-01 ile** alınır (`Caddyfile` global `acme_dns cloudflare`): wildcard bunu zaten ister; kök ve alt alan adları da böylece DNS henüz VPS'i göstermeden (geçişten önce) ve Cloudflare proxy'si arkasında alınır. Caddy imajı Cloudflare DNS modülüyle derlenir (`docker/caddy.Dockerfile`) ve `.env`'de `CLOUDFLARE_API_TOKEN` **zorunludur**. Belirteç: Cloudflare > My Profile > API Tokens > "Edit zone DNS" şablonu, yalnız bu bölge (Zone > DNS > Edit + Zone > Zone > Read). İş akışı sunucuya ayrı, yalnız DNS yetkili bir token vermek için `CADDY_CLOUDFLARE_API_TOKEN` secret'ını kabul eder (§14).
+- **Proxy (turuncu bulut) açıktır** (00 §12a madde 10). SSL/TLS modu **Full (strict)** olmalıdır ("Flexible" Caddy'nin HTTPS yönlendirmesiyle sonsuz döngü yapar; iş akışı düzeltir ya da izin yoksa DNS'e dokunmadan durur). `Caddyfile` yalnız Cloudflare IP aralıklarından gelen `X-Forwarded-For`'a güvenir (`trusted_proxies` + `trusted_proxies_strict`) ve API'ye gerçek istemci IP'sini tek başına iletir (`header_up X-Forwarded-For {client_ip}`): hız sınırları ve erişim logu (5651) istemciyi görür, istemcinin kendi yazdığı başlık yok sayılır. Cloudflare IP listesi değişirse `Caddyfile`'da güncellenir. SSE: Cloudflare'in 100 sn boşta kalma sınırını 15 sn'lik ping aşar ve `cache-control: no-cache, no-transform` sıkıştırma/tamponlamayı engeller (canlı ortamda panelle doğrulanmalı — teyit edilmeli).
 - **Ayrılmış alt alan adları** vitrin olamaz: `www, api, app, panel, admin, kurye, dev, static, assets, uploads, mail, smtp, help, destek, blog, hooks, status, docs, demo, test, bayi, yardim, siparisinonunde, yemekgelsin, yemek-gelsin` (`packages/core/src/slug.ts`).
 - DNS yayıldıktan sonra doğrulama: `dig +short bozok-pide.yemekgelsin.net` sunucu IP'sini döndürmeli.
 
 ## 4. Ortam değişkenleri (.env)
 
-Şablon: `docker/env.production.example` → sunucuda depo kökünde `.env` (git'e girmez, izin `chmod 600 .env`). Compose bu dosyayı hem değişken yerleştirmede (`${DOMAIN}` vb.) hem de `api/worker/migrate` konteynerlerine `env_file` olarak kullanır. Uygulamanın okuduğu değişkenler 14 §3 ile aynıdır; aşağıda üretimdeki anlamları:
+Şablon: `docker/env.production.example` → sunucuda depo kökünde `.env` (git'e girmez, izin `chmod 600 .env`). **Otomatik kurulumda (§14) `.env`'i iş akışı yazar** (`scripts/vps/env-merge.mjs`): gizli anahtarlar ilk dağıtımda üretilir ve sonsuza dek korunur, sağlayıcı değerleri her dağıtımda GitHub secret'larından yeniden yazılır; elle düzenlemeyin (bilinmeyen anahtarlar korunur). Compose bu dosyayı hem değişken yerleştirmede (`${DOMAIN}` vb.) hem de `api/worker/migrate` konteynerlerine `env_file` olarak kullanır. Uygulamanın okuduğu değişkenler 14 §3 ile aynıdır; aşağıda üretimdeki anlamları:
 
 | Değişken | Zorunlu | Açıklama | Üretme / örnek |
 |---|---|---|---|
 | `DOMAIN` | evet | Kök alan adı; `APP_BASE_URL=https://${DOMAIN}` ve web derleme argümanları bundan kurulur | `yemekgelsin.net` |
 | `ACME_EMAIL` | evet | Let's Encrypt bildirim e-postası | `destek@yemekgelsin.net` |
-| `CLOUDFLARE_API_TOKEN` | evet (wildcard için) | DNS-01 doğrulaması | §3 |
+| `CLOUDFLARE_API_TOKEN` | evet | Tüm sertifikalar DNS-01 ile (Caddy `acme_dns`); compose boşsa açılmaz | §3 |
 | `POSTGRES_USER`, `POSTGRES_DB` | hayır | Varsayılan `siparis` / `siparis` | — |
 | `POSTGRES_PASSWORD` | evet | Veritabanı parolası; URL'ye girdiği için yalnız harf/rakam | `openssl rand -hex 24` |
 | `DATABASE_URL` | (compose kurar) | `postgres://USER:PASS@postgres:5432/DB`; `.env`'e yazmayın | — |
@@ -117,11 +120,13 @@ Alan adı `yemekgelsin.net` Cloudflare'de (Registrar + DNS) yönetilir (00 §10:
 | `DEV_TOOLS` | evet | **Üretimde `0`**: `/dev/whatsapp` ve `/api/v1/dev/*` kapalı. Web'e derleme anında gömülür (değişince `docker compose build web`) | `0` |
 | `ADMIN_TOTP_REQUIRED` | (compose kurar) | Platform yöneticilerine iki adımlı doğrulama (TOTP) zorunlu. Compose `api` servisinde `true` sabittir; `.env` ile kapatılamaz. Yerelde boşsa kapalıdır (00 §12a madde 7) | `true` |
 | `LOG_LEVEL` | hayır | `info` (sorun ararken `debug`) | `info` |
-| `DEMO_STORE_SLUG` | hayır | Pazarlama sitesindeki "demo vitrin" bağlantısı | `bozok-pide` |
+| `DEMO_STORE_SLUG` | hayır | Pazarlama sitesindeki "Demo menüyü aç" vitrini. **Canlı ortamda boş** (demo işletme yok; kart gizlenir) | boş |
+| `DEMO_BANNER` | hayır | "Demo ortamı" uyarısı (`NEXT_PUBLIC_DEMO_BANNER`); canlı ortamda `0` | `0` |
 | `SUPPORT_WHATSAPP` | önerilir | Platform destek hattı (WhatsApp), rakamlarla. Giriş ekranındaki "Parolamı unuttum" işletme sahibine bu numarayı (WhatsApp + arama) gösterir; boşsa iletişim formuna yönlendirir. Web'e derleme anında gömülür | `905321234567` |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | önerilir | Web Push anahtar çifti: yeni sipariş bildirimi panel kapalıyken de cihazlara gider (00 §10 alarm t=0, §10). Boşsa push kapalıdır; API/worker açılır, logda uyarı yazar. **Değişirse** tüm cihazların aboneliği geçersizleşir, cihazlar bir sonraki "Siparişleri almaya başla"da yeniden abone olur | aşağıda |
 | `VAPID_SUBJECT` | push için | İtme servislerinin (Google, Apple, Mozilla) sorun olursa ulaşacağı adres; `mailto:` ya da `https://` ile başlamalı | `mailto:destek@yemekgelsin.net` |
 | `BACKUP_REMOTE`, `RETENTION_DAYS` | önerilir | Yedeğin ikinci konumu (rclone) ve saklama günü | §8 |
+| `BACKUP_DIR` | hayır | Yedek klasörü; otomatik kurulumda `/opt/yemekgelsin/backups` | §8 |
 | `BACKUP_PING_URL` | önerilir | Her başarılı yedekten sonra çağrılan dış izleme (push) adresi; 26 saat gelmezse alarm | §8 |
 
 Tüm gizli anahtarları bir kerede üretmek için:
@@ -145,17 +150,19 @@ Web derleme argümanları (`NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_ROOT_DOMAIN`, `N
 
 **Hatalı üretim yapılandırmasında API ve worker açılmaz.** Compose `NODE_ENV=production` verir; aşağıdakilerden biri varsa süreç başlamaz ve `docker compose logs api` içinde `Geçersiz üretim yapılandırması: …` yazar (`apps/api/src/config.ts`):
 
-- `DEV_TOOLS=1` (`/api/v1/dev/*` kimlik doğrulamasızdır),
+- `DEV_TOOLS=1` (`/api/v1/dev/*` kimlik doğrulamasızdır; canlı ortamda `DEPLOY_ENV=production`),
 - `SESSION_SECRET` ya da `TRACKING_SECRET` 32 karakterden kısa ya da örnek (`dev-only…`) değer,
 - `WA_VERIFY_TOKEN` boş ya da `dev-verify`,
 - `SMS_PROVIDER=netgsm` iken `NETGSM_USERCODE`, `NETGSM_PASSWORD` ya da `NETGSM_HEADER` boş,
 - `PLATFORM_WA_PROVIDER=d360` ya da `cloud` iken `PLATFORM_WA_API_KEY` boş (`cloud` için ayrıca `PLATFORM_WA_PHONE_NUMBER_ID` ve webhook imzası için `WA_APP_SECRET`), `PLATFORM_WA_DISPLAY_PHONE` boş/E.164 değil ya da `PLATFORM_WA_WEBHOOK_TOKEN` boş/kısa/örnek değer (ortak numara).
 
-`docker/env.production.example` `SMS_PROVIDER=netgsm` ve `PLATFORM_WA_PROVIDER=d360` ile, anahtarlar boş olarak gelir; bu haliyle API açılmaz. Netgsm ve 360dialog hesapları hazır olmadan kurulum yapılacaksa ikisini geçici olarak `mock` yapın. Süreç açılır, logda uyarı yazar (`SMS_PROVIDER=mock: SMS OTP ve alarm SMS'leri gönderilmez` vb.). Bu durumda SMS ve platform WhatsApp uyarıları **gerçekten gitmez**: WhatsApp'sız moddaki işletmenin müşterisi SMS kodu alamaz ve sahibine alarm gitmez. `PLATFORM_WA_PROVIDER=mock` iken ortak numara da kapalıdır: `PLATFORM_WA_DISPLAY_PHONE` boşsa geliştirme numarası (+90 555 000 00 00) üretimde kullanılmaz; vitrin, QR ve sipariş onayı WhatsApp bağlantısı göstermez (yalnız `DEPLOY_ENV=dev` simülatörü bu numarayı kullanır). Canlıya çıkmadan önce gerçek sağlayıcıya geçin (§6, §7, §12).
+Bu kurallar `scripts/check-config.ts` ile API açılmadan da denetlenir; canlı ortam iş akışı yeni imajla bunu çalışan konteynerlere dokunmadan önce yapar (§14). `docker/env.production.example` `SMS_PROVIDER=netgsm` ve `PLATFORM_WA_PROVIDER=d360` ile, anahtarlar boş olarak gelir; bu haliyle API açılmaz. Netgsm ve 360dialog hesapları hazır olmadan kurulum yapılacaksa ikisini geçici olarak `mock` yapın. Süreç açılır, logda uyarı yazar (`SMS_PROVIDER=mock: SMS OTP ve alarm SMS'leri gönderilmez` vb.). Bu durumda SMS ve platform WhatsApp uyarıları **gerçekten gitmez**: WhatsApp'sız moddaki işletmenin müşterisi SMS kodu alamaz ve sahibine alarm gitmez. `PLATFORM_WA_PROVIDER=mock` iken ortak numara da kapalıdır: `PLATFORM_WA_DISPLAY_PHONE` boşsa geliştirme numarası (+90 555 000 00 00) üretimde kullanılmaz; vitrin, QR ve sipariş onayı WhatsApp bağlantısı göstermez (yalnız `DEPLOY_ENV=dev` simülatörü bu numarayı kullanır). Canlıya çıkmadan önce gerçek sağlayıcıya geçin (§6, §7, §12).
 
 Web Push anahtarları (`VAPID_*`) açılış için zorunlu değildir: boşsa API ve worker açılır, logda `Web Push kapalı (VAPID_PUBLIC_KEY, … boş)` uyarısı yazar ve panel kapalıyken cihazlara yeni sipariş bildirimi gitmez (§10). Biçimi bozuk bir anahtar ya da `mailto:`/`https://` ile başlamayan `VAPID_SUBJECT` ise açılışı durdurur (`Geçersiz yapılandırma: VAPID_…`).
 
 ## 5. İlk kurulum
+
+**Önerilen yol otomatiktir (§14):** VPS'i alın, GitHub secret'larını ekleyin, "Canlı ortam (Türkiye VPS)" iş akışı sunucuyu hazırlar, kurar, ilk yöneticiyi açar ve alan adını taşır. Aşağısı aynı işlerin elle yapılışıdır (otomasyon çalışmazsa ya da başka bir sunucuda).
 
 ```bash
 sudo mkdir -p /opt/siparisinonunde && sudo chown siparis: /opt/siparisinonunde
@@ -169,7 +176,13 @@ docker compose logs migrate            # "Migration tamam: N yeni, 0 zaten uygul
 curl -fsS https://yemekgelsin.net/api/v1/health     # {"ok":true,"db":"up",...}
 ```
 
-**Seed üretimde çalıştırılmaz.** `pnpm db:seed` demo işletmeyi ve parolası herkesçe bilinen hesapları (`demo1234`, `admin1234`) oluşturur; yalnız geliştirme içindir. İlk platform yöneticisi betikle açılır:
+**Seed üretimde çalıştırılmaz** (00 §12a madde 10). `pnpm db:seed` demo işletmeleri ve parolası herkesçe bilinen hesapları (`demo1234`, `admin1234`) oluşturur; yalnız geliştirme içindir ve `NODE_ENV=production` + `DEPLOY_ENV=production` iken kendini reddeder. Canlı veritabanı boş başlar. Bayraklar üretim varsayılanlarıyla bir betikle yazılır (kayıt açık, WhatsApp bağlama açık, kampanyalar ve yapay zeka kapalı, SMS yedeği yalnız Netgsm tanımlıysa açık, platform uyarıları açık; var olan bayrağa dokunmaz):
+
+```bash
+docker compose exec api node --import tsx /app/scripts/bootstrap-production.ts
+```
+
+İlk platform yöneticisi betikle açılır (otomatik kurulum `admin@yemekgelsin.net`'i `--if-missing` ile açar: yönetici varsa parolasına ve iki adımlı doğrulamasına dokunmaz):
 
 ```bash
 docker compose run --rm api node --import tsx /app/scripts/create-admin.ts \
@@ -207,7 +220,7 @@ docker compose run --rm api node --import tsx /app/scripts/reset-password.ts --e
 # Parolayı kendiniz vermek için: read -rs NEW_PASSWORD && export NEW_PASSWORD && docker compose run --rm -e NEW_PASSWORD api ...; unset NEW_PASSWORD
 ```
 
-Ardından **Bayraklar** ekranında kill-switch'lerin açık olduğunu görün (`signup_open`, `sms_fallback` …). İlk işletme `https://DOMAIN/panel/kayit` üzerinden kaydolur ve kurulum sihirbazına (`/panel/kurulum`) iner. Kayıtla birlikte işletmeye dükkan kodu verilir ve işletme **ortak numaraya** bağlanır (§6); sihirbazın WhatsApp adımı kendiliğinden tamamdır ve QR kodunu gösterir. Ortak numara henüz yapılandırılmadıysa (`PLATFORM_WA_*`, §6.4) işletme "WhatsApp'sız başla" ile web siparişi alabilir (SMS doğrulamalı).
+Ardından **Bayraklar** ekranında üretim varsayılanlarını görün (`signup_open` açık; `sms_fallback` Netgsm tanımlıysa açık; `campaigns_global`, `llm_parsing` kapalı). İlk işletme `https://DOMAIN/panel/kayit` üzerinden kaydolur ve kurulum sihirbazına (`/panel/kurulum`) iner. Kayıtla birlikte işletmeye dükkan kodu verilir ve işletme **ortak numaraya** bağlanır (§6); sihirbazın WhatsApp adımı kendiliğinden tamamdır ve QR kodunu gösterir. Ortak numara henüz yapılandırılmadıysa (`PLATFORM_WA_*`, §6.4) işletme "WhatsApp'sız başla" ile web siparişi alabilir (SMS doğrulamalı).
 
 Yedek cron'unu kurmayı unutmayın (§8).
 
@@ -302,7 +315,7 @@ Cloudflare dev ortamı (§13): GitHub > depo > **Settings > Secrets and variable
 
 Sonra **Actions > "Dev ortamı (Cloudflare)" > Run workflow** (secret eklemek dağıtımı kendiliğinden başlatmaz). `META_WA_TOKEN`, `META_WA_PHONE_NUMBER_ID`, `META_APP_SECRET` ve `WA_PHONE` birlikte varsa ortak numara gerçek Meta Cloud API ile açılır ve simülatör kapanır; iş akışı özetinde "WhatsApp: gerçek numara" yazar. Biri eksikse uyarı verir ve simülatörde kalır; telefon ya da kimlik biçimi yanlışsa dağıtım Türkçe hatayla durur. `META_WA_WABA_ID` yalnız aşağıdaki 4. ve 5. düğmeler için gerekir.
 
-Türkiye VPS'i (üretim): aynı değerler `.env`'e (§6.4 Yol A): `PLATFORM_WA_PROVIDER=cloud`, `PLATFORM_WA_API_KEY`, `PLATFORM_WA_PHONE_NUMBER_ID`, `PLATFORM_WA_WABA_ID`, `WA_APP_SECRET`, `PLATFORM_WA_DISPLAY_PHONE` → `docker compose up -d api worker`.
+Türkiye VPS'i (canlı ortam, §14): **aynı beş GitHub secret'ı** kullanılır; "Canlı ortam (Türkiye VPS)" iş akışı her dağıtımda bunları `.env`'e yazar (`PLATFORM_WA_PROVIDER=cloud`, `PLATFORM_WA_API_KEY`, `PLATFORM_WA_PHONE_NUMBER_ID`, `PLATFORM_WA_WABA_ID`, `WA_APP_SECRET`, `PLATFORM_WA_DISPLAY_PHONE`; §6.4 Yol A). Secret değişince iş akışını elle çalıştırın. Elle kurulumda aynı değerler `.env`'e yazılıp `docker compose up -d api worker`.
 
 **C. Admin'de, sırayla** — `/admin/giris` → platform sahibi hesabı → **WhatsApp** → **WhatsApp kurulumu** (yalnız platform sahibi görür; her işlem denetim kaydına yazılır). "Kurulum durumu" kartında beş değer "Tanımlı" görünmeli (gizliler yalnız son 4 karakterle).
 
@@ -312,11 +325,11 @@ Türkiye VPS'i (üretim): aynı değerler `.env`'e (§6.4 Yol A): `PLATFORM_WA_P
 4. **Webhook aboneliğini aç** → "Abonelik açık".
 5. **Şablonları Meta'ya gönder** → kodun kullandığı tüm şablonlar (sipariş durumu + işletme uyarıları; §6.5) Meta'da yoksa oluşturulur; var olana dokunulmaz, hiçbir şey silinmez. **Durumu yenile** her şablonu Onaylandı / İncelemede / Reddedildi olarak (ret sebebiyle) gösterir; utility şablonlar genelde dakikalar içinde onaylanır.
 
-**Deneme:** kendi telefonunuzdan numaraya `#BOZOK` yazın → demo dükkanın adıyla karşılama ve **Menüyü aç** gelmeli; `Admin > WhatsApp` ortak numara kartında "Son webhook" güncellenir. `/dev/whatsapp` artık "Gerçek WhatsApp bağlı; simülatör kapalı" gösterir.
+**Deneme:** canlı ortamda (demo işletme yoktur) kendi deneme işletmenizi açın (`/panel/kayit`), kurulumu bitirin ve kendi telefonunuzdan numaraya dükkan kodunu yazın (`#KOD`, panel > Ayarlar > WhatsApp) → dükkanın adıyla karşılama ve **Menüyü aç** gelmeli; `Admin > WhatsApp` ortak numara kartında "Son webhook" güncellenir. `/dev/whatsapp` artık "Gerçek WhatsApp bağlı; simülatör kapalı" gösterir.
 
 **Görünen ad:** "Yemek Gelsin" adı Meta incelemesinden geçer (genelde 1–3 gün). Onaylanana kadar müşteri ad yerine numarayı görebilir. Reddedilirse WhatsApp Manager > Phone numbers > numara > **Display name > Edit** ile yeniden gönderin; ad sitedeki marka adıyla aynı olmalı. Durum 2. düğmede görünür.
 
-**KVKK:** Cloudflare dev ortamının verileri Türkiye dışındadır (§13). Bu ortamda gerçek WhatsApp **yalnız kendi telefonlarınızla** denenir: QR basılıp dağıtılmaz, gerçek işletme ya da müşteri bu numaraya yönlendirilmez. Gerçek müşteriler sistem Türkiye'deki VPS'e taşındıktan sonra gelir (§1–§12). Taşınınca aynı beş değer `.env`'e yazılır; webhook belirteci ve doğrulama belirteci yeni sunucuda farklıdır: C.1'i yeni sunucuda tekrarlayın.
+**KVKK:** Cloudflare ortamının verileri Türkiye dışındadır (§13). Orada gerçek WhatsApp **yalnız kendi telefonlarınızla** denenir: QR basılıp dağıtılmaz, gerçek işletme ya da müşteri bu numaraya yönlendirilmez. Gerçek müşteriler Türkiye VPS'inde (§14) gelir. **Taşınınca C.1'i yeni sunucuda tekrarlayın:** canlı ortamın webhook belirteci (`PLATFORM_WA_WEBHOOK_TOKEN`) ve doğrulama belirteci (`WA_VERIFY_TOKEN`) Cloudflare'dekilerden farklıdır; `https://yemekgelsin.net/admin` > WhatsApp > WhatsApp kurulumu > **Göster** → Meta'da Callback URL ve Verify token'ı yenileyip **Verify and save**. Yapılmazsa gelen mesajlar yeni sunucuya ulaşmaz.
 
 **Simülatöre dönmek:** GitHub'da `META_WA_TOKEN` secret'ını (ya da dört zorunlu secret'tan birini) silin → Run workflow; iş akışı Worker'daki eski değerleri de siler.
 
@@ -416,7 +429,9 @@ SMS OTP (WhatsApp'sız mod), kritik durum SMS'leri ve 5. dakika alarm SMS'i plat
 
 ## 8. Yedekleme ve geri yükleme
 
-**Günlük yedek** (`scripts/backup.sh`): `pg_dump -Fc` (sıkıştırılmış, doğrulanmış) + `uploads` biriminin tar arşivi `./backups` klasörüne; **14 günden eskiler silinir**. Döküm `docker compose exec` ile akıtılır; klasörü betik ilk çalışmada `700` izniyle oluşturur, dosyalar `600`'dür. Cron, depoyu ve compose'u yöneten **`siparis` kullanıcısının** crontab'ına kurulur (root'un değil: root'un aldığı dökümleri `siparis` olarak çalışan `restore.sh` okuyamaz). Log kullanıcının ev dizinine yazılır (`/var/log` altına normal kullanıcı yazamaz):
+**Otomatik kurulumda (§14)** yedek cron'unu iş akışı kurar: `/etc/cron.d/yemekgelsin-backup`, root, **her gece 03:30 (Europe/Istanbul)** → `/opt/yemekgelsin/backups` (izin 700/600, 14 gün), günlük `/var/log/yemekgelsin-backup.log` (haftalık döndürülür). Ayrıca her dağıtımdan önce (veritabanı varsa) **yalnız veritabanının** bir dökümü alınır (`backup.sh --pre-deploy` → `pre-deploy-db-*.dump`; yaşa göre değil sayıya göre, **son 5** saklanır; ikinci konuma kopyalanmaz, `BACKUP_PING_URL` çağrılmaz); alınamazsa dağıtım durur. Böylece sık dağıtım diski doldurmaz (dağıtım ayrıca %15'ten az boş yerde durur, §14.3). **Yedekler Türkiye'deki bu sunucuda kalır**; henüz ikinci bir konum yoktur. Sunucu kaybına karşı ikinci bir Türkiye lokasyonu (aşağıda "İkinci konum") en kısa sürede eklenmelidir. Aşağıdaki `siparis` kullanıcılı düzen elle kurulum içindir.
+
+**Günlük yedek** (`scripts/backup.sh`): `pg_dump -Fc` (sıkıştırılmış, doğrulanmış) + `uploads` biriminin tar arşivi `BACKUP_DIR` klasörüne (elle kurulumda `./backups`); **14 günden eskiler silinir**. Döküm `docker compose exec` ile akıtılır; klasörü betik ilk çalışmada `700` izniyle oluşturur, dosyalar `600`'dür. Cron, depoyu ve compose'u yöneten **`siparis` kullanıcısının** crontab'ına kurulur (root'un değil: root'un aldığı dökümleri `siparis` olarak çalışan `restore.sh` okuyamaz). Log kullanıcının ev dizinine yazılır (`/var/log` altına normal kullanıcı yazamaz):
 
 ```bash
 sudo -iu siparis crontab -e
@@ -427,7 +442,7 @@ sudo -iu siparis crontab -e
 
 **Yedek alınamazsa sessiz kalmaz:** betik sıfır dışı kodla çıkar, `~/siparis-backup.log`'a ve syslog'a yazar (`journalctl -t siparis-backup`). Cron'un e-postası çoğu sunucuda gitmediği için asıl uyarı dış izlemedir: Uptime Kuma'da (ikinci VPS, §10) **Push** türünde, 26 saat aralıklı bir monitör açın ve adresini `.env`'e `BACKUP_PING_URL=https://…/api/push/<anahtar>` olarak yazın. Betik her başarılı yedekten sonra bu adresi çağırır; 26 saat çağrı gelmezse nöbetçiye P2 alarmı gider (06 §14.1: yedek yaşı > 26 sa).
 
-**İkinci konum (zorunlu):** Yedeğin bir kopyası başka bir Türkiye lokasyonunda tutulur (00 §10; kişisel veri yurt dışına çıkmaz). `rclone` kurun (`apt-get install rclone`), yurt içi S3 uyumlu depoyu `rclone config` ile tanımlayın ve `.env`'e `BACKUP_REMOTE=yedek-ankara:siparis-yedek` yazın; betik her gece son 48 saatin dosyalarını kopyalar ve uzakta da 14 günü aşanları siler. `BACKUP_REMOTE` boşsa betik her çalıştığında uyarı yazar. Yedek dosyaları kişisel veri içerir: klasör izni `700`, uzak depoda şifreleme (rclone `crypt`) önerilir.
+**İkinci konum (zorunlu, henüz yok):** Yedeğin bir kopyası başka bir Türkiye lokasyonunda tutulur (00 §10; kişisel veri yurt dışına çıkmaz). `rclone` kurun (otomatik kurulumda kuruludur), yurt içi S3 uyumlu depoyu sunucuda root olarak `rclone config` ile tanımlayın ve `.env`'e `BACKUP_REMOTE=yedek-ankara:siparis-yedek` yazın (otomatik kurulumda: sunucudaki `.env`'in "Yedekleme" bölümüne; iş akışı korur). Uzak konum tanımlı ama çalışmıyorsa gecelik yedek hata verir (güncelleme öncesi döküm uzağa kopyalanmadığı için dağıtımı durdurmaz); betik her gece son 48 saatin dosyalarını kopyalar ve uzakta da 14 günü aşanları siler. `BACKUP_REMOTE` boşsa betik her çalıştığında uyarı yazar. Yedek dosyaları kişisel veri içerir: klasör izni `700`, uzak depoda şifreleme (rclone `crypt`) önerilir.
 
 **Geri yükleme** (`scripts/restore.sh`):
 
@@ -446,6 +461,8 @@ docker compose exec postgres dropdb -U siparis siparis_tatbikat
 Kısıtlar: `pg_dump` günlük anlık görüntüdür, son yedekten sonraki siparişler geri dönüşte kaybolur. Saniye hassasiyetinde dönüş (PITR) için WAL arşivleme (pgBackRest ya da WAL-G, ikinci lokasyona) **pilot öncesi zorunlu paketin** parçasıdır (00 §11) ve ayrıca kurulmalıdır. Aylık geri yükleme tatbikatının tarihi ve sonucu bir yere not edilir.
 
 ## 9. Güncelleme
+
+**Otomatik (canlı ortam, §14):** `main` ya da çalışma dalına her push (yalnız `docs/**` ve `*.md` değişiklikleri hariç) "Canlı ortam (Türkiye VPS)" iş akışını çalıştırır: tam o commit'i sunucuya getirir, derler, yapılandırmayı denetler, yedek alır, migration'ları uygular, servisleri yeniler ve sağlık/duman testlerini yapar. **Geri alma:** Actions > "Canlı ortam (Türkiye VPS)" > Run workflow > `ref` = önceki commit SHA'sı. Elle güncelleme:
 
 ```bash
 cd /opt/siparisinonunde
@@ -516,7 +533,7 @@ docker compose exec postgres psql -U siparis -c "select b.name, p.last_seen_at, 
 **SSE (canlı ekran) kopuyor**
 
 1. Panelde "Yeniden bağlanıyor" bandı sık mı görünüyor? Tarayıcı geliştirici araçlarında `/api/v1/panel/stream` isteğinin 15 sn'de bir `ping` aldığını doğrulayın.
-2. Araya başka bir vekil girmesin: Cloudflare proxy (turuncu bulut) ya da kurumsal ağ vekilleri akışı tamponlayabilir → §3'teki gibi "Yalnız DNS". Caddy'de `/api/*` için `flush_interval -1` ve sıkıştırma yok (Caddyfile); başka bir nginx eklenirse `proxy_buffering off` ve `X-Accel-Buffering: no` gerekir.
+2. Araya giren vekiller: canlı ortamda Cloudflare proxy'si (turuncu bulut) açıktır (00 §12a madde 10); API `cache-control: no-cache, no-transform` gönderir ve 15 sn'de bir ping atar, Caddy `/api/*` için `flush_interval -1` ile sıkıştırmasız iletir. Kopmalar Cloudflare'den geliyorsa önce Cloudflare > Rules'ta `/api/v1/panel/stream` için önbellek/sıkıştırma kuralı olmadığını denetleyin; son çare kök alan adının A kaydını geçici olarak "Yalnız DNS" (gri bulut) yapmaktır (canlı ortam iş akışı sonraki dağıtımda proxy'yi yeniden açar; kalıcı karar 00 §12a'ya yazılır). Kurumsal ağ vekilleri de tamponlayabilir; başka bir nginx eklenirse `proxy_buffering off` ve `X-Accel-Buffering: no` gerekir.
 3. Tablet uykuya geçiyor: "Vardiyayı başlat" Wake Lock ister; cihazın güç tasarrufu ayarını kapatın.
 4. Kopmalar sunucu yeniden başlatmalarıyla aynı anda mı? Güncellemeleri yoğun saat dışına alın (§9). Kaçan olaylar `Last-Event-ID` ile yeniden oynatılır; 1000'den fazla olay kaçarsa panel tam yenilenir (resync).
 
@@ -543,7 +560,7 @@ docker compose exec postgres psql -U siparis -c "select b.name, p.last_seen_at, 
 
 - [ ] `SUPPORT_WHATSAPP` dolu ve web bu değerle derlendi: `/panel/giris` › "Parolamı unuttum" destek numarasını gösteriyor. İşletme sahibinin parolası, kimlik başka kanaldan doğrulandıktan sonra admin panelinden sıfırlanır.
 - [ ] `.env`'de `DEV_TOOLS=0` ve web bu değerle derlendi: `curl -o /dev/null -w '%{http_code}' https://DOMAIN/dev/whatsapp` → 404, `https://DOMAIN/api/v1/dev/wa/accounts` → 404.
-- [ ] Seed çalıştırılmadı: `select email from users where email in ('admin@yemekgelsin.net','demo@yemekgelsin.net','mudur@yemekgelsin.net','kasa@yemekgelsin.net','mutfak@yemekgelsin.net','kurye@yemekgelsin.net','doner@yemekgelsin.net')` boş; demo işletmeler (`bozok-pide`, `camlik-doner`) yok. Gerçek yöneticiler bu demo adreslerini kullanmaz (ör. `yonetici@yemekgelsin.net`).
+- [ ] Demo verisi yok (00 §12a madde 10): `select email from users where email in ('demo@yemekgelsin.net','mudur@yemekgelsin.net','kasa@yemekgelsin.net','mutfak@yemekgelsin.net','kurye@yemekgelsin.net','doner@yemekgelsin.net')` boş; `select slug from tenants where is_demo` boş (önyükleme betiği demo işletme görürse uyarır). `admin@yemekgelsin.net` canlı ortamın gerçek platform yöneticisidir: iş akışı `ADMIN_PASSWORD` ile açar, parolası yerel geliştirme parolası (`admin1234`) değildir ve iki adımlı doğrulaması kuruludur.
 - [ ] Gizli anahtarlar rastgele üretildi (§4) ve `ENCRYPTION_KEY`, `TRACKING_SECRET` parola yöneticisinde + ayrı bir güvenli yerde saklı.
 - [ ] Platform yöneticileri `create-admin.ts` ile açıldı ve her biri **iki adımlı doğrulamayı (TOTP) kurdu** (00 §12a madde 7, 14 §5): girişte `/admin/guvenlik` → QR'ı okut → 6 haneli kodla aç → 8 kurtarma kodunu kaydet (§5). Kontrol: `docker compose exec api printenv ADMIN_TOTP_REQUIRED` → `true`; `select email from users where is_platform_admin and totp_enabled_at is null` boş; kurtarma kodlarıyla giriş bir kez denendi (kullanılan kod yenilenerek yerine konur).
 - [ ] Yedek cron'u `siparis` kullanıcısının crontab'ında kurulu, ilk elle çalıştırmada `backups/` altında `600` izinli döküm oluştu, `BACKUP_REMOTE` ikinci Türkiye lokasyonuna kopyalıyor, `BACKUP_PING_URL` dış izlemede 26 saatlik push monitörüne bağlı, bir geri yükleme tatbikatı (`restore.sh --target`) başarıyla yapıldı; PITR (WAL arşivleme) kuruldu (00 §11).
@@ -552,10 +569,10 @@ docker compose exec postgres psql -U siparis -c "select b.name, p.last_seen_at, 
 - [ ] Sağlayıcılar gerçek: `docker compose exec worker printenv SMS_PROVIDER PLATFORM_WA_PROVIDER WA_DEFAULT_PROVIDER` çıktısında `mock` yok (§4).
 - [ ] Web Push açık: `VAPID_*` dolu, açılış logunda `Web Push kapalı` uyarısı yok; bir Android tablette ve ana ekrana eklenmiş bir iPhone'da "Siparişleri almaya başla" → izin → `Ayarlar › Bu cihazda bildirimler › Test bildirimi gönder` geldi; panel sekmesi kapalıyken verilen deneme siparişinde "Yeni sipariş #…" bildirimi geldi (§10).
 - [ ] Panel çevrimdışı uyarısı denendi: açık saatte paneli kapatıp 5 dk bekleyince sahibin telefonuna `isletme_panel_cevrimdisi_v1` geldi (`notifications` tablosunda `kind = 'panel_offline'`).
-- [ ] Sunucu: UFW açık (22/80/443), SSH yalnız anahtarla, otomatik güvenlik güncellemeleri açık, `.env` izni 600.
+- [ ] Sunucu: UFW açık (22/80/443), fail2ban sshd jail'i açık (`fail2ban-client status sshd`), otomatik güvenlik güncellemeleri açık, `.env` izni 600. İş akışı parola ile bağlandığından SSH parolası uzun ve rastgele; mümkünse `VPS_HOST_KEY` sabitlendi (§14).
 - [ ] Ortak numara bağlı (§6.2 Meta Cloud API ya da §6.3 360dialog): görünen ad "Yemek Gelsin" onaylı, işletme doğrulaması tamam, ödeme kartı tanımlı, `PLATFORM_WA_DISPLAY_PHONE` ve `PLATFORM_WA_WEBHOOK_TOKEN` dolu, webhook tanımlı (`Admin > WhatsApp` ortak numara kartında sorun satırı yok; Yol A'da **WhatsApp kurulumu**nda "Bağlantıyı test et" hazır, "Aboneliği kontrol et" açık, tüm şablonlar Onaylandı). İki farklı işletmenin QR'ı gerçek telefonla okutuldu: her birinde o işletmenin adıyla karşılama → "Menüyü aç" → sipariş → doğru işletmenin panelinde alarm → onay mesajı; kodsuz yazınca dükkan seçici geldi. Müşteri ve platform şablonları onaylı (V-011).
 - [ ] Netgsm başlığı onaylı, OTP ve "onaylandı" SMS'i gerçek telefona geldi (V-012, V-020, V-023).
-- [ ] `pnpm test` ve `pnpm e2e` yeşil (yayınlanan sürüm etiketinde).
+- [ ] `pnpm test` ve `pnpm e2e` yeşil (yayınlanan sürüm etiketinde); "Canlı ortam (Türkiye VPS)" iş akışının son çalışması yeşil (duman testi gerçek alan adında geçti).
 
 **Hukuki / operasyonel** — [08](08-mevzuat-kvkk-odeme-fatura.md) §9.1 "MVP öncesi zorunlu" setinin tamamı; özellikle:
 
@@ -570,61 +587,145 @@ docker compose exec postgres psql -U siparis -c "select b.name, p.last_seen_at, 
 
 ---
 
-## 13. Cloudflare dev (demo) ortamı
+## 13. Cloudflare ortamı (VPS öncesi alan adı, sonra gizli staging)
 
-Sistemi gerçek işletme verisi olmadan denemek ve göstermek için ayrı bir ortamdır. Adresi **https://yemekgelsin.net**'tir (00 §12a madde 9). **Üretimin yerine geçmez:** üretim Türkiye'deki VPS'tedir (§1–§12). Dev ortamında:
-- SMS ve işletmelerin kendi numaraları `mock` çalışır; ortak numara varsayılan olarak simülatördür (`mock`, gerçek mesaj gitmez), isteğe bağlı beş GitHub secret'ıyla gerçek Meta Cloud API'ye bağlanır (aşağıda **Gerçek WhatsApp**, §6.2a);
-- site **herkese açıktır**: pazarlama sitesi, vitrinler (`/s/*`), takip (`/t/*`), yasal sayfalar, panel ve admin giriş ekranları, API ve webhook'lar;
-- pazarlama, vitrin, takip ve giriş sayfalarının üstünde **"Demo ortamı"** uyarısı görünür (siparişler örnektir, WhatsApp/SMS gitmez, gerçek adres ve telefon girilmez). Uyarı derleme anında açılır: `deploy/cloudflare/Dockerfile` `NEXT_PUBLIC_DEPLOY_ENV=dev`; üretim imajında yoktur;
-- **yeni işletme kaydı kapalı başlar**: seed `DEPLOY_ENV=dev` iken `signup_open` bayrağını ilk kurulumda kapalı yazar (veriler yurt dışında ve sağlayıcılar mock olduğundan gerçek işletme kaydolmamalı). Kayıt formu "Yeni kayıtlar geçici olarak kapalı" der. Proje sahibi açmak isterse `/admin/bayraklar`'dan açar; sonraki açılışlar ve dağıtımlar bayrağa dokunmaz;
-- **yalnız geliştirici araçları** parolalıdır: WhatsApp simülatörü (`/dev/*`) ve `/api/v1/dev/*` (HTTP Basic, kullanıcı adı serbest, parola `DEV_PASSWORD`);
-- demo hesaplarının parolası da `DEV_PASSWORD`'dür (seed `SEED_PASSWORD = DEV_PASSWORD` ile kurar);
-- arama motorları dizinlemez: `DEPLOY_ENV=dev` iken her yanıtta `x-robots-tag: noindex, nofollow`;
-- veriler yurt dışındadır (Cloudflare R2, ENAM). Bu yüzden gerçek müşteri ve işletme verisi girilmez (00 §12a, 08).
+Cloudflare Workers + Containers üzerinde tek container'lı ortam (`deploy/cloudflare/`, iş akışı `.github/workflows/deploy-dev-cloudflare.yml`). **Canlı ortamın yerine geçmez:** canlı ortam Türkiye'deki VPS'tir (§14; 00 §12a madde 10). Veriler Türkiye dışındadır (Cloudflare R2, ENAM); gerçek müşteri ve işletme verisi girilmez. İki kipi vardır; kipi iş akışı `VPS_HOST` secret'ına bakarak seçer:
 
-**Yapı** (`deploy/cloudflare/`): tek bir Worker ve Workers Paid planının Containers özelliğiyle çalışan tek bir container örneği (`basic`: 1/4 vCPU, 1 GiB).
-- **Alan adı:** `yemekgelsin.net` ve `www.yemekgelsin.net` Worker'a **Custom Domain** olarak bağlıdır (`wrangler.jsonc` `routes`); DNS kaydını ve sertifikayı Cloudflare oluşturur. `www` her yolda köke kalıcı yönlenir (301; gövdeli istekte 308). `workers.dev` adresi yedek olarak açık kalır: API ve webhook istekleri orada da çalışır, tarayıcı sayfa gezinmeleri (GET, `text/html`) `https://yemekgelsin.net`'e geçici yönlenir (302). Kurallar: `deploy/cloudflare/src/access.ts` (testleri `npm test`).
-- Container içinde aynı anda PostgreSQL 16, API, worker ve web çalışır. İmaj depo kökünden derlenir (`deploy/cloudflare/Dockerfile`). Worker `/api/*` isteklerini API'ye (4000), diğer istekleri web'e (3000) aktarır.
-- Container diski geçicidir. `entrypoint.sh` her açılışta boş bir veritabanı kurar, son yedeği Worker'ın `yedek.internal` çıkış işleyicisi üzerinden R2'den (`siparisinonunde-dev-yedek`) geri yükler, migration'ları uygular ve seed'i çalıştırır. Seed işletme başına idempotenttir: var olan demo işletme atlanır, yedekte olmayan yeni demo işletme (ör. Çamlık Döner) eklenir; `SEED_PASSWORD` değiştiyse var olan demo hesaplarının parolası yeni değere eşitlenir. Önceki marka döneminin demo hesapları (`admin@`, `demo@`, `mudur@`, `kasa@`, `mutfak@`, `kurye@`, `doner@siparisinonunde.local`; varsayılan parolaları eski README'de yayımlıydı) eski bir yedekten dönerse onlar da `SEED_PASSWORD`'e eşitlenir (`LEGACY_DEMO_EMAILS`); herkese açık sitede `admin1234` gibi parolalarla giriş olmaz.
-- **Veri dönemi (`DATA_EPOCH`):** R2 anahtarları veri dönemiyle öneklenir: `e2/db/son.dump`, `e2/uploads/son.tar.gz`, `e2/db/gun-<0–6>.dump`. Dönem Worker değişkeni `DATA_EPOCH`'tan container **açılırken** alınır (ortam değişkeni) ve container'ın ömrü boyunca sabittir: `entrypoint.sh` yedek yoluna yazar (`http://yedek.internal/e2/db`), Worker anahtarı bu yoldan kurar (`src/access.ts` `parseBackupPath`), kendi o anki değerinden değil. Böylece yeniden dağıtım sırasında kapanan eski container'ın son yedeği yeni döneme düşmez; yeni dönemin container'ı yedek bulamaz ve boş veritabanı + seed ile (yeni marka ve demo hesaplarıyla) açılır. Dönemsiz yol (`/db`, ilk sürümün entrypoint'i) önekli olmayan eski `db/…` nesnelerine gider. Eski dönemin nesnelerine dokunulmaz. Geçersiz değer (rakam dışı) dağıtımdan önce `scripts/prepare-config.mjs`'te, container'da da açılışta reddedilir.
-- Yedek 10 dakikada bir, kapanışta ve çökmede alınır. Veritabanı ve görsel yedeğinin haftanın her günü için bir kopyası tutulur (7 gün). R2'ye ulaşılamazsa container boş veritabanıyla açılmaz, çıkar; böylece iyi yedeğin üzerine yazılmaz.
-- Son istekten 30 dakika sonra container uyur. Açık bir panel (SSE) uyumayı engeller. Uyanış yaklaşık 30–60 saniye sürer; bu sırada tarayıcıda "Sistem başlatılıyor" sayfası görünür ve kendiliğinden yenilenir.
-- `DEPLOY_ENV=dev`, üretim derlemesinde geliştirici araçlarını yalnız tüm sağlayıcılar `mock` iken açar (`apps/api/src/config.ts`, `devToolsAllowed`). Gerçek WhatsApp kipinde Worker container'a `DEV_TOOLS=0` verir (aksi halde API açılmaz); web simülatörle derlendiği için `/dev/whatsapp` 200 döner ama simülatör yerine "Gerçek WhatsApp bağlı; simülatör kapalı" bildirimini gösterir, `/api/v1/dev/*` 404 döner. Yönetici 2FA'sı dev ortamında isteğe bağlıdır (`ADMIN_TOTP_REQUIRED=false`); site herkese açık olduğundan proje sahibinin admin hesabında `/admin/guvenlik`'ten iki adımlı doğrulamayı açması önerilir.
+| | **Alan adı kipi** (VPS yokken) | **Gizli staging** (VPS varken) |
+|---|---|---|
+| Ne zaman | `VPS_HOST` secret'ı yok | `VPS_HOST` secret'ı var |
+| Tetikleyici | her push + elle | yalnız elle (Run workflow); push'ta atlanır |
+| Adres | `https://yemekgelsin.net` (Custom Domain) + workers.dev yedek | yalnız `https://siparisinonunde-dev.<hesap>.workers.dev`; özel alan adı eklenmez |
+| Erişim | herkese açık; yalnız geliştirici araçları parolalı | tüm site parolalı (kullanıcı adı serbest, parola `DEV_PASSWORD`); yalnız `/api/v1/health` ve `/api/v1/health/worker` açık |
+| Veri | **demo yok**: seed yalnız platform yöneticisi (`admin@yemekgelsin.net`, parola `DEV_PASSWORD`) ve bayraklar (`SEED_MODE=admin`) | demo işletmeler ve hesaplar (`SEED_MODE=demo`, parola `DEV_PASSWORD`) |
+| Veri dönemi | `vars.DATA_EPOCH` ("3") | `vars.STAGING_DATA_EPOCH` ("901"; farklı olmalı) |
+| "Demo ortamı" uyarısı | yok (`NEXT_PUBLIC_DEMO_BANNER=0`) | var |
+| Yeni işletme kaydı | kapalı: kayıt sayfası "Kayıtlar çok yakında açılıyor" der, "Bize ulaşın" `/demo`'ya gider | kapalı |
+| `/demo` lead formu | **kapalı** (kişisel veri Türkiye dışında saklanmaz; değişmez kural 7): form yerine bilgi kartı, `SUPPORT_WHATSAPP` secret'ı varsa destek hattının WhatsApp bağlantısı; API 403 `leads_closed` (`NEXT_PUBLIC_LEAD_FORM=0`, `PUBLIC_LEADS_ENABLED=0`) | açık (yalnız ekip dener) |
+| WhatsApp | simülatör; `META_*` secret'ları tamsa gerçek numara (yalnız kendi telefonlarınızla) | her zaman simülatör (canlı numara kullanılmaz; iş akışı WhatsApp secret'larını yüklemez, Worker'dakileri siler) |
+
+Her iki kipte: SMS ve işletmelerin kendi numaraları `mock`; arama motorları dizinlemez (`DEPLOY_ENV=dev` → her yanıtta `x-robots-tag: noindex, nofollow`); yönetici 2FA'sı isteğe bağlıdır (`ADMIN_TOTP_REQUIRED=false`; alan adı kipinde site herkese açık olduğundan proje sahibinin `/admin/guvenlik`'ten açması önerilir).
+
+**Yapı:** tek bir Worker ve Workers Paid planının Containers özelliğiyle çalışan tek container örneği (`basic`: 1/4 vCPU, 1 GiB).
+- Kip `scripts/config-modes.mjs` ile `wrangler.generated.jsonc`'ye yazılır (`scripts/prepare-config.mjs <adres> --mode domain|staging`): `routes` (yalnız alan adı kipi), `DEPLOY_MODE`, `SEED_MODE`, `DATA_EPOCH`, `APP_BASE_URL` ve derleme değişkenleri (`NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_DEMO_BANNER`, `NEXT_PUBLIC_DEMO_STORE_SLUG`, `NEXT_PUBLIC_LEAD_FORM`, `NEXT_PUBLIC_SUPPORT_WHATSAPP` — ortamdan `SUPPORT_WHATSAPP`, yalnız alan adı kipi). Worker container'a alan adı kipinde `PUBLIC_LEADS_ENABLED=0` verir. `wrangler.jsonc` alan adı kipini tanımlar.
+- **Alan adı (alan adı kipi):** `yemekgelsin.net` ve `www.yemekgelsin.net` Worker'a **Custom Domain** olarak bağlıdır; DNS kaydını ve sertifikayı Cloudflare oluşturur. `www` köke kalıcı yönlenir (301; gövdeli istekte 308). workers.dev yedek adresinde API ve webhook istekleri çalışır, tarayıcı gezinmeleri alan adına 302 ile yönlenir. Kurallar: `deploy/cloudflare/src/access.ts` (testleri `npm test`). Staging'de `wrangler deploy` Custom Domain eklemez; var olanları da kaldırmaz — alan adını canlı ortam iş akışı VPS'e taşır (§14). Bu yüzden staging, alan adı hâlâ Worker'a bağlıyken çalışmayı reddeder.
+- Container içinde PostgreSQL 16, API, worker ve web birlikte çalışır; imaj depo kökünden derlenir (`deploy/cloudflare/Dockerfile`). Worker `/api/*` isteklerini API'ye (4000), diğerlerini web'e (3000) aktarır.
+- Container diski geçicidir. `entrypoint.sh` her açılışta boş bir veritabanı kurar, son yedeği R2'den (`siparisinonunde-dev-yedek`, Worker'ın `yedek.internal` çıkış işleyicisiyle) geri yükler, migration'ları uygular ve seed'i `SEED_MODE` ile çalıştırır. Seed idempotenttir: admin kipinde var olan yöneticiye dokunmaz (parolası `DEV_PASSWORD`'e eşitlenir), demo kipinde var olan demo işletmeyi atlar.
+- **Veri dönemi (`DATA_EPOCH`):** R2 anahtarları dönemle öneklenir (`e3/db/son.dump`, `e3/uploads/son.tar.gz`, `e3/db/gun-<0–6>.dump`). Dönem container **açılırken** alınır ve ömrü boyunca sabittir (`entrypoint.sh` yedek yoluna yazar, Worker anahtarı yoldan kurar: `src/access.ts` `parseBackupPath`); yeniden dağıtımda kapanan eski container'ın son yedeği yeni döneme düşmez. `"3"` demo verisinin kaldırıldığı dönemdir; `e2/…` ve öncesi eski demo verisidir (R2'den silinebilir). Staging kendi dönemini kullanır (`e901/…`), alan adı verisine karışmaz. Geçersiz değer dağıtımdan önce reddedilir.
+- Yedek 10 dakikada bir, kapanışta ve çökmede alınır; haftanın her günü için bir kopya tutulur. R2'ye ulaşılamazsa container boş veritabanıyla açılmaz, çıkar.
+- Son istekten 30 dakika sonra container uyur; açık panel (SSE) uyumayı engeller. Uyanış ~30–60 sn sürer, bu sırada "Sistem başlatılıyor" sayfası görünür.
+- `DEPLOY_ENV=dev`, üretim derlemesinde geliştirici araçlarını yalnız tüm sağlayıcılar `mock` iken açar (`apps/api/src/config.ts`, `devToolsAllowed`). Gerçek WhatsApp kipinde Worker container'a `DEV_TOOLS=0` verir; `/dev/whatsapp` "Gerçek WhatsApp bağlı; simülatör kapalı" bildirimini gösterir, `/api/v1/dev/*` 404 döner.
 
 **Kurulum (bir kez):**
-1. Cloudflare hesabında **Workers Paid** planını açın (aylık 5 $; Containers bu planla gelir). Container sürekli açık kalırsa kullanım ücreti ayda yaklaşık 7 $ tutar; uyuyan container ücretlendirilmez.
-2. Cloudflare > My Profile > API Tokens > **Create Token** > **"Edit Cloudflare Workers"** şablonuyla bir token oluşturun (var olan token da düzenlenebilir). **Özel alan adı için** token'da şu izinler `yemekgelsin.net` bölgesini kapsamalıdır (Zone Resources: Include > Specific zone > `yemekgelsin.net`, ya da hesabın tüm bölgeleri):
-   - **Zone > Workers Routes > Edit**
-   - **Zone > Zone > Read**
-   Eksikse iş akışı dağıtımdan önce durur ve eksik izni adıyla yazan bir hata verir. Alan adında `@` ya da `www` için önceden elle eklenmiş A/AAAA/CNAME kaydı varsa Custom Domain eklenemez; Cloudflare > `yemekgelsin.net` > DNS > Records'tan silin.
-3. GitHub deposunda **Settings > Secrets and variables > Actions > New repository secret** ile şunları ekleyin:
-   - `CLOUDFLARE_API_TOKEN`: 2. adımdaki token.
-   - `DEV_PASSWORD`: geliştirici araçlarının ve demo hesaplarının parolası, en az 8 karakter.
-   - `CLOUDFLARE_ACCOUNT_ID`: yalnız token birden fazla hesaba erişiyorsa gerekir.
-   - İsteğe bağlı, gerçek WhatsApp için (§6.2a): `META_WA_TOKEN`, `META_WA_PHONE_NUMBER_ID`, `META_WA_WABA_ID`, `META_APP_SECRET`, `WA_PHONE`.
-4. GitHub > **Actions > "Dev ortamı (Cloudflare)" > Run workflow**. Sonraki her push, `main` ya da çalışma dalına, ortamı kendiliğinden günceller.
+1. Cloudflare hesabında **Workers Paid** planını açın (aylık 5 $; Containers bu planla gelir).
+2. Cloudflare > My Profile > API Tokens > **Create Token** > **"Edit Cloudflare Workers"** şablonu. **Özel alan adı için** token'da `yemekgelsin.net` bölgesinde (Zone Resources: Include > Specific zone > `yemekgelsin.net`): **Zone > Workers Routes > Edit** ve **Zone > Zone > Read**. Canlı ortam (§14) aynı token'a ayrıca **Zone > DNS > Edit** ister; şimdiden eklenebilir. Eksikse iş akışı dağıtımdan önce durur ve eksik izni adıyla yazar. `@` ya da `www` için önceden elle eklenmiş A/AAAA/CNAME kaydı varsa Custom Domain eklenemez; DNS > Records'tan silin (VPS yokken).
+3. GitHub > **Settings > Secrets and variables > Actions > New repository secret**: `CLOUDFLARE_API_TOKEN`, `DEV_PASSWORD` (en az 8 karakter; canlı ortamda `ADMIN_PASSWORD` yoksa yönetici parolası olarak da kullanılır, o zaman en az 12 karakter), gerekirse `CLOUDFLARE_ACCOUNT_ID`; isteğe bağlı `SUPPORT_WHATSAPP` (destek hattı, `/demo`'da WhatsApp bağlantısı); isteğe bağlı gerçek WhatsApp için (§6.2a) `META_WA_TOKEN`, `META_WA_PHONE_NUMBER_ID`, `META_WA_WABA_ID`, `META_APP_SECRET`, `WA_PHONE`.
+4. **Actions > "Dev ortamı (Cloudflare)" > Run workflow.** VPS yokken sonraki her push ortamı kendiliğinden günceller.
 
-**İş akışı** (`.github/workflows/deploy-dev-cloudflare.yml`):
-1. Tür denetimi ve Worker kural testleri (`npm run typecheck`, `npm test`).
-2. Hesabı bulur ve token'ın iş akışındaki `ZONE` (`yemekgelsin.net`) bölgesine erişimini denetler (Zone > Zone > Read ile bölge, Zone > Workers Routes > Edit ile Worker rotaları). workers.dev adresini yalnız yedek adres denetimi için bulur.
-3. Sitenin adresini iş akışındaki `SITE_URL` değerinden (varsayılan `https://yemekgelsin.net`) web derlemesine (`NEXT_PUBLIC_SITE_URL`) ve API'ye (`APP_BASE_URL`) yazar (`scripts/prepare-config.mjs`).
-4. Eksik gizli değerleri bir kez üretir (`scripts/secrets.mjs`): `SESSION_SECRET`, `TRACKING_SECRET`, `ENCRYPTION_KEY`, `WA_VERIFY_TOKEN`, `PLATFORM_WA_WEBHOOK_TOKEN` (ortak numara webhook yolu) ve VAPID çifti. Worker'da zaten olanlara dokunmaz; `ENCRYPTION_KEY` değişirse yedekteki şifreli veriler okunamaz. `DEV_PASSWORD` her dağıtımda GitHub secret'ından güncellenir. WhatsApp secret'ları (`META_*`, `WA_PHONE`) yalnız doluysa yüklenir (`WA_PHONE` E.164'e çevrilir; geçersiz telefon ya da rakam olmayan Meta kimliği dağıtımı durdurur); GitHub'da boşaltılan WhatsApp secret'ı Worker'dan silinir (`wrangler secret delete`), çünkü `--secrets-file` eksik secret'ı silmez. Ayrı bir adım kipi yazar: dört zorunlu secret tamsa "gerçek", değilse "simülatör" (eksikler uyarıyla).
-5. `wrangler deploy` ile Worker'ı, container imajını ve Custom Domain'leri yayınlar. Yalnız wrangler'ın son hata bloğu Custom Domain API'sine (`/workers/domains`) aitse izin hatasında eksik izni, DNS çakışmasında silinecek kaydı Türkçe `::error::` ile yazar; imaj derleme ya da rollout hataları genel "wrangler deploy başarısız" iletisiyle raporlanır.
-6. Duman testi: `https://yemekgelsin.net/api/v1/health` 200 (Custom Domain, sertifika ve ilk açılış için en çok 15 dakika bekler; süreyle sınırlıdır, container açılamazsa da 15 dakikada Türkçe hatayla durur); `/`, `/s/bozok-pide`, `/s/camlik-doner`, `/panel/giris`, `/admin/giris` parolasız 200; ana sayfada ve vitrinde "Demo ortamı" uyarısı; `/dev/whatsapp` ve `/api/v1/dev/*` parolasız 401, `/dev/whatsapp` parolayla 200; parolayla `/api/v1/dev/*` simülatör kipinde 200, gerçek WhatsApp kipinde 404 ve `/dev/whatsapp` "Gerçek WhatsApp bağlı" bildirimini gösterir; ortak numara webhook yolu parolasız API'ye ulaşır (yanlış belirteçle 404); `www` → kök 301 (yalnız `SITE_URL` kök alan adındaysa); workers.dev'de API 200 ve sayfa gezinmesi → `yemekgelsin.net` (302). Sonuç iş akışı özetine yazılır.
+**İş akışı:**
+1. Kip seçimi: `VPS_HOST` yoksa alan adı kipi; varsa push'ta bilgi notuyla atlanır, elle çalıştırılınca staging.
+2. Tür denetimi ve testler (`npm run typecheck`, `npm test`: erişim kuralları, kip yapılandırması, WhatsApp kipi).
+3. Hesap ve erişim: alan adı kipinde token'ın `ZONE` bölgesine erişimi (Zone Read, Workers Routes); staging'de workers.dev alt alan adı zorunludur ve `yemekgelsin.net`'in artık bu Worker'a bağlı olmadığı doğrulanır (`scripts/vps/cloudflare-dns.mjs status`).
+4. Yapılandırma (`prepare-config.mjs --mode …`) ve gizli değerler (`scripts/secrets.mjs`): eksikler bir kez üretilir (`SESSION_SECRET`, `TRACKING_SECRET`, `ENCRYPTION_KEY`, `WA_VERIFY_TOKEN`, `PLATFORM_WA_WEBHOOK_TOKEN`, VAPID çifti), `DEV_PASSWORD` her dağıtımda güncellenir; WhatsApp secret'ları yalnız alan adı kipinde ve doluysa yüklenir, boşaltılanlar (staging'de hepsi) Worker'dan silinir.
+5. `wrangler deploy` (alan adı kipinde Custom Domain'lerle); Custom Domain izin/DNS çakışması hataları Türkçe `::error::` ile açıklanır.
+6. Duman testi — **alan adı kipi:** `/api/v1/health` 200 (en çok 15 dk); `/`, `/panel/giris`, `/admin/giris`, `/panel/kayit`, `/demo`, `/yasal/gizlilik`, `/api/v1/health/worker` parolasız 200; `/s/bozok-pide` ve `/s/camlik-doner` **404** (demo verisi yok); ana sayfada "Demo ortamı" uyarısı ve `/demo`'da "Demo menüyü aç" bağlantısı **yok**; `/demo` lead formunu göstermez ve `POST /api/v1/public/leads` 403 döner; `/panel/kayit` "Kayıtlar çok yakında açılıyor" der; geliştirici araçları parolasız 401, parolayla 200 (gerçek WhatsApp kipinde `/api/v1/dev/*` 404); ortak webhook yolu API'ye ulaşır (404); `www` → kök 301; workers.dev'de API 200, sayfa → alan adı 302. **Staging:** sağlık uçları parolasız 200, diğer yollar parolasız 401; parolayla `/`, `/s/bozok-pide`, `/s/camlik-doner`, `/panel/giris`, `/admin/giris`, `/dev/whatsapp`, `/api/v1/dev/wa/accounts` 200; "Demo ortamı" uyarısı var; `x-robots-tag: noindex`.
 
-**Kullanım:**
-- Site: https://yemekgelsin.net · Panel: `/panel/giris` · Admin: `/admin/giris`.
-- Demo hesapları README'deki e-postalardır; **parola her hesap için `DEV_PASSWORD`**: `demo@yemekgelsin.net` (Bozok Pide sahibi), `mudur@`, `kasa@`, `mutfak@`, `kurye@yemekgelsin.net`, `doner@yemekgelsin.net` (Çamlık Döner sahibi), platform yöneticisi `admin@yemekgelsin.net`.
-- Demo işletmeler: `/s/bozok-pide` (`#BOZOK`) ve `/s/camlik-doner` (`#DONER`).
-- Simülatör kipinde WhatsApp akışları `/dev/whatsapp` simülatöründen denenir (tarayıcı kullanıcı adı ve parola sorar: kullanıcı adı `dev`, parola `DEV_PASSWORD`): numara "Yemek Gelsin · ortak numara" (`+905550000000`, mock); `#BOZOK` / `#DONER` çipleri dükkanın QR'ını okutmakla aynıdır, kodsuz yazınca dükkan seçici gelir.
-- `DEV_PASSWORD` değişince (GitHub secret'ı güncellenip iş akışı çalışınca) container yeniden başlar ve seed demo hesaplarının parolasını yeni değere eşitler.
+**Kullanım (alan adı kipi):** https://yemekgelsin.net · Admin: `/admin/giris` (`admin@yemekgelsin.net`, parola `DEV_PASSWORD`). İşletme ve demo hesabı yoktur; WhatsApp simülatörü `/dev/whatsapp` (kullanıcı adı `dev`, parola `DEV_PASSWORD`). **Staging:** workers.dev adresi, tarayıcı parola sorar (kullanıcı adı `dev`); demo hesapları README'deki e-postalar, parola `DEV_PASSWORD`; vitrinler `/s/bozok-pide` (`#BOZOK`), `/s/camlik-doner` (`#DONER`).
 
-**Gerçek WhatsApp (isteğe bağlı):** ortak numarayı gerçek Meta WhatsApp Cloud API'ye bağlamak için §6.2a'daki beş GitHub secret'ı eklenip iş akışı çalıştırılır. Worker (`src/whatsapp-env.ts`) `META_WA_TOKEN`, `META_WA_PHONE_NUMBER_ID`, `META_APP_SECRET` ve `WA_PHONE` birlikte varsa container'a `PLATFORM_WA_PROVIDER=cloud`, `PLATFORM_WA_API_KEY`, `PLATFORM_WA_PHONE_NUMBER_ID`, `PLATFORM_WA_WABA_ID` (varsa), `WA_APP_SECRET` (= `META_APP_SECRET`; ortak ve işletmeye özel webhook imzası), `PLATFORM_WA_DISPLAY_PHONE` (= `WA_PHONE`) ve `DEV_TOOLS=0` verir; biri eksikse eski düzen sürer (`mock`, `DEV_TOOLS=1`, `+905550000000`). Kip container günlüğüne yazılır ("WhatsApp: gerçek Meta Cloud API" / "WhatsApp: simülatör"). SMS ve işletmelerin kendi numaraları her iki kipte `mock`'tur. Kurulumun Meta tarafı ve admin düğmeleri §6.2a'dadır. **Veriler Türkiye dışında olduğundan gerçek kipte yalnız proje sahibinin kendi telefonlarıyla denenir**; gerçek müşteriler Türkiye VPS'ine geçildikten sonra gelir.
+**Gerçek WhatsApp (isteğe bağlı, yalnız alan adı kipi):** §6.2a'daki beş GitHub secret'ı eklenip iş akışı çalıştırılır. Worker (`src/whatsapp-env.ts`) dördü birlikte varsa container'a `PLATFORM_WA_PROVIDER=cloud`, `PLATFORM_WA_API_KEY`, `PLATFORM_WA_PHONE_NUMBER_ID`, `PLATFORM_WA_WABA_ID` (varsa), `WA_APP_SECRET`, `PLATFORM_WA_DISPLAY_PHONE` ve `DEV_TOOLS=0` verir; biri eksikse simülatör. Veriler Türkiye dışında olduğundan yalnız kendi telefonlarınızla denenir. VPS'e geçince aynı secret'ları canlı ortam kullanır ve Meta'daki webhook yeniden girilir (§6.2a C.1, §14).
 
-**Sıfırlama (demo verisini baştan kurmak):** `deploy/cloudflare/wrangler.jsonc` içindeki `vars.DATA_EPOCH` değerini bir artırın (ör. `"2"` → `"3"`) ve push edin (ya da iş akışını elle çalıştırın). Yeni container yeni dönemde yedek bulamadığından boş veritabanı + seed ile açılır; kapanan eski container'ın son yedeği kendi dönemine (`e2/…`) yazılır. Eski dönemin nesneleri R2'de kalır; yer kaplamasın isterseniz Cloudflare > R2 > `siparisinonunde-dev-yedek` içinden eski önekli nesneleri (`e2/…` ya da öneksiz `db/…`, `uploads/…`) silebilirsiniz. Eski bir döneme dönmek önerilmez: o dönemin verisi geri gelir, `signup_open` bayrağı o dönemdeki haliyle kalır ve ilk (öneksiz) dönemde demo hesapları eski `@siparisinonunde.local` adresleridir (seed parolalarını `DEV_PASSWORD`'e eşitler, yeni `@yemekgelsin.net` hesapları eklenmez).
+**Sıfırlama:** `wrangler.jsonc`'de `vars.DATA_EPOCH`'u (staging için `vars.STAGING_DATA_EPOCH`'u) bir artırın ve iş akışını çalıştırın; yeni container yeni dönemde yedek bulamaz, boş veritabanı + seed ile açılır. İki değer hiçbir zaman aynı olmamalıdır. Eski dönemin nesneleri R2'de kalır; Cloudflare > R2 > `siparisinonunde-dev-yedek` içinden silinebilir. Eski bir döneme dönmek önerilmez (o dönemin verisi ve bayrakları geri gelir; `e2` ve öncesi demo verisidir).
 
 **Sorun giderme:**
-- Container günlükleri: Cloudflare > Workers & Pages > `siparisinonunde-dev` > Logs, ya da `npx wrangler tail siparisinonunde-dev`.
-- İlk dağıtımda Custom Domain'in DNS kaydı ve sertifikası birkaç dakika sürebilir; duman testi en çok 15 dakika bekler. Bu sürede site workers.dev üzerinden (API) denenebilir. 15 dakikada sağlık denetimi 200 dönmezse container günlüğünde `[baslat]` satırlarına bakın (seed ya da migration hatası, bellek).
-- "Özel alan adı kurulamadı … izni eksik" hatası: §13 Kurulum 2. adımdaki iki izni token'a ekleyip iş akışını yeniden çalıştırın.
-- "Failed to start container" hatası çoğunlukla bellek yetmediğini gösterir. `wrangler.jsonc` içinde `instance_type` değerini `standard-1` yapın (4 GiB; maliyet artar).
+- Container günlükleri: Cloudflare > Workers & Pages > `siparisinonunde-dev` > Logs ya da `npx wrangler tail siparisinonunde-dev`. Açılış satırları `[baslat]` önekiyle (seed kipi dahil).
+- İlk dağıtımda Custom Domain'in DNS kaydı ve sertifikası birkaç dakika sürebilir; duman testi en çok 15 dakika bekler.
+- "Özel alan adı kurulamadı … izni eksik": Kurulum 2. adımdaki izinleri ekleyip yeniden çalıştırın.
+- Staging "hâlâ bu Worker'a bağlı" hatası: canlı ortam iş akışı DNS geçişini tamamlamadı (§14); önce onu yeşile getirin.
+- "Failed to start container" çoğunlukla bellek yetmediğini gösterir: `instance_type` → `standard-1` (4 GiB; maliyet artar).
+
+## 14. Canlı ortam: Türkiye VPS'i GitHub Actions ile
+
+Proje sahibinin kararı (00 §12a madde 10): canlı ortam Türkiye'deki bir VPS'tir, gerçek verilerle çalışır, demo verisi yoktur. Kurulum ve her güncelleme `.github/workflows/deploy-production.yml` ("Canlı ortam (Türkiye VPS)") ile yapılır; sunucuya elle bir şey kurmanız gerekmez.
+
+### 14.1 Hangi VPS
+
+- **Türkiye'de** bir veri merkezi (kişisel veri yurt dışına çıkmaz; 08 §2.12), **Ubuntu 24.04 LTS**, **2 vCPU / 4 GB RAM / 80 GB SSD**, sabit **IPv4**, root erişimi. Aday sağlayıcılar: Turkcell Bulut, Türk Telekom Bulut, Huawei Cloud İstanbul, Radore, Bulutistan, yerli VPS sağlayıcıları (fiyat ve belge teyidi V-009). ISO 27001 ve DPA (veri işleme sözleşmesi) belgesi istenir.
+- Kurulumda **root parolası** seçin (uzun, rastgele; parola yöneticisine kaydedin) ve **parola ile SSH girişinin açık** olduğundan emin olun (bazı imajlarda `PasswordAuthentication no` gelir; sağlayıcı panelinden ya da konsoldan açın). İş akışı `sshpass` ile parola kullanır.
+- 80 ve 443 portları dışarıdan erişilebilir olmalı (sağlayıcının güvenlik grubu/güvenlik duvarı varsa açın); SSH portu varsayılan 22 değilse `VPS_PORT` secret'ı verilir.
+
+### 14.2 GitHub secret'ları
+
+Settings > Secrets and variables > Actions > New repository secret:
+
+| Secret | Zorunlu | Açıklama |
+|---|---|---|
+| `VPS_HOST` | evet | Sunucunun IPv4 adresi (ya da IPv4'e çözülen ad). **Eklendiği anda** Cloudflare iş akışı alan adına dağıtmayı bırakır (§13) ve canlı ortam iş akışı push'ta çalışmaya başlar. |
+| `VPS_PASSWORD` | evet | SSH parolası (root). |
+| `VPS_USER` | hayır | Varsayılan `root`. Başka kullanıcıda parolasız sudo (NOPASSWD) gerekir. |
+| `VPS_PORT` | hayır | Varsayılan `22`. |
+| `VPS_HOST_KEY` | önerilir | Sunucunun SSH host anahtarı (`ssh-ed25519 AAAA…`). Verilirse yalnız bu anahtar kabul edilir; verilmezse her çalışmada ilk görülen anahtar kabul edilir (TOFU). İlk dağıtımın özeti değeri yazar; kopyalayıp ekleyin. Sunucu yeniden kurulursa güncelleyin. |
+| `ADMIN_PASSWORD` | evet* | İlk platform yöneticisinin (`admin@yemekgelsin.net`) parolası, **en az 12 karakter**. *Yoksa `DEV_PASSWORD` kullanılır (o da en az 12 karakter olmalı). Yönetici bir kez açılır; sonraki dağıtımlar parolasına ve iki adımlı doğrulamasına **dokunmaz** (değiştirmek: §5 `create-admin.ts --reset-password`). |
+| `CLOUDFLARE_API_TOKEN` | evet | `yemekgelsin.net` bölgesinde **Zone > DNS > Edit** ve **Zone > Zone > Read** (Caddy'nin DNS-01 sertifikaları ve DNS geçişi). Geçişte Worker Custom Domain'lerini silmek (gerekirse geri bağlamak) için **Account > Workers Scripts > Edit** ve **Zone > Workers Routes > Edit** (Cloudflare ortamının "Edit Cloudflare Workers" token'ında ve bölge izinlerinde vardır). SSL/TLS modu "Flexible" ise düzeltmek için **Zone > Zone Settings > Edit** (yoksa modu elle "Full (strict)" yapın). |
+| `CADDY_CLOUDFLARE_API_TOKEN` | **önerilir** | Sunucuya (Caddy) yalnız DNS yetkili ayrı bir token (Zone > DNS > Edit + Zone > Zone > Read, yalnız bu bölge). Yoksa Workers yetkili `CLOUDFLARE_API_TOKEN` sunucunun `.env`'ine yazılır ve iş akışı her dağıtımda uyarır. Token her iki durumda da **yalnız caddy konteynerine** verilir; api/worker/migrate ortamında boştur (`docker-compose.yml` x-api-base). |
+| `CLOUDFLARE_ACCOUNT_ID` | hayır | Yoksa bölgenin hesabı kullanılır. |
+| `META_WA_TOKEN`, `META_WA_PHONE_NUMBER_ID`, `META_APP_SECRET`, `WA_PHONE` (+ `META_WA_WABA_ID`) | hayır | Gerçek WhatsApp (ortak numara; §6.2a). Dördü tamsa `PLATFORM_WA_PROVIDER=cloud`; değilse ortak numara kapalı (mock) ve uyarı. |
+| `NETGSM_USERCODE`, `NETGSM_PASSWORD`, `NETGSM_HEADER` | hayır | SMS (§7). Üçü tamsa `SMS_PROVIDER=netgsm` ve SMS yedeği açık başlar; değilse SMS gitmez, `sms_fallback` kapalı başlar. |
+| `SUPPORT_WHATSAPP` | hayır | Destek hattı (rakamlarla, `905321234567`); "Parolamı unuttum" bunu gösterir. Cloudflare ortamında (§13, alan adı kipi) `/demo`'daki WhatsApp bağlantısı. |
+| `BACKUP_PING_URL` | hayır | Yedek sonrası çağrılan dış izleme adresi (§8). |
+
+Secret eklemek/değiştirmek dağıtımı başlatmaz: Actions > "Canlı ortam (Türkiye VPS)" > Run workflow.
+
+### 14.3 İş akışı ne yapar
+
+`main` ya da çalışma dalına her push'ta (yalnız `docs/**`, `*.md` değişiklikleri hariç) ve elle:
+
+1. **Secret denetimi:** `VPS_HOST` ve `VPS_PASSWORD` yoksa push'ta uyarıyla atlanır (elle çalıştırmada hata). Varsa: yönetici parolası (≥ 12), `CLOUDFLARE_API_TOKEN`, VPS IPv4'ü denetlenir; betik testleri çalışır.
+2. **Cloudflare izin denetimi** (sunucuya dokunmadan): bölge görünüyor mu, DNS yazılabiliyor mu (zararsız bir TXT kaydı açılıp silinir), Worker alan adları okunabiliyor mu (`scripts/vps/cloudflare-dns.mjs check`). Eksik izin adıyla yazılır.
+3. **SSH** (`sshpass`, parola komut satırında değil): host anahtarı `VPS_HOST_KEY` ile sabit ya da ilk görüldüğü gibi (TOFU).
+4. **`.env` birleştirme** (`scripts/vps/env-merge.mjs`, sunucuda hiçbir şey değişmeden): sunucudaki mevcut `.env` indirilir; `POSTGRES_PASSWORD`, `SESSION_SECRET`, `TRACKING_SECRET`, `ENCRYPTION_KEY`, `WA_VERIFY_TOKEN`, `PLATFORM_WA_WEBHOOK_TOKEN` ve VAPID çifti **bir kez üretilir ve sonsuza dek korunur** (bozuksa kendiliğinden değiştirilmez, dağıtım durur); alan adı, Cloudflare token'ı, WhatsApp ve Netgsm değerleri secret'lardan yazılır; `DEPLOY_ENV=production`, `DEV_TOOLS=0`, `ADMIN_TOTP_REQUIRED=true`, demo vitrin/uyarı kapalı, `BACKUP_DIR=/opt/yemekgelsin/backups`. Sonuç API'nin açılış kurallarını (`productionConfigErrors`) sağlamazsa Türkçe hatayla durur. Tüm gizli değerler iş akışı günlüğünde maskelenir.
+5. **Sunucu hazırlığı** (`scripts/vps/bootstrap.sh`, root, idempotent): ilk seferde `apt upgrade` (sonra yalnız eksik paket; elle çalıştırmada "full_bootstrap" ile yeniden), Docker Engine + compose (get.docker.com), Docker log döndürme (5 × 20 MB), git, curl, jq, rclone, UFW (yalnız SSH, 80/tcp, 443/tcp, 443/udp; SSH için sshd'nin **gerçekten dinlediği** portlar — `sshd -T`, `ssh.socket`, `ss` — ve `VPS_PORT` birlikte açılır, NAT/port yönlendirmeli VPS'te kilitlenme olmasın; dinlenen port bulunamazsa UFW etkinleştirilmez ve uyarı yazılır), fail2ban (sshd: 10 dk'da 5 hatalı deneme → 1 saat yasak), unattended-upgrades (güvenlik güncellemeleri; otomatik yeniden başlatma yok), saat dilimi Europe/Istanbul, RAM < 6 GB ve takas yoksa 2 GB takas, `/opt/yemekgelsin/{app,backups}`.
+6. **Kod:** herkese açık depo (`https://github.com/eraycaylak/siparisinonunde.git`) `/opt/yemekgelsin/app`'e getirilir ve **tam dağıtılan commit'e** geçilir (depo özel yapılırsa sunucu çekemez; o zaman deploy anahtarı gerekir).
+7. **`.env` yükleme** (root, 600): sunucu tarafı korunan gizli değerlerin değişmesini ve `.env` yokken var olan veritabanı birimine yeni parola yazılmasını reddeder; önceki `.env` `/opt/yemekgelsin/env-backups/`'a kopyalanır (son 10).
+8. **Dağıtım** (`scripts/vps/deploy.sh up`): **disk denetimi** (Docker veri dizini ve `/opt/yemekgelsin` diskinde en az %15 boş; değilse çalışan servislere dokunmadan durur) → `docker compose config` → `docker compose build --pull` (web derleme argümanları `.env`'den: `NEXT_PUBLIC_SITE_URL=https://yemekgelsin.net`, `NEXT_PUBLIC_ROOT_DOMAIN=yemekgelsin.net`, `NEXT_PUBLIC_DEV_TOOLS=0`, uyarı kapalı) → **yeni imajla yapılandırma denetimi** (`scripts/check-config.ts`; hata varsa eski sürüm çalışmaya devam eder) → veritabanı varsa **güncelleme öncesi yedek** (yalnız veritabanı, `pre-deploy-db-*.dump`, son 5 saklanır; `backup.sh --pre-deploy`) → `docker compose up -d` (önce migrate) → **Caddyfile değiştiyse caddy yeniden oluşturulur** (tek dosya bağlaması git checkout'tan sonra eski içeriği tutar; birkaç saniyelik kesinti) → postgres/api/worker/web sağlıklı ve caddy çalışır olana kadar bekleme (en çok 15 dk; olmazsa süzülmüş tanı yazılır, aşağıda "Günlükler") → **bayraklar** (`scripts/bootstrap-production.ts`) → **ilk yönetici** (`create-admin.ts --if-missing`: yoksa açılır; varsa hiçbir şeyi değişmez; aynı e-posta platform yöneticisi olmayan bir hesaptaysa yetki verilmez ve dağıtım hata verir) → yedek cron'u (§8) → eski imaj ve 7 günden eski derleme önbelleği temizliği.
+9. **DNS'ten önce sağlık denetimi** (`curl --resolve <ad>:443:<VPS>`, en çok ~15 dk): kökte `/api/v1/health`, `/api/v1/health/worker`, `/`, `/panel/giris`, `/admin/giris`, `/panel/kayit` 200; **her adın sertifikası ayrı doğrulanır** (Caddy her ad için ayrı DNS-01 sertifikası alır): `www` → kök 301, `panel.` ve `admin.` giriş sayfaları 200, rastgele vitrin alt alan adı 404 (wildcard), `hooks.…/wa/…` 404. Geçmezse **DNS'e dokunulmaz** (site eski yerinde kalır).
+10. **DNS geçişi** (`scripts/vps/cloudflare-dns.mjs cutover`, idempotent): DNS yazma izni denenir; SSL/TLS "Flexible"/"Off" ise "Full (strict)" yapılır; dev Worker'ına giden bölge rotaları silinir; her ad için Worker Custom Domain'i kaldırılıp hemen proxy'li A kaydı yazılır: `yemekgelsin.net`, `www`, `*` (vitrinler), `hooks` (TTL otomatik). A kaydı yazılamazsa az önce kaldırılan Custom Domain **geri bağlanır** (ad kayıtsız kalmaz; site Cloudflare ortamında açık kalır) ve iş akışı hata verir; sorunu giderip "only_dns" ile yeniden çalıştırın (§14.6).
+11. **Duman testi** gerçek alan adında: `/api/v1/health` VPS'ten (Worker'ın `x-robots-tag` başlığı kalkana kadar bekler), `/`, `/panel/giris`, `/admin/giris`, `/panel/kayit` (kayıt formu açık), `/api/v1/health/worker`, `/yasal/gizlilik` 200; `/dev/whatsapp` ve `/api/v1/dev/*` 404; `/s/bozok-pide` 404 (demo yok); `www` → kök 301; rastgele bir vitrin alt alan adı 404 (wildcard DNS + sertifika çalışıyor); `hooks.yemekgelsin.net/wa/…` API'ye ulaşıyor (bu üçü Cloudflare kenarı adları ayrı ayrı uyguladığı için süreyle sınırlı yeniden denenir).
+12. **Özet** (gizli değer yok): commit, adres, yönetici girişi, WhatsApp/SMS durumu, yedek, TOFU parmak izi, gerekiyorsa yeniden başlatma uyarısı.
+
+**Elle çalıştırma seçenekleri:** `ref` (geri alma, §14.5), `full_bootstrap` (sunucu paketlerini yükselt), `only_dns` (yalnız 2, 3, 9, 10, 11: sunucuya dokunmadan VPS sağlık denetimi + DNS geçişi + duman testi; sunucuda tamamlanmış bir dağıtım yoksa durur).
+
+**Günlükler ve kişisel veri** (00 §12a madde 10, değişmez kural 7): iş akışı günlükleri GitHub'da (Türkiye dışında) durur. Bu yüzden sunucudaki servis günlükleri iş akışına **ham kopyalanmaz**: hata durumunda `deploy.sh diag` tam günlüğü sunucuya yazar (`/opt/yemekgelsin/deploy-logs/<zaman>.log`, root 600, son 20) ve iş akışına yalnız süzülmüş özeti basar — JSON günlüklerinden uyarı/hata düzeyindeki satırların düzey, kaynak, ileti ve hata iletisi (istek, IP ve başlık alanları yok; Caddy'nin HTTP erişim/istek günlükleri hiç yok), düz metinde IP, telefon ve e-posta maskeli. SSH parolası (`SSHPASS`) yalnız SSH kullanan adımlara verilir.
+
+### 14.4 İlk dağıtımdan sonra
+
+1. **Giriş:** https://yemekgelsin.net/admin/giris → `admin@yemekgelsin.net`, parola `ADMIN_PASSWORD` (yoksa `DEV_PASSWORD`). İlk girişte **iki adımlı doğrulama** kurulur (§5; zorunlu). Kurtarma kodlarını kaydedin.
+2. **Gizli anahtarların yedeği:** sunucudaki `.env`'in `ENCRYPTION_KEY` ve `TRACKING_SECRET` değerlerini bir parola yöneticisine kopyalayın (`ssh root@<VPS> 'grep -E "^(ENCRYPTION_KEY|TRACKING_SECRET)=" /opt/yemekgelsin/app/.env'`); sunucu kaybında gerekir.
+3. **WhatsApp webhook'u yeniden girin** (gerçek WhatsApp açıksa): canlı ortamın webhook ve doğrulama belirteçleri Cloudflare ortamındakilerden **farklıdır**. Admin > WhatsApp > WhatsApp kurulumu > **Göster** → Meta > uygulama > WhatsApp > Configuration > Webhook > Edit: Callback URL ve Verify token'ı yapıştırın → **Verify and save**; **messages** aboneliği açık kalsın (§6.2a C.1). Sonra "Bağlantıyı test et". Yapılmazsa müşteri mesajları yeni sunucuya gelmez.
+4. `VPS_HOST_KEY` secret'ını özetteki değerle ekleyin (TOFU yerine sabit anahtar).
+5. Kayıt açıktır: işletmeler `https://yemekgelsin.net/panel/kayit`'tan kaydolur ya da yönetici ekler. Cloudflare ortamı artık gizli staging'dir; gerekirse elle çalıştırın (§13).
+6. §12 kontrol listesini tamamlayın; özellikle ikinci Türkiye lokasyonuna yedek (§8) ve dış izleme (§10).
+
+**Sunucuya giriş:** `ssh root@<VPS_HOST>` (parola `VPS_PASSWORD`). Uygulama `/opt/yemekgelsin/app`, komutlar orada: `docker compose ps`, `docker compose logs -f --since 15m api worker`, `bash scripts/vps/deploy.sh status`. Dağıtım geçmişi: `/opt/yemekgelsin/deploy-history`.
+
+### 14.5 Geri alma
+
+- **Kod:** Actions > "Canlı ortam (Türkiye VPS)" > Run workflow > `ref` alanına önceki (çalışan) commit'in SHA'sını yazın. İş akışı o commit'i derleyip dağıtır; DNS zaten VPS'tedir, değişmez.
+- **Veritabanı:** migration'lar yalnız ileri yönlüdür. Yeni sürüm şemayı değiştirdiyse ve eski kod yeni şemayla çalışmıyorsa, dağıtımdan hemen önce alınan yedekten geri dönün: sunucuda `cd /opt/yemekgelsin/app && ls -t /opt/yemekgelsin/backups/pre-deploy-db-*.dump | head` → `./scripts/restore.sh <pre-deploy-db-….dump>` (§8; yalnız veritabanı — görseller migration'dan etkilenmez; o andan sonraki siparişler kaybolur). Görseller de gerekiyorsa gecelik `uploads-*.tar.gz` ile `--uploads`.
+- **Alan adını Cloudflare ortamına geri vermek** (acil durum, VPS tamamen çalışmıyorsa): Cloudflare > `yemekgelsin.net` > DNS'te `@` ve `www` A kayıtlarını silin, `VPS_HOST` secret'ını geçici olarak silip "Dev ortamı (Cloudflare)" iş akışını çalıştırın (Custom Domain'leri yeniden ekler; demo verisi yok, kayıt kapalı). Veriler Türkiye dışına çıkmasın diye bu yalnız geçici bir "bakımdayız" çözümüdür; canlı veritabanı oraya taşınmaz.
+
+### 14.6 Sorun giderme
+
+- **"Eksik GitHub secret: VPS_HOST…" uyarısı:** VPS henüz yok; beklenen davranış. Elle çalıştırmada hatadır.
+- **"SSH parolası kabul edilmedi":** `VPS_PASSWORD`/`VPS_USER`; sağlayıcıda parola ile SSH açık mı? fail2ban 10 dakikada 5 hatalı denemeden sonra IP'yi 1 saat yasaklar: sağlayıcı konsolundan `fail2ban-client set sshd unbanip <IP>`.
+- **"SSH host anahtarı VPS_HOST_KEY ile uyuşmuyor":** sunucu yeniden kurulduysa secret'ı güncelleyin; değilse durun ve inceleyin (araya giren olabilir).
+- **`.env` hataları** ("… geçersiz: Kendiliğinden değiştirilmedi", "… değişecekti"): korunan gizli değerler bilerek değiştirilmez. Neden değiştiğini anlayın; gerçekten yenilemek gerekiyorsa sunucuda `.env`'den ilgili satırı silip iş akışını yeniden çalıştırın (`POSTGRES_PASSWORD` için önce veritabanında `ALTER USER`).
+- **"uygulama yapılandırması geçersiz"** (check-config): satırdaki Türkçe hata `productionConfigErrors` iletisidir (§4); çalışan sürüm etkilenmez.
+- **VPS'te sağlık denetimi geçmiyor:** adım süzülmüş tanıyı yazar (caddy, api, web uyarı/hataları); tam günlük sunucuda `/opt/yemekgelsin/deploy-logs/`. Hangi adın beklenen yanıtı vermediği iletide yazar (`www.`, `panel.`, `admin.`, `hooks.` ya da vitrin: o adın sertifikası henüz alınmamış olabilir). Sertifika: `CLOUDFLARE_API_TOKEN` (ya da `CADDY_CLOUDFLARE_API_TOKEN`) DNS yetkisi, Let's Encrypt oran sınırı; servis: `docker compose logs migrate api`.
+- **DNS geçişi izin hatası:** ileti eklenecek izni adıyla söyler (Zone > DNS > Edit, Account > Workers Scripts > Edit + Zone > Workers Routes > Edit, Zone > Zone Settings > Edit). DNS yazma izni yoksa hiçbir şeye dokunulmaz.
+- **DNS geçişi yarım kaldı** ("DNS geçişi tamamlanamadı"): A kaydı yazılamayan adın Worker Custom Domain'i geri bağlanır (ileti "yeniden Worker'a bağlandı" der). İleti "DİKKAT: … geri bağlanamadı" diyorsa o ad şu an kayıtsız olabilir: hemen Cloudflare > Workers & Pages > `siparisinonunde-dev` > Domains'ten adı ekleyin ya da sorunu giderip Run workflow > **only_dns** ile geçişi tamamlayın (derleme ve sunucu adımları tekrarlanmaz).
+- **"diskte yer az":** `docker system prune` (kullanılmayan imaj/konteyner), `/opt/yemekgelsin/backups` altındaki eski dökümler; `df -h`. Sonra yeniden çalıştırın.
+- **Caddyfile değişikliği etkisiz görünüyor:** `deploy.sh up` içerik farkında caddy'yi kendiliğinden yeniden oluşturur; elle: `docker compose up -d --no-deps --force-recreate caddy`.
+- **SSH portu yönlendirmeli (NAT) VPS:** bootstrap sshd'nin dinlediği portu da açar ve uyarı yazar; UFW "etkinleştirilmedi" uyarısında portu doğrulayıp sunucuda `ufw enable` çalıştırın.
+- **Duman testi "hâlâ Worker":** Cloudflare kenarının güncellenmesi birkaç dakika sürebilir; 10 dakikada geçmezse DNS > Records'ta A kayıtlarının proxy'li ve VPS IP'sinde olduğunu, Workers Routes'ta dev Worker'ına rota kalmadığını denetleyin.
+- **Sonsuz yönlendirme (ERR_TOO_MANY_REDIRECTS):** SSL/TLS modu "Flexible"; "Full (strict)" yapın.
+- **"Sunucu yeniden başlatma bekliyor":** yoğun saat dışında `ssh root@<VPS> reboot`; servisler `restart: unless-stopped` ile kendiliğinden açılır.

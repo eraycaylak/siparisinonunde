@@ -9,6 +9,11 @@
 //   docker compose run --rm api node --import tsx /app/scripts/create-admin.ts --email yonetici@yemekgelsin.net --reset-totp
 // Yerelde:
 //   pnpm exec tsx --env-file=.env scripts/create-admin.ts --email admin@example.com --name "Admin"
+// Otomatik dağıtım (canlı ortam iş akışı, 00 §12a madde 10) --if-missing kullanır: kullanıcı yoksa oluşturur; varsa ve
+// platform yöneticisiyse HİÇBİR ŞEYE dokunmaz (parola, rol, iki adımlı doğrulama aynen kalır) ve 0 ile çıkar; aynı
+// e-posta platform yöneticisi olmayan bir hesaptaysa yetki vermez ve 3 ile çıkar (elle incelenmeli):
+//   docker compose exec -T -e ADMIN_PASSWORD api node --import tsx /app/scripts/create-admin.ts \
+//     --email admin@yemekgelsin.net --name "Platform Yöneticisi" --if-missing
 // Parola ortam değişkeniyle de verilebilir (kabuk geçmişine düşmesin). `read` değişkeni dışa aktarmaz; export
 // edilmezse `-e ADMIN_PASSWORD` konteynere boş gider ve betik rastgele parola üretir:
 //   read -rs ADMIN_PASSWORD && export ADMIN_PASSWORD && docker compose run --rm -e ADMIN_PASSWORD api node --import tsx \
@@ -33,6 +38,8 @@ function usage(): never {
       `Roller: ${PLATFORM_ROLES.join(', ')} (varsayılan platform_owner)`,
       'Parola verilmezse (ne --password ne ADMIN_PASSWORD) rastgele üretilir ve bir kez gösterilir.',
       'Kullanıcı zaten varsa platform yetkisi verilir; parolası yalnız --reset-password ile değişir.',
+      '--if-missing: kullanıcı varsa ve platform yöneticisiyse hiçbir şeyi değiştirmeden çıkar (otomatik dağıtım);',
+      '  platform yöneticisi olmayan bir hesapsa yetki vermez ve 3 ile çıkar.',
       '',
       'create-admin --email <e-posta> --reset-totp',
       '  Telefon kaybında: iki adımlı doğrulamayı (TOTP + kurtarma kodları) sıfırlar ve tüm oturumları kapatır.',
@@ -51,6 +58,7 @@ async function main() {
       password: { type: 'string' },
       'reset-password': { type: 'boolean', default: false },
       'reset-totp': { type: 'boolean', default: false },
+      'if-missing': { type: 'boolean', default: false },
       help: { type: 'boolean', short: 'h', default: false },
     },
     strict: true,
@@ -62,6 +70,10 @@ async function main() {
 
   const email = values.email?.trim().toLowerCase();
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail('Geçerli bir --email verin.');
+
+  if (values['if-missing'] && (values['reset-password'] || values['reset-totp'])) {
+    fail('--if-missing, --reset-password ve --reset-totp ile birlikte kullanılmaz (var olan yöneticiye dokunmaz).');
+  }
 
   if (values['reset-totp']) {
     if (values.role || values.password || values['reset-password'] || values.name) {
@@ -80,13 +92,29 @@ async function main() {
     password = randomBytes(18).toString('base64url');
     generated = true;
   }
-  if (password.length < MIN_PASSWORD) fail(`Parola en az ${MIN_PASSWORD} karakter olmalı.`);
+  // --if-missing (otomatik dağıtım): parola dışarıdan verilmeli; üretilen parola iş akışı günlüğüne basılmamalı. Uzunluk
+  // yalnız kullanıcı oluşturulacaksa denetlenir (var olan yöneticide parola kullanılmaz).
+  if (values['if-missing'] && generated) fail('--if-missing için parola ADMIN_PASSWORD ortam değişkeniyle ya da --password ile verilmeli.');
+  if (!values['if-missing'] && password.length < MIN_PASSWORD) fail(`Parola en az ${MIN_PASSWORD} karakter olmalı.`);
 
   const handle = createDb(url, { max: 1, applicationName: 'create-admin' });
   const sql = handle.sql;
   try {
     const existing = await sql<{ id: string; name: string; is_platform_admin: boolean }[]>`
       select id, name, is_platform_admin from users where email = ${email}`;
+    if (existing.length && values['if-missing']) {
+      const user = existing[0]!;
+      if (!user.is_platform_admin) {
+        console.error(
+          `Hata: ${email} platform yöneticisi olmayan bir hesaba ait; --if-missing yetki vermez. Hesabı elle inceleyin ` +
+            '(gerekirse: create-admin --email ... --role platform_owner ile bilerek yetki verin).',
+        );
+        process.exitCode = 3;
+        return;
+      }
+      console.log(`Zaten var: ${email} (platform yöneticisi); dokunulmadı — parola ve iki adımlı doğrulama değişmedi.`);
+      return;
+    }
     if (existing.length) {
       const user = existing[0]!;
       const resetPassword = values['reset-password'];
@@ -115,6 +143,7 @@ async function main() {
 
     const name = values.name?.trim();
     if (!name || name.length < 2) fail('Yeni kullanıcı için --name verin.');
+    if (password.length < MIN_PASSWORD) fail(`Parola en az ${MIN_PASSWORD} karakter olmalı.`);
     const hash = await hashPasswordForSeed(password);
     await sql.begin(async (tx) => {
       const [row] = await tx<{ id: string }[]>`

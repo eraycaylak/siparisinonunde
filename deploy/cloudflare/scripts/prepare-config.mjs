@@ -1,26 +1,32 @@
-// wrangler.jsonc → wrangler.generated.jsonc: sitenin adresini derleme değişkenine (NEXT_PUBLIC_SITE_URL) ve çalışma
-// değişkenine (APP_BASE_URL) yazar. İş akışı SITE_URL'yi verir (varsayılan https://yemekgelsin.net).
-// Kullanım: node scripts/prepare-config.mjs https://yemekgelsin.net
+// wrangler.jsonc → wrangler.generated.jsonc: iş akışının seçtiği kipe göre (scripts/config-modes.mjs; 00 §12a madde 10)
+// sitenin adresini derleme değişkenine (NEXT_PUBLIC_SITE_URL) ve çalışma değişkenine (APP_BASE_URL), kipi (DEPLOY_MODE),
+// seed kipini (SEED_MODE), veri dönemini (DATA_EPOCH), demo uyarısı/vitrin ve lead formu derleme değişkenlerini yazar.
+// Ortam: SUPPORT_WHATSAPP (isteğe bağlı GitHub secret'ı; alan adı kipinde /demo'da destek hattının WhatsApp bağlantısı).
+// Kullanım:
+//   node scripts/prepare-config.mjs https://yemekgelsin.net                        # alan adı kipi (varsayılan)
+//   node scripts/prepare-config.mjs https://siparisinonunde-dev.x.workers.dev --mode staging
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseArgs } from 'node:util';
+import { buildConfig } from './config-modes.mjs';
 import { stripJsonc } from './jsonc.mjs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const url = (process.argv[2] ?? '').replace(/\/+$/, '');
-if (!/^https:\/\/[a-z0-9.-]+$/.test(url)) {
-  console.error(`Geçersiz adres: "${url}" (https://… bekleniyor)`);
-  process.exit(1);
-}
+const { values, positionals } = parseArgs({ options: { mode: { type: 'string', default: 'domain' } }, allowPositionals: true });
 
-const config = JSON.parse(stripJsonc(readFileSync(join(root, 'wrangler.jsonc'), 'utf8')));
-// Veri dönemi (15 §13): yalnız rakam; container entrypoint'i geçersiz değerde açılmaz, burada dağıtımdan önce durdurulur
-const epoch = String(config.vars?.DATA_EPOCH ?? '').trim();
-if (epoch !== '' && !/^[0-9]{1,6}$/.test(epoch)) {
-  console.error(`wrangler.jsonc vars.DATA_EPOCH geçersiz: "${epoch}" (yalnız rakam, en çok 6 hane)`);
+let config;
+try {
+  config = buildConfig(JSON.parse(stripJsonc(readFileSync(join(root, 'wrangler.jsonc'), 'utf8'))), {
+    url: positionals[0],
+    mode: values.mode,
+    supportWhatsapp: process.env.SUPPORT_WHATSAPP ?? '',
+  });
+} catch (err) {
+  console.error(err instanceof Error ? err.message : String(err));
   process.exit(1);
 }
-config.vars = { ...config.vars, APP_BASE_URL: url };
-for (const c of config.containers ?? []) c.image_vars = { ...c.image_vars, NEXT_PUBLIC_SITE_URL: url };
 writeFileSync(join(root, 'wrangler.generated.jsonc'), `// scripts/prepare-config.mjs üretir; elle düzenlemeyin.\n${JSON.stringify(config, null, 2)}\n`);
-console.log(`wrangler.generated.jsonc yazıldı (${url})`);
+const v = config.vars;
+const iv = config.containers?.[0]?.image_vars ?? {};
+console.log(`wrangler.generated.jsonc yazıldı: ${v.APP_BASE_URL} (kip ${v.DEPLOY_MODE}, seed ${v.SEED_MODE}, veri dönemi ${v.DATA_EPOCH}, lead formu ${iv.NEXT_PUBLIC_LEAD_FORM === '0' ? 'kapalı' : 'açık'}, destek hattı ${iv.NEXT_PUBLIC_SUPPORT_WHATSAPP ? 'var' : 'yok'}${config.routes ? `, özel alan adları: ${config.routes.map((r) => r.pattern).join(', ')}` : ', özel alan adı yok'})`);

@@ -1,8 +1,10 @@
 # syntax=docker/dockerfile:1.7
-# Yemek Gelsin — Cloudflare dev container'ı (15 §13): PostgreSQL 16 + API + worker + web tek imajda.
-# Derleme bağlamı depo köküdür (wrangler.jsonc image_build_context). Wrangler, image_vars'ı --build-arg olarak geçirir.
-# Üretim dağıtımı bu imajı KULLANMAZ (docker/*.Dockerfile + docker-compose.yml, Türkiye'de VPS).
-# NEXT_PUBLIC_DEPLOY_ENV=dev: web sayfalarının üstünde "Demo ortamı" uyarısı (apps/web/components/common/demo-notice.tsx).
+# Yemek Gelsin — Cloudflare container'ı (15 §13): PostgreSQL 16 + API + worker + web tek imajda.
+# Derleme bağlamı depo köküdür (wrangler.jsonc image_build_context). Wrangler, image_vars'ı --build-arg olarak geçirir
+# (scripts/config-modes.mjs: NEXT_PUBLIC_SITE_URL, NEXT_PUBLIC_DEMO_BANNER, NEXT_PUBLIC_DEMO_STORE_SLUG).
+# Canlı ortam bu imajı KULLANMAZ (docker/*.Dockerfile + docker-compose.yml, Türkiye'de VPS; 00 §12a madde 10).
+# NEXT_PUBLIC_DEMO_BANNER=1 yalnız demo verili gizli staging'de: sayfaların üstünde "Demo ortamı" uyarısı
+# (apps/web/components/common/demo-notice.tsx); alan adı kipinde 0.
 
 ARG NODE_VERSION=22
 
@@ -36,14 +38,20 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm config set store-dir /pnpm/store && \
     pnpm install --frozen-lockfile --filter "@siparis/web..."
 ARG NEXT_PUBLIC_SITE_URL=https://yemekgelsin.net
+ARG NEXT_PUBLIC_DEMO_BANNER=0
+ARG NEXT_PUBLIC_DEMO_STORE_SLUG=
+# Lead formu (/demo): alan adı kipinde 0 (Türkiye dışında kişisel veri saklanmaz); destek hattı (WhatsApp) isteğe bağlı
+ARG NEXT_PUBLIC_LEAD_FORM=0
+ARG NEXT_PUBLIC_SUPPORT_WHATSAPP=
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
     APP_BASE_URL=$NEXT_PUBLIC_SITE_URL \
     NEXT_PUBLIC_ROOT_DOMAIN= \
     NEXT_PUBLIC_DEV_TOOLS=1 \
-    NEXT_PUBLIC_DEPLOY_ENV=dev \
+    NEXT_PUBLIC_DEMO_BANNER=$NEXT_PUBLIC_DEMO_BANNER \
     DEV_TOOLS=1 \
-    NEXT_PUBLIC_DEMO_STORE_SLUG=bozok-pide \
-    NEXT_PUBLIC_SUPPORT_WHATSAPP= \
+    NEXT_PUBLIC_DEMO_STORE_SLUG=$NEXT_PUBLIC_DEMO_STORE_SLUG \
+    NEXT_PUBLIC_LEAD_FORM=$NEXT_PUBLIC_LEAD_FORM \
+    NEXT_PUBLIC_SUPPORT_WHATSAPP=$NEXT_PUBLIC_SUPPORT_WHATSAPP \
     API_INTERNAL_URL=http://127.0.0.1:4000 \
     NODE_ENV=production
 COPY tsconfig.base.json ./

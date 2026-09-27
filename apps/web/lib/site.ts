@@ -46,21 +46,41 @@ export function supportWhatsappHref(text: string): string | null {
 }
 
 /**
- * Herkese açık demo dağıtımı mı (Cloudflare, 15 §13): derleme anında gömülür (deploy/cloudflare/Dockerfile
- * NEXT_PUBLIC_DEPLOY_ENV=dev). Üretim ve yerel geliştirmede tanımsızdır.
+ * "Demo ortamı" uyarısı açık mı (components/common/demo-notice.tsx): yalnız kendi derleme bayrağıyla,
+ * NEXT_PUBLIC_DEMO_BANNER=1 (00 §12a madde 10). Varsayılan kapalıdır: canlı ortam (Türkiye VPS) ve demo verisi olmayan
+ * Cloudflare ortamı uyarı göstermez; yalnız demo verili gizli staging (deploy/cloudflare, SEED_MODE=demo) açar.
  */
-export function isDemoDeployment(value: string | undefined = process.env.NEXT_PUBLIC_DEPLOY_ENV): boolean {
-  return value === 'dev';
+export function isDemoBannerEnabled(value: string | undefined = process.env.NEXT_PUBLIC_DEMO_BANNER): boolean {
+  return value === '1' || value === 'true';
 }
 
 /**
- * Demo dağıtımında sayfaların üstündeki uyarı (components/common/demo-notice.tsx). Metin derleme anında gömülür ve iki dev
- * kipinde de doğru kalmalıdır: simülatör (mock) ve gerçek WhatsApp (proje sahibinin kendi telefonlarıyla deneme; 15 §13).
+ * Demo uyarısının metni (components/common/demo-notice.tsx). Derleme anında gömülür; yalnız demo verili ortamlarda görünür.
  */
 export const DEMO_NOTICE = {
   title: 'Demo ortamı.',
   body: 'Siparişler örnektir ve gerçek bir işletmeye gitmez. Gerçek adres ve telefon girmeyin.',
 } as const;
+
+/**
+ * Pazarlama sitesindeki "Demo menüyü aç" bağlantısının vitrini (NEXT_PUBLIC_DEMO_STORE_SLUG). Tanımsızsa yerel
+ * geliştirmenin demo işletmesi (seed: bozok-pide); boş verilirse (canlı ortam: demo işletme yok) bağlantı gösterilmez.
+ */
+export function demoStoreSlug(value: string | undefined = process.env.NEXT_PUBLIC_DEMO_STORE_SLUG): string | null {
+  const slug = (value ?? 'bozok-pide').trim();
+  return /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(slug) ? slug : null;
+}
+
+/**
+ * Herkese açık lead formu (/demo: demo talebi, hesaplayıcıdan gelen talep) açık mı (NEXT_PUBLIC_LEAD_FORM; derleme
+ * anında gömülür). Varsayılan açık. Kişisel veri yalnız Türkiye'deki altyapıda tutulur (CLAUDE.md kural 7; 00 §12a
+ * madde 10): Türkiye dışındaki Cloudflare ortamının alan adı kipi 0 ile derler; /demo formu göstermez (API de kayıt
+ * almaz: PUBLIC_LEADS_ENABLED=0), varsa destek hattının WhatsApp bağlantısını gösterir.
+ */
+export function isLeadFormEnabled(value: string | undefined = process.env.NEXT_PUBLIC_LEAD_FORM): boolean {
+  const v = (value ?? '').trim().toLowerCase();
+  return !(v === '0' || v === 'false');
+}
 
 /** Pilot bölge (00 §12a). */
 export const PILOT_AREA = { city: 'Yozgat', district: 'Merkez' } as const;

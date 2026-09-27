@@ -20,3 +20,4 @@ apps/api/test
 packages/*/test
 apps/web
 !apps/web/package.json
+scripts/vps

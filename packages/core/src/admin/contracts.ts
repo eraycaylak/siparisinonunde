@@ -718,3 +718,10 @@ export type PublicLeadRequest = z.input<typeof publicLeadRequestSchema>;
 
 export const publicLeadResponseSchema = z.object({ ok: z.literal(true) });
 
+/**
+ * GET /public/signup-status: yeni işletme kaydı açık mı (signup_open kill-switch'i; 00 §12a madde 10). Kayıt sayfası
+ * kapalıyken form yerine "Kayıtlar çok yakında açılıyor" bilgisini gösterir (Cloudflare ortamında kayıt kapalıdır).
+ */
+export const publicSignupStatusResponseSchema = z.object({ open: z.boolean() });
+export type PublicSignupStatus = z.infer<typeof publicSignupStatusResponseSchema>;
+

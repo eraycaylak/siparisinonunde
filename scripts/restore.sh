@@ -45,8 +45,10 @@ DUMP="${1:-}"
 umask 077
 
 if [[ -f .env ]]; then
-  # shellcheck disable=SC1091
-  set -a; source <(grep -E '^(POSTGRES_USER|POSTGRES_DB)=' .env); set +a
+  set -a
+  # shellcheck disable=SC1090
+  source <(grep -E '^(POSTGRES_USER|POSTGRES_DB)=' .env)
+  set +a
 fi
 PGUSER="${POSTGRES_USER:-siparis}"
 PGDB="${POSTGRES_DB:-siparis}"

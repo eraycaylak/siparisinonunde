@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Yemek Gelsin — Cloudflare dev container'ı (15 §13): PostgreSQL + API + worker + web tek container'da.
+# Yemek Gelsin — Cloudflare container'ı (15 §13): PostgreSQL + API + worker + web tek container'da.
 #
 # Container diski geçicidir: her başlangıçta boş bir veritabanı kurulur ve son yedek R2'den geri yüklenir.
 # Yedek, Worker'daki "yedek.internal" çıkış işleyicisi üzerinden R2'ye yazılır/okunur (deploy/cloudflare/src/index.ts).
 # Veri dönemi (DATA_EPOCH) container'a açılışta verilir ve ömrü boyunca sabittir: yedek yolu /e<dönem>/db olur, R2
 # anahtarı e2/db/son.dump. Worker dönemi yoldan okur; yeniden dağıtımda kapanan eski container'ın son yedeği yeni
-# döneme düşmez. DATA_EPOCH artırılınca yeni container yedek bulamaz, demo sıfırdan kurulur.
-# Seed, SEED_PASSWORD (= DEV_PASSWORD) ile tüm demo hesaplarının parolasını belirler/eşitler.
+# döneme düşmez. DATA_EPOCH artırılınca yeni container yedek bulamaz, veri sıfırdan kurulur.
+# Seed kipi SEED_MODE ile gelir (00 §12a madde 10): admin (alan adı kipi) yalnız platform yöneticisini ve bayrakları kurar,
+# demo (gizli staging) demo işletmeleri de kurar. SEED_PASSWORD (= DEV_PASSWORD) seed hesaplarının parolasıdır.
 # Sıra: PostgreSQL → yedekten geri yükle → migrate → seed (idempotent) → api + worker + web → 10 dk'da bir yedek.
 # SIGTERM (uyku, yeniden dağıtım): uygulamalar durur, son yedek alınır, PostgreSQL kapanır.
 set -Eeuo pipefail
@@ -157,10 +158,10 @@ DB_READY=1
 cd "$APP_DIR/apps/api"
 log "migration"
 node --import tsx "$APP_DIR/packages/db/src/migrate.ts"
-# Seed her açılışta çalışır: işletme başına idempotenttir (var olan demo işletme atlanır), yedekten dönen ortama
-# sonradan eklenen demo işletmeler (ör. ortak numaranın ikinci dükkanı Çamlık Döner) de böylece gelir. Yedekten dönen
-# ortamda seed hatası (ör. elle açılmış kayıtla çakışma) açılışı durdurmaz: demo eksik kalır ama site açılır.
-log "demo verisi (seed; var olanlar atlanır)"
+# Seed her açılışta çalışır ve idempotenttir. admin kipinde yalnız platform yöneticisi + bayraklar (var olana dokunmaz,
+# parolası DEV_PASSWORD'e eşitlenir); demo kipinde işletme başına (var olan demo işletme atlanır). Yedekten dönen ortamda
+# seed hatası açılışı durdurmaz: site var olan veriyle açılır.
+log "seed (SEED_MODE=${SEED_MODE:-demo}; var olanlar atlanır)"
 if [ "$fresh" = 1 ]; then
   node --import tsx "$APP_DIR/packages/db/src/seed.ts"
 else

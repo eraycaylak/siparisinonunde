@@ -2,10 +2,10 @@
   "name": "siparisinonunde-cloudflare-dev",
   "private": true,
   "type": "module",
-  "description": "Cloudflare dev/demo dağıtımı: Worker + tek container (PostgreSQL + API + worker + web). Bkz. docs/15 §13.",
+  "description": "Cloudflare dağıtımı (VPS yokken alan adı, sonra gizli staging): Worker + tek container (PostgreSQL + API + worker + web). Bkz. docs/15 §13.",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "test": "node --test scripts/access.test.mjs scripts/whatsapp-env.test.mjs",
+    "test": "node --test scripts/access.test.mjs scripts/whatsapp-env.test.mjs scripts/config-modes.test.mjs",
     "deploy": "wrangler deploy"
   },
   "dependencies": {

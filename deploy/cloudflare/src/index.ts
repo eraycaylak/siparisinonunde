@@ -1,22 +1,26 @@
-// Yemek Gelsin — Cloudflare dev/demo ortamı (15 §13).
+// Yemek Gelsin — Cloudflare ortamı (15 §13; 00 §12a madde 10).
 //
 // Tek Worker, tek container örneği ("main"): container içinde PostgreSQL + API (:4000) + worker + web (:3000) çalışır
-// (deploy/cloudflare/entrypoint.sh). Adres: https://yemekgelsin.net (Custom Domain; 00 §12a madde 9), workers.dev yedek.
+// (deploy/cloudflare/entrypoint.sh). İki kip (DEPLOY_MODE; iş akışı seçer, scripts/config-modes.mjs):
+//   - domain  (Türkiye VPS'i yokken): https://yemekgelsin.net (Custom Domain), workers.dev yedek. Demo verisi YOK:
+//             seed yalnız platform yöneticisini ve bayrakları kurar (SEED_MODE=admin); yeni işletme kaydı kapalı (veriler
+//             Türkiye dışında). Site herkese açık; HTTP Basic (DEV_PASSWORD) yalnız geliştirici araçlarını korur.
+//   - staging (Türkiye VPS'i canlıya geçtikten sonra): yalnız workers.dev, gizli: sağlık uçları dışında her yol parolalı;
+//             demo verili (SEED_MODE=demo), WhatsApp her zaman simülatör (canlı numara kullanılmaz), kendi veri dönemi.
 // Worker (kurallar src/access.ts):
-//   - Site herkese açıktır. HTTP Basic (DEV_PASSWORD) yalnız geliştirici araçlarını korur: /dev/* ve /api/v1/dev/*.
 //   - www.yemekgelsin.net → yemekgelsin.net (301); workers.dev'deki sayfa gezinmeleri özel alan adına (302).
 //     API ve webhook istekleri workers.dev'de de çalışır.
 //   - /api/* isteklerini API'ye (4000), diğerlerini web'e (3000) yönlendirir (üretimdeki Caddy düzeni).
 //   - Container'ın "yedek.internal" adresine yaptığı istekleri R2'ye yazar/okur (veritabanı ve görsel yedeği);
 //     anahtarlar veri dönemi önekiyle (ör. e2/db/son.dump). Container dönemini açılışta alır ve yola yazar (/e2/db);
-//     DATA_EPOCH artırılınca yeni container yedek bulamaz, demo sıfırdan kurulur.
-// Ortak numara (WhatsApp) iki kipte çalışır (src/whatsapp-env.ts): varsayılan simülatör (mock); GitHub secret'ları
-// META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_APP_SECRET ve WA_PHONE (+ isteğe bağlı META_WA_WABA_ID) verilince gerçek Meta
-// Cloud API (simülatör kapanır). SMS her zaman mock. Gerçek işletme ve müşteri verisi bu ortama girmez: kişisel veri
-// Türkiye dışında tutulamaz (00 §12a); gerçek WhatsApp yalnız proje sahibinin kendi telefonlarıyla denemesi içindir.
+//     DATA_EPOCH artırılınca yeni container yedek bulamaz, veri sıfırdan kurulur (staging'in dönemi ayrıdır).
+// Ortak numara (WhatsApp) alan adı kipinde iki türlü çalışır (src/whatsapp-env.ts): varsayılan simülatör (mock); GitHub
+// secret'ları META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_APP_SECRET ve WA_PHONE (+ isteğe bağlı META_WA_WABA_ID) verilince
+// gerçek Meta Cloud API (simülatör kapanır). SMS her zaman mock. Gerçek işletme ve müşteri verisi bu ortama girmez: kişisel
+// veri Türkiye dışında tutulamaz (00 §12a madde 10); canlı ortam Türkiye VPS'idir (.github/workflows/deploy-production.yml).
 
 import { Container, ContainerProxy, getContainer, switchPort } from '@cloudflare/containers';
-import { isNavigation, isProtectedPath, normalizeEpoch, parseBackupPath, redirectFor } from './access';
+import { isNavigation, normalizeDeployMode, normalizeEpoch, parseBackupPath, redirectFor, requiresAuth } from './access';
 import { whatsappContainerEnv } from './whatsapp-env';
 
 export { ContainerProxy };
@@ -28,9 +32,13 @@ interface Env {
   APP_BASE_URL: string;
   /** "dev": container'da geliştirici araçları (yalnız mock sağlayıcılarla) ve tüm yanıtlarda x-robots-tag noindex */
   DEPLOY_ENV: string;
-  /** Veri dönemi: container'a açılışta verilir, R2 anahtarlarının öneki e<DATA_EPOCH>/; artırılınca demo sıfırdan kurulur (15 §13) */
+  /** Veri dönemi: container'a açılışta verilir, R2 anahtarlarının öneki e<DATA_EPOCH>/; artırılınca veri sıfırdan kurulur (15 §13) */
   DATA_EPOCH: string;
-  /** /dev/* ve /api/v1/dev/* parolası; demo hesaplarının parolası da budur (SEED_PASSWORD) */
+  /** domain (yemekgelsin.net, demo verisi yok) | staging (gizli, workers.dev, demo verili); 00 §12a madde 10 */
+  DEPLOY_MODE?: string;
+  /** Container'daki seed: admin (yalnız platform yöneticisi + bayraklar) | demo (demo işletmeler) */
+  SEED_MODE?: string;
+  /** /dev/* ve /api/v1/dev/* (staging'de tüm site) parolası; seed hesaplarının parolası da budur (SEED_PASSWORD) */
   DEV_PASSWORD: string;
   SESSION_SECRET: string;
   TRACKING_SECRET: string;
@@ -108,8 +116,11 @@ export class AppContainer extends Container<Env> {
 
   constructor(ctx: DurableObjectState<{}>, env: Env) {
     super(ctx, env);
-    // Ortak numara kipi: META_* + WA_PHONE tamsa gerçek Meta Cloud API (DEV_TOOLS=0), değilse simülatör (DEV_TOOLS=1)
-    const wa = whatsappContainerEnv(env);
+    // Ortak numara kipi: META_* + WA_PHONE tamsa gerçek Meta Cloud API (DEV_TOOLS=0), değilse simülatör (DEV_TOOLS=1).
+    // Gizli staging canlı numarayı ASLA kullanmaz (canlı ortam Türkiye VPS'inde; iş akışı secret'ları da yüklemez).
+    const staging = normalizeDeployMode(env.DEPLOY_MODE) === 'staging';
+    const wa = whatsappContainerEnv(staging ? {} : env);
+    const seedMode = env.SEED_MODE === 'demo' || env.SEED_MODE === 'admin' ? env.SEED_MODE : staging ? 'demo' : 'admin';
     console.log(wa.mode === 'cloud' ? 'WhatsApp: gerçek Meta Cloud API (simülatör kapalı)' : `WhatsApp: simülatör (mock)${wa.missing.length < 4 ? `; eksik: ${wa.missing.join(', ')}` : ''}`);
     this.envVars = {
       NODE_ENV: 'production',
@@ -132,9 +143,14 @@ export class AppContainer extends Container<Env> {
       // PLATFORM_WA_PHONE_NUMBER_ID, PLATFORM_WA_WABA_ID, WA_APP_SECRET)
       ...wa.env,
       SMS_PROVIDER: 'mock',
+      // Herkese açık lead formu (POST /api/v1/public/leads): alan adı kipinde kapalı, kişisel veri Türkiye dışında (bu
+      // ortamda) saklanmaz (CLAUDE.md kural 7; 00 §12a madde 10). Gizli staging'de ekip denesin diye açık.
+      PUBLIC_LEADS_ENABLED: staging ? '1' : '0',
       // Yönetici 2FA'sı dev ortamında isteğe bağlı; sahibi /admin/guvenlik'ten açabilir
       ADMIN_TOTP_REQUIRED: 'false',
-      // Tüm demo hesaplarının parolası = DEV_PASSWORD (packages/db/src/seed.ts; değişirse açılışta eşitlenir)
+      // Seed kipi (00 §12a madde 10): admin → yalnız platform yöneticisi + bayraklar; demo → demo işletmeler (staging)
+      SEED_MODE: seedMode,
+      // Seed hesaplarının parolası = DEV_PASSWORD (packages/db/src/seed.ts; değişirse açılışta eşitlenir)
       SEED_PASSWORD: env.DEV_PASSWORD,
       VAPID_PUBLIC_KEY: env.VAPID_PUBLIC_KEY,
       VAPID_PRIVATE_KEY: env.VAPID_PRIVATE_KEY,
@@ -200,11 +216,11 @@ function authorized(request: Request, env: Env): boolean {
   return timingSafeEqual(password, env.DEV_PASSWORD);
 }
 
-const unauthorized = () =>
-  new Response('Yemek Gelsin geliştirici araçları: parola gerekli.', {
+const unauthorized = (staging: boolean) =>
+  new Response(staging ? 'Yemek Gelsin staging: parola gerekli.' : 'Yemek Gelsin geliştirici araçları: parola gerekli.', {
     status: 401,
     headers: {
-      'www-authenticate': 'Basic realm="Yemek Gelsin dev", charset="UTF-8"',
+      'www-authenticate': `Basic realm="${staging ? 'Yemek Gelsin staging' : 'Yemek Gelsin dev'}", charset="UTF-8"`,
       'content-type': 'text/plain; charset=utf-8',
       'cache-control': 'no-store',
       'x-robots-tag': 'noindex, nofollow',
@@ -239,8 +255,9 @@ export default {
     if (redirect) {
       return withEnvHeaders(new Response(null, { status: redirect.status, headers: { location: redirect.location } }), env);
     }
-    // Yalnız geliştirici araçları parolalıdır
-    if (isProtectedPath(url.pathname) && !authorized(request, env)) return unauthorized();
+    // Alan adı kipinde yalnız geliştirici araçları, gizli staging'de sağlık uçları dışında her yol parolalıdır
+    const mode = normalizeDeployMode(env.DEPLOY_MODE);
+    if (requiresAuth(url.pathname, mode) && !authorized(request, env)) return unauthorized(mode === 'staging');
 
     const app = getContainer(env.APP, INSTANCE);
     const state = await app.getState();

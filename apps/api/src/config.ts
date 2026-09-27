@@ -86,6 +86,15 @@ export const configSchema = z.object({
   DEPLOY_ENV: z.enum(['production', 'dev']).default('production'),
   /** Platform yöneticileri için TOTP zorunlu (00 §12a madde 7). Verilmezse: üretimde açık, diğer ortamlarda kapalı. */
   ADMIN_TOTP_REQUIRED: optionalBool01,
+  /**
+   * Herkese açık lead formu (POST /api/v1/public/leads: demo formu, hesaplayıcı) kayıt alır mı. Verilmezse açık. Kişisel
+   * veri yalnız Türkiye'deki altyapıda tutulur (CLAUDE.md kural 7; 00 §12a madde 10): Türkiye dışındaki Cloudflare
+   * ortamının alan adı kipi 0 verir, form kapalıdır ve uç 403 leads_closed döner.
+   */
+  PUBLIC_LEADS_ENABLED: z
+    .union([z.string(), z.boolean()])
+    .optional()
+    .transform((v) => (v === undefined || v === '' ? true : v === true || v === '1' || v === 'true')),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
 });
 

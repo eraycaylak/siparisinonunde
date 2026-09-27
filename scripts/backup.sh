@@ -14,10 +14,23 @@
 # rclone kurulu değilse ya da BACKUP_REMOTE boşsa bu adım atlanır ve uyarı yazılır.
 # Not: pg_dump anlık tutarlı döküm verir; saniyelik geri dönüş (PITR) için WAL arşivleme (pgBackRest/WAL-G)
 # ayrıca kurulmalıdır (pilot öncesi zorunlu paket, 00 §11).
+#
+# --pre-deploy: güncelleme öncesi yedek (scripts/vps/deploy.sh her dağıtımda çağırır). YALNIZ veritabanı dökümü
+# (migration görsellere dokunmaz), adı pre-deploy-db-*.dump; yaşa göre değil sayıya göre saklanır (son PRE_DEPLOY_KEEP,
+# varsayılan 5), ikinci konuma kopyalanmaz ve BACKUP_PING_URL çağrılmaz (günlük yedeğin yerini tutmaz). Böylece sık
+# dağıtım diski doldurmaz.
 
 set -Eeuo pipefail
 
 cd "$(dirname "$0")/.."
+
+PRE_DEPLOY=0
+case "${1:-}" in
+  --pre-deploy) PRE_DEPLOY=1 ;;
+  "") ;;
+  *) echo "Bilinmeyen seçenek: $1 (yalnız --pre-deploy)" >&2; exit 2 ;;
+esac
+PRE_DEPLOY_KEEP="${PRE_DEPLOY_KEEP:-5}"
 
 BACKUP_DIR="${BACKUP_DIR:-./backups}"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
@@ -26,8 +39,10 @@ STAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 
 # .env'den veritabanı adı/kullanıcısı (yoksa varsayılanlar)
 if [[ -f .env ]]; then
-  # shellcheck disable=SC1091
-  set -a; source <(grep -E '^(POSTGRES_USER|POSTGRES_DB|BACKUP_REMOTE|BACKUP_DIR|RETENTION_DAYS|BACKUP_PING_URL)=' .env); set +a
+  set -a
+  # shellcheck disable=SC1090
+  source <(grep -E '^(POSTGRES_USER|POSTGRES_DB|BACKUP_REMOTE|BACKUP_DIR|RETENTION_DAYS|BACKUP_PING_URL)=' .env)
+  set +a
 fi
 PGUSER="${POSTGRES_USER:-siparis}"
 PGDB="${POSTGRES_DB:-siparis}"
@@ -55,7 +70,11 @@ if [[ ! -w "$BACKUP_DIR" || ! -x "$BACKUP_DIR" ]]; then
   exit 1
 fi
 
-db_file="$BACKUP_DIR/db-$PGDB-$STAMP.dump"
+if [[ $PRE_DEPLOY -eq 1 ]]; then
+  db_file="$BACKUP_DIR/pre-deploy-db-$PGDB-$STAMP.dump"
+else
+  db_file="$BACKUP_DIR/db-$PGDB-$STAMP.dump"
+fi
 tmp_file="$db_file.partial"
 
 log "Veritabanı dökümü: $db_file"
@@ -65,6 +84,14 @@ $COMPOSE exec -T postgres pg_dump -U "$PGUSER" -d "$PGDB" -Fc --no-owner --no-pr
 $COMPOSE exec -T postgres pg_restore --list >/dev/null <"$tmp_file"
 mv "$tmp_file" "$db_file"
 log "Tamam: $(du -h "$db_file" | cut -f1)"
+
+if [[ $PRE_DEPLOY -eq 1 ]]; then
+  # Son PRE_DEPLOY_KEEP güncelleme öncesi döküm kalır (ad zaman damgalı: sıralama = zaman)
+  find "$BACKUP_DIR" -maxdepth 1 -type f -name 'pre-deploy-db-*.dump' | sort | head -n -"$PRE_DEPLOY_KEEP" |
+    while IFS= read -r old; do rm -f "$old" && log "silindi: $old"; done
+  log "Güncelleme öncesi yedek bitti (yalnız veritabanı; son $PRE_DEPLOY_KEEP döküm saklanır)."
+  exit 0
+fi
 
 uploads_file="$BACKUP_DIR/uploads-$STAMP.tar.gz"
 if $COMPOSE ps --status running --services 2>/dev/null | grep -qx api; then

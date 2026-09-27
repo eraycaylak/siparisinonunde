@@ -4,11 +4,13 @@
 // Gerçek WhatsApp (isteğe bağlı; src/whatsapp-env.ts): META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_WA_WABA_ID,
 // META_APP_SECRET, WA_PHONE ortamda doluysa her dağıtımda yüklenir (boşsa dosyaya yazılmaz; iş akışı Worker'da kalmış
 // eskisini siler). WA_PHONE E.164'e çevrilir; geçersiz telefon ya da rakam olmayan Meta kimliği dağıtımı durdurur.
-// Kullanım: node scripts/secrets.mjs <wrangler secret list çıktısı (JSON)> > secrets.json
+// Gizli staging (--no-whatsapp): WhatsApp secret'ları hiç yüklenmez; staging canlı numarayı kullanmaz (00 §12a madde 10).
+// Kullanım: node scripts/secrets.mjs <wrangler secret list çıktısı (JSON)> [--no-whatsapp] > secrets.json
 import { createECDH, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { WA_SECRET_NAMES, isMetaId, normalizeE164 } from '../src/whatsapp-env.ts';
 
+const noWhatsapp = process.argv.includes('--no-whatsapp');
 let existing = new Set();
 try {
   const list = JSON.parse(readFileSync(process.argv[2], 'utf8'));
@@ -52,7 +54,7 @@ out.DEV_PASSWORD = devPassword;
 
 // Gerçek WhatsApp secret'ları: yalnız doluysa (değerler loga yazılmaz)
 const waErrors = [];
-for (const name of WA_SECRET_NAMES) {
+for (const name of noWhatsapp ? [] : WA_SECRET_NAMES) {
   const value = (process.env[name] ?? '').trim();
   if (!value) continue;
   if (name === 'WA_PHONE') {

@@ -7,9 +7,10 @@
   "scripts": {
     "dev": "concurrently -k -n api,worker,web -c blue,magenta,green \"pnpm --filter @siparis/api dev\" \"pnpm --filter @siparis/api dev:worker\" \"pnpm --filter @siparis/web dev\"",
     "build": "pnpm -r --filter ./packages/* --filter ./apps/* build",
-    "typecheck": "pnpm -r typecheck && tsc -p e2e/tsconfig.json --noEmit",
+    "typecheck": "pnpm -r typecheck && tsc -p e2e/tsconfig.json --noEmit && tsc -p scripts/tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:vps": "node --test scripts/vps/env-merge.test.mjs scripts/vps/cloudflare-dns.test.mjs scripts/vps/deploy.test.mjs",
     "e2e": "playwright test",
     "db:generate": "pnpm --filter @siparis/db generate",
     "db:migrate": "pnpm --filter @siparis/db migrate",

@@ -45,8 +45,9 @@ export function runDbScript(script: 'reset' | 'migrate' | 'seed'): void {
   execFileSync('pnpm', ['--silent', '--filter', '@siparis/db', script], {
     cwd: ROOT_DIR,
     stdio: 'inherit',
-    // SEED_PASSWORD boş: demo hesapları e2e/support/env.ts'deki yerel parolalarla açılır (kabukta tanımlı olsa bile)
-    env: { ...process.env, DATABASE_URL: E2E_DATABASE_URL, ALLOW_DB_RESET: '1', NODE_ENV: 'test', SEED_PASSWORD: '' },
+    // SEED_PASSWORD boş: demo hesapları e2e/support/env.ts'deki yerel parolalarla açılır (kabukta tanımlı olsa bile).
+    // SEED_MODE=demo: e2e demo işletmelerle çalışır (.env'de admin kipi seçili olsa bile)
+    env: { ...process.env, DATABASE_URL: E2E_DATABASE_URL, ALLOW_DB_RESET: '1', NODE_ENV: 'test', SEED_PASSWORD: '', SEED_MODE: 'demo' },
   });
 }
 
@@ -64,6 +65,15 @@ export async function makeBranchAlwaysOpen(slug: string): Promise<void> {
       await sql`delete from special_days where branch_id = ${id}`;
       await sql`update branches set paused_until = null, busy_extra_minutes = 0 where id = ${id}`;
     }
+  });
+}
+
+/** Bir bayrağı (kill-switch) açar/kapatır; ör. signup_open kapalıyken kayıt sayfası (00 §12a madde 10). */
+export async function setFeatureFlag(key: string, enabled: boolean): Promise<void> {
+  await withSql(async (sql) => {
+    await sql`
+      insert into feature_flags (key, enabled, kind) values (${key}, ${enabled}, 'kill_switch')
+      on conflict (key) do update set enabled = excluded.enabled, updated_at = now()`;
   });
 }
 

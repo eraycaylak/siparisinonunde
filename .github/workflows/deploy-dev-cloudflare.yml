@@ -1,19 +1,27 @@
-# Cloudflare dev/demo ortamı (docs/15 §13): Worker + tek container (PostgreSQL + API + worker + web).
-# Adres: https://yemekgelsin.net (Custom Domain, alan adı aynı Cloudflare hesabında; 00 §12a madde 9). workers.dev yedektir.
+# Cloudflare ortamı (docs/15 §13; 00 §12a madde 10): Worker + tek container (PostgreSQL + API + worker + web). İki kip:
+#   - VPS_HOST secret'ı YOKSA (Türkiye VPS'i henüz yok) → ALAN ADI kipi: https://yemekgelsin.net (Custom Domain), push'ta
+#     ve elle çalışır. Demo verisi YOK: seed yalnız platform yöneticisini (admin@yemekgelsin.net, parola DEV_PASSWORD) ve
+#     bayrakları kurar; "Demo ortamı" uyarısı yok; yeni işletme kaydı kapalı (veriler Türkiye dışında; kayıt sayfası
+#     "Kayıtlar çok yakında açılıyor" der). Aynı nedenle /demo lead formu da kapalıdır (kişisel veri Türkiye dışında
+#     saklanmaz; CLAUDE.md kural 7): sayfa bilgi kartı ve SUPPORT_WHATSAPP secret'ı varsa destek hattının WhatsApp
+#     bağlantısını gösterir, API lead almaz. META_* secret'ları tamsa ortak numara gerçek WhatsApp'la çalışır.
+#   - VPS_HOST secret'ı VARSA → GİZLİ STAGING: yalnız elle çalıştırılır (push'ta atlanır), yalnız workers.dev adresine
+#     dağıtır, Custom Domain eklemez (alan adı canlı ortama, "Canlı ortam (Türkiye VPS)" iş akışına aittir), tüm site
+#     DEV_PASSWORD ile parolalı, demo verili (SEED_MODE=demo), WhatsApp her zaman simülatör, kendi veri dönemi
+#     (wrangler.jsonc STAGING_DATA_EPOCH). Canlı ortam DNS geçişini tamamlamadan staging çalışmaz.
 # Gereken GitHub secret'ları (Settings > Secrets and variables > Actions):
 #   CLOUDFLARE_API_TOKEN  — "Edit Cloudflare Workers" şablonuyla oluşturulan token (Containers için Workers Paid plan).
 #                           Özel alan adı için ayrıca yemekgelsin.net bölgesinde: Zone > Workers Routes > Edit ve
-#                           Zone > Zone > Read (Zone Resources: Include > Specific zone > yemekgelsin.net).
-#   DEV_PASSWORD          — geliştirici araçlarının (/dev/*, /api/v1/dev/*) parolası; demo hesaplarının parolası da budur
-#                           (en az 8 karakter)
+#                           Zone > Zone > Read (Zone Resources: Include > Specific zone > yemekgelsin.net). Canlı ortam
+#                           aynı token'a Zone > DNS > Edit ister (docs/15 §14).
+#   DEV_PASSWORD          — geliştirici araçlarının (/dev/*, /api/v1/dev/*) parolası; alan adı kipinde platform
+#                           yöneticisinin, staging'de tüm sitenin ve demo hesaplarının parolası (en az 8 karakter)
 #   CLOUDFLARE_ACCOUNT_ID — isteğe bağlı; token birden fazla hesaba erişiyorsa zorunlu
-# Gerçek WhatsApp (isteğe bağlı; docs/15 §6.2a). META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_APP_SECRET ve WA_PHONE
-# dördü birlikte varsa ortak numara gerçek Meta Cloud API ile çalışır ve simülatör kapanır; biri eksikse simülatör (mock):
-#   META_WA_TOKEN           — sistem kullanıcısı token'ı (süresiz; whatsapp_business_messaging + whatsapp_business_management)
-#   META_WA_PHONE_NUMBER_ID — Phone number ID (WhatsApp > API Setup)
-#   META_WA_WABA_ID         — WhatsApp Business Account ID (API Setup); admin kurulumundaki abonelik ve şablon adımları için
-#   META_APP_SECRET         — App secret (App settings > Basic); webhook imzası
-#   WA_PHONE                — ortak numara, ülke koduyla (E.164), ör. +905321234567
+#   SUPPORT_WHATSAPP      — isteğe bağlı; destek hattı (ülke koduyla, ör. 905321234567). Alan adı kipinde /demo ve kayıt
+#                           sayfasının "Bize ulaşın" bağlantısı bu numaraya WhatsApp'tan yazdırır (bilgi saklanmaz)
+# Gerçek WhatsApp (isteğe bağlı, yalnız alan adı kipi; docs/15 §6.2a). META_WA_TOKEN, META_WA_PHONE_NUMBER_ID,
+# META_APP_SECRET ve WA_PHONE dördü birlikte varsa ortak numara gerçek Meta Cloud API ile çalışır; biri eksikse simülatör:
+#   META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_WA_WABA_ID (isteğe bağlı), META_APP_SECRET, WA_PHONE (E.164)
 # Secret eklemek/değiştirmek dağıtımı kendiliğinden başlatmaz: Actions > "Dev ortamı (Cloudflare)" > Run workflow.
 name: Dev ortamı (Cloudflare)
 
@@ -31,32 +39,44 @@ permissions:
   contents: read
 
 env:
-  # Sitenin kanonik adresi: web derlemesine (NEXT_PUBLIC_SITE_URL) ve API'ye (APP_BASE_URL) yazılır.
-  # wrangler.jsonc'deki routes (Custom Domain) bu adresin alan adıyla aynı olmalı.
+  # Alan adı kipinde sitenin kanonik adresi: web derlemesine (NEXT_PUBLIC_SITE_URL) ve API'ye (APP_BASE_URL) yazılır.
+  # wrangler.jsonc'deki routes (Custom Domain) bu adresin alan adıyla aynı olmalı. Staging'de workers.dev adresiyle değişir.
   SITE_URL: https://yemekgelsin.net
-  # Alan adının Cloudflare bölgesi (Registrar'dan alınan kök alan adı). SITE_URL bir alt alan adına (ör.
-  # https://demo.yemekgelsin.net) çevrilse de bölge aynı kalır; www → kök denetimi yalnız SITE_URL kökse yapılır.
+  # Alan adının Cloudflare bölgesi (Registrar'dan alınan kök alan adı).
   ZONE: yemekgelsin.net
 
 jobs:
-  # Secret'lar henüz eklenmemişse push'ta dağıtım atlanır (uyarı); elle çalıştırmada hata verir
+  # Kip seçimi ve secret denetimi. VPS varsa push'ta atlanır (bilgi); secret eksikse push'ta uyarı, elle çalıştırmada hata.
   kontrol:
     runs-on: ubuntu-latest
     outputs:
       ready: ${{ steps.check.outputs.ready }}
+      mode: ${{ steps.check.outputs.mode }}
     steps:
       - id: check
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           DEV_PASSWORD: ${{ secrets.DEV_PASSWORD }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
+          if [ -n "$VPS_HOST" ]; then
+            mode=staging
+            if [ "$GITHUB_EVENT_NAME" != "workflow_dispatch" ]; then
+              echo "ready=false" >> "$GITHUB_OUTPUT"
+              echo "::notice::Türkiye VPS'i var (VPS_HOST): yemekgelsin.net canlı ortamdadır ('Canlı ortam (Türkiye VPS)' iş akışı). Cloudflare ortamı artık gizli staging'dir ve yalnız elle çalıştırılır: Actions > Dev ortamı (Cloudflare) > Run workflow (docs/15 §13)."
+              exit 0
+            fi
+          else
+            mode=domain
+          fi
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
           missing=()
           [ -n "$CLOUDFLARE_API_TOKEN" ] || missing+=(CLOUDFLARE_API_TOKEN)
           [ -n "$DEV_PASSWORD" ] || missing+=(DEV_PASSWORD)
-          if [ ${#missing[@]} -eq 0 ]; then echo "ready=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          if [ ${#missing[@]} -eq 0 ]; then echo "ready=true" >> "$GITHUB_OUTPUT"; echo "Kip: $mode"; exit 0; fi
           echo "ready=false" >> "$GITHUB_OUTPUT"
           msg="Eksik GitHub secret: ${missing[*]} — Settings > Secrets and variables > Actions (docs/15 §13)"
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then echo "::error::$msg"; exit 1; fi
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then echo "::error::$msg"; exit 1; fi
           echo "::warning::Dev dağıtımı atlandı. $msg"
 
   deploy:
@@ -65,6 +85,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
+      MODE: ${{ needs.kontrol.outputs.mode }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       DEV_PASSWORD: ${{ secrets.DEV_PASSWORD }}
@@ -102,9 +123,40 @@ jobs:
             echo "CLOUDFLARE_ACCOUNT_ID=$ids" >> "$GITHUB_ENV"
           fi
 
+          # workers.dev adresi: alan adı kipinde yalnız yedek adresin duman testi için, staging'de sitenin kendisi
+          sub=$(api "/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" | jq -r '.result.subdomain // empty')
+          workers_dev=""
+          [ -n "$sub" ] && workers_dev="https://siparisinonunde-dev.${sub}.workers.dev"
+          echo "workers_dev=$workers_dev" >> "$GITHUB_OUTPUT"
+
+          if [ "$MODE" = "staging" ]; then
+            if [ -z "$workers_dev" ]; then
+              echo "::error::workers.dev alt alan adı bulunamadı; staging yalnız workers.dev'de çalışır. Cloudflare > Workers & Pages > Overview'da workers.dev alt alan adını etkinleştirin (docs/15 §13)."
+              exit 1
+            fi
+            echo "SITE_URL=$workers_dev" >> "$GITHUB_ENV"
+            # Alan adı hâlâ bu Worker'a bağlıysa (canlı ortam DNS geçişi yapılmadı) staging onu ele geçirmesin
+            if ! st=$(node ../../scripts/vps/cloudflare-dns.mjs status --zone "$ZONE"); then
+              printf '%s\n' "$st"
+              echo "::error::yemekgelsin.net'in Worker'a bağlı olup olmadığı doğrulanamadı (yukarıdaki hata). Staging, canlı ortam DNS geçişinden sonra çalışır (docs/15 §13)."
+              exit 1
+            fi
+            if [ "$(printf '%s' "$st" | jq -r '.workerDomains == null')" = "true" ]; then
+              echo "::error::Token Worker Custom Domain'lerini listeleyemiyor (Account > Workers Scripts); yemekgelsin.net'in bu Worker'dan ayrıldığı doğrulanamadı (docs/15 §13)."
+              exit 1
+            fi
+            attached=$(printf '%s' "$st" | jq -r --arg z "$ZONE" '[.workerDomains[] | select(.service == "siparisinonunde-dev" and (.hostname == $z or .hostname == ("www." + $z))) | .hostname] | join(", ")')
+            if [ -n "$attached" ]; then
+              echo "::error::$attached hâlâ bu Worker'a bağlı: canlı ortam (Türkiye VPS) DNS geçişini henüz tamamlamadı. Önce 'Canlı ortam (Türkiye VPS)' iş akışı başarıyla bitmeli; staging ondan sonra çalıştırılır (docs/15 §13, §14)."
+              exit 1
+            fi
+            echo "Gizli staging: $workers_dev (özel alan adı yok; yemekgelsin.net canlı ortamda)"
+            exit 0
+          fi
+
           host="${SITE_URL#https://}"; host="${host%%/*}"
           zone="$ZONE"
-          if [ "$host" != "$zone" ] && [ "${host%.$zone}" = "$host" ]; then
+          if [ "$host" != "$zone" ] && [ "${host%."$zone"}" = "$host" ]; then
             echo "::error::SITE_URL ($SITE_URL) ZONE ($zone) bölgesinde değil. İş akışındaki SITE_URL ve ZONE değerlerini birlikte güncelleyin (docs/15 §3, §13)."
             exit 1
           fi
@@ -124,17 +176,10 @@ jobs:
             exit 1
           fi
           echo "$zone erişimi tamam (bölge $zone_id, $zstatus)"
+          [ -n "$workers_dev" ] || echo "::warning::workers.dev alt alan adı bulunamadı; yedek adres denetimi atlanacak"
 
-          # workers.dev adresi yalnız yedek adresin duman testi için (bulunamazsa o test atlanır)
-          sub=$(api "/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" | jq -r '.result.subdomain // empty')
-          if [ -n "$sub" ]; then
-            echo "workers_dev=https://siparisinonunde-dev.${sub}.workers.dev" >> "$GITHUB_OUTPUT"
-          else
-            echo "::warning::workers.dev alt alan adı bulunamadı; yedek adres denetimi atlanacak"
-          fi
-
-      # Ortak numara kipi: dört secret tamsa gerçek Meta Cloud API, değilse simülatör (Worker aynı kuralı uygular:
-      # src/whatsapp-env.ts). Duman testi beklentileri bu çıktıya göre seçilir. Değerler loga yazılmaz.
+      # Ortak numara kipi: alan adı kipinde dört secret tamsa gerçek Meta Cloud API, değilse simülatör (Worker aynı kuralı
+      # uygular: src/whatsapp-env.ts). Staging her zaman simülatördür. Değerler loga yazılmaz.
       - name: WhatsApp kipi (gerçek numara ya da simülatör)
         id: wa
         env:
@@ -144,6 +189,11 @@ jobs:
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           WA_PHONE: ${{ secrets.WA_PHONE }}
         run: |
+          if [ "$MODE" = "staging" ]; then
+            echo "mode=mock" >> "$GITHUB_OUTPUT"
+            echo "WhatsApp: simülatör (gizli staging canlı numarayı kullanmaz)"
+            exit 0
+          fi
           filled() { [ -n "$(printf '%s' "${!1}" | tr -d '[:space:]')" ]; }
           missing=(); present=0
           for n in META_WA_TOKEN META_WA_PHONE_NUMBER_ID META_APP_SECRET WA_PHONE; do
@@ -164,27 +214,34 @@ jobs:
 
       - name: Yapılandırma ve gizli değerler
         env:
+          SUPPORT_WHATSAPP: ${{ secrets.SUPPORT_WHATSAPP }}
           META_WA_TOKEN: ${{ secrets.META_WA_TOKEN }}
           META_WA_PHONE_NUMBER_ID: ${{ secrets.META_WA_PHONE_NUMBER_ID }}
           META_WA_WABA_ID: ${{ secrets.META_WA_WABA_ID }}
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           WA_PHONE: ${{ secrets.WA_PHONE }}
         run: |
-          node scripts/prepare-config.mjs "$SITE_URL"
+          node scripts/prepare-config.mjs "$SITE_URL" --mode "$MODE"
           # İlk dağıtımda Worker yoktur: liste boş sayılır, tüm gizli değerler üretilir
           npx wrangler secret list -c wrangler.generated.jsonc --format json > "$RUNNER_TEMP/existing.json" 2>/dev/null || echo '[]' > "$RUNNER_TEMP/existing.json"
-          # Gerçek WhatsApp secret'ları yalnız doluysa yüklenir (secrets.mjs; geçersiz telefon/kimlik burada durdurur)
-          node scripts/secrets.mjs "$RUNNER_TEMP/existing.json" > "$RUNNER_TEMP/secrets.json"
-          # GitHub'da boşaltılan WhatsApp secret'ı Worker'dan da silinir: --secrets-file eksik secret'ı silmez; silinmezse
-          # container eski değerle gerçek kipte kalır ve duman testi beklentisiyle çelişir
+          # Gerçek WhatsApp secret'ları yalnız alan adı kipinde ve doluysa yüklenir (secrets.mjs; geçersiz telefon/kimlik
+          # burada durdurur). Staging'de hiç yüklenmez.
+          wa_flag=()
+          [ "$MODE" = "staging" ] && wa_flag=(--no-whatsapp)
+          node scripts/secrets.mjs "$RUNNER_TEMP/existing.json" "${wa_flag[@]}" > "$RUNNER_TEMP/secrets.json"
+          # GitHub'da boşaltılan (staging'de: tüm) WhatsApp secret'ları Worker'dan da silinir: --secrets-file eksik secret'ı
+          # silmez; silinmezse container eski değerle gerçek kipte kalır
           for name in META_WA_TOKEN META_WA_PHONE_NUMBER_ID META_WA_WABA_ID META_APP_SECRET WA_PHONE; do
-            if [ -z "$(printf '%s' "${!name}" | tr -d '[:space:]')" ] && jq -e --arg n "$name" 'any(.[]?; .name == $n)' "$RUNNER_TEMP/existing.json" > /dev/null 2>&1; then
-              echo "Worker'daki $name siliniyor (GitHub secret'ı boş)"
+            empty=0
+            [ "$MODE" = "staging" ] && empty=1
+            [ -z "$(printf '%s' "${!name}" | tr -d '[:space:]')" ] && empty=1
+            if [ "$empty" = "1" ] && jq -e --arg n "$name" 'any(.[]?; .name == $n)' "$RUNNER_TEMP/existing.json" > /dev/null 2>&1; then
+              echo "Worker'daki $name siliniyor"
               npx wrangler secret delete "$name" -c wrangler.generated.jsonc
             fi
           done
 
-      - name: Dağıt (Worker + container imajı + özel alan adı)
+      - name: Dağıt (Worker + container imajı; alan adı kipinde özel alan adı)
         run: |
           set +e
           npx wrangler deploy -c wrangler.generated.jsonc --secrets-file "$RUNNER_TEMP/secrets.json" --containers-rollout=immediate 2>&1 | tee "$RUNNER_TEMP/deploy.log"
@@ -199,7 +256,7 @@ jobs:
             [ -n "$n" ] && err=$(tail -n +"$n" "$RUNNER_TEMP/deploy.log")
             if printf '%s' "$err" | grep -qiE '/workers/domains|/workers/routes|custom domain'; then
               if printf '%s' "$err" | grep -qiE 'dns record|cname|already exists|externally managed|conflict'; then
-                echo "::error::Özel alan adı eklenemedi: $ZONE ya da www.$ZONE için DNS'te çakışan bir kayıt var. Cloudflare > $ZONE > DNS > Records'ta bu adların A/AAAA/CNAME kayıtlarını silip iş akışını yeniden çalıştırın (docs/15 §13)."
+                echo "::error::Özel alan adı eklenemedi: $ZONE ya da www.$ZONE için DNS'te çakışan bir kayıt var. Cloudflare > $ZONE > DNS > Records'ta bu adların A/AAAA/CNAME kayıtlarını silip iş akışını yeniden çalıştırın (docs/15 §13). Canlı ortam (Türkiye VPS) varsa VPS_HOST secret'ı eklenmiş olmalı: bu iş akışı o zaman alan adına dokunmaz."
               elif printf '%s' "$err" | grep -qiE 'authentication error|code: 10000|not authorized|unauthorized|forbidden|permission'; then
                 echo "::error::Özel alan adı eklenemedi (token izni). Cloudflare > My Profile > API Tokens > token'ı düzenleyin ve $ZONE bölgesi için şu izinleri ekleyin: Zone > Workers Routes > Edit ve Zone > Zone > Read (Zone Resources: Include > Specific zone > $ZONE). Sonra iş akışını yeniden çalıştırın (docs/15 §13)."
               else
@@ -218,9 +275,12 @@ jobs:
         run: |
           code_of() { curl -s -o /dev/null -w '%{http_code}' --max-time "${2:-60}" "${@:3}" "$1" || true; }
           fail() { echo "::error::$1"; exit 1; }
+          # Staging'de tüm site parolalıdır (sağlık uçları hariç)
+          AUTH=()
+          [ "$MODE" = "staging" ] && AUTH=(-u "dev:$DEV_PASSWORD")
 
-          # Özel alan adı: DNS kaydı ve sertifika ilk dağıtımda birkaç dakika sürer; container ilk açılışta seed ile kurulur
-          # Süreyle sınırlı (15 dk): container açılamazsa her istek ~150 sn bekleyip 503 döner; deneme sayısı değil süre esas
+          # İlk dağıtımda özel alan adının DNS kaydı ve sertifikası birkaç dakika sürer; container ilk açılışta seed ile
+          # kurulur. Süreyle sınırlı (15 dk): container açılamazsa her istek ~150 sn bekleyip 503 döner.
           code=000; i=0
           deadline=$((SECONDS + 900))
           while [ "$SECONDS" -lt "$deadline" ]; do
@@ -234,16 +294,57 @@ jobs:
           done
           [ "$code" = "200" ] || fail "$SITE_URL/api/v1/health 200 dönmedi (son: $code). Özel alan adı, sertifika ya da container hazır değil (docs/15 §13 Sorun giderme)."
 
-          # Herkese açık sayfalar parolasız 200
-          for path in / /s/bozok-pide /s/camlik-doner /panel/giris /admin/giris /yasal/gizlilik /api/v1/health/worker; do
+          if [ "$MODE" = "staging" ]; then
+            # Gizli: parolasız 401 (sağlık uçları açık), parolayla demo verili site
+            for path in / /panel/giris /s/bozok-pide; do
+              code=$(code_of "$SITE_URL$path" 60)
+              [ "$code" = "401" ] || fail "Staging $path parolasız 401 dönmedi ($code)"
+            done
+            code=$(code_of "$SITE_URL/api/v1/health/worker" 60)
+            [ "$code" = "200" ] || fail "Staging /api/v1/health/worker parolasız 200 dönmedi ($code)"
+            for path in / /s/bozok-pide /s/camlik-doner /panel/giris /admin/giris /yasal/gizlilik /dev/whatsapp /api/v1/dev/wa/accounts; do
+              code=$(code_of "$SITE_URL$path" 60 "${AUTH[@]}")
+              echo "$path → HTTP $code (parolayla)"
+              [ "$code" = "200" ] || fail "Staging $path parolayla 200 dönmedi ($code)"
+            done
+            for path in / /s/bozok-pide; do
+              curl -s --max-time 60 "${AUTH[@]}" "$SITE_URL$path" | grep -q 'Demo ortam' || fail "Staging $path sayfasında \"Demo ortamı\" uyarısı yok"
+            done
+            curl -s -D - -o /dev/null --max-time 60 "$SITE_URL/api/v1/health" | grep -qi '^x-robots-tag: noindex' || fail "Staging arama motorlarına kapalı değil (x-robots-tag yok)"
+            {
+              echo "### Gizli staging hazır (Cloudflare, workers.dev)"
+              echo ""
+              echo "- Adres: $SITE_URL — tüm site parolalı (kullanıcı adı \`dev\`, parola \`DEV_PASSWORD\`), arama motorlarına kapalı; yalnız sağlık uçları açık."
+              echo "- Demo verisi: $SITE_URL/s/bozok-pide (#BOZOK), $SITE_URL/s/camlik-doner (#DONER); panel demo@yemekgelsin.net, admin admin@yemekgelsin.net (parola: DEV_PASSWORD)."
+              echo "- WhatsApp simülatörü: $SITE_URL/dev/whatsapp (canlı numara kullanılmaz). Gerçek kullanıcılar: https://$ZONE (Türkiye VPS)."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # --- Alan adı kipi (VPS yokken): herkese açık, demo verisi yok ---
+          for path in / /panel/giris /admin/giris /panel/kayit /demo /yasal/gizlilik /api/v1/health/worker; do
             code=$(code_of "$SITE_URL$path" 60)
             echo "$path → HTTP $code (parolasız)"
             [ "$code" = "200" ] || fail "$path parolasız 200 dönmedi ($code)"
           done
-          # Demo uyarısı (NEXT_PUBLIC_DEPLOY_ENV=dev derlemesi) ana sayfada ve vitrinde görünür
-          for path in / /s/bozok-pide; do
-            curl -s --max-time 60 "$SITE_URL$path" | grep -q 'Demo ortam' || fail "$path sayfasında \"Demo ortamı\" uyarısı yok"
+          # Demo verisi yok: demo vitrinleri 404, "Demo ortamı" uyarısı ve demo vitrin bağlantısı yok
+          for path in /s/bozok-pide /s/camlik-doner; do
+            code=$(code_of "$SITE_URL$path" 60)
+            [ "$code" = "404" ] || fail "$path 404 dönmeli (demo verisi olmamalı; $code)"
           done
+          page=$(curl -s --max-time 60 "$SITE_URL/" || true)
+          if grep -q 'Demo ortam' <<< "$page"; then fail "Ana sayfada \"Demo ortamı\" uyarısı var (NEXT_PUBLIC_DEMO_BANNER kapalı olmalı)"; fi
+          page=$(curl -s --max-time 60 "$SITE_URL/demo" || true)
+          if grep -q 'Demo menüyü aç' <<< "$page"; then fail "/demo sayfası demo vitrin bağlantısı gösteriyor (demo işletme yok)"; fi
+          # Lead formu kapalı (kişisel veri Türkiye dışında saklanmaz): sayfa bilgi kartını gösterir, API lead almaz (403)
+          grep -q 'sunucumuzda açılıyor' <<< "$page" || fail "/demo lead formu yerine \"Başvurular Türkiye'deki sunucumuzda açılıyor\" bilgisini göstermiyor (NEXT_PUBLIC_LEAD_FORM=0 olmalı)"
+          if grep -q 'name="businessName"' <<< "$page"; then fail "/demo lead formunu gösteriyor (bu ortamda kişisel veri toplanmamalı)"; fi
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 -X POST -H 'content-type: application/json' --data '{"name":"Duman Testi","businessName":"Duman","phone":"05000000000","city":"Yozgat","source":"demo_form"}' "$SITE_URL/api/v1/public/leads" || true)
+          [ "$code" = "403" ] || fail "POST /api/v1/public/leads 403 (leads_closed) dönmedi ($code): bu ortamda lead saklanmamalı (PUBLIC_LEADS_ENABLED=0)"
+          echo "/demo: lead formu kapalı, API 403 leads_closed"
+          # Yeni işletme kaydı kapalı (veriler Türkiye dışında): kayıt sayfası "çok yakında" der
+          page=$(curl -s --max-time 60 "$SITE_URL/panel/kayit" || true)
+          grep -q 'Kayıtlar çok yakında açılıyor' <<< "$page" || fail "/panel/kayit \"Kayıtlar çok yakında açılıyor\" bilgisini göstermiyor (signup_open kapalı olmalı)"
 
           # Geliştirici araçları: parolasız 401, parolayla 200
           code=$(code_of "$SITE_URL/dev/whatsapp" 60)
@@ -296,15 +397,15 @@ jobs:
           fi
 
           {
-            echo "### Dev ortamı hazır"
+            echo "### Cloudflare ortamı hazır (alan adı kipi; Türkiye VPS'i henüz yok)"
             echo ""
-            echo "- Adres: $SITE_URL (herkese açık; arama motorlarına kapalı)"
-            echo "- Demo işletmeler: $SITE_URL/s/bozok-pide (#BOZOK), $SITE_URL/s/camlik-doner (#DONER)"
-            echo "- Panel: $SITE_URL/panel/giris (demo@yemekgelsin.net, parola: DEV_PASSWORD) · Admin: $SITE_URL/admin/giris (admin@yemekgelsin.net)"
+            echo "- Adres: $SITE_URL (herkese açık; arama motorlarına kapalı). Demo verisi yok: veritabanı yalnız platform yöneticisiyle başlar."
+            echo "- Admin: $SITE_URL/admin/giris — admin@yemekgelsin.net, parola: DEV_PASSWORD. İki adımlı doğrulamayı /admin/guvenlik'ten açmanız önerilir."
+            echo "- Yeni işletme kaydı ve /demo lead formu kapalı (veriler Türkiye dışında; kişisel veri toplanmaz): $SITE_URL/panel/kayit \"Kayıtlar çok yakında açılıyor\" der, \"Bize ulaşın\" $SITE_URL/demo'ya gider; orada SUPPORT_WHATSAPP secret'ı varsa destek hattının WhatsApp bağlantısı görünür. Kayıt ve form Türkiye VPS'inde açılır (docs/15 §14)."
             if [ "$WA_MODE" = "cloud" ]; then
-              echo "- WhatsApp: gerçek numara (Meta Cloud API), simülatör kapalı. Kurulum adımları: $SITE_URL/admin/whatsapp > WhatsApp kurulumu (docs/15 §6.2a). Yalnız kendi telefonlarınızla deneyin (veriler Türkiye dışında)"
+              echo "- WhatsApp: gerçek numara (Meta Cloud API), simülatör kapalı. Kurulum: $SITE_URL/admin/whatsapp > WhatsApp kurulumu (docs/15 §6.2a). Yalnız kendi telefonlarınızla deneyin (veriler Türkiye dışında)."
             else
-              echo "- WhatsApp simülatörü (ortak numara): $SITE_URL/dev/whatsapp (kullanıcı adı: dev, parola: DEV_PASSWORD)"
+              echo "- WhatsApp: simülatör (mock); işletme olmadığı için mesaj akışı yok. Simülatör: $SITE_URL/dev/whatsapp (kullanıcı adı: dev, parola: DEV_PASSWORD)"
             fi
-            echo "- Yeni işletme kaydı demo ortamında kapalı başlar; açmak için $SITE_URL/admin/bayraklar (docs/15 §13)"
+            echo "- Canlı ortam: Türkiye VPS'i alınıp VPS_HOST/VPS_PASSWORD secret'ları eklenince 'Canlı ortam (Türkiye VPS)' iş akışı alan adını VPS'e taşır; bu iş akışı o zaman gizli staging olur (docs/15 §14)."
           } >> "$GITHUB_STEP_SUMMARY"

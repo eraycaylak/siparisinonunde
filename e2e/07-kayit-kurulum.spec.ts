@@ -3,6 +3,7 @@
 
 import { expect, test } from './support/test';
 import { uniquePhone } from './support/api';
+import { setFeatureFlag } from './support/db';
 import { labelRe, orderCard, skipShiftStart } from './support/ui';
 
 test('Kayıt, kurulum sihirbazı, test siparişi ve canlı ekranda onay', async ({ page }) => {
@@ -66,4 +67,18 @@ test('Kayıt, kurulum sihirbazı, test siparişi ve canlı ekranda onay', async 
   // Sihirbaz test siparişini tamamlanmış sayar
   await page.goto('/panel/kurulum');
   await expect(page.getByRole('navigation', { name: 'Kurulum adımları' }).getByRole('button', { name: /Test siparişi.*\(tamamlandı\)/ })).toBeVisible();
+});
+
+test('Kayıt kapalıyken (signup_open) kayıt sayfası "çok yakında" bilgisini ve iletişim formunu gösterir', async ({ page }) => {
+  await setFeatureFlag('signup_open', false);
+  try {
+    await page.goto('/panel/kayit');
+    await expect(page.getByRole('heading', { name: 'Kayıtlar çok yakında açılıyor', level: 1 })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Bize ulaşın' })).toHaveAttribute('href', '/demo');
+    await expect(page.getByRole('button', { name: 'Hesabımı aç' })).toHaveCount(0);
+  } finally {
+    await setFeatureFlag('signup_open', true);
+  }
+  await page.goto('/panel/kayit');
+  await expect(page.getByRole('heading', { name: 'İşletme hesabını aç', level: 1 })).toBeVisible();
 });

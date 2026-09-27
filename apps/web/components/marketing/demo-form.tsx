@@ -147,6 +147,11 @@ export function DemoForm() {
       const fe = fieldErrorsOf(err) as Errors;
       if (Object.keys(fe).length > 0) setErrors(fe);
       const unavailable = !isApiError(err) || err.status === 0 || err.status === 404 || err.status >= 500;
+      // Form bu ortamda kapalı (Türkiye dışı ortam; bilgiler kaydedilmedi): API iletisi olduğu gibi
+      if (isApiError(err) && err.code === 'leads_closed') {
+        setSubmitError(errorMessage(err, 'Başvuru formu bu ortamda kapalı.'));
+        return;
+      }
       setSubmitError(
         unavailable
           ? 'Talebin şu an gönderilemedi. Bilgilerin bu sayfada duruyor; biraz sonra tekrar deneyebilirsin.'

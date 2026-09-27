@@ -55,6 +55,21 @@ describe('POST /public/leads', () => {
     expect(row!.calculatorInput).toEqual(calc);
   });
 
+  it('PUBLIC_LEADS_ENABLED=0 (Türkiye dışı ortam): 403 leads_closed, hiçbir şey saklanmaz; varsayılan açık', async () => {
+    expect(ctx.config.PUBLIC_LEADS_ENABLED).toBe(true);
+    const before = (await ctx.db.select().from(leads)).length;
+    ctx.config.PUBLIC_LEADS_ENABLED = false;
+    try {
+      const res = await send(demoForm({ phone: '05324440000' }));
+      expectError(res, 403, 'leads_closed');
+      // Bal küpü dolu olsa bile sessiz 204 değil, aynı ret
+      expectError(await send({ ...demoForm({ phone: '05324440001' }), website: 'x' }), 403, 'leads_closed');
+    } finally {
+      ctx.config.PUBLIC_LEADS_ENABLED = true;
+    }
+    expect((await ctx.db.select().from(leads)).length).toBe(before);
+  });
+
   it('bal küpü doluysa 204 ve kayıt yok (geçersiz alanlarla bile)', async () => {
     const before = (await ctx.db.select().from(leads)).length;
     const res = await send({ ...demoForm({ phone: '05329990000' }), website: 'http://spam.example' });

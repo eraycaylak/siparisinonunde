@@ -2,7 +2,17 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
-import { isNavigation, isProtectedPath, normalizeEpoch, normalizePathForAuth, parseBackupPath, redirectFor } from '../src/access.ts';
+import {
+  isHealthPath,
+  isNavigation,
+  isProtectedPath,
+  normalizeDeployMode,
+  normalizeEpoch,
+  normalizePathForAuth,
+  parseBackupPath,
+  redirectFor,
+  requiresAuth,
+} from '../src/access.ts';
 import { stripJsonc } from './jsonc.mjs';
 
 const SITE = 'https://yemekgelsin.net';
@@ -78,9 +88,32 @@ test('yedek yolu: dönem container\'ın yolundan okunur, dönemsiz yol eski öne
   }
 });
 
-test('wrangler.jsonc: DATA_EPOCH geçerli, özel alan adları ve workers.dev yedeği tanımlı', () => {
+test('gizli staging (DEPLOY_MODE=staging): sağlık uçları dışında her yol parolalı; alan adı kipinde yalnız geliştirici araçları', () => {
+  assert.equal(normalizeDeployMode('staging'), 'staging');
+  assert.equal(normalizeDeployMode(undefined), 'domain');
+  assert.equal(normalizeDeployMode('x'), 'domain');
+  for (const p of ['/api/v1/health', '/api/v1/health/', '/api/v1/health/worker', '/API/v1/Health']) assert.equal(isHealthPath(p), true, p);
+  for (const p of ['/api/v1/healthx', '/api/v1/health/worker/x', '/', '/health']) assert.equal(isHealthPath(p), false, p);
+  for (const p of ['/', '/s/bozok-pide', '/panel/giris', '/api/v1/auth/login', '/api/v1/webhooks/wa/x', '/dev/whatsapp', '/_next/static/a.js']) {
+    assert.equal(requiresAuth(p, 'staging'), true, p);
+  }
+  assert.equal(requiresAuth('/api/v1/health', 'staging'), false);
+  assert.equal(requiresAuth('/api/v1/%68ealth', 'staging'), false);
+  assert.equal(requiresAuth('/', 'domain'), false);
+  assert.equal(requiresAuth('/panel/giris', 'domain'), false);
+  assert.equal(requiresAuth('/dev/whatsapp', 'domain'), true);
+  assert.equal(requiresAuth('/api/v1/dev/wa/accounts', 'domain'), true);
+});
+
+test('wrangler.jsonc: alan adı kipi (demo verisi yok), DATA_EPOCH geçerli, özel alan adları ve workers.dev yedeği tanımlı', () => {
   const config = JSON.parse(stripJsonc(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8')));
   assert.match(String(config.vars.DATA_EPOCH), /^[0-9]{1,6}$/);
+  assert.match(String(config.vars.STAGING_DATA_EPOCH), /^[0-9]{1,6}$/);
+  assert.notEqual(config.vars.STAGING_DATA_EPOCH, config.vars.DATA_EPOCH);
+  assert.equal(config.vars.DEPLOY_MODE, 'domain');
+  assert.equal(config.vars.SEED_MODE, 'admin');
+  assert.equal(config.containers[0].image_vars.NEXT_PUBLIC_DEMO_BANNER, '0');
+  assert.equal(config.containers[0].image_vars.NEXT_PUBLIC_DEMO_STORE_SLUG, '');
   assert.equal(config.workers_dev, true);
   const host = new URL(config.vars.APP_BASE_URL).hostname;
   const patterns = config.routes.filter((r) => r.custom_domain).map((r) => r.pattern);

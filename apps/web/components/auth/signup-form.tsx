@@ -14,6 +14,7 @@ import { useSignup } from '@/lib/auth';
 import { PLAN_CODE_LABELS } from '@/lib/labels';
 import { PILOT_AREA } from '@/lib/site';
 import { TRIAL_DAYS } from '@/lib/plans';
+import { SIGNUP_SOON } from '@/lib/signup-status';
 import { PasswordInput } from './password-input';
 
 interface Values {
@@ -99,7 +100,7 @@ export function SignupForm() {
           return;
         }
         if (err.code === 'signup_closed') {
-          setFormError('Yeni kayıtlar geçici olarak kapalı. Demo formundan bize ulaşın; sizi arayalım.');
+          setFormError(`${SIGNUP_SOON.title}. İletişim sayfasından (${SIGNUP_SOON.href}) bize ulaşın.`);
           return;
         }
         const fe = fieldErrorsOf(err) as Errors;

@@ -1,9 +1,15 @@
-// Geliştirme verisi (14 §4 Seed): platform admini, demo işletme "Bozok Pide Salonu" (Yozgat Merkez),
-// menü, saatler, bölgeler, WhatsApp hesabı, personel, kill-switch'ler ve birkaç geçmiş sipariş; ikinci demo işletme
-// "Çamlık Döner" (Yozgat Merkez, küçük menü, yalnız sahip hesabı). İkisi de ortak numarada (00 §12a madde 8):
-// Bozok #BOZOK, Çamlık Döner #DONER; ortak numara geliştirmede +90 555 000 00 00 (mock). Her işletme ayrı ayrı
-// eklenir (var olan atlanır). Parolalar yalnız geliştirme içindir: SEED_PASSWORD tanımlıysa tüm demo hesapları onu
-// kullanır (Cloudflare dev ortamında DEV_PASSWORD; 00 §12a madde 9), değilse aşağıdaki yerel parolalar (admin1234 …).
+// Geliştirme verisi (14 §4 Seed). İki kip (SEED_MODE; 00 §12a madde 10):
+//   demo  (varsayılan; yerel geliştirme, testler, Cloudflare staging): platform admini, demo işletme "Bozok Pide Salonu"
+//         (Yozgat Merkez), menü, saatler, bölgeler, WhatsApp hesabı, personel, kill-switch'ler ve birkaç geçmiş sipariş;
+//         ikinci demo işletme "Çamlık Döner" (Yozgat Merkez, küçük menü, yalnız sahip hesabı). İkisi de ortak numarada
+//         (00 §12a madde 8): Bozok #BOZOK, Çamlık Döner #DONER; ortak numara geliştirmede +90 555 000 00 00 (mock). Her
+//         işletme ayrı ayrı eklenir (var olan atlanır).
+//   admin (Cloudflare ortamı, Türkiye VPS'i hazır olana kadar): YALNIZ platform yöneticisi (admin@yemekgelsin.net,
+//         parola SEED_PASSWORD — zorunlu) ve bayraklar (üretim varsayılanları, bootstrap.ts). Demo işletme, demo hesap,
+//         örnek sipariş yok.
+// Türkiye VPS'inde (canlı ortam) seed HİÇ çalışmaz: scripts/bootstrap-production.ts + scripts/create-admin.ts.
+// Parolalar: SEED_PASSWORD tanımlıysa tüm seed hesapları onu kullanır (Cloudflare'de DEV_PASSWORD; 00 §12a madde 9),
+// değilse aşağıdaki yerel geliştirme parolaları (admin1234 …; yalnız demo kipinde).
 
 import {
   KILL_SWITCHES,
@@ -28,6 +34,7 @@ import {
 } from '@siparis/core';
 import { and, eq, inArray } from 'drizzle-orm';
 import { pathToFileURL } from 'node:url';
+import { FLAG_DESCRIPTIONS, countDemoTenants, ensureProductionFlags, isSmsConfigured, type FlagOutcome } from './bootstrap';
 import { createDb, type Database } from './client';
 import { nextOrderNumber } from './helpers';
 import {
@@ -162,13 +169,6 @@ async function syncDemoPasswords(tx: Database, password: string, log: Log): Prom
 }
 
 async function ensureFeatureFlags(tx: Database, opts: SeedOptions) {
-  const descriptions: Record<string, string> = {
-    signup_open: 'Yeni işletme kaydı',
-    wa_onboarding: 'WhatsApp bağlama akışı',
-    campaigns_global: 'Kampanya modülü (Faz 2)',
-    llm_parsing: 'Yapay zeka ile serbest metin siparişi (Faz 2)',
-    sms_fallback: 'SMS yedeği (OTP ve kritik durum SMS)',
-  };
   for (const key of KILL_SWITCHES) {
     await tx
       .insert(featureFlags)
@@ -177,13 +177,13 @@ async function ensureFeatureFlags(tx: Database, opts: SeedOptions) {
         // Herkese açık demo dağıtımında yeni kayıt kapalı başlar (SeedOptions.demoDeployment)
         enabled: !(opts.demoDeployment && key === 'signup_open'),
         kind: 'kill_switch',
-        description: descriptions[key] ?? null,
+        description: FLAG_DESCRIPTIONS[key] ?? null,
       })
       .onConflictDoNothing();
   }
   await tx
     .insert(featureFlags)
-    .values({ key: 'platform_wa_alerts', enabled: true, kind: 'ops', description: 'Platform WhatsApp uyarı şablonları' })
+    .values({ key: 'platform_wa_alerts', enabled: true, kind: 'ops', description: FLAG_DESCRIPTIONS.platform_wa_alerts ?? null })
     .onConflictDoNothing();
 }
 
@@ -889,19 +889,134 @@ export async function seedDemo(db: Database, opts: SeedOptions = {}): Promise<Se
   });
 }
 
+// --- Kipler (SEED_MODE; 00 §12a madde 10) ---------------------------------------------------------------
+
+export const SEED_MODES = ['demo', 'admin'] as const;
+export type SeedMode = (typeof SEED_MODES)[number];
+
+/** SEED_MODE değeri: boş/tanımsız → demo (yerel geliştirme); demo | admin; başka değer seed'i durdurur. */
+export function resolveSeedMode(raw: string | null | undefined): SeedMode {
+  const v = (raw ?? '').trim().toLowerCase();
+  if (v === '') return 'demo';
+  if ((SEED_MODES as readonly string[]).includes(v)) return v as SeedMode;
+  throw new Error(`SEED_MODE geçersiz: "${raw}" (demo | admin).`);
+}
+
+/**
+ * Canlı ortamda (NODE_ENV=production, DEPLOY_ENV=production: Türkiye VPS'i) demo seed çalışmaz: demo işletmeler ve
+ * parolası bilinen hesaplar gerçek veriye karışmasın (00 §12a madde 10). Cloudflare ortamı DEPLOY_ENV=dev'dir.
+ */
+export function assertSeedAllowed(mode: SeedMode, env: Record<string, string | undefined>): void {
+  if (mode === 'demo' && env.NODE_ENV === 'production' && (env.DEPLOY_ENV ?? 'production') === 'production') {
+    throw new Error(
+      'Canlı ortamda demo seed çalıştırılmaz (00 §12a madde 10). Bayraklar: scripts/bootstrap-production.ts, ilk yönetici: scripts/create-admin.ts (15 §5).',
+    );
+  }
+}
+
+export interface AdminSeedOptions {
+  /** Platform yöneticisinin parolası (SEED_PASSWORD): zorunlu, en az 8 karakter */
+  password: string | null | undefined;
+  /** Cloudflare ortamı (DEPLOY_ENV=dev; veriler Türkiye dışında): yeni işletme kaydı kapalı başlar */
+  demoDeployment?: boolean;
+  /** Netgsm tanımlı mı (sms_fallback üretim varsayılanı; bootstrap.ts) */
+  smsConfigured?: boolean;
+  log?: Log;
+}
+
+export interface AdminSeedResult {
+  adminUserId: string;
+  /** Yönetici bu çalıştırmada oluşturuldu mu */
+  created: boolean;
+  /** Var olan yöneticinin parolası SEED_PASSWORD'e eşitlendi mi (yalnız farklıysa) */
+  passwordSynced: boolean;
+  flags: FlagOutcome[];
+  /** Veritabanındaki demo işletme sayısı: admin kipi demo verisi eklemez ve silmez; 0 değilse uyarır */
+  demoTenants: number;
+}
+
+/**
+ * SEED_MODE=admin: yalnız platform yöneticisi (admin@yemekgelsin.net, parola SEED_PASSWORD) ve bayraklar (üretim
+ * varsayılanları; Cloudflare'de signup_open kapalı). Idempotent: var olan yöneticinin parolası SEED_PASSWORD değiştiyse
+ * eşitlenir; iki adımlı doğrulamasına dokunulmaz. Aynı e-posta platform yöneticisi olmayan bir hesaptaysa yetki
+ * verilmez, seed durur.
+ */
+export async function seedAdminOnly(db: Database, opts: AdminSeedOptions): Promise<AdminSeedResult> {
+  const password = resolveSeedPassword(opts.password);
+  if (!password) {
+    throw new Error('SEED_MODE=admin için SEED_PASSWORD zorunlu (en az 8 karakter): herkese açık sitede bilinen yerel parola kullanılmaz.');
+  }
+  const log: Log = opts.log ?? (() => {});
+  return db.transaction(async (tx) => {
+    const flags = await ensureProductionFlags(tx, { smsConfigured: opts.smsConfigured ?? false, signupOpen: !opts.demoDeployment });
+    const [existing] = await tx
+      .select({ id: users.id, isPlatformAdmin: users.isPlatformAdmin, passwordHash: users.passwordHash })
+      .from(users)
+      .where(eq(users.email, DEMO.admin.email));
+    let adminUserId: string;
+    let created = false;
+    let passwordSynced = false;
+    if (existing) {
+      if (!existing.isPlatformAdmin) {
+        throw new Error(`${DEMO.admin.email} platform yöneticisi olmayan bir hesaba ait; yetki verilmedi. Hesabı elle inceleyin.`);
+      }
+      adminUserId = existing.id;
+      if (!(await seedPasswordMatches(password, existing.passwordHash))) {
+        await tx.update(users).set({ passwordHash: await hashPasswordForSeed(password) }).where(eq(users.id, existing.id));
+        passwordSynced = true;
+        log('Platform yöneticisinin parolası SEED_PASSWORD ile eşitlendi.');
+      }
+    } else {
+      const [row] = await tx
+        .insert(users)
+        .values({
+          email: DEMO.admin.email,
+          name: DEMO.admin.name,
+          passwordHash: await hashPasswordForSeed(password),
+          isPlatformAdmin: true,
+          platformRole: 'platform_owner',
+        })
+        .returning({ id: users.id });
+      adminUserId = row!.id;
+      created = true;
+      log(`Platform yöneticisi oluşturuldu: ${DEMO.admin.email}.`);
+    }
+    const demoTenants = await countDemoTenants(tx);
+    if (demoTenants > 0) log(`UYARI: veritabanında ${demoTenants} demo işletme var; admin kipi demo verisi eklemez ve silmez.`);
+    return { adminUserId, created, passwordSynced, flags, demoTenants };
+  });
+}
+
 async function main() {
   const url = process.env.DATABASE_URL;
   if (!url) {
     console.error('DATABASE_URL tanımlı değil (.env).');
     process.exit(1);
   }
-  // Ortak demo parolası (Cloudflare dev: DEV_PASSWORD). Tanımlıysa loga yazılmaz.
+  const mode = resolveSeedMode(process.env.SEED_MODE);
+  assertSeedAllowed(mode, process.env);
+  // Ortak parola (Cloudflare: DEV_PASSWORD). Tanımlıysa loga yazılmaz.
   const password = resolveSeedPassword(process.env.SEED_PASSWORD);
   const shown = (local: string) => (password ? 'SEED_PASSWORD' : local);
-  // Cloudflare demo dağıtımı (15 §13): yeni işletme kaydı kapalı başlar
+  // Cloudflare ortamı (15 §13): yeni işletme kaydı kapalı başlar
   const demoDeployment = process.env.DEPLOY_ENV === 'dev';
   const handle = createDb(url, { max: 2 });
   try {
+    if (mode === 'admin') {
+      const res = await seedAdminOnly(handle.db, {
+        password,
+        demoDeployment,
+        smsConfigured: isSmsConfigured(process.env),
+        log: (m) => console.log(m),
+      });
+      console.log('Admin kipi (SEED_MODE=admin): yalnız platform yöneticisi ve bayraklar; demo işletme ve demo hesap yok.');
+      console.log(`  Platform yöneticisi: ${DEMO.admin.email} / SEED_PASSWORD (${res.created ? 'oluşturuldu' : 'zaten vardı'})`);
+      for (const f of res.flags) {
+        const note = f.action === 'created' ? 'yeni' : f.action === 'updated' ? 'SMS yapılandırmasına göre güncellendi' : 'dokunulmadı';
+        console.log(`  ${f.key.padEnd(18)} ${f.enabled ? 'açık' : 'kapalı'} (${note})`);
+      }
+      return;
+    }
     const res = await seedDemo(handle.db, { log: (m) => console.log(m), password, demoDeployment });
     if (demoDeployment) console.log('Demo dağıtımı: yeni işletme kaydı (signup_open) ilk kurulumda kapalı.');
     if (!res.skipped) {

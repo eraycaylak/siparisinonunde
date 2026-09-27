@@ -27,6 +27,7 @@ export const ERROR_CODES = [
   'email_taken',
   'phone_taken',
   'signup_closed',
+  'leads_closed',
   'invalid_link',
   'payload_too_large',
   'unsupported_media_type',

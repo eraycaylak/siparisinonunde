@@ -34,7 +34,10 @@ FROM deps AS build
 ARG NEXT_PUBLIC_SITE_URL=https://yemekgelsin.net
 ARG NEXT_PUBLIC_ROOT_DOMAIN=yemekgelsin.net
 ARG NEXT_PUBLIC_DEV_TOOLS=0
-ARG NEXT_PUBLIC_DEMO_STORE_SLUG=bozok-pide
+# Canlı ortamda demo işletme yok (00 §12a madde 10): boş → pazarlama sitesinde "Demo menüyü aç" kartı gösterilmez
+ARG NEXT_PUBLIC_DEMO_STORE_SLUG=
+# "Demo ortamı" uyarısı yalnız demo verili ortamlarda (1); varsayılan kapalı
+ARG NEXT_PUBLIC_DEMO_BANNER=0
 # Platform destek hattı (WhatsApp, E.164 rakamları); giriş ekranı "Parolamı unuttum" bunu gösterir
 ARG NEXT_PUBLIC_SUPPORT_WHATSAPP=
 # Web sunucusunun API'ye iç ağdan eriştiği adres (compose servis adı)
@@ -43,6 +46,7 @@ ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
     NEXT_PUBLIC_ROOT_DOMAIN=$NEXT_PUBLIC_ROOT_DOMAIN \
     NEXT_PUBLIC_DEV_TOOLS=$NEXT_PUBLIC_DEV_TOOLS \
     NEXT_PUBLIC_DEMO_STORE_SLUG=$NEXT_PUBLIC_DEMO_STORE_SLUG \
+    NEXT_PUBLIC_DEMO_BANNER=$NEXT_PUBLIC_DEMO_BANNER \
     NEXT_PUBLIC_SUPPORT_WHATSAPP=$NEXT_PUBLIC_SUPPORT_WHATSAPP \
     API_INTERNAL_URL=$API_INTERNAL_URL \
     APP_BASE_URL=$NEXT_PUBLIC_SITE_URL \

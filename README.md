@@ -11,7 +11,7 @@
 
 Marka ve alan adı kararı: [00 §12a madde 9](docs/00-kararlar-ve-sozluk.md). Depo, paket (`@siparis/*`) ve veritabanı adlarındaki `siparisinonunde` / `siparis` iç çalışma adıdır ve değişmez.
 
-**Canlı demo:** https://yemekgelsin.net (Cloudflare dev ortamı; tüm sağlayıcılar taklit, gerçek mesaj gitmez, gerçek veri girilmez). Demo hesapları aşağıdaki tablodaki e-postalardır, parolası `DEV_PASSWORD`'dür; WhatsApp simülatörü `/dev/whatsapp` (kullanıcı adı `dev`, parola `DEV_PASSWORD`). Ayrıntı: [15 §13](docs/15-kurulum-ve-isletim.md).
+**Canlı ortam:** https://yemekgelsin.net, Türkiye'deki VPS'te gerçek verilerle çalışır; demo verisi yoktur ([00 §12a madde 10](docs/00-kararlar-ve-sozluk.md)). Kurulum ve her güncelleme GitHub Actions ile yapılır ("Canlı ortam (Türkiye VPS)", [15 §14](docs/15-kurulum-ve-isletim.md)); Cloudflare yalnız DNS ve proxy'dir. VPS alınana kadar alan adı Cloudflare ortamında durur: demo işletme ve demo hesap yoktur, yeni işletme kaydı ve `/demo` başvuru formu kapalıdır ("Kayıtlar çok yakında açılıyor"; kişisel veri toplanmaz), çünkü veriler Türkiye dışındadır ([15 §13](docs/15-kurulum-ve-isletim.md)). VPS'e geçince Cloudflare ortamı yalnız workers.dev'de, parolalı bir gizli staging olur.
 
 > **Durum:** Faz 1 çalışır durumda: pazarlama sitesi, işletme vitrini ve sipariş akışları (A, B, E), işletme paneli, admin paneli, kurye ekranı, WhatsApp (ortak numara ya da işletmenin kendi numarası; 360dialog / Cloud API / geliştirme simülatörü), SMS yedeği, Docker ile kurulum. Canlıya çıkıştan önce kalanlar: [15 §12 kontrol listesi](docs/15-kurulum-ve-isletim.md) ve hukuki metinlerin incelemesi. Pilot: Yozgat / Merkez.
 
@@ -102,7 +102,7 @@ Gereksinimler: Node.js 22+, pnpm 10 (`corepack enable`), PostgreSQL 16+.
    ```
 4. **Çalıştırma:** `pnpm dev` → API `http://localhost:4000` (+ worker), web `http://localhost:3000`.
 
-Demo hesapları (seed, yalnız geliştirme ve dev ortamı):
+Demo hesapları (seed `SEED_MODE=demo`; yalnız yerel geliştirme, testler ve gizli staging — canlı ortamda ve alan adındaki Cloudflare ortamında yoktur):
 
 | Rol | Giriş | Parola (yerel) | Adres |
 |---|---|---|---|
@@ -114,7 +114,7 @@ Demo hesapları (seed, yalnız geliştirme ve dev ortamı):
 | Kurye | `kurye@yemekgelsin.net` | `kurye1234` | panel > Kuryeler > giriş bağlantısı |
 | İşletme sahibi (Çamlık Döner) | `doner@yemekgelsin.net` | `doner1234` | `/panel/giris` |
 
-`SEED_PASSWORD` (en az 8 karakter) tanımlıysa seed **tüm** demo hesaplarına bu parolayı verir ve var olan demo hesaplarının parolasını da buna eşitler; tanımlı değilse tablodaki yerel parolalar geçerlidir. Cloudflare dev ortamında (https://yemekgelsin.net) `SEED_PASSWORD = DEV_PASSWORD`'dür; orada sayfaların üstünde "Demo ortamı" uyarısı görünür ve yeni işletme kaydı kapalı başlar (`/admin/bayraklar`, 15 §13). Bu adresler yalnız demo içindir; gerçek yöneticiler başka adres kullanır (ör. `yonetici@yemekgelsin.net`, 15 §5).
+`SEED_PASSWORD` (en az 8 karakter) tanımlıysa seed **tüm** demo hesaplarına bu parolayı verir ve var olan demo hesaplarının parolasını da buna eşitler; tanımlı değilse tablodaki yerel parolalar geçerlidir. `SEED_MODE=admin` yalnız platform yöneticisini (`admin@yemekgelsin.net`, parola `SEED_PASSWORD` — zorunlu) ve bayrakları kurar; Cloudflare ortamı VPS öncesinde bu kiple çalışır (`SEED_PASSWORD = DEV_PASSWORD`). Canlı ortamda seed hiç çalışmaz (kod da reddeder): `admin@yemekgelsin.net` orada gerçek yöneticidir ve `ADMIN_PASSWORD` ile açılır (15 §14).
 
 Yukarıdaki işletme hesapları Bozok Pide Salonu'na aittir; Çamlık Döner ikinci demo işletmedir (aynı ortak numarada, kodu `DONER`). Seed işletme başına tekrar çalıştırılabilir: var olan işletme atlanır, eksik olan eklenir.
 
@@ -129,10 +129,11 @@ pnpm typecheck                     # tüm paketler
 pnpm test                          # Vitest: core birim + API entegrasyon (gerçek PostgreSQL, TEST_DATABASE_URL=siparis_test)
 pnpm --filter @siparis/web test    # web birim testleri
 pnpm e2e                           # Playwright uçtan uca senaryolar (e2e/)
+pnpm test:vps                      # canlı ortam betikleri: .env birleştirme ve Cloudflare DNS geçişi (node:test, sahte API sunucusu)
 ```
 
 `pnpm e2e` kendi ortamını kurar: API + worker `:4200`, web `next dev :3200` (`NEXT_DIST_DIR=.next-e2e`), veritabanı `siparis_e2e_test` (yoksa oluşturulur; her koşuda sıfırlanır, migrate + seed edilir ve iki demo şube saatten bağımsız açık yapılır). Senaryolar 14 §10'dakilerdir: Akış A (QR ile ortak numaradan), Akış B, SMS OTP (WhatsApp'sız mod), ret + geri al, kurye, admin salt-okunur destek oturumu, kayıt + kurulum sihirbazı + test siparişi, 360 px yatay taşma denetimi ve ortak numara (iki dükkanın QR'ı, dükkana özel sipariş, ertesi gün kodsuz yazınca dükkan seçici). Chromium `/opt/pw-browsers`'tan kullanılır; başka makinede `pnpm exec playwright install chromium`. Faydalı seçenekler: tek dosya `pnpm e2e e2e/01-akis-a.spec.ts`, tarayıcıyı görmek için `--headed`, konsol hatalarını yazdırmak için `E2E_PRINT_CONSOLE=1`; başarısız testin izi `test-results/e2e/**/trace.zip` → `pnpm exec playwright show-trace <dosya>`.
 
 ## Sunucuya kurulum
 
-Üretim dağıtımı Docker Compose ile tek VPS'tedir (postgres, api, worker, web, caddy): `docker-compose.yml`, `Caddyfile`, `docker/`. Alan adı/DNS, `.env` değişkenleri, ilk kurulum ve admin oluşturma (`scripts/create-admin.ts`), 360dialog ile WhatsApp bağlama, Netgsm, yedekleme/geri yükleme (`scripts/backup.sh`, `scripts/restore.sh`), güncelleme, izleme, sorun giderme ve canlıya çıkış kontrol listesi: **[15 — Kurulum ve işletim rehberi](docs/15-kurulum-ve-isletim.md)**.
+Canlı ortam Türkiye'deki tek VPS'te Docker Compose ile çalışır (postgres, api, worker, web, caddy): `docker-compose.yml`, `Caddyfile`, `docker/`. Kurulum ve güncelleme GitHub Actions'tandır: VPS'i alıp `VPS_HOST`, `VPS_PASSWORD`, `ADMIN_PASSWORD` ve `CLOUDFLARE_API_TOKEN` (Zone > DNS > Edit) secret'larını eklemek yeter (sunucudaki Caddy için yalnız DNS yetkili ayrı bir `CADDY_CLOUDFLARE_API_TOKEN` önerilir); iş akışı sunucuyu hazırlar (Docker, güvenlik duvarı, fail2ban, otomatik güncellemeler), `.env`'i üretir, derler, ilk yöneticiyi açar, günlük yedeği kurar ve alan adını VPS'e taşır ([15 §14](docs/15-kurulum-ve-isletim.md)). Alan adı/DNS, `.env` değişkenleri, ilk kurulum ve admin oluşturma (`scripts/create-admin.ts`), 360dialog ile WhatsApp bağlama, Netgsm, yedekleme/geri yükleme (`scripts/backup.sh`, `scripts/restore.sh`), güncelleme, izleme, sorun giderme ve canlıya çıkış kontrol listesi: **[15 — Kurulum ve işletim rehberi](docs/15-kurulum-ve-isletim.md)**.

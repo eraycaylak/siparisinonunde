@@ -1,15 +1,19 @@
 // Herkese açık uç noktalar (14 §6.5) — dilim 5.
-// POST /public/leads: demo formu + hesaplayıcı lead'i (05 C.5.1, C.4.5). Bal küpü doluysa 204 (sessiz);
+// GET /public/signup-status: yeni işletme kaydı açık mı (signup_open; 00 §12a madde 10). Kayıt sayfası sunucu tarafında
+// sorar; kapalıysa form yerine "Kayıtlar çok yakında açılıyor" bilgisini gösterir. Kişisel veri içermez.
+// POST /public/leads: demo formu + hesaplayıcı lead'i (05 C.5.1, C.4.5). PUBLIC_LEADS_ENABLED=0 iken (Türkiye dışındaki
+// Cloudflare ortamı; kişisel veri yalnız Türkiye'de, 00 §12a madde 10) hiçbir şey saklanmaz: 403 leads_closed. Bal küpü doluysa 204 (sessiz);
 // IP başına saatte 5 istek; telefon E.164'e normalize edilir. Aynı telefonla açık lead varsa yenisi açılmaz,
 // mevcut kayda eklenir (05 A-20 tekrar kontrolü).
 
-import { publicLeadRequestSchema, publicLeadResponseSchema } from '@siparis/core/admin/contracts';
+import { publicLeadRequestSchema, publicLeadResponseSchema, publicSignupStatusResponseSchema } from '@siparis/core/admin/contracts';
 import { normalizeTrMobile } from '@siparis/core';
 import { leads } from '@siparis/db';
 import { and, desc, eq, notInArray } from 'drizzle-orm';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { AppError } from '../../lib/errors';
+import { isFlagEnabled } from '../../lib/flags';
 import { clientIp, createRateLimiter, enforceRateLimit } from '../../lib/rate-limit';
 
 /** 5 istek / saat / IP (görev tanımı). */
@@ -23,6 +27,11 @@ function validationError(path: string, message: string): AppError {
 const routes: FastifyPluginAsyncZod = async (app) => {
   const limiter = createRateLimiter(PUBLIC_LEAD_RATE_LIMIT);
 
+  app.get('/signup-status', { schema: { response: { 200: publicSignupStatusResponseSchema } } }, async (_request, reply) => {
+    reply.header('cache-control', 'no-store');
+    return { open: await isFlagEnabled(app.db, 'signup_open') };
+  });
+
   app.post(
     '/leads',
     {
@@ -30,6 +39,9 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       schema: { body: z.record(z.string(), z.unknown()), response: { 201: publicLeadResponseSchema, 204: z.null() } },
     },
     async (request, reply) => {
+      if (!app.config.PUBLIC_LEADS_ENABLED) {
+        throw new AppError(403, 'leads_closed', 'Başvuru formu bu ortamda kapalı; bilgilerin kaydedilmedi. Kayıtlar Türkiye’deki sunucumuzda açılıyor.');
+      }
       const raw = request.body ?? {};
       if (typeof raw.website === 'string' && raw.website.trim() !== '') {
         request.log.info({ honeypot: true }, 'lead bal küpü doldu; sessizce atlandı');

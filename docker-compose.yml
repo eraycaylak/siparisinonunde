@@ -1,5 +1,7 @@
 # Yemek Gelsin — tek VPS dağıtımı (00 §12a, 14 §1): postgres, migrate, api, worker, web, caddy.
-# Kurulum ve işletim: docs/15-kurulum-ve-isletim.md
+# Kurulum ve işletim: docs/15-kurulum-ve-isletim.md. Canlı ortam (Türkiye VPS; 00 §12a madde 10) GitHub Actions ile
+# kurulur ve güncellenir (.github/workflows/deploy-production.yml, 15 §14): .env'i scripts/vps/env-merge.mjs yazar,
+# scripts/vps/deploy.sh bu dosyayı çalıştırır. Seed canlı ortamda çalışmaz. Elle kurulum:
 #   cp docker/env.production.example .env   # değerleri doldurun
 #   docker compose build
 #   docker compose up -d                     # migrate işi api/worker'dan önce bir kez çalışır
@@ -35,6 +37,12 @@ x-api-base: &api-base
     DEV_TOOLS: ${DEV_TOOLS:-0}
     # Platform yöneticilerine iki adımlı doğrulama zorunlu (00 §12a madde 7); .env ile kapatılamaz
     ADMIN_TOTP_REQUIRED: "true"
+    # env_file tüm .env'i yükler; uygulamanın okumadığı gizli değerler api/worker/migrate süreçlerine VERİLMEZ (boşla ezilir):
+    # Cloudflare token'ı (DNS düzenleme yetkili) yalnız caddy'ye, yedek izleme adresi yalnız sunucudaki backup.sh'e aittir.
+    # Uygulama ortamı sızsa (RCE, hata dökümü, bağımlılık) alan adı ele geçirilemesin (15 §14).
+    CLOUDFLARE_API_TOKEN: ""
+    BACKUP_PING_URL: ""
+    BACKUP_REMOTE: ""
   volumes:
     - uploads:/data/uploads
   logging: *logging
@@ -128,7 +136,10 @@ services:
         NEXT_PUBLIC_SITE_URL: https://${DOMAIN:?DOMAIN .env içinde zorunlu}
         NEXT_PUBLIC_ROOT_DOMAIN: ${DOMAIN}
         NEXT_PUBLIC_DEV_TOOLS: ${DEV_TOOLS:-0}
-        NEXT_PUBLIC_DEMO_STORE_SLUG: ${DEMO_STORE_SLUG:-bozok-pide}
+        # Canlı ortamda demo işletme yok: boş (pazarlama sitesindeki "Demo menüyü aç" kartı gizlenir; 00 §12a madde 10)
+        NEXT_PUBLIC_DEMO_STORE_SLUG: ${DEMO_STORE_SLUG:-}
+        # "Demo ortamı" uyarısı: yalnız demo verili ortamlarda 1 (varsayılan kapalı)
+        NEXT_PUBLIC_DEMO_BANNER: ${DEMO_BANNER:-0}
         NEXT_PUBLIC_SUPPORT_WHATSAPP: ${SUPPORT_WHATSAPP:-}
         API_INTERNAL_URL: http://api:4000
     environment:
@@ -158,7 +169,9 @@ services:
     environment:
       DOMAIN: ${DOMAIN}
       ACME_EMAIL: ${ACME_EMAIL:?ACME_EMAIL .env içinde zorunlu}
-      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
+      # Tüm sertifikalar DNS-01 ile (Caddyfile acme_dns): yalnız bu bölgede Zone > DNS > Edit + Zone > Zone > Read.
+      # Bu token'ı yalnız caddy alır (api/worker/migrate'e boş verilir: x-api-base)
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:?CLOUDFLARE_API_TOKEN .env içinde zorunlu (Caddy DNS-01; 15 §3)}
     ports:
       - "80:80"
       - "443:443"

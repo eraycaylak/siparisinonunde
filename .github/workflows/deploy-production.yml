@@ -1,0 +1,434 @@
+# Canlı ortam: Türkiye'deki VPS (00 §12a madde 10; docs/15 §14). Docker Compose yığını (postgres, migrate, api, worker,
+# web, caddy) + Cloudflare yalnız DNS ve proxy (turuncu bulut). Demo verisi YOK: veritabanı boş başlar, yalnız platform
+# yöneticisi açılır; işletmeler kendileri kaydolur (signup_open açık) ya da yönetici ekler.
+#
+# Gereken GitHub secret'ları (Settings > Secrets and variables > Actions):
+#   VPS_HOST              — sunucunun IPv4 adresi (ya da IPv4'e çözülen ad). YOKSA bu iş akışı push'ta atlanır.
+#   VPS_PASSWORD          — SSH parolası (sağlayıcının root parolası; sunucuda parola ile SSH açık olmalı)
+#   CLOUDFLARE_API_TOKEN  — yemekgelsin.net bölgesinde Zone > DNS > Edit + Zone > Zone > Read (Caddy DNS-01 sertifikaları
+#                           ve DNS geçişi); geçiş sırasında Worker Custom Domain'lerini silmek (gerekirse geri bağlamak)
+#                           için Account > Workers Scripts > Edit + Zone > Workers Routes > Edit (dev ortamının token'ında var)
+#   ADMIN_PASSWORD        — ilk platform yöneticisinin (admin@yemekgelsin.net) parolası, en az 12 karakter. Yoksa
+#                           DEV_PASSWORD kullanılır (o da en az 12 karakter olmalı). Yönetici varsa hiç kullanılmaz.
+# İsteğe bağlı:
+#   VPS_USER (varsayılan root; root değilse parolasız sudo gerekir), VPS_PORT (varsayılan 22),
+#   VPS_HOST_KEY          — sunucunun SSH host anahtarı ("ssh-ed25519 AAAA…"): verilirse yalnız bu anahtar kabul edilir;
+#                           yoksa ilk görülen anahtar kabul edilir (TOFU; özet parmak izini yazar),
+#   CLOUDFLARE_ACCOUNT_ID, CADDY_CLOUDFLARE_API_TOKEN (ÖNERİLİR: sunucuya yalnız DNS yetkili ayrı token; yoksa Workers
+#                           yetkili token sunucuya yazılır ve her dağıtımda uyarı verilir — token yalnız caddy'ye gider),
+#   META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_WA_WABA_ID, META_APP_SECRET, WA_PHONE (gerçek WhatsApp; dördü tamsa),
+#   NETGSM_USERCODE, NETGSM_PASSWORD, NETGSM_HEADER (SMS; üçü tamsa), SUPPORT_WHATSAPP, BACKUP_PING_URL.
+# Akış: secret denetimi → Cloudflare izin denetimi → SSH → .env birleştir (sunucuya dokunmadan doğrular) → sunucu hazırlığı
+# → kod (tam commit) → derle + yapılandırma denetimi + yedek + compose up → bayraklar + ilk yönetici → VPS'te sağlık
+# denetimi (curl --resolve; kök, www, panel., admin., hooks. ve vitrin sertifikalarının hepsi) → Cloudflare DNS geçişi →
+# gerçek alan adında duman testi → özet. Elle çalıştırmada "only_dns" yalnız izin denetimi + VPS sağlık denetimi + DNS
+# geçişi + duman testini yapar (sunucuya dokunmaz; yarım kalan DNS geçişini tamamlamak için).
+# Kişisel veri (00 §12a madde 10, CLAUDE.md kural 7): sunucudaki servis günlükleri bu iş akışına HAM olarak kopyalanmaz;
+# hata durumunda deploy.sh diag yalnız süzülmüş uyarı/hata özetini yazar, tam günlük sunucuda kalır.
+name: Canlı ortam (Türkiye VPS)
+
+on:
+  push:
+    branches: [main, claude/relaxed-pascal-1m775m]
+    paths-ignore: ['docs/**', '**/*.md']
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Dağıtılacak commit, etiket ya da dal (boş: seçilen dalın son hali). Geri almak için eski commit SHA'sını yazın."
+        required: false
+        default: ''
+      full_bootstrap:
+        description: 'Sunucu paketlerini de yükselt (apt upgrade; Docker yükselirse konteynerler kısa süre yeniden başlar)'
+        type: boolean
+        default: false
+      only_dns:
+        description: "Yalnız DNS geçişi: sunucuya dokunmadan VPS sağlık denetimi + Cloudflare DNS geçişi + duman testi (yarım kalan geçişi tamamlamak için)"
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  DOMAIN: yemekgelsin.net
+  SITE_URL: https://yemekgelsin.net
+  REPO_URL: https://github.com/eraycaylak/siparisinonunde.git
+  ADMIN_EMAIL: admin@yemekgelsin.net
+
+jobs:
+  # VPS secret'ları yoksa push'ta atlanır (uyarı); elle çalıştırmada hata verir
+  kontrol:
+    runs-on: ubuntu-latest
+    outputs:
+      ready: ${{ steps.check.outputs.ready }}
+    steps:
+      - id: check
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PASSWORD: ${{ secrets.VPS_PASSWORD }}
+        run: |
+          missing=()
+          [ -n "$VPS_HOST" ] || missing+=(VPS_HOST)
+          [ -n "$VPS_PASSWORD" ] || missing+=(VPS_PASSWORD)
+          if [ ${#missing[@]} -eq 0 ]; then echo "ready=true" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "ready=false" >> "$GITHUB_OUTPUT"
+          msg="Eksik GitHub secret: ${missing[*]} — Türkiye VPS'i alınınca Settings > Secrets and variables > Actions'a ekleyin (docs/15 §14)."
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then echo "::error::$msg"; exit 1; fi
+          echo "::warning::Canlı ortam dağıtımı atlandı (VPS henüz yok). $msg"
+
+  deploy:
+    needs: kontrol
+    if: needs.kontrol.outputs.ready == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      VPS_HOST: ${{ secrets.VPS_HOST }}
+      VPS_USER: ${{ secrets.VPS_USER }}
+      VPS_PORT: ${{ secrets.VPS_PORT }}
+      VPS_HOST_KEY: ${{ secrets.VPS_HOST_KEY }}
+      # SSH parolası (SSHPASS) iş düzeyinde DEĞİL, yalnız SSH kullanan adımlarda verilir: checkout, setup-node, Cloudflare
+      # ve duman testi adımlarının süreçleri root parolasını görmez. sshpass -e parolayı bu değişkenden okur.
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Ön denetim (secret'lar, betik testleri)
+        env:
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          DEV_PASSWORD: ${{ secrets.DEV_PASSWORD }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          user="${VPS_USER:-root}"; port="${VPS_PORT:-22}"
+          [[ "$port" =~ ^[0-9]{1,5}$ ]] || fail "VPS_PORT bir port numarası olmalı (ör. 22)."
+          [[ "$user" =~ ^[a-z_][a-z0-9_-]{0,31}$ ]] || fail "VPS_USER geçersiz (ör. root)."
+          # Çözülmüş değerler ayrı adlarla (iş düzeyindeki VPS_USER/VPS_PORT secret'larının üzerine yazılmaz)
+          echo "SSH_USER=$user" >> "$GITHUB_ENV"
+          echo "SSH_PORT=$port" >> "$GITHUB_ENV"
+
+          host="$(printf '%s' "$VPS_HOST" | tr -d '[:space:]')"
+          if [[ "$host" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then ip="$host"; else ip="$(getent ahostsv4 "$host" | awk 'NR==1 {print $1}')"; fi
+          [ -n "$ip" ] || fail "VPS_HOST bir IPv4 adresine çözülemedi. Sunucunun IPv4 adresini yazın (docs/15 §14)."
+          echo "::add-mask::$host"
+          echo "::add-mask::$ip"
+          echo "SSH_HOST=$host" >> "$GITHUB_ENV"
+          echo "VPS_IP=$ip" >> "$GITHUB_ENV"
+
+          admin="${ADMIN_PASSWORD:-$DEV_PASSWORD}"
+          if [ "${#admin}" -lt 12 ]; then
+            fail "İlk yönetici parolası yok ya da kısa: ADMIN_PASSWORD secret'ını en az 12 karakterle ekleyin (yoksa DEV_PASSWORD kullanılır; o da en az 12 karakter olmalı). docs/15 §14"
+          fi
+          [ -n "$CLOUDFLARE_API_TOKEN" ] || fail "CLOUDFLARE_API_TOKEN secret'ı yok: yemekgelsin.net için Zone > DNS > Edit ve Zone > Zone > Read izinli token ekleyin (Caddy sertifikaları ve DNS geçişi; docs/15 §14)."
+
+          for f in scripts/vps/bootstrap.sh scripts/vps/deploy.sh scripts/backup.sh; do bash -n "$f"; done
+          node --test scripts/vps/env-merge.test.mjs scripts/vps/cloudflare-dns.test.mjs scripts/vps/deploy.test.mjs
+
+      # Sunucuya dokunmadan önce: bölge görünüyor mu, DNS yazılabiliyor mu (zararsız TXT aç/sil), Worker alan adları okunuyor mu
+      - name: Cloudflare izin denetimi
+        id: cf
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/vps/cloudflare-dns.mjs check --zone "$DOMAIN" --ip "$VPS_IP"
+
+      - name: SSH bağlantısı
+        id: ssh
+        env:
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          if ! command -v sshpass >/dev/null 2>&1; then
+            sudo apt-get update -qq >/dev/null && sudo apt-get install -y -qq sshpass >/dev/null
+          fi
+          kh="$RUNNER_TEMP/known_hosts"
+          install -m 600 /dev/null "$kh"
+          if [ "$SSH_PORT" = "22" ]; then khhost="$SSH_HOST"; else khhost="[$SSH_HOST]:$SSH_PORT"; fi
+          if [ -n "$VPS_HOST_KEY" ]; then
+            export SSH_STRICT=yes
+            key="$(printf '%s\n' "$VPS_HOST_KEY" | awk '{for (i = 1; i < NF; i++) if ($i ~ /^(ssh-(ed25519|rsa)|ecdsa-sha2-nistp[0-9]+)$/) {print $i, $(i + 1); exit}}')"
+            [ -n "$key" ] || fail "VPS_HOST_KEY biçimi tanınmadı; \"ssh-ed25519 AAAA…\" biçiminde olmalı (docs/15 §14)."
+            printf '%s %s\n' "$khhost" "$key" > "$kh"
+          else
+            export SSH_STRICT=accept-new
+          fi
+          echo "SSH_STRICT=$SSH_STRICT" >> "$GITHUB_ENV"
+          # Sonraki adımların yardımcıları (parola SSHPASS'ta; komut satırına yazılmaz)
+          cat > "$RUNNER_TEMP/ssh.sh" <<'SH'
+          SSH_OPTS=(-o "StrictHostKeyChecking=${SSH_STRICT}" -o "UserKnownHostsFile=${RUNNER_TEMP}/known_hosts" -o ConnectTimeout=20
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=20 -o PubkeyAuthentication=no
+            -o "PreferredAuthentications=password,keyboard-interactive" -o NumberOfPasswordPrompts=1 -o LogLevel=ERROR)
+          r() { sshpass -e ssh "${SSH_OPTS[@]}" -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "$@"; }
+          put() { sshpass -e scp -q "${SSH_OPTS[@]}" -P "$SSH_PORT" "$1" "$SSH_USER@$SSH_HOST:$2"; }
+          if [ "$SSH_USER" = "root" ]; then SUDO=""; else SUDO="sudo -n"; fi
+          fail() { echo "::error::$1"; exit 1; }
+          SH
+          . "$RUNNER_TEMP/ssh.sh"
+          set +e
+          r 'echo baglandi' > /dev/null
+          rc=$?
+          set -e
+          case "$rc" in
+            0) ;;
+            5) fail "SSH parolası kabul edilmedi: VPS_PASSWORD'ü (ve VPS_USER'ı) denetleyin. Sağlayıcıda parola ile SSH girişi açık olmalı (docs/15 §14)." ;;
+            6) fail "SSH host anahtarı VPS_HOST_KEY ile uyuşmuyor (sunucu yeniden kurulduysa secret'ı güncelleyin ya da silin)." ;;
+            *) fail "SSH bağlantısı kurulamadı (çıkış $rc): VPS_HOST, VPS_PORT ve sunucunun açık olduğunu denetleyin; parola ile SSH (PasswordAuthentication yes) gerekir." ;;
+          esac
+          if [ "$SSH_USER" != "root" ]; then
+            r 'sudo -n true' || fail "VPS_USER root değil ve parolasız sudo (NOPASSWD) yok. root kullanın ya da sudoers'a ekleyin (docs/15 §14)."
+          fi
+          rdir="/tmp/yemekgelsin-deploy-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          r "install -d -m 700 $rdir"
+          echo "RDIR=$rdir" >> "$GITHUB_ENV"
+          # deploy.sh her kipte gerekir (hata durumunda süzülmüş tanı: deploy.sh diag)
+          put scripts/vps/deploy.sh "$rdir/deploy.sh"
+          fp="$(ssh-keygen -lf "$RUNNER_TEMP/known_hosts" 2>/dev/null | awk '{print $2, $4}' | paste -sd ';' - || true)"
+          key="$(awk 'NF >= 3 {print $2, $3; exit}' "$RUNNER_TEMP/known_hosts")"
+          { echo "SSH_FINGERPRINT=$fp"; echo "SSH_HOSTKEY=$key"; } >> "$GITHUB_ENV"
+          echo "SSH bağlantısı tamam (host anahtarı: ${SSH_STRICT})."
+
+      # Sunucudaki mevcut .env alınır, gizli değerler korunur, sağlayıcı değerleri secret'lardan yazılır. Doğrulama
+      # (apps/api/src/config.ts kuralları) burada, sunucuda hiçbir şey değişmeden yapılır.
+      - name: .env birleştir ve doğrula
+        id: env
+        if: ${{ !inputs.only_dns }}
+        env:
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CADDY_CLOUDFLARE_API_TOKEN: ${{ secrets.CADDY_CLOUDFLARE_API_TOKEN }}
+          META_WA_TOKEN: ${{ secrets.META_WA_TOKEN }}
+          META_WA_PHONE_NUMBER_ID: ${{ secrets.META_WA_PHONE_NUMBER_ID }}
+          META_WA_WABA_ID: ${{ secrets.META_WA_WABA_ID }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          WA_PHONE: ${{ secrets.WA_PHONE }}
+          NETGSM_USERCODE: ${{ secrets.NETGSM_USERCODE }}
+          NETGSM_PASSWORD: ${{ secrets.NETGSM_PASSWORD }}
+          NETGSM_HEADER: ${{ secrets.NETGSM_HEADER }}
+          SUPPORT_WHATSAPP: ${{ secrets.SUPPORT_WHATSAPP }}
+          BACKUP_PING_URL: ${{ secrets.BACKUP_PING_URL }}
+        run: |
+          . "$RUNNER_TEMP/ssh.sh"
+          umask 077
+          # Okuma hatası (ör. sudo) "dosya yok" sayılmaz: yoksa gizli anahtarlar yeniden üretilir ve veritabanı parolası
+          # uyuşmaz. Sunucu tarafı ayrıca korur (deploy.sh env-put korunan anahtarların değişmesini reddeder).
+          r "$SUDO sh -c 'if [ -f /opt/yemekgelsin/app/.env ]; then cat /opt/yemekgelsin/app/.env; fi'" > "$RUNNER_TEMP/env.current"
+          node scripts/vps/env-merge.mjs --current "$RUNNER_TEMP/env.current" --out "$RUNNER_TEMP/env.new"
+          rm -f "$RUNNER_TEMP/env.current"
+
+      - name: Sunucu hazırlığı (Docker, güvenlik duvarı, fail2ban, otomatik güncellemeler, takas)
+        if: ${{ !inputs.only_dns }}
+        env:
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
+          FULL_BOOTSTRAP: ${{ inputs.full_bootstrap }}
+        run: |
+          . "$RUNNER_TEMP/ssh.sh"
+          put scripts/vps/bootstrap.sh "$RDIR/bootstrap.sh"
+          full=""
+          [ "$FULL_BOOTSTRAP" = "true" ] && full="--full"
+          set +e
+          r "$SUDO bash $RDIR/bootstrap.sh --ssh-port $SSH_PORT $full" 2>&1 | tee "$RUNNER_TEMP/bootstrap.log"
+          rc=${PIPESTATUS[0]}
+          set -e
+          [ "$rc" = "0" ] || fail "Sunucu hazırlığı başarısız (çıkış $rc); ayrıntı yukarıda."
+          if grep -q '^YENIDEN_BASLATMA_GEREKLI' "$RUNNER_TEMP/bootstrap.log"; then
+            echo "::warning::Sunucu çekirdek güncellemesi için yeniden başlatma bekliyor. Yoğun saat dışında SSH ile 'reboot' yapın; servisler kendiliğinden açılır (docs/15 §14)."
+            echo "REBOOT_REQUIRED=1" >> "$GITHUB_ENV"
+          fi
+
+      - name: Kod (tam commit)
+        if: ${{ !inputs.only_dns }}
+        env:
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
+        run: |
+          . "$RUNNER_TEMP/ssh.sh"
+          sha="$(git rev-parse HEAD)"
+          echo "DEPLOY_SHA=$sha" >> "$GITHUB_ENV"
+          r "$SUDO bash $RDIR/deploy.sh checkout $REPO_URL $sha"
+
+      - name: .env yükle (600)
+        if: ${{ !inputs.only_dns }}
+        env:
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
+        run: |
+          . "$RUNNER_TEMP/ssh.sh"
+          put "$RUNNER_TEMP/env.new" "$RDIR/env.new"
+          rm -f "$RUNNER_TEMP/env.new"
+          r "$SUDO bash $RDIR/deploy.sh env-put $RDIR/env.new"
+
+      - name: Dağıt (derle, denetle, yedekle, migrate, başlat, bayraklar, ilk yönetici, yedek cron'u)
+        if: ${{ !inputs.only_dns }}
+        timeout-minutes: 50
+        env:
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          DEV_PASSWORD: ${{ secrets.DEV_PASSWORD }}
+        run: |
+          . "$RUNNER_TEMP/ssh.sh"
+          umask 077
+          pw="$RUNNER_TEMP/admin-password"
+          printf '%s\n' "${ADMIN_PASSWORD:-$DEV_PASSWORD}" > "$pw"
+          put "$pw" "$RDIR/admin-password"
+          rm -f "$pw"
+          r "$SUDO bash $RDIR/deploy.sh up $RDIR/admin-password"
+
+      # Yalnız DNS kipinde sunucu değişmez: dağıtılmış sürüm yoksa (ilk kurulum yapılmamış) geçiş yapılmaz
+      - name: Sunucudaki sürüm (yalnız DNS)
+        if: ${{ inputs.only_dns }}
+        env:
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
+        run: |
+          . "$RUNNER_TEMP/ssh.sh"
+          sha="$(r "$SUDO cat /opt/yemekgelsin/current-sha 2>/dev/null" || true)"
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || fail "Sunucuda tamamlanmış bir dağıtım yok (/opt/yemekgelsin/current-sha). Önce only_dns olmadan tam dağıtımı çalıştırın (docs/15 §14)."
+          echo "DEPLOY_SHA=$sha" >> "$GITHUB_ENV"
+          echo "Sunucudaki sürüm: ${sha:0:12} (değiştirilmeyecek)"
+
+      # DNS henüz Worker'ı gösterirken VPS doğrudan denenir. Caddy her ad için ayrı sertifika alır (DNS-01; kök ve wildcard
+      # aynı _acme-challenge adını kullanır): geçişte taşınacak ya da kullanılacak TÜM adlar burada doğrulanır, yoksa
+      # hazır olmayan ad geçişten sonra Cloudflare 526 verirdi. En çok ~15 dk; sertifika hatasında curl 000 döner.
+      - name: Sağlık denetimi (DNS geçişinden önce, doğrudan VPS; tüm sertifikalar)
+        env:
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
+        run: |
+          . "$RUNNER_TEMP/ssh.sh"
+          deadline=$((SECONDS + 900))
+          probe() { curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' --max-time 30 --resolve "$1:443:$VPS_IP" "https://$1$2" 2>/dev/null || true; }
+          # expect <ad> <yol> <beklenen: kod ya da "kod yönlendirme">
+          expect() {
+            local got
+            while :; do
+              got="$(probe "$1" "$2")"
+              case "$3" in
+                *' '*) [ "$got" = "$3" ] && break ;;
+                *) [ "${got%% *}" = "$3" ] && break ;;
+              esac
+              if [ "$SECONDS" -ge "$deadline" ]; then
+                r "$SUDO bash $RDIR/deploy.sh diag caddy api web" || true
+                fail "VPS üzerinde https://$1$2 beklenen gibi değil (beklenen: $3, son: ${got:-000}). Sertifika (Caddy DNS-01, CLOUDFLARE_API_TOKEN) ya da servis sorunu; DNS'e dokunulmadı. Süzülmüş tanı yukarıda, tam günlük sunucuda /opt/yemekgelsin/deploy-logs (docs/15 §14 Sorun giderme)."
+              fi
+              echo "https://$1$2 → ${got:-000} (sertifika ya da servis hazırlanıyor; yeniden denenecek)"
+              sleep 15
+            done
+            echo "https://$1$2 → $3 (VPS)"
+          }
+          expect "$DOMAIN" /api/v1/health 200
+          expect "$DOMAIN" /api/v1/health/worker 200
+          for path in / /panel/giris /admin/giris /panel/kayit; do expect "$DOMAIN" "$path" 200; done
+          expect "www.$DOMAIN" /fiyatlar "301 https://$DOMAIN/fiyatlar"
+          expect "panel.$DOMAIN" /panel/giris 200
+          expect "admin.$DOMAIN" /admin/giris 200
+          # Vitrin alt alan adları (wildcard sertifika) ve webhook alt alan adı (API'ye ulaşır, yanlış belirteç 404)
+          expect "olmayan-dukkan-$GITHUB_RUN_ID.$DOMAIN" / 404
+          expect "hooks.$DOMAIN" /wa/yanlis-belirtec-0000000000 404
+
+      - name: DNS geçişi (Cloudflare → VPS, proxy'li)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: node scripts/vps/cloudflare-dns.mjs cutover --zone "$DOMAIN" --ip "$VPS_IP" --records '@,www,*,hooks' --worker-hosts "$DOMAIN,www.$DOMAIN"
+
+      - name: Duman testi (gerçek alan adı)
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+          # Cloudflare kenarı yeni kayıtları birkaç saniye-dakika içinde uygular. Worker (dev ortamı) her yanıta
+          # x-robots-tag: noindex ekler; VPS eklemez: başlık kalkınca trafik VPS'tedir.
+          deadline=$((SECONDS + 600)); ok=0; i=0
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            i=$((i + 1))
+            code="$(curl -sS -D "$RUNNER_TEMP/h.txt" -o "$RUNNER_TEMP/b.txt" -w '%{http_code}' --max-time 30 "$SITE_URL/api/v1/health" 2>/dev/null || true)"
+            if [ "$code" = "200" ] && grep -q '"ok":true' "$RUNNER_TEMP/b.txt" && ! grep -qi '^x-robots-tag:' "$RUNNER_TEMP/h.txt"; then ok=1; break; fi
+            echo "deneme $i: HTTP $code$(grep -qi '^x-robots-tag:' "$RUNNER_TEMP/h.txt" 2>/dev/null && echo ' (hâlâ Worker)')"
+            sleep 15
+          done
+          [ "$ok" = "1" ] || fail "$SITE_URL/api/v1/health VPS'ten 200 dönmedi (son: $code). SSL/TLS modu 'Full (strict)' mı, DNS kayıtları proxy'li mi? (docs/15 §14 Sorun giderme)"
+          echo "/api/v1/health → 200 (VPS, Cloudflare proxy'si üzerinden)"
+          code_of() { curl -sS -o /dev/null -w '%{http_code}' --max-time 30 "$1" 2>/dev/null || true; }
+          for path in / /panel/giris /admin/giris /panel/kayit /api/v1/health/worker /yasal/gizlilik; do
+            code="$(code_of "$SITE_URL$path")"
+            [ "$code" = "200" ] || fail "$path 200 dönmedi ($code)"
+            echo "$path → 200"
+          done
+          # Kayıt açık (canlı ortam): form görünür, "çok yakında" bilgisi yok
+          curl -sS --max-time 30 "$SITE_URL/panel/kayit" | grep -q 'İşletme hesabını aç' || fail "/panel/kayit kayıt formunu göstermiyor (signup_open kapalı mı?)"
+          # Geliştirici araçları canlı ortamda kapalı
+          for path in /dev/whatsapp /api/v1/dev/wa/accounts; do
+            code="$(code_of "$SITE_URL$path")"
+            [ "$code" = "404" ] || fail "$path canlı ortamda 404 dönmeli ($code)"
+          done
+          # Demo verisi yok
+          code="$(code_of "$SITE_URL/s/bozok-pide")"
+          [ "$code" = "404" ] || fail "/s/bozok-pide 404 dönmeli (canlı ortamda demo işletme olmamalı; $code)"
+          # www → kök (301), vitrin alt alan adları (wildcard DNS) ve webhook alt alan adı: Cloudflare kenarı adları ayrı
+          # ayrı uygular; süreyle sınırlı yeniden deneme (aynı 10 dk içinde)
+          expect_cf() {
+            local got
+            while :; do
+              got="$(curl -sS -o /dev/null -w '%{http_code} %{redirect_url}' --max-time 30 "$1" 2>/dev/null || true)"
+              case "$2" in
+                *' '*) [ "$got" = "$2" ] && break ;;
+                *) [ "${got%% *}" = "$2" ] && break ;;
+              esac
+              [ "$SECONDS" -lt "$deadline" ] || fail "$1 beklenen gibi değil (beklenen: $2, son: ${got:-000}). DNS kaydı proxy'li mi, SSL/TLS modu Full (strict) mı? (docs/15 §14 Sorun giderme)"
+              echo "$1 → ${got:-000} (yeniden denenecek)"
+              sleep 15
+            done
+            echo "$1 → $2"
+          }
+          deadline=$((SECONDS + 600))
+          expect_cf "https://www.$DOMAIN/fiyatlar" "301 $SITE_URL/fiyatlar"
+          expect_cf "https://olmayan-dukkan-$GITHUB_RUN_ID.$DOMAIN/" 404
+          expect_cf "https://hooks.$DOMAIN/wa/yanlis-belirtec-0000000000" 404
+          echo "Duman testi tamam."
+
+      - name: Geçici dosyaları temizle
+        if: always()
+        env:
+          SSHPASS: ${{ secrets.VPS_PASSWORD }}
+        run: |
+          rm -f "$RUNNER_TEMP/env.current" "$RUNNER_TEMP/env.new" "$RUNNER_TEMP/admin-password"
+          if [ -f "$RUNNER_TEMP/ssh.sh" ] && [ -n "${RDIR:-}" ]; then
+            . "$RUNNER_TEMP/ssh.sh"
+            r "$SUDO rm -rf $RDIR" || true
+          fi
+
+      - name: Özet
+        if: always()
+        env:
+          WA_MODE: ${{ steps.env.outputs.whatsapp }}
+          SMS_MODE: ${{ steps.env.outputs.sms }}
+          FIRST_INSTALL: ${{ steps.env.outputs.first_install }}
+          ONLY_DNS: ${{ inputs.only_dns }}
+          JOB_STATUS: ${{ job.status }}
+        run: |
+          {
+            if [ "$JOB_STATUS" = "success" ]; then echo "### Canlı ortam hazır (Türkiye VPS)"; else echo "### Canlı ortam dağıtımı tamamlanmadı ($JOB_STATUS)"; fi
+            echo ""
+            [ "$ONLY_DNS" = "true" ] && echo "- Kip: yalnız DNS geçişi (sunucuya dokunulmadı)."
+            [ "$JOB_STATUS" = "success" ] || echo "- Hata durumunda sunucudaki tam günlükler: \`/opt/yemekgelsin/deploy-logs/\` (bu sayfaya yalnız süzülmüş özet yazılır; kişisel veri Türkiye'de kalır). DNS geçişi yarım kaldıysa: Run workflow > \`only_dns\` (docs/15 §14)."
+            echo "- Commit: \`${DEPLOY_SHA:-?}\`"
+            echo "- Adres: $SITE_URL (Cloudflare proxy'si → VPS). Yönetici girişi: $SITE_URL/admin/giris — \`$ADMIN_EMAIL\`, parola: \`ADMIN_PASSWORD\` secret'ı (yoksa \`DEV_PASSWORD\`). İlk girişte iki adımlı doğrulama (TOTP) kurulur."
+            echo "- İşletme kaydı açık: $SITE_URL/panel/kayit. Demo verisi yok."
+            case "$WA_MODE" in
+              cloud) echo "- WhatsApp: gerçek (Meta Cloud API). **Webhook adresi ve doğrulama belirteci bu sunucuya özeldir:** admin > WhatsApp > WhatsApp kurulumu > \"Göster\" ile Meta'daki Callback URL ve Verify token'ı yeniden girin (docs/15 §6.2a, §14)." ;;
+              mock) echo "- WhatsApp: kapalı (META_* secret'ları eksik); vitrin ve QR WhatsApp bağlantısı göstermez." ;;
+            esac
+            case "$SMS_MODE" in
+              netgsm) echo "- SMS: Netgsm (SMS yedeği açık)." ;;
+              mock) echo "- SMS: kapalı (NETGSM_* secret'ları eksik; SMS yedeği bayrağı kapalı)." ;;
+            esac
+            [ "$FIRST_INSTALL" = "true" ] && echo "- İlk kurulum: gizli anahtarlar sunucuda üretildi (/opt/yemekgelsin/app/.env, 600). ENCRYPTION_KEY ve TRACKING_SECRET'ı bir parola yöneticisine yedekleyin (docs/15 §14)."
+            echo "- Yedek: her gece 03:30 (İstanbul) \`/opt/yemekgelsin/backups\`, 14 gün; yedekler Türkiye'deki bu sunucuda (ikinci Türkiye lokasyonu önerilir)."
+            if [ -n "${SSH_FINGERPRINT:-}" ] && [ "${SSH_STRICT:-}" != "yes" ]; then
+              echo "- SSH host anahtarı ilk görüldüğü gibi kabul edildi (TOFU): \`${SSH_FINGERPRINT}\`. Sabitlemek için \`VPS_HOST_KEY\` secret'ına şunu ekleyin: \`${SSH_HOSTKEY:-(anahtar okunamadı)}\`"
+            fi
+            [ "${REBOOT_REQUIRED:-}" = "1" ] && echo "- Sunucu çekirdek güncellemesi için yeniden başlatma bekliyor (yoğun saat dışında \`reboot\`)."
+            echo "- Geri alma: Actions > \"Canlı ortam (Türkiye VPS)\" > Run workflow > \`ref\` = önceki commit SHA'sı (docs/15 §14)."
+          } >> "$GITHUB_STEP_SUMMARY"

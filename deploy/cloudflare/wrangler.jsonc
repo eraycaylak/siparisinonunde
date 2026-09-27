@@ -1,6 +1,8 @@
-// Yemek Gelsin — Cloudflare dev/demo ortamı (15 §13). Dağıtım: .github/workflows/deploy-dev-cloudflare.yml
-// Container imajı depo kökünden derlenir (deploy/cloudflare/Dockerfile). NEXT_PUBLIC_SITE_URL derleme anında gömülür;
-// iş akışı SITE_URL'yi (https://yemekgelsin.net) scripts/prepare-config.mjs ile wrangler.generated.jsonc'ye yazar.
+// Yemek Gelsin — Cloudflare ortamı (15 §13; 00 §12a madde 10). Dağıtım: .github/workflows/deploy-dev-cloudflare.yml
+// Container imajı depo kökünden derlenir (deploy/cloudflare/Dockerfile). Bu dosya ALAN ADI kipini tanımlar (Türkiye VPS'i
+// yokken yemekgelsin.net; demo verisi yok). İş akışı kipi seçer ve scripts/prepare-config.mjs (config-modes.mjs) ile
+// wrangler.generated.jsonc'yi yazar: VPS_HOST secret'ı varsa gizli staging (yalnız workers.dev, routes yok, demo verili,
+// STAGING_DATA_EPOCH).
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "siparisinonunde-dev",
@@ -24,7 +26,15 @@
       "instance_type": "basic",
       "max_instances": 1,
       "image_vars": {
-        "NEXT_PUBLIC_SITE_URL": "https://yemekgelsin.net"
+        "NEXT_PUBLIC_SITE_URL": "https://yemekgelsin.net",
+        // "Demo ortamı" uyarısı ve pazarlama sitesindeki demo vitrin bağlantısı: alan adı kipinde kapalı/boş (demo verisi
+        // yok); staging'de config-modes.mjs açar
+        "NEXT_PUBLIC_DEMO_BANNER": "0",
+        "NEXT_PUBLIC_DEMO_STORE_SLUG": "",
+        // /demo lead formu: alan adı kipinde kapalı (kişisel veri Türkiye dışında saklanmaz; CLAUDE.md kural 7), staging'de
+        // açık. Destek hattı (WhatsApp) GitHub secret'ı SUPPORT_WHATSAPP'tan (config-modes.mjs)
+        "NEXT_PUBLIC_LEAD_FORM": "0",
+        "NEXT_PUBLIC_SUPPORT_WHATSAPP": ""
       }
     }
   ],
@@ -32,15 +42,23 @@
     "bindings": [{ "name": "APP", "class_name": "AppContainer" }]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["AppContainer"] }],
-  // MCP ile oluşturuldu (bölge ENAM); yalnız dev ortamının demo verisinin yedeği
+  // MCP ile oluşturuldu (bölge ENAM); yalnız bu ortamın verisinin yedeği (gerçek işletme verisi girmez)
   "r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "siparisinonunde-dev-yedek" }],
   "vars": {
     "APP_BASE_URL": "https://yemekgelsin.net",
     "DEPLOY_ENV": "dev",
-    // Veri dönemi: R2 yedek anahtarlarının öneki (e2/db/son.dump …; yalnız rakam). Container açılışta alır ve ömrü boyunca
-    // kullanır. Demo verisini sıfırlamak için artırın: yeni container yeni önekte yedek bulamaz, boş veritabanı + seed ile
-    // açılır; eski container'ın son yedeği ve eski nesneler kendi öneklerinde kalır (15 §13 "Sıfırlama").
-    "DATA_EPOCH": "2"
+    // domain: yemekgelsin.net, herkese açık, demo verisi yok | staging: config-modes.mjs yazar (gizli, workers.dev)
+    "DEPLOY_MODE": "domain",
+    // Container seed'i: admin = yalnız platform yöneticisi (admin@yemekgelsin.net, parola DEV_PASSWORD) + bayraklar
+    // (yeni işletme kaydı kapalı); staging'de demo
+    "SEED_MODE": "admin",
+    // Veri dönemi: R2 yedek anahtarlarının öneki (e3/db/son.dump …; yalnız rakam). Container açılışta alır ve ömrü boyunca
+    // kullanır. Veriyi sıfırlamak için artırın: yeni container yeni önekte yedek bulamaz, boş veritabanı + seed ile açılır;
+    // eski container'ın son yedeği ve eski nesneler kendi öneklerinde kalır (15 §13 "Sıfırlama"). "3": demo verisi
+    // kaldırıldı (00 §12a madde 10); e2 ve öncesi eski demo verisidir.
+    "DATA_EPOCH": "3",
+    // Gizli staging'in ayrı veri dönemi (demo verisi alan adı verisine karışmasın); DATA_EPOCH'tan farklı olmalı
+    "STAGING_DATA_EPOCH": "901"
   },
   "secrets": {
     "required": [
