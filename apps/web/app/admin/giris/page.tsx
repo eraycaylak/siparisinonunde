@@ -8,7 +8,7 @@ export const metadata: Metadata = { title: 'Platform girişi' };
 
 export default function AdminLoginPage() {
   return (
-    <AuthLayout title="Platform girişi" description="Yalnız Siparişin Önünde ekibi içindir. Tüm işlemler kayıt altına alınır.">
+    <AuthLayout title="Platform girişi" description="Yalnız Yemek Gelsin ekibi içindir. Tüm işlemler kayıt altına alınır.">
       <Suspense fallback={<ScreenLoading />}>
         <LoginForm variant="admin" />
       </Suspense>

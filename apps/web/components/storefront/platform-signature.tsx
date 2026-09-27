@@ -1,4 +1,4 @@
-import { getSiteUrl } from '@/lib/site';
+import { SITE_NAME, getSiteUrl } from '@/lib/site';
 
 /**
  * Storefront ve takip sayfası altbilgisi imzası (00 §7, 12 §5.3): tek metin, küçük, logosuz,
@@ -11,7 +11,7 @@ export function PlatformSignature() {
       rel="nofollow"
       className="inline-flex min-h-hit items-center text-[13px] text-fg-muted underline-offset-4 hover:underline"
     >
-      Altyapı: Siparişin Önünde
+      Altyapı: {SITE_NAME}
     </a>
   );
 }

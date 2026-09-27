@@ -1,5 +1,5 @@
-# Siparişin Önünde — Caddy ters vekil (00 §2, 14 §1). Otomatik TLS (Let's Encrypt).
-# Alan adı .env'deki DOMAIN'den gelir (varsayılan siparisinonunde.com). Yönlendirme:
+# Yemek Gelsin — Caddy ters vekil (00 §2, 14 §1). Otomatik TLS (Let's Encrypt).
+# Alan adı .env'deki DOMAIN'den gelir (varsayılan yemekgelsin.net). Yönlendirme:
 #   DOMAIN, panel.DOMAIN, admin.DOMAIN  → /api/* API'ye (SSE için tamponsuz), geri kalan web'e
 #                                         (panel./admin. kökü web'de proxy.ts ile /panel ve /admin'e yazılır)
 #   www.DOMAIN                          → DOMAIN'e kalıcı yönlendirme
@@ -9,7 +9,7 @@
 # CLOUDFLARE_API_TOKEN (.env) "Zone.Zone:Read + Zone.DNS:Edit" yetkili olmalı. Ayrıntı: docs/15-kurulum-ve-isletim.md §3.
 
 {
-	email {$ACME_EMAIL:admin@siparisinonunde.com}
+	email {$ACME_EMAIL:destek@yemekgelsin.net}
 	# Caddy'nin kendi (çalışma) logları JSON, stdout'a (docker compose logs caddy). HTTP erişim logları aşağıdaki
 	# (access_log) parçasıyla her site bloğunda ayrıca açılır; bu global blok erişim logu üretmez.
 	log {
@@ -84,17 +84,17 @@
 	}
 }
 
-{$DOMAIN:siparisinonunde.com}, panel.{$DOMAIN:siparisinonunde.com}, admin.{$DOMAIN:siparisinonunde.com} {
+{$DOMAIN:yemekgelsin.net}, panel.{$DOMAIN:yemekgelsin.net}, admin.{$DOMAIN:yemekgelsin.net} {
 	import site
 }
 
-www.{$DOMAIN:siparisinonunde.com} {
+www.{$DOMAIN:yemekgelsin.net} {
 	import access_log
-	redir https://{$DOMAIN:siparisinonunde.com}{uri} permanent
+	redir https://{$DOMAIN:yemekgelsin.net}{uri} permanent
 }
 
 # WhatsApp webhook alt alan adı (isteğe bağlı; panelde gösterilen adres DOMAIN/api/v1/webhooks/wa/<token>'dır)
-hooks.{$DOMAIN:siparisinonunde.com} {
+hooks.{$DOMAIN:yemekgelsin.net} {
 	import access_log
 	handle_path /wa/* {
 		rewrite * /api/v1/webhooks/wa{path}
@@ -106,7 +106,7 @@ hooks.{$DOMAIN:siparisinonunde.com} {
 }
 
 # İşletme vitrinleri: {slug}.DOMAIN — tek wildcard sertifika (DNS-01, Cloudflare)
-*.{$DOMAIN:siparisinonunde.com} {
+*.{$DOMAIN:yemekgelsin.net} {
 	tls {
 		dns cloudflare {env.CLOUDFLARE_API_TOKEN}
 	}

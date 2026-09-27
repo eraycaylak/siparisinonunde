@@ -5,7 +5,7 @@ import { toWaMeDigits } from './phone';
 import { slugifyTr } from './slug';
 
 /** Ortak numaranın sohbet başlığında görünen adı (platform markası). */
-export const SHARED_WA_DISPLAY_NAME = 'Siparişin Önünde';
+export const SHARED_WA_DISPLAY_NAME = 'Yemek Gelsin';
 
 /** Geliştirmede (mock) ortak numaranın gösterim numarası (seed ve simülatör). */
 export const MOCK_SHARED_WA_DISPLAY_PHONE = '+905550000000';

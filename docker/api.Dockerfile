@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1.7
-# Siparişin Önünde — API + worker imajı (14 §1, §11 dilim 6). Aynı imaj iki süreci çalıştırır:
+# Yemek Gelsin — API + worker imajı (14 §1, §11 dilim 6). Aynı imaj iki süreci çalıştırır:
 #   api     : node --import tsx src/server.ts   (varsayılan komut)
 #   worker  : node --import tsx src/worker.ts
 #   migrate : node --import tsx /app/packages/db/src/migrate.ts

@@ -311,4 +311,79 @@ describe('yetki yardımcıları', () => {
     const [t] = await ctx.db.select().from(tenants).where(eq(tenants.slug, DEMO.tenantSlug));
     expect(t!.orderSeq).toBeGreaterThan(1000);
   });
+
+  it('SEED_PASSWORD: tüm demo hesapları ortak parolayı kullanır; değişince var olan demo hesapları eşitlenir', async () => {
+    const { seedDemo, DEMO, resolveSeedPassword } = await import('@siparis/db');
+    expect(resolveSeedPassword(undefined)).toBeNull();
+    expect(resolveSeedPassword('')).toBeNull();
+    expect(() => resolveSeedPassword('kisa123')).toThrow(/SEED_PASSWORD/);
+    expect(resolveSeedPassword('dev-parola-1')).toBe('dev-parola-1');
+
+    await seedDemo(ctx.db, { password: 'dev-parola-1' });
+    const owner = DEMO.users.find((u) => u.role === 'owner')!;
+    expect((await ctx.loginAs(owner.email, 'dev-parola-1')).res.statusCode).toBe(200);
+    expect((await ctx.loginAs(DEMO.admin.email, 'dev-parola-1')).res.json().isPlatformAdmin).toBe(true);
+    expect((await ctx.loginAs(DEMO.doner.owner.email, 'dev-parola-1')).res.statusCode).toBe(200);
+    const wrong = await ctx.request({
+      method: 'POST',
+      url: '/api/v1/auth/login',
+      body: { login: owner.email, password: owner.password },
+      headers: { 'x-forwarded-for': '10.9.7.1' },
+    });
+    expectError(wrong, 401, 'invalid_credentials');
+
+    // Yedekten dönen ortam: işletmeler var, parola değişti → demo hesapları yeni parolaya eşitlenir
+    const r = await seedDemo(ctx.db, { password: 'yeni-parola-2' });
+    expect(r.skipped).toBe(true);
+    expect((await ctx.loginAs(owner.email, 'yeni-parola-2')).res.statusCode).toBe(200);
+    expect((await ctx.loginAs(DEMO.admin.email, 'yeni-parola-2')).res.statusCode).toBe(200);
+    expect((await ctx.loginAs(DEMO.doner.owner.email, 'yeni-parola-2')).res.statusCode).toBe(200);
+  });
+
+  it('SEED_PASSWORD: önceki marka döneminin demo hesapları da eşitlenir (varsayılan parolalar geçmez)', async () => {
+    const { seedDemo, DEMO, LEGACY_DEMO_EMAILS } = await import('@siparis/db');
+    await seedDemo(ctx.db);
+    const [bozok] = await ctx.db.select({ id: tenants.id }).from(tenants).where(eq(tenants.slug, DEMO.tenantSlug));
+    // Eski yedekten dönen hesaplar: platform yöneticisi ve demo işletme üyesi, yayımlanmış yerel parolalarla
+    const legacyAdmin = await ctx.createUser({ email: LEGACY_DEMO_EMAILS.admin, password: 'admin1234', isPlatformAdmin: true, platformRole: 'platform_owner' });
+    const legacyOwner = await ctx.createUser({ email: LEGACY_DEMO_EMAILS.members[0], password: 'demo1234' });
+    await ctx.addMember(bozok!.id, legacyOwner.id, 'manager');
+    // Aynı eski e-postayla ama demo işletmede olmayan hesap: dokunulmaz
+    const outsider = await ctx.createUser({ email: LEGACY_DEMO_EMAILS.members[2], password: 'kasa1234' });
+
+    await seedDemo(ctx.db, { password: 'dev-parola-3' });
+    const fail = (login: string, password: string, ip: string) =>
+      ctx.request({ method: 'POST', url: '/api/v1/auth/login', body: { login, password }, headers: { 'x-forwarded-for': ip } });
+    expectError(await fail(legacyAdmin.email, 'admin1234', '10.9.7.2'), 401, 'invalid_credentials');
+    expectError(await fail(legacyOwner.email, 'demo1234', '10.9.7.3'), 401, 'invalid_credentials');
+    expect((await ctx.loginAs(legacyAdmin.email, 'dev-parola-3')).res.json().isPlatformAdmin).toBe(true);
+    expect((await ctx.loginAs(legacyOwner.email, 'dev-parola-3')).res.statusCode).toBe(200);
+    expect((await ctx.loginAs(outsider.email, 'kasa1234')).res.statusCode).toBe(200);
+  });
+
+  it('demo dağıtımı (DEPLOY_ENV=dev): yeni işletme kaydı kapalı başlar; yönetici açınca sonraki seed dokunmaz', async () => {
+    const { seedDemo } = await import('@siparis/db');
+    await ctx.db.delete(featureFlags).where(eq(featureFlags.key, 'signup_open'));
+    await seedDemo(ctx.db, { demoDeployment: true });
+    const [flag] = await ctx.db.select().from(featureFlags).where(eq(featureFlags.key, 'signup_open'));
+    expect(flag!.enabled).toBe(false);
+    const closed = await ctx.request({
+      method: 'POST',
+      url: '/api/v1/auth/signup',
+      body: signupBody({ email: 'kapali@example.com', phone: '0532 111 22 99', businessName: 'Kapalı Kayıt Lokantası' }),
+      headers: { 'x-forwarded-for': '10.9.7.4' },
+    });
+    expectError(closed, 403, 'signup_closed');
+
+    await ctx.db.update(featureFlags).set({ enabled: true }).where(eq(featureFlags.key, 'signup_open'));
+    await seedDemo(ctx.db, { demoDeployment: true });
+    const [after] = await ctx.db.select().from(featureFlags).where(eq(featureFlags.key, 'signup_open'));
+    expect(after!.enabled).toBe(true);
+
+    // Yerel geliştirme ve testler (demoDeployment yok): kayıt açık kurulur
+    await ctx.db.delete(featureFlags).where(eq(featureFlags.key, 'signup_open'));
+    await seedDemo(ctx.db);
+    const [local] = await ctx.db.select().from(featureFlags).where(eq(featureFlags.key, 'signup_open'));
+    expect(local!.enabled).toBe(true);
+  });
 });

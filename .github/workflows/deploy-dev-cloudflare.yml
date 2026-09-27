@@ -1,7 +1,11 @@
 # Cloudflare dev/demo ortamı (docs/15 §13): Worker + tek container (PostgreSQL + API + worker + web).
+# Adres: https://yemekgelsin.net (Custom Domain, alan adı aynı Cloudflare hesabında; 00 §12a madde 9). workers.dev yedektir.
 # Gereken GitHub secret'ları (Settings > Secrets and variables > Actions):
-#   CLOUDFLARE_API_TOKEN  — "Edit Cloudflare Workers" şablonuyla oluşturulan token (Containers için Workers Paid plan)
-#   DEV_PASSWORD          — siteye girişte sorulacak dev parolası (en az 8 karakter)
+#   CLOUDFLARE_API_TOKEN  — "Edit Cloudflare Workers" şablonuyla oluşturulan token (Containers için Workers Paid plan).
+#                           Özel alan adı için ayrıca yemekgelsin.net bölgesinde: Zone > Workers Routes > Edit ve
+#                           Zone > Zone > Read (Zone Resources: Include > Specific zone > yemekgelsin.net).
+#   DEV_PASSWORD          — geliştirici araçlarının (/dev/*, /api/v1/dev/*) parolası; demo hesaplarının parolası da budur
+#                           (en az 8 karakter)
 #   CLOUDFLARE_ACCOUNT_ID — isteğe bağlı; token birden fazla hesaba erişiyorsa zorunlu
 name: Dev ortamı (Cloudflare)
 
@@ -17,6 +21,14 @@ concurrency:
 
 permissions:
   contents: read
+
+env:
+  # Sitenin kanonik adresi: web derlemesine (NEXT_PUBLIC_SITE_URL) ve API'ye (APP_BASE_URL) yazılır.
+  # wrangler.jsonc'deki routes (Custom Domain) bu adresin alan adıyla aynı olmalı.
+  SITE_URL: https://yemekgelsin.net
+  # Alan adının Cloudflare bölgesi (Registrar'dan alınan kök alan adı). SITE_URL bir alt alan adına (ör.
+  # https://demo.yemekgelsin.net) çevrilse de bölge aynı kalır; www → kök denetimi yalnız SITE_URL kökse yapılır.
+  ZONE: yemekgelsin.net
 
 jobs:
   # Secret'lar henüz eklenmemişse push'ta dağıtım atlanır (uyarı); elle çalıştırmada hata verir
@@ -43,7 +55,7 @@ jobs:
     needs: kontrol
     if: needs.kontrol.outputs.ready == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
@@ -61,17 +73,18 @@ jobs:
           cache: npm
           cache-dependency-path: deploy/cloudflare/package-lock.json
 
-      - name: Bağımlılıklar ve tür denetimi
+      - name: Bağımlılıklar, tür denetimi ve testler
         run: |
           npm ci --no-audit --no-fund
           npm run typecheck
+          npm test
 
-      - name: Cloudflare hesabı ve workers.dev adresi
+      - name: Cloudflare hesabı ve alan adı erişimi
         id: cf
         run: |
-          api() { curl -fsS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4$1"; }
+          api() { curl -sS -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4$1"; }
           if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
-            ids=$(api "/accounts?per_page=50" | jq -r '.result[].id')
+            ids=$(api "/accounts?per_page=50" | jq -r '.result[]?.id')
             count=$(printf '%s\n' "$ids" | grep -c . || true)
             if [ "$count" != "1" ]; then
               echo "::error::Token $count hesaba erişiyor; CLOUDFLARE_ACCOUNT_ID secret'ını ekleyin"
@@ -80,54 +93,150 @@ jobs:
             CLOUDFLARE_ACCOUNT_ID="$ids"
             echo "CLOUDFLARE_ACCOUNT_ID=$ids" >> "$GITHUB_ENV"
           fi
-          sub=$(api "/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" | jq -r '.result.subdomain // empty')
-          if [ -z "$sub" ]; then
-            echo "::error::workers.dev alt alan adı bulunamadı (Cloudflare > Workers & Pages ekranını bir kez açın)"
+
+          host="${SITE_URL#https://}"; host="${host%%/*}"
+          zone="$ZONE"
+          if [ "$host" != "$zone" ] && [ "${host%.$zone}" = "$host" ]; then
+            echo "::error::SITE_URL ($SITE_URL) ZONE ($zone) bölgesinde değil. İş akışındaki SITE_URL ve ZONE değerlerini birlikte güncelleyin (docs/15 §3, §13)."
             exit 1
           fi
-          url="https://siparisinonunde-dev.${sub}.workers.dev"
-          echo "url=$url" >> "$GITHUB_OUTPUT"
+          perm_msg="Cloudflare > My Profile > API Tokens > token'ı düzenleyin ve $zone bölgesi için şu izinleri ekleyin: Zone > Workers Routes > Edit ve Zone > Zone > Read (Zone Resources: Include > Specific zone > $zone). Sonra iş akışını yeniden çalıştırın (docs/15 §13)."
+          zres=$(api "/zones?name=$zone&account.id=$CLOUDFLARE_ACCOUNT_ID")
+          zone_id=$(printf '%s' "$zres" | jq -r '.result[0]?.id // empty')
+          if [ -z "$zone_id" ]; then
+            echo "::error::Özel alan adı kurulamadı: token $zone bölgesini göremiyor (Zone > Zone > Read izni eksik ya da bölge bu hesapta değil). $perm_msg"
+            exit 1
+          fi
+          zstatus=$(printf '%s' "$zres" | jq -r '.result[0].status')
+          [ "$zstatus" = "active" ] || echo "::warning::$zone bölgesinin durumu \"$zstatus\" (active değil); sertifika ve DNS gecikebilir."
+          rcode=$(curl -sS -o "$RUNNER_TEMP/routes.json" -w '%{http_code}' -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/zones/$zone_id/workers/routes" || echo 000)
+          if [ "$rcode" != "200" ] || [ "$(jq -r '.success' "$RUNNER_TEMP/routes.json" 2>/dev/null)" != "true" ]; then
+            echo "::error::Özel alan adı kurulamadı: token'da $zone için Zone > Workers Routes > Edit izni yok (HTTP $rcode). $perm_msg"
+            exit 1
+          fi
+          echo "$zone erişimi tamam (bölge $zone_id, $zstatus)"
+
+          # workers.dev adresi yalnız yedek adresin duman testi için (bulunamazsa o test atlanır)
+          sub=$(api "/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/subdomain" | jq -r '.result.subdomain // empty')
+          if [ -n "$sub" ]; then
+            echo "workers_dev=https://siparisinonunde-dev.${sub}.workers.dev" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::workers.dev alt alan adı bulunamadı; yedek adres denetimi atlanacak"
+          fi
 
       - name: Yapılandırma ve gizli değerler
-        env:
-          SITE_URL: ${{ steps.cf.outputs.url }}
         run: |
           node scripts/prepare-config.mjs "$SITE_URL"
           # İlk dağıtımda Worker yoktur: liste boş sayılır, tüm gizli değerler üretilir
           npx wrangler secret list -c wrangler.generated.jsonc --format json > "$RUNNER_TEMP/existing.json" 2>/dev/null || echo '[]' > "$RUNNER_TEMP/existing.json"
           node scripts/secrets.mjs "$RUNNER_TEMP/existing.json" > "$RUNNER_TEMP/secrets.json"
 
-      - name: Dağıt (Worker + container imajı)
+      - name: Dağıt (Worker + container imajı + özel alan adı)
         run: |
-          npx wrangler deploy -c wrangler.generated.jsonc --secrets-file "$RUNNER_TEMP/secrets.json" --containers-rollout=immediate
+          set +e
+          npx wrangler deploy -c wrangler.generated.jsonc --secrets-file "$RUNNER_TEMP/secrets.json" --containers-rollout=immediate 2>&1 | tee "$RUNNER_TEMP/deploy.log"
+          status=${PIPESTATUS[0]}
+          set -e
           rm -f "$RUNNER_TEMP/secrets.json"
+          if [ "$status" != "0" ]; then
+            # Yalnız wrangler'ın son hata bloğu sınıflandırılır: Docker derleme çıktısı ve tetikleyici listesindeki
+            # "(custom domain)" satırları imaj ya da rollout hatalarını izin hatası gibi göstermesin.
+            n=$(grep -n '\[ERROR\]' "$RUNNER_TEMP/deploy.log" | tail -1 | cut -d: -f1 || true)
+            err=""
+            [ -n "$n" ] && err=$(tail -n +"$n" "$RUNNER_TEMP/deploy.log")
+            if printf '%s' "$err" | grep -qiE '/workers/domains|/workers/routes|custom domain'; then
+              if printf '%s' "$err" | grep -qiE 'dns record|cname|already exists|externally managed|conflict'; then
+                echo "::error::Özel alan adı eklenemedi: $ZONE ya da www.$ZONE için DNS'te çakışan bir kayıt var. Cloudflare > $ZONE > DNS > Records'ta bu adların A/AAAA/CNAME kayıtlarını silip iş akışını yeniden çalıştırın (docs/15 §13)."
+              elif printf '%s' "$err" | grep -qiE 'authentication error|code: 10000|not authorized|unauthorized|forbidden|permission'; then
+                echo "::error::Özel alan adı eklenemedi (token izni). Cloudflare > My Profile > API Tokens > token'ı düzenleyin ve $ZONE bölgesi için şu izinleri ekleyin: Zone > Workers Routes > Edit ve Zone > Zone > Read (Zone Resources: Include > Specific zone > $ZONE). Sonra iş akışını yeniden çalıştırın (docs/15 §13)."
+              else
+                echo "::error::Özel alan adı eklenemedi (çıkış kodu $status); ayrıntı yukarıdaki günlükte (docs/15 §13 Sorun giderme)."
+              fi
+            else
+              echo "::error::wrangler deploy başarısız (çıkış kodu $status); ayrıntı yukarıdaki günlükte."
+            fi
+            exit "$status"
+          fi
 
       - name: Duman testi
         env:
-          URL: ${{ steps.cf.outputs.url }}
+          WORKERS_DEV: ${{ steps.cf.outputs.workers_dev }}
         run: |
-          # İlk dağıtımda container'ın hazırlanması birkaç dakika sürebilir
-          code=000
-          for i in $(seq 1 40); do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 170 -u "dev:$DEV_PASSWORD" "$URL/api/v1/health" || true)
+          code_of() { curl -s -o /dev/null -w '%{http_code}' --max-time "${2:-60}" "${@:3}" "$1" || true; }
+          fail() { echo "::error::$1"; exit 1; }
+
+          # Özel alan adı: DNS kaydı ve sertifika ilk dağıtımda birkaç dakika sürer; container ilk açılışta seed ile kurulur
+          # Süreyle sınırlı (15 dk): container açılamazsa her istek ~150 sn bekleyip 503 döner; deneme sayısı değil süre esas
+          code=000; i=0
+          deadline=$((SECONDS + 900))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            i=$((i + 1))
+            left=$((deadline - SECONDS)); [ "$left" -gt 170 ] && left=170; [ "$left" -lt 10 ] && left=10
+            code=$(code_of "$SITE_URL/api/v1/health" "$left")
             echo "sağlık denemesi $i: HTTP $code"
             [ "$code" = "200" ] && break
+            [ $((deadline - SECONDS)) -gt 15 ] || break
             sleep 15
           done
-          [ "$code" = "200" ] || { echo "::error::API sağlık denetimi 200 dönmedi (son: $code)"; exit 1; }
-          for path in / /s/bozok-pide /panel/giris /admin/giris /dev/whatsapp /api/v1/health/worker; do
-            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 -u "dev:$DEV_PASSWORD" "$URL$path")
-            echo "$path → HTTP $code"
-            [ "$code" = "200" ] || { echo "::error::$path HTTP $code"; exit 1; }
+          [ "$code" = "200" ] || fail "$SITE_URL/api/v1/health 200 dönmedi (son: $code). Özel alan adı, sertifika ya da container hazır değil (docs/15 §13 Sorun giderme)."
+
+          # Herkese açık sayfalar parolasız 200
+          for path in / /s/bozok-pide /s/camlik-doner /panel/giris /admin/giris /yasal/gizlilik /api/v1/health/worker; do
+            code=$(code_of "$SITE_URL$path" 60)
+            echo "$path → HTTP $code (parolasız)"
+            [ "$code" = "200" ] || fail "$path parolasız 200 dönmedi ($code)"
           done
-          code=$(curl -s -o /dev/null -w '%{http_code}' "$URL/panel/giris")
-          [ "$code" = "401" ] || { echo "::error::Parolasız erişim 401 dönmedi ($code)"; exit 1; }
-          # Ortak numara webhook'u parolasız erişilir (Meta çağırır); yanlış belirteç API'den 404 döner (401 değil)
-          code=$(curl -s -o /dev/null -w '%{http_code}' "$URL/api/v1/webhooks/wa/shared/yanlis-belirtec-0000000000")
-          [ "$code" = "404" ] || { echo "::error::Ortak webhook yolu parolasız API'ye ulaşmadı ($code)"; exit 1; }
+          # Demo uyarısı (NEXT_PUBLIC_DEPLOY_ENV=dev derlemesi) ana sayfada ve vitrinde görünür
+          for path in / /s/bozok-pide; do
+            curl -s --max-time 60 "$SITE_URL$path" | grep -q 'Demo ortam' || fail "$path sayfasında \"Demo ortamı\" uyarısı yok"
+          done
+
+          # Geliştirici araçları: parolasız 401, parolayla 200
+          code=$(code_of "$SITE_URL/dev/whatsapp" 60)
+          [ "$code" = "401" ] || fail "/dev/whatsapp parolasız 401 dönmedi ($code)"
+          code=$(code_of "$SITE_URL/api/v1/dev/wa/accounts" 60)
+          [ "$code" = "401" ] || fail "/api/v1/dev/* parolasız 401 dönmedi ($code)"
+          code=$(code_of "$SITE_URL/dev/whatsapp" 60 -u "dev:$DEV_PASSWORD")
+          [ "$code" = "200" ] || fail "/dev/whatsapp parolayla 200 dönmedi ($code)"
+          echo "/dev/whatsapp → 401 parolasız, 200 parolayla"
+
+          # Ortak numara webhook'u parolasız API'ye ulaşır (Meta çağırır); yanlış belirteç API'den 404 döner
+          code=$(code_of "$SITE_URL/api/v1/webhooks/wa/shared/yanlis-belirtec-0000000000" 60)
+          [ "$code" = "404" ] || fail "Ortak webhook yolu API'ye ulaşmadı ($code)"
+
+          # www → kök alan adı (301); yalnız site kök alan adındaysa (www rotası wrangler.jsonc'de). www sertifikası
+          # kökten biraz sonra hazır olabilir.
+          host="${SITE_URL#https://}"; host="${host%%/*}"
+          if [ "$host" = "$ZONE" ]; then
+            www="https://www.$host"
+            res=""
+            for i in $(seq 1 20); do
+              res=$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' --max-time 30 "$www/fiyatlar?kaynak=duman" || true)
+              echo "www denemesi $i: $res"
+              [ "$res" = "301 $SITE_URL/fiyatlar?kaynak=duman" ] && break
+              sleep 15
+            done
+            [ "$res" = "301 $SITE_URL/fiyatlar?kaynak=duman" ] || fail "www yönlendirmesi 301 → $SITE_URL dönmedi (son: $res)"
+          else
+            echo "SITE_URL alt alan adında ($host); www denetimi atlandı"
+          fi
+
+          # Yedek adres (workers.dev): API çalışır, sayfa gezinmesi özel alan adına yönlenir
+          if [ -n "$WORKERS_DEV" ]; then
+            code=$(code_of "$WORKERS_DEV/api/v1/health" 60)
+            [ "$code" = "200" ] || fail "workers.dev API sağlık denetimi 200 dönmedi ($code)"
+            res=$(curl -s -o /dev/null -w '%{http_code} %{redirect_url}' --max-time 30 -H 'accept: text/html' "$WORKERS_DEV/panel/giris" || true)
+            [ "$res" = "302 $SITE_URL/panel/giris" ] || fail "workers.dev sayfa yönlendirmesi beklenen gibi değil ($res)"
+            echo "workers.dev: API 200, sayfa → $SITE_URL (302)"
+          fi
+
           {
             echo "### Dev ortamı hazır"
             echo ""
-            echo "- Adres: $URL (kullanıcı adı: dev, parola: DEV_PASSWORD secret'ı)"
-            echo "- Demo işletmeler: $URL/s/bozok-pide (#BOZOK), $URL/s/camlik-doner (#DONER) · Panel: $URL/panel/giris · WhatsApp simülatörü (ortak numara): $URL/dev/whatsapp"
+            echo "- Adres: $SITE_URL (herkese açık; arama motorlarına kapalı)"
+            echo "- Demo işletmeler: $SITE_URL/s/bozok-pide (#BOZOK), $SITE_URL/s/camlik-doner (#DONER)"
+            echo "- Panel: $SITE_URL/panel/giris (demo@yemekgelsin.net, parola: DEV_PASSWORD) · Admin: $SITE_URL/admin/giris (admin@yemekgelsin.net)"
+            echo "- WhatsApp simülatörü (ortak numara): $SITE_URL/dev/whatsapp (kullanıcı adı: dev, parola: DEV_PASSWORD)"
+            echo "- Yeni işletme kaydı demo ortamında kapalı başlar; açmak için $SITE_URL/admin/bayraklar (docs/15 §13)"
           } >> "$GITHUB_STEP_SUMMARY"

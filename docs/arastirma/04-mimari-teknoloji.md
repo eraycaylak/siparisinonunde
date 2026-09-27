@@ -1,6 +1,6 @@
 # 04 — Teknik Mimari ve Teknoloji Yığını (2026 güncel)
 
-**Proje:** siparisinonunde ("Siparişin Önünde"), WhatsApp üzerinden komisyonsuz sipariş alma SaaS'ı
+**Proje:** siparisinonunde ("Yemek Gelsin"), WhatsApp üzerinden komisyonsuz sipariş alma SaaS'ı
 **Tarih:** 24 Eylül 2026
 **Kapsam:** Stack seçimi, multi-tenancy, alan adları ve SSL, gerçek zamanlı bildirim, termal yazıcı, WhatsApp webhook mimarisi, konuşma durum makinesi, harita ve konum, barındırma, güvenlik, LLM ile sipariş anlama, mobil, mimari diyagram, servis listesi, klasör yapısı, 0-100-1000 işletme maliyet tahmini.
 
@@ -39,7 +39,7 @@
    Gerekçeler: frontend, backend ve mobil tek dilde yazılır. AI destekli geliştirmede verim yüksektir. Gerçek zamanlılık ve PWA/mobil ihtiyacı güçlüdür. **İstisna:** Ekip zaten Laravel'de uzmansa Laravel 13 + Filament 5 + Reverb + Horizon eşit derecede meşru bir seçimdir. Admin paneli daha hızlı çıkar. BaaS (Supabase/Firebase) çekirdek olarak **önerilmez**.
 2. **Multi-tenancy:** Tek paylaşımlı veritabanı kullanılır. Her tabloda `tenant_id` bulunur. PostgreSQL Row Level Security **ikinci savunma hattı** olarak açılır. Hiyerarşi: `tenant (işletme) → branch (şube) → menü/bölge/numara/yazıcı`. Şema başına kiracı önerilmez (migration ve operasyon yükü).
 3. **Alan adları:**
-   - Alt alan adları (`isletme.siparisinonunde.com`): Cloudflare'de wildcard DNS ve sertifika ile.
+   - Alt alan adları (`isletme.yemekgelsin.net`): Cloudflare'de wildcard DNS ve sertifika ile.
    - Özel alan adları: **Cloudflare for SaaS**. İlk **100 hostname ücretsiz**, sonrası **$0,10/hostname/ay** [R].
    - Alternatif: Caddy On-Demand TLS. Ücretsiz, ancak "ask" endpoint'i **zorunlu** [R].
 4. **Gerçek zamanlılık:** Siparişin kaçmaması bir **veri tasarımı** meselesidir:
@@ -254,7 +254,7 @@ platform
 
 | Seçenek | Nasıl çalışır | Maliyet | Artı / eksi |
 |---|---|---|---|
-| **Alt alan adı** `*.siparisinonunde.com` | Cloudflare'de wildcard DNS (proxied). Tek wildcard sertifika. Uygulama `Host` başlığından tenant'ı çözer | Cloudflare Free'de universal SSL birinci seviye wildcard'ı kapsar [E] | En basit. MVP'de yalnız bu olsun |
+| **Alt alan adı** `*.yemekgelsin.net` | Cloudflare'de wildcard DNS (proxied). Tek wildcard sertifika. Uygulama `Host` başlığından tenant'ı çözer | Cloudflare Free'de universal SSL birinci seviye wildcard'ı kapsar [E] | En basit. MVP'de yalnız bu olsun |
 | **Cloudflare for SaaS (Custom Hostnames)** | Müşteri `siparis.isletme.com` için CNAME'i bizim fallback origin'e yönlendirir. CF sertifikayı otomatik alır ve yeniler | Free/Pro/Business planlarında **100 hostname dahil**, sonrası **$0,10/hostname/ay**. Üst limit 50.000, Enterprise'da özel [R] | Edge'de WAF, DDoS ve cache. Sertifika operasyonu yok. **Önerilen** |
 | **Caddy On-Demand TLS** | İlk TLS el sıkışmasında sertifika alır. "Ask" endpoint'i ile alan adını doğrular | Ücretsiz (Let's Encrypt/ZeroSSL) | "**On-demand TLS must be both enabled and restricted to prevent abuse**" [R]. Dahili limit: ACME hesabı başına 10 deneme/10 sn [R]. Kendi edge'imizi yönetiriz. CF'siz senaryoda iyi |
 | **Vercel Domains API** | Proje başına özel alan adı ekleme API'si | **DOĞRULANAMADI** (vercel.com erişilemedi) [E] | Next.js'i Vercel'de barındırmayı ve KVKK/maliyet kararını beraberinde getirir. Önerilmez |
@@ -968,7 +968,7 @@ Varsayımlar:
 flowchart LR
   subgraph MUSTERI["Müşteri"]
     WA["WhatsApp"]
-    SFB["Tarayıcı: storefront<br/>isletme.siparisinonunde.com<br/>veya siparis.isletme.com"]
+    SFB["Tarayıcı: storefront<br/>isletme.yemekgelsin.net<br/>veya siparis.isletme.com"]
   end
 
   subgraph META["Meta"]

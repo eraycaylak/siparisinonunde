@@ -1,6 +1,6 @@
 # 05 — Ürün ve UX Araştırması: Sipariş Akışları, Panel ve Admin Özellik Envanteri, Mesaj Metinleri
 
-**Proje:** siparisinonunde (Siparişin Önünde): WhatsApp üzerinden komisyonsuz sipariş SaaS'ı
+**Proje:** siparisinonunde (Yemek Gelsin): WhatsApp üzerinden komisyonsuz sipariş SaaS'ı
 **Rapor tarihi:** 24 Eylül 2026
 **Kapsam:** Müşteri sipariş akışları (A–E) ve kıyası, storefront ve checkout ayrıntıları, işletme paneli özellik envanteri (Faz 1/2/3), süper admin paneli, pazarlama sitesi, tüm WhatsApp mesaj metinleri (Türkçe), UX ilkeleri, ekran listesi.
 **Bağlayıcı belge:** `KARARLAR.md` (durum kodları, roller, kanal ve ödeme kodları, faz adları). Bu rapor oradaki isimleri aynen kullanır. Faz eşlemesi: **[Faz 1] = MVP**, **[Faz 2] = v1**, **[Faz 3] = v2**.
@@ -133,7 +133,7 @@ sequenceDiagram
     autonumber
     actor M as Müşteri (WhatsApp)
     participant WA as Meta Cloud API
-    participant S as siparisinonunde (API + bot)
+    participant S as Yemek Gelsin (API + bot)
     participant W as Storefront (web)
     participant P as İşletme paneli
     M->>WA: "Merhaba" yazar ya da sohbeti ilk kez açar (request_welcome)
@@ -166,7 +166,7 @@ sequenceDiagram
 
 | Konu | Öneri [T] |
 |---|---|
-| Biçim | `https://{slug}.siparisinonunde.com/s/{token}`. Token HMAC-SHA256 ile imzalanır, base64url kodlanır. İçerik: `tenant_id`, `branch_id`, `conversation_id`, `iat`, `exp`. **Kişisel veri (PII) yok.** BSUID'nin kendisi linke konmaz. |
+| Biçim | `https://{slug}.yemekgelsin.net/s/{token}`. Token HMAC-SHA256 ile imzalanır, base64url kodlanır. İçerik: `tenant_id`, `branch_id`, `conversation_id`, `iat`, `exp`. **Kişisel veri (PII) yok.** BSUID'nin kendisi linke konmaz. |
 | Ömür | 2 saat. Süresi dolmuşsa storefront normal açılır ve sipariş Akış B'ye (WhatsApp doğrulaması) düşer. |
 | Tek kullanımlık mı? | **Hayır.** GET isteğinde tüketilmez, çünkü önizleme veya prefetch token'ı yakmamalı. İlk açılışta httpOnly oturum çerezine çevrilir ve adres çubuğu `history.replaceState` ile temizlenir. Sipariş POST'unda token başına saatlik sipariş sınırı konur. |
 | Ön dolum | Ad (webhook'taki `contacts[].profile.name` [K]; emoji veya takma ad gibi görünüyorsa kullanılmaz). Telefon (webhook'ta `wa_id` varsa [S01]). Kayıtlı adresler, son sipariş. |
@@ -190,7 +190,7 @@ sequenceDiagram
     autonumber
     actor M as Müşteri
     participant W as Storefront
-    participant S as siparisinonunde
+    participant S as Yemek Gelsin
     participant WA as WhatsApp
     participant P as Panel
     M->>W: QR, Instagram, Google veya paket kartı linki (src etiketi)
@@ -340,7 +340,7 @@ flowchart LR
     Q1 --> A["Karşılama + Menüyü aç"]
     Q2 --> A
     Q3 --> A
-    A --> SF["Storefront<br/>slug.siparisinonunde.com"]
+    A --> SF["Storefront<br/>slug.yemekgelsin.net"]
     W1 --> SF
     W2 --> SF
     W3 --> SF
@@ -487,7 +487,7 @@ flowchart LR
 
 ### 3.10 Sipariş takip sayfası (S-07)
 
-- **Adres:** `https://{slug}.siparisinonunde.com/t/{token}` (KARARLAR). Token uzun ömürlüdür (30 gün, salt okunur) [T].
+- **Adres:** `https://{slug}.yemekgelsin.net/t/{token}` (KARARLAR). Token uzun ömürlüdür (30 gün, salt okunur) [T].
 - **İçerik:**
   - Büyük tahmini saat.
   - Adım çubuğu: Alındı → Onaylandı → (Hazırlanıyor) → Yolda/Hazır → Teslim edildi.
@@ -616,7 +616,7 @@ flowchart LR
 | ID | Özellik | Faz | Not |
 |---|---|---|---|
 | P-CUR-01 | Kurye listesi (ad, telefon), "Yola çıkar"da kurye seçimi, kurye adı müşteri mesajında | 1 | |
-| P-CUR-02 | **Link tabanlı kurye görünümü** (`panel.siparisinonunde.com/kurye`, magic link): atanan siparişler, adres + tarif, **haritada aç** (Google/Yandex/Apple), müşteriyi ara, ödeme tipi + para üstü, **"Yola çıktım" / "Teslim ettim"** | 1 (MVP'nin son sprinti; kesilirse 2) | Durum mesajlarını otomatikleştirir, telefon trafiğini azaltır [T] |
+| P-CUR-02 | **Link tabanlı kurye görünümü** (`panel.yemekgelsin.net/kurye`, magic link): atanan siparişler, adres + tarif, **haritada aç** (Google/Yandex/Apple), müşteriyi ara, ödeme tipi + para üstü, **"Yola çıktım" / "Teslim ettim"** | 1 (MVP'nin son sprinti; kesilirse 2) | Durum mesajlarını otomatikleştirir, telefon trafiğini azaltır [T] |
 | P-CUR-03 | Gün sonu tahsilat özeti (nakit/kart/yemek kartı, kurye bazında) | 2 | |
 | P-CUR-04 | Birden çok siparişi aynı turda götürme, sıra önerisi | 2 | |
 | P-CUR-05 | Müşteriye canlı konum ve "kurye yaklaşıyor" bildirimi (native uygulama) | 3 | KVKK ve pil değerlendirmesi [S04 §10] |
@@ -978,7 +978,7 @@ stateDiagram-v2
 ### 6.1 Sayfa haritası
 
 ```
-siparisinonunde.com
+yemekgelsin.net
 ├─ /                          Ana sayfa: "Keşif pazaryerinde, sadakat sende. Komisyonsuz, WhatsApp'tan."   [Faz 1]
 ├─ /nasil-calisir             3 adım + 60 sn'lik video (müşteri ve esnaf gözünden)                       [Faz 1]
 ├─ /ozellikler                Sipariş ekranı · WhatsApp · Web menü ve QR · Kurye · Raporlar                [Faz 1]
@@ -1027,7 +1027,7 @@ Mantık [S02 §7.4]:
 | Şehir ve ilçe landing sayfaları | **Programatik ama gerçek içerikli:** yerel müşteri vakası, ilçedeki hizmet verilen işletme sayısı, yerel esnaf odası bilgisi, yerel sorulara SSS. Şablonla çoğaltılmış ince içerik arama motorlarında değer kaybeder [E]. Yalnız müşterinin olduğu il/ilçede açılır. |
 | Kategori sayfaları | Dikey ağrıları: dönerci (hız, porsiyon seçenekleri), pastane (ön sipariş), su bayi (tekrar sipariş) |
 | Teknik | SSG/SSR, Core Web Vitals, `Organization` + `SoftwareApplication` yapılandırılmış verisi [R schema.org], site haritası, kanonik URL |
-| **İşletme storefront'ları** | Her işletme sayfasında `Restaurant` + `hasMenu` → `Menu` / `MenuSection` / `MenuItem` işaretlemesi [R schema.org]. Hızlı sayfa. İşletmeye özel sitemap. `/t/` ve `/s/` yolları **noindex**. Altbilgide küçük "Siparişin Önünde ile" linki (doğal marka bağlantısı). Toplu link şeması izlenimi verilmemeli [E]. |
+| **İşletme storefront'ları** | Her işletme sayfasında `Restaurant` + `hasMenu` → `Menu` / `MenuSection` / `MenuItem` işaretlemesi [R schema.org]. Hızlı sayfa. İşletmeye özel sitemap. `/t/` ve `/s/` yolları **noindex**. Altbilgide küçük "Yemek Gelsin ile" linki (doğal marka bağlantısı). Toplu link şeması izlenimi verilmemeli [E]. |
 | Google İşletme Profili | Kurulumda işletmenin profiline storefront linki eklenir (concierge) [S02] |
 
 ### 6.5 Blog (ilk 10 konu önerisi) [T]

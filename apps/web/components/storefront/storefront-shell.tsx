@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { DemoNotice } from '@/components/common/demo-notice';
 import { PlatformSignature } from './platform-signature';
 
 /**
@@ -9,6 +10,7 @@ import { PlatformSignature } from './platform-signature';
 export function StorefrontShell({ children, footer }: { children: ReactNode; footer?: ReactNode }) {
   return (
     <div className="flex min-h-dvh flex-col bg-bg">
+      <DemoNotice />
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col">
         <main id="icerik" className="flex-1 px-4 py-4">
           {children}

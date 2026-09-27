@@ -145,7 +145,7 @@ describe('panel WhatsApp ayarları (ortak numara)', () => {
       code: 'BOZOK',
       shared: {
         code: 'BOZOK',
-        displayName: 'Siparişin Önünde',
+        displayName: 'Yemek Gelsin',
         displayPhone: '+905550000000',
         displayPhoneFormatted: '0555 000 00 00',
         prefillText: 'Merhaba, Bozok Pide Salonu için sipariş vermek istiyorum. #BOZOK',
@@ -355,7 +355,7 @@ describe('admin: WhatsApp sağlığı ortak numara özeti', () => {
     expect(res.statusCode, res.body).toBe(200);
     const s = res.json().sharedNumber;
     expect(s).toMatchObject({
-      displayName: 'Siparişin Önünde',
+      displayName: 'Yemek Gelsin',
       displayPhone: '+905550000000',
       provider: 'mock',
       webhookConfigured: true,
@@ -479,7 +479,7 @@ describe('dev simülatörü (ortak numara)', () => {
     expect(viaAcc.messages).toHaveLength(6);
     // Hesap listesi: ortak numara ve dükkan kodları
     const accs = (await ctx.request({ method: 'GET', url: '/api/v1/dev/wa/accounts' })).json();
-    expect(accs.sharedNumber).toMatchObject({ displayName: 'Siparişin Önünde', displayPhone: '+905550000000' });
+    expect(accs.sharedNumber).toMatchObject({ displayName: 'Yemek Gelsin', displayPhone: '+905550000000' });
     expect(accs.sharedNumber.shops.find((x: { tenantId: string }) => x.tenantId === B.tenantId)).toMatchObject({ code: 'DONER', selectable: true, waAccountId: B.account.id });
     expect(accs.items.find((x: { id: string }) => x.id === A.account.id)).toMatchObject({ mode: 'shared', provider: 'shared' });
     // Klasik simülatör akışı: dükkan hesabıyla yeni müşteri "merhaba" → o dükkanın QR'ından gelmiş sayılır → karşılama

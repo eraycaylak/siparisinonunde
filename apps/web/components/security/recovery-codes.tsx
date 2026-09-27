@@ -17,7 +17,7 @@ const PRINT_ID = 'kurtarma-kodlari';
 
 function codesText(codes: string[]): string {
   return [
-    'Siparişin Önünde — iki adımlı doğrulama kurtarma kodları',
+    'Yemek Gelsin — iki adımlı doğrulama kurtarma kodları',
     'Her kod yalnız bir kez kullanılabilir. Kimseyle paylaşmayın.',
     '',
     ...codes,
@@ -45,7 +45,7 @@ export function RecoveryCodesPanel({ codes, onDone }: RecoveryCodesPanelProps) {
     const url = URL.createObjectURL(new Blob([codesText(codes)], { type: 'text/plain;charset=utf-8' }));
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'siparisinonunde-kurtarma-kodlari.txt';
+    a.download = 'yemekgelsin-kurtarma-kodlari.txt';
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -66,7 +66,7 @@ export function RecoveryCodesPanel({ codes, onDone }: RecoveryCodesPanelProps) {
       </Alert>
 
       <div id={PRINT_ID} className="rounded-lg border border-border bg-surface p-4">
-        <p className="mb-3 hidden text-base font-semibold print:block">Siparişin Önünde — kurtarma kodları (her biri bir kez kullanılır)</p>
+        <p className="mb-3 hidden text-base font-semibold print:block">Yemek Gelsin — kurtarma kodları (her biri bir kez kullanılır)</p>
         <ol className="grid grid-cols-1 gap-2 min-[360px]:grid-cols-2" aria-label="Kurtarma kodları">
           {codes.map((code) => (
             <li key={code} className="rounded-md bg-surface-raised px-3 py-2 text-center font-mono text-lg font-semibold tracking-wider text-fg">

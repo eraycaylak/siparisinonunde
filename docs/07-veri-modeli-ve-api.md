@@ -444,7 +444,7 @@ Faz 1 tabloları tam ayrıntılı; küçük tablolarda alanlar satır içinde li
 İndeks `UNIQUE(tenant_id,id)`, `UNIQUE(tenant_id,slug) WHERE deleted_at IS NULL`. PII yok.
 
 #### `storefront_hosts` **[Faz 1]**
-std, `hostname citext UK` (`lezzet.siparisinonunde.com`), `branch_id ✓`, `kind` (`subdomain`; Faz 3 `custom`), `is_primary`, `status` (`active`, `pending_verification`, `disabled`), `redirect_to ✓` (slug değişince eski host 90 gün yönlendirir), `cf_custom_hostname_id ✓`, `ssl_status ✓`, `verified_at ✓` (Faz 3). Arama `sys_resolve_host()` ile (D06 §5.2, §12).
+std, `hostname citext UK` (`lezzet.yemekgelsin.net`), `branch_id ✓`, `kind` (`subdomain`; Faz 3 `custom`), `is_primary`, `status` (`active`, `pending_verification`, `disabled`), `redirect_to ✓` (slug değişince eski host 90 gün yönlendirir), `cf_custom_hostname_id ✓`, `ssl_status ✓`, `verified_at ✓` (Faz 3). Arama `sys_resolve_host()` ile (D06 §5.2, §12).
 
 #### `users` ve Better Auth tabloları **[Faz 1]** (platform)
 - `users` (`panelAuth`; işletme kullanıcıları, kurye, bayi): `id uuid PK`, `email citext UK ✓` (kurye e-postasız olabilir), `email_verified`, `phone_e164 UK ✓`, `phone_verified`, `name NN` (`pii:identity`), `image ✓`, `two_factor_enabled`, `locale`, `last_login_at`, `disabled_at`. RLS: kendi satırı veya aynı tenant'ta üyeliği olanlar.
@@ -1043,10 +1043,10 @@ Faz 2 örneği: %10 kupon (üst sınır 50 TL) → indirim `round(47.500 × 0,10
 ## 6. API tasarımı
 
 ### 6.1 Genel ilkeler
-- **Adresler:** Panel ve kurye `https://panel.siparisinonunde.com/api/v1/{panel|courier}/…` (same-origin, `__Host-` çerez; D06 §3.4). Admin `https://admin.siparisinonunde.com/api/v1/admin/…`. Storefront `https://{slug}.siparisinonunde.com/api/v1/store/…` (tenant `Host`'tan çözülür, gövdedeki `tenant_id` yok sayılır). Sunucudan sunucuya, yazdırma ajanı ve açık API (Faz 3) `https://api.siparisinonunde.com/v1/…`. Webhook'lar `https://hooks.siparisinonunde.com/…`. Tablolarda `/api/v1` öneki yazılmaz.
+- **Adresler:** Panel ve kurye `https://panel.yemekgelsin.net/api/v1/{panel|courier}/…` (same-origin, `__Host-` çerez; D06 §3.4). Admin `https://admin.yemekgelsin.net/api/v1/admin/…`. Storefront `https://{slug}.yemekgelsin.net/api/v1/store/…` (tenant `Host`'tan çözülür, gövdedeki `tenant_id` yok sayılır). Sunucudan sunucuya, yazdırma ajanı ve açık API (Faz 3) `https://api.yemekgelsin.net/v1/…`. Webhook'lar `https://hooks.yemekgelsin.net/…`. Tablolarda `/api/v1` öneki yazılmaz.
 - **Biçim:** REST + JSON, `snake_case`, zamanlar RFC 3339 UTC, para `*_kurus` + `currency`. İstek, yanıt ve SSE şemaları `packages/contracts`'ta Zod 4 ile tanımlıdır; OpenAPI 3.1 buradan üretilir.
 - **Versiyonlama:** URL'de `/v1`. Alan eklemek geriye uyumludur. Kırıcı değişiklik `/v2` ile gelir; kalkacak uçta `Deprecation` ve `Sunset` başlıkları kullanılır.
-- **Hata:** RFC 9457 `application/problem+json`: `type` (`https://api.siparisinonunde.com/problems/{code}`), `title`, `status`, `detail`, `instance`, `code`, `request_id`, `errors[]` (`path`, `code`, `message`).
+- **Hata:** RFC 9457 `application/problem+json`: `type` (`https://api.yemekgelsin.net/problems/{code}`), `title`, `status`, `detail`, `instance`, `code`, `request_id`, `errors[]` (`path`, `code`, `message`).
 - **Sayfalama:** cursor. `?limit=` 1–100 (varsayılan 50) + `cursor`; yanıt `{ "data": [...], "next_cursor": "…" | null }`. Cursor, `(sıralama anahtarı, id)` çiftinin opak base64url kodlamasıdır.
 - **Idempotency:** `Idempotency-Key` (UUID) storefront `POST /orders` ve OTP, panel manuel sipariş, sohbet mesajı ve kurye aksiyonlarında zorunludur, diğer POST'larda seçimliktir. `idempotency_keys` tablosunda 24 saat tutulur.
 - **Eşzamanlılık:** `ETag` / `If-Match` (§1.9).
@@ -1284,13 +1284,13 @@ Faz 2 örneği: %10 kupon (üst sınır 50 TL) → indirim `round(47.500 × 0,10
   "totals": { "items_subtotal_kurus": 47500, "delivery_fee_kurus": 2000, "discount_kurus": 0,
               "total_kurus": 49500, "vat_included_kurus": 4650, "currency": "TRY" },
   "eta": { "min_minutes": 35, "max_minutes": 45 },
-  "tracking_url": "https://lezzet.siparisinonunde.com/t/7Hq2mZ…" }
+  "tracking_url": "https://lezzet.yemekgelsin.net/t/7Hq2mZ…" }
 ```
 Akış B'de aynı istek `"status": "awaiting_customer"` ve `"verification": { "method": "wa_code", "required": true, "code": "K7M2Q9", "wa_url": "https://wa.me/90…?text=Sipari%C5%9F%20kodu%3A%20K7M2Q9", "expires_at": "…", "sms_fallback": true }` döner.
 
 **Hata** — `422 application/problem+json`:
 ```json
-{ "type": "https://api.siparisinonunde.com/problems/min_basket_not_met", "title": "Minimum sepet tutarına ulaşılmadı",
+{ "type": "https://api.yemekgelsin.net/problems/min_basket_not_met", "title": "Minimum sepet tutarına ulaşılmadı",
   "status": 422, "code": "min_basket_not_met", "detail": "Bu bölge için minimum sepet 250,00 TL; 65,00 TL eksik.",
   "missing_kurus": 6500, "request_id": "req_01J…" }
 ```

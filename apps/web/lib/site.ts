@@ -1,9 +1,16 @@
 // Site sabitleri. Künye bilgileri TASLAK: şirket belgeleriyle teyit edilecek (08 §4.7).
 
-export const SITE_NAME = 'Siparişin Önünde';
+export const SITE_NAME = 'Yemek Gelsin';
+/** Alan adı (00 §12a madde 9). */
+export const SITE_DOMAIN = 'yemekgelsin.net';
+/**
+ * Platformun iletişim e-postası (00 §12a madde 9). Posta kutusu henüz kurulmadı; yalnız ürünün platform iletişim
+ * adresi gösterdiği yerlerde (künye, yasal metinler) kullanılır.
+ */
+export const SUPPORT_EMAIL = 'destek@yemekgelsin.net';
 export const SITE_TAGLINE = 'Keşif pazaryerinde, sadakat sende.';
 export const SITE_DESCRIPTION =
-  'Müşterin sana zaten WhatsApp’tan yazıyor. Siparişini komisyonsuz al, panelde sesli uyarıyla yönet; müşterine “Onaylandı” ve “Yolda” mesajı kendiliğinden gitsin.';
+  'Müşterin QR’ını okutur, WhatsApp’tan menünü açar. Siparişini komisyonsuz al, panelde sesli uyarıyla yönet; müşterine “Onaylandı” ve “Yolda” mesajı kendiliğinden gitsin.';
 
 /** Pazarlama sitesinin tam adresi (metadataBase, sitemap, OpenGraph). */
 export function getSiteUrl(): string {
@@ -11,7 +18,7 @@ export function getSiteUrl(): string {
   return raw.replace(/\/+$/, '');
 }
 
-/** Storefront alt alan adı kökü (ör. siparisinonunde.com). Boşsa alt alan adı yönlendirmesi kapalı. */
+/** Storefront alt alan adı kökü (ör. yemekgelsin.net). Boşsa alt alan adı yönlendirmesi kapalı. */
 export const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? '';
 
 /**
@@ -25,6 +32,20 @@ export function supportWhatsappHref(text: string): string | null {
   return SUPPORT_WHATSAPP ? `https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent(text)}` : null;
 }
 
+/**
+ * Herkese açık demo dağıtımı mı (Cloudflare, 15 §13): derleme anında gömülür (deploy/cloudflare/Dockerfile
+ * NEXT_PUBLIC_DEPLOY_ENV=dev). Üretim ve yerel geliştirmede tanımsızdır.
+ */
+export function isDemoDeployment(value: string | undefined = process.env.NEXT_PUBLIC_DEPLOY_ENV): boolean {
+  return value === 'dev';
+}
+
+/** Demo dağıtımında sayfaların üstündeki uyarı (components/common/demo-notice.tsx). */
+export const DEMO_NOTICE = {
+  title: 'Demo ortamı.',
+  body: 'Siparişler örnektir, WhatsApp ve SMS gönderilmez. Gerçek adres ve telefon girmeyin.',
+} as const;
+
 /** Pilot bölge (00 §12a). */
 export const PILOT_AREA = { city: 'Yozgat', district: 'Merkez' } as const;
 
@@ -37,7 +58,7 @@ export const LEGAL_ENTITY = {
   mersis: 'Şahıs şirketlerinde MERSİS numarası bulunmayabilir — teyit edilecek',
   chamber: '[Meslek odası — teyit edilecek]',
   address: '[Açık adres], Merkez / Yozgat',
-  email: '[iletisim@alanadi — teyit edilecek]',
+  email: SUPPORT_EMAIL,
   phone: '[Telefon — teyit edilecek]',
 } as const;
 

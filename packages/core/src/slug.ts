@@ -6,6 +6,7 @@ const TR_MAP: Record<string, string> = { ç: 'c', ğ: 'g', ı: 'i', i: 'i', ö: 
 export const RESERVED_SLUGS = new Set([
   'www', 'api', 'app', 'panel', 'admin', 'kurye', 'dev', 'static', 'assets', 'uploads', 'mail', 'smtp',
   'help', 'destek', 'blog', 'hooks', 'status', 'docs', 'demo', 'test', 'bayi', 'yardim', 'siparisinonunde',
+  'yemekgelsin', 'yemek-gelsin',
 ]);
 
 export const SLUG_PATTERN = /^[a-z0-9](-?[a-z0-9]){2,39}$/;

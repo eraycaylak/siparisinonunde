@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1.7
-# Siparişin Önünde — web imajı (Next.js 16: pazarlama + storefront + panel + admin + kurye).
+# Yemek Gelsin — web imajı (Next.js 16: pazarlama + storefront + panel + admin + kurye).
 # next build + "standalone" çıktı; yalnız izlenen dosyalar çalışma imajına kopyalanır.
 #   docker build -f docker/web.Dockerfile -t siparisinonunde-web \
-#     --build-arg NEXT_PUBLIC_SITE_URL=https://siparisinonunde.com \
-#     --build-arg NEXT_PUBLIC_ROOT_DOMAIN=siparisinonunde.com .
+#     --build-arg NEXT_PUBLIC_SITE_URL=https://yemekgelsin.net \
+#     --build-arg NEXT_PUBLIC_ROOT_DOMAIN=yemekgelsin.net .
 # ÖNEMLİ: NEXT_PUBLIC_* değişkenleri ve API_INTERNAL_URL (next.config.ts /api rewrite'ı) DERLEME anında
 # gömülür; değiştirmek yeniden derleme ister. Bağlam dışı tutulanlar: docker/web.Dockerfile.dockerignore
 
@@ -31,8 +31,8 @@ RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
 # --- Derleme ------------------------------------------------------------------------------------
 FROM deps AS build
 # Tarayıcıya gömülen genel ayarlar (14 §3; üretimde DEV_TOOLS=0)
-ARG NEXT_PUBLIC_SITE_URL=https://siparisinonunde.com
-ARG NEXT_PUBLIC_ROOT_DOMAIN=siparisinonunde.com
+ARG NEXT_PUBLIC_SITE_URL=https://yemekgelsin.net
+ARG NEXT_PUBLIC_ROOT_DOMAIN=yemekgelsin.net
 ARG NEXT_PUBLIC_DEV_TOOLS=0
 ARG NEXT_PUBLIC_DEMO_STORE_SLUG=bozok-pide
 # Platform destek hattı (WhatsApp, E.164 rakamları); giriş ekranı "Parolamı unuttum" bunu gösterir

@@ -1,7 +1,7 @@
 // NetGSM SMS sağlayıcısı (teyit edilmeli): HTTP GET
 //   https://api.netgsm.com.tr/sms/send/get?usercode=&password=&gsmno=&message=&msgheader=&dil=TR
 // Başarılı yanıt: "00 <görev kimliği>" (ya da "01"/"02" + kimlik); hata kodları 20, 30, 40, 50, 51, 70, 80, 85.
-// Başlık (msgheader) platformun onaylı alfanümerik başlığıdır (≤ 11 karakter, ör. "SIPARISNDE" — teyit edilmeli).
+// Başlık (msgheader) platformun onaylı alfanümerik başlığıdır (≤ 11 karakter, ör. "YEMEKGELSIN" — teyit edilmeli).
 
 import { fetchWithTimeout } from '../../wa/http';
 import type { SmsProvider } from '../types';

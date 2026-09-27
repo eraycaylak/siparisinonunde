@@ -140,7 +140,7 @@ describe('aydınlatma metni (08 §2.4-B)', () => {
     expect(text).toContain('Kişisel verilerinizin veri sorumlusu, künyesi aşağıda yer alan işletmedir');
     expect(d.sections[0]!.blocks.find((b) => b.kind === 'facts')).toMatchObject({ rows: expect.arrayContaining([{ label: 'Unvan', value: FULL_LEGAL.legalName }]) });
     expect(d.intro[0]).toMatch(new RegExp(`^${FULL_LEGAL.legalName} olarak, 6698 sayılı`));
-    expect(text).toMatch(/Siparişin Önünde, verilerinizi yalnız bizim adımıza ve talimatımızla işleyen veri işleyendir/);
+    expect(text).toMatch(/Yemek Gelsin, verilerinizi yalnız bizim adımıza ve talimatımızla işleyen veri işleyendir/);
   });
 
   it('zorunlu içerik: amaçlar ve hukuki sebepler, toplama yöntemi, aktarım, saklama, m.11 hakları', () => {
@@ -197,7 +197,7 @@ describe('ön bilgilendirme ve mesafeli satış (08 §4.4)', () => {
     expect(text).toContain('Mesafeli Sözleşmeler Yönetmeliği m.15');
     expect(text).toContain('tüketici hakem heyetine');
     expect(text).toContain('ödeme yükümlülüğü doğar');
-    expect(text).toContain('Siparişin Önünde satıcı ya da aracı değildir');
+    expect(text).toContain('Yemek Gelsin satıcı ya da aracı değildir');
     // Bölgeye göre teslimat ücreti ve minimum sepet
     expect(text).toContain('Medrese: teslimat ücretsiz, minimum sipariş 150 TL.');
     expect(text).toContain('Erdoğan Akdağ: teslimat ücreti 25 TL.');

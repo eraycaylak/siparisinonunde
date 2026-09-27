@@ -1,8 +1,10 @@
 import { BellRing, CheckCheck } from 'lucide-react';
 import { StatusBadge } from '@/components/ui/status-badge';
+import { SITE_DOMAIN } from '@/lib/site';
 
 /**
- * Ana sayfa görseli: panel sipariş kartı + müşteriye giden mesaj (HTML ile çizilir, fotoğraf yok).
+ * Ana sayfa görseli: panel sipariş kartı + müşteriye ortak numaradan giden mesaj (ilk satır kalın dükkan adı, 00 §12a
+ * madde 8; HTML ile çizilir, fotoğraf yok).
  * Örnek veriler temsilidir.
  */
 export function OrderPreview() {
@@ -45,7 +47,8 @@ export function OrderPreview() {
       <div className="-mt-4 ms-auto me-[-0.5rem] w-[85%] rotate-1 rounded-xl rounded-tr-sm border border-border bg-surface p-4 shadow-md sm:me-[-2rem]">
         <p className="text-xs font-semibold text-fg-muted">Müşteriye giden mesaj</p>
         <p className="mt-1 text-sm text-fg">
-          Siparişiniz onaylandı. Tahmini teslim 20.35. Takip: bozok-pide.siparisinonunde.com/t/…
+          <strong className="block">Bozok Pide Salonu</strong>
+          Siparişiniz onaylandı. Tahmini teslim 20.35. Takip: {SITE_DOMAIN}/t/…
         </p>
         <p className="mt-2 flex items-center justify-end gap-1 text-xs text-fg-muted">
           20.05 <CheckCheck className="size-3.5" />

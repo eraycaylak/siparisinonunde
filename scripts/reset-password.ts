@@ -11,7 +11,7 @@
 //   read -rs NEW_PASSWORD && export NEW_PASSWORD && docker compose run --rm -e NEW_PASSWORD api node --import tsx \
 //     /app/scripts/reset-password.ts --email ...; unset NEW_PASSWORD
 // Yerelde:
-//   pnpm exec tsx --env-file=.env scripts/reset-password.ts --email demo@siparisinonunde.local
+//   pnpm exec tsx --env-file=.env scripts/reset-password.ts --email demo@yemekgelsin.net
 
 import { randomBytes } from 'node:crypto';
 import { parseArgs } from 'node:util';

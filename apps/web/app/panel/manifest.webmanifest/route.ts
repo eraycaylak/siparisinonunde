@@ -6,7 +6,7 @@ import type { MetadataRoute } from 'next';
 
 const MANIFEST: MetadataRoute.Manifest = {
   id: '/panel',
-  name: 'Siparişin Önünde · İşletme paneli',
+  name: 'Yemek Gelsin · İşletme paneli',
   short_name: 'Siparişler',
   description: 'WhatsApp sipariş paneli',
   lang: 'tr',

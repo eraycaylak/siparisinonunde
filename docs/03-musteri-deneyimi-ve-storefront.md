@@ -25,7 +25,7 @@
 | İ2 | **Tekrar gelen müşteride 3 dokunuş** | WhatsApp'ta "Sipariş ver" (1) → storefront'ta "Aynısını sipariş ver" (2) → "Siparişi onayla" (3). Adres, telefon ve ödeme ön dolu gelir. Yeni müşteride hedef ≤ 10 dokunuş + adres yazımı [T]. | `sf_reorder_card_tap → order_created` süresi (§11) |
 | İ3 | **WhatsApp'ta başla, WhatsApp'a dön** | Menü web'dedir (seçenekli sepet için), ama giriş ve bildirim sohbettedir. Başarı ekranında "WhatsApp'a dön" butonu bulunur. Sohbette uzun form veya menü listesi gösterilmez. | Karşılama → link tıklama |
 | İ4 | **Şeffaf fiyat** | Fiyatlar KDV dahil TL'dir. Teslimat ücreti ve min. sepet adres girilmeden önce aralık olarak, girildikten sonra kesin tutar olarak gösterilir. Tek ek kalem teslimat ücretidir. "Servis ücreti" türü kalem tanımlanamaz, kapıda kart ödemesine ek ücret konamaz ([D08 §4.5](08-mevzuat-kvkk-odeme-fatura.md)). Onay ekranındaki toplam kaydedilen toplamla aynıdır. | Sunucu ve ekran toplamı hash eşleşmesi |
-| İ5 | **İşletmenin markası önde** | Storefront işletmenin adı, logosu ve rengiyle açılır. Başka işletme listelenmez veya önerilmez; keşif/dizin sayfası yoktur ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9, ETAHS riski). Altbilgide yalnız küçük bir "Altyapı: Siparişin Önünde" yazısı durur. | — |
+| İ5 | **İşletmenin markası önde** | Storefront işletmenin adı, logosu ve rengiyle açılır. Başka işletme listelenmez veya önerilmez; keşif/dizin sayfası yoktur ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9, ETAHS riski). Altbilgide yalnız küçük bir "Altyapı: Yemek Gelsin" yazısı durur. | — |
 | İ6 | **Az ve işe yarar mesaj** | Sipariş başına en fazla 4 durum mesajı gider, Akış A'da buna 1 karşılama eklenir. Adres ve telefon mesajlarda tekrar edilmez, promosyon içerik girmez (§9.1, §9.6). | Sipariş başına mesaj sayısı |
 | İ7 | **İnsan bir dokunuş uzakta** | Her ekranda aynı yerde "İşletmeyi ara" ve "WhatsApp'tan yaz" bulunur. Sohbette "yetkili" yazmak her durumda çalışır. | Yetkili talebi → ilk insan yanıtı |
 | İ8 | **Hata, ne yapılacağını söyler** | Örnek: "Bu adrese teslimat yok. Gel-al ile devam edebilirsiniz." Teknik kod gösterilmez, sepet asla kaybolmaz. | Hata sonrası terk oranı |
@@ -40,7 +40,7 @@
 
 ```mermaid
 flowchart LR
-    A["Akış A girişleri: WhatsApp'tan yazan, request_welcome,<br/>paket QR / magnet, Click-to-WhatsApp reklamı"] --> K["Bot karşılama + 'Menüyü aç'<br/>(imzalı token)"] --> SF["Storefront<br/>{slug}.siparisinonunde.com"]
+    A["Akış A girişleri: WhatsApp'tan yazan, request_welcome,<br/>paket QR / magnet, Click-to-WhatsApp reklamı"] --> K["Bot karşılama + 'Menüyü aç'<br/>(imzalı token)"] --> SF["Storefront<br/>{slug}.yemekgelsin.net"]
     B["Akış B girişleri: Instagram, Google İşletme Profili,<br/>WhatsApp profili, kapı afişi · Masa QR (Faz 3)"] --> SF
     SF --> O["Sipariş → panel"]
     T["Telefonla arayan"] --> E["Akış E: kasiyer girer"] --> O
@@ -50,7 +50,7 @@ flowchart LR
 |---|---|---|---|---|---|---|---|
 | WhatsApp sohbeti | Numaraya yazar | Gelen mesaj webhook'u | A | `wa_link` | `wa` | 1 | Pencereyi müşteri açar |
 | Sohbeti ilk açma | Sohbeti açar ama yazmaz | `request_welcome` olayı (A05 §2.3) | A | `wa_link` | `wa_welcome` | 1 | Sprint 1'de TR numarasıyla test edilir. Pencere açmıyorsa ilk mesaj beklenir (teyit edilmeli) |
-| Paket içi QR kart / buzdolabı magneti | QR okutur, WhatsApp ön dolu metinle açılır, Gönder'e basar | `{slug}.siparisinonunde.com/k/{kod}` → 302 → `wa.me/90…?text=…` | A | `wa_link` | `paket`, `magnet` | 1 | **Tercih edilen yol**, çünkü BSUID ve açık pencere kazanılır. Pazaryeri sözleşmelerinde paket içi materyal kısıtı kontrol edilmeli (A05 §2.10, teyit edilmeli) |
+| Paket içi QR kart / buzdolabı magneti | QR okutur, WhatsApp ön dolu metinle açılır, Gönder'e basar | `{slug}.yemekgelsin.net/k/{kod}` → 302 → `wa.me/90…?text=…` | A | `wa_link` | `paket`, `magnet` | 1 | **Tercih edilen yol**, çünkü BSUID ve açık pencere kazanılır. Pazaryeri sözleşmelerinde paket içi materyal kısıtı kontrol edilmeli (A05 §2.10, teyit edilmeli) |
 | Kapı / vitrin afişi | QR okutur | İki QR: "Menüye bak" (web) + "WhatsApp'tan yaz" | B / A | `web` / `wa_link` | `afis` | 1 | A05 §2.10 |
 | Instagram bio, hikâye link çıkartması | Linke dokunur | `…/?src=ig` | B | `web` | `ig` | 1 | Instagram'ın "Yemek siparişi" butonu yalnız anlaşmalı sağlayıcılarla çalışıyor (teyit edilmeli) |
 | Google İşletme Profili | Menü/web sitesi/sipariş bağlantısı | `…/?src=google` | B | `web` | `google` | 1 | Türkiye'de profile sipariş linki ekleme seçenekleri pilotta denenmeli (teyit edilmeli) |
@@ -127,7 +127,7 @@ sequenceDiagram
 
 **Adımlar:**
 1. **Giriş ve karşılama.** Bot duruma göre varyantı seçer: M01 (ilk kez), M02 (tekrar gelen), kapalı ya da yoğun varyantı (§8.1). CTA URL mesajı tek buton taşır, bu yüzden "yetkili" yolu gövdedeki satırla verilir ([D02 §6.3](02-whatsapp-entegrasyonu.md)).
-2. **Link.** `https://{slug}.siparisinonunde.com/?wa=<token>`. Token imzalıdır, 2 saat geçerlidir, PII taşımaz; içinde yalnız tenant, şube, müşteri ve konuşma kimliği vardır. Her CTA yeni token üretir, eski token'lar süreleri dolana kadar geçerli kalır ([D02 §6.3](02-whatsapp-entegrasyonu.md)).
+2. **Link.** `https://{slug}.yemekgelsin.net/?wa=<token>`. Token imzalıdır, 2 saat geçerlidir, PII taşımaz; içinde yalnız tenant, şube, müşteri ve konuşma kimliği vardır. Her CTA yeni token üretir, eski token'lar süreleri dolana kadar geçerli kalır ([D02 §6.3](02-whatsapp-entegrasyonu.md)).
 3. **İlk açılış.** Token GET isteğinde **tüketilmez**, çünkü link önizlemesi veya prefetch onu yakmamalı. Sunucu token'ı doğrulayıp host'a özel httpOnly oturum çerezine çevirir; `history.replaceState` token'ı adres çubuğundan siler. Önizleme istekleri (HEAD, bilinen önizleme user-agent'ları) yalnız statik menüyü alır [T].
 4. **Menü ve checkout.** S-01'de varsa "Son siparişin" kartı görünür; ad, maskeli telefon, kayıtlı adresler ve son ödeme yöntemi ön dolu gelir. Checkout'ta "Bu sipariş WhatsApp'ta **Ayşe (…45 12)** adına verilecek · *Ben değilim*" satırı bulunur.
 5. **Onay ve sonuç.** POST isteği istemcide üretilen bir idempotency anahtarı taşır. Fiyat, bölge, min. sepet ve açık/kapalı kontrolü sunucuda yapılır. Sipariş `new` + `wa_link` olur, panelde ses çalar. S-06A'da "WhatsApp'a dön" (`wa.me/<numara>`) butonu gösterilir. Ardından bildirimler gelir: M05/M06 (debounce'lu) → M09 veya M08 → M10.
@@ -370,9 +370,9 @@ sequenceDiagram
 | S-15 | Siparişlerim (geçmiş liste) | `/siparislerim` | 2 |
 | S-13 | Masa modu | `/?masa=` | 3 |
 
-**Ortak bileşenler [Faz 1]:** üst çubuk (logo, ad, "Bilgi" → S-14); her sayfada aynı yerde duran **yardım menüsü** ("İşletmeyi ara" `tel:`, "WhatsApp'tan yaz"; WCAG 3.2.6); yapışkan sepet çubuğu; 5 sn'lik "Geri al" şeridi; alt sayfa (odak tuzaklı, ESC ve geri tuşuyla kapanır); altbilgi (künye, yasal linkler, "İçerik bildir" [D08 §4.7](08-mevzuat-kvkk-odeme-fatura.md), "Altyapı: Siparişin Önünde"). Tema işletmenin marka rengidir (`brand_color`, logo ve kapak görseli şube/işletme ayarındadır, [D07](07-veri-modeli-ve-api.md) `tenants`); buton metninin rengi kontrasta göre otomatik seçilir (§10.3, [12](12-marka-tasarim-ve-kullanilabilirlik.md) §5.1).
+**Ortak bileşenler [Faz 1]:** üst çubuk (logo, ad, "Bilgi" → S-14); her sayfada aynı yerde duran **yardım menüsü** ("İşletmeyi ara" `tel:`, "WhatsApp'tan yaz"; WCAG 3.2.6); yapışkan sepet çubuğu; 5 sn'lik "Geri al" şeridi; alt sayfa (odak tuzaklı, ESC ve geri tuşuyla kapanır); altbilgi (künye, yasal linkler, "İçerik bildir" [D08 §4.7](08-mevzuat-kvkk-odeme-fatura.md), "Altyapı: Yemek Gelsin"). Tema işletmenin marka rengidir (`brand_color`, logo ve kapak görseli şube/işletme ayarındadır, [D07](07-veri-modeli-ve-api.md) `tenants`); buton metninin rengi kontrasta göre otomatik seçilir (§10.3, [12](12-marka-tasarim-ve-kullanilabilirlik.md) §5.1).
 
-**Platform imzası (tek metin, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 "Storefront imzası"):** Metin her yerde aynen **"Altyapı: Siparişin Önünde"**dir; başka varyant ("… ile çalışır", "Powered by") kullanılmaz. Yalnız storefront ve takip sayfası (S-07) altbilgisinde, küçük (12–13 px), logosuz ve tek satır durur; pazarlama sitesine `rel="nofollow"` bağlantıyla ve `?src=sf_footer` parametresiyle gider ([05](05-admin-paneli-ve-pazarlama-sitesi.md) C.6.1). Checkout başlığında, onay butonu çevresinde, WhatsApp mesajlarında, SMS'te ve basılı materyalde yer almaz; işletme markası her zaman öndedir (İ5; kural ve gerekçe [12](12-marka-tasarim-ve-kullanilabilirlik.md) §5.3).
+**Platform imzası (tek metin, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 "Storefront imzası"):** Metin her yerde aynen **"Altyapı: Yemek Gelsin"**dir; başka varyant ("… ile çalışır", "Powered by") kullanılmaz. Yalnız storefront ve takip sayfası (S-07) altbilgisinde, küçük (12–13 px), logosuz ve tek satır durur; pazarlama sitesine `rel="nofollow"` bağlantıyla ve `?src=sf_footer` parametresiyle gider ([05](05-admin-paneli-ve-pazarlama-sitesi.md) C.6.1). Checkout başlığında, onay butonu çevresinde, WhatsApp mesajlarında, SMS'te ve basılı materyalde yer almaz; işletme markası her zaman öndedir (İ5; kural ve gerekçe [12](12-marka-tasarim-ve-kullanilabilirlik.md) §5.3).
 
 ### 4.1 S-01 Menü (ana) [Faz 1]
 
@@ -652,7 +652,7 @@ Sunucu, istemciden gelen ücret ve bölge bilgisini yok sayar ve hesabı yeniden
 
 ### 7.1 Adres, token ve güvenlik
 
-- **Adres:** `https://{slug}.siparisinonunde.com/t/{tracking_token}`. Takip token'ı rastgele üretilip saklanmaz; sipariş kimliğinden HMAC ile türetilir: `base62(HMAC-SHA256(tracking_key[kid], order_id))[:22]` (~128 bit, tahmin edilemez). Gerektiğinde (sonraki durum mesajlarındaki link için) yeniden üretilebilir; DB'de yalnız hash'i (`orders.tracking_token_hash`) ve geçersizlik anı (`orders.tracking_expires_at`) tutulur ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7, [D07 §1.2](07-veri-modeli-ve-api.md)). Takip sayfası salt okunurdur.
+- **Adres:** `https://{slug}.yemekgelsin.net/t/{tracking_token}`. Takip token'ı rastgele üretilip saklanmaz; sipariş kimliğinden HMAC ile türetilir: `base62(HMAC-SHA256(tracking_key[kid], order_id))[:22]` (~128 bit, tahmin edilemez). Gerektiğinde (sonraki durum mesajlarındaki link için) yeniden üretilebilir; DB'de yalnız hash'i (`orders.tracking_token_hash`) ve geçersizlik anı (`orders.tracking_expires_at`) tutulur ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7, [D07 §1.2](07-veri-modeli-ve-api.md)). Takip sayfası salt okunurdur.
 - **Yanıt başlıkları:** `Cache-Control: no-store`, `noindex`, `Referrer-Policy: no-referrer` [T]; sonuncusu token'ın dış bağlantılara sızmasını önler.
 - **Güncelleme:** Sayfa ön plandayken 15 sn'de bir yoklanır ([D06 §12](06-teknik-mimari.md)). `awaiting_customer` durumunda (S-06B/C) aralık 3 sn'dir [T]. Durum değişince `aria-live` ile duyurulur.
 - **Gizlilik:** Adres maskelidir: yalnız adres adı ve mahalle ("Ev · Caferağa Mah."). Tam adres ve telefon yalnız siparişi veren oturumda (aynı cihaz çerezi) "Göster" ile açılır [T].
@@ -955,7 +955,7 @@ Pencere kapalıyken aynı içerik [D02 §5.2](02-whatsapp-entegrasyonu.md)'deki 
 
 | Kod | Tetik | Metin |
 |---|---|---|
-| SMS-01 | Doğrulama | {isletme} sipariş doğrulama kodunuz: {kod}. 5 dakika geçerlidir, kimseyle paylaşmayın.⏎@{slug}.siparisinonunde.com #{kod} |
+| SMS-01 | Doğrulama | {isletme} sipariş doğrulama kodunuz: {kod}. 5 dakika geçerlidir, kimseyle paylaşmayın.⏎@{slug}.yemekgelsin.net #{kod} |
 | SMS-02 | `accepted` | {isletme}: {no} numaralı siparişiniz onaylandı. Tahmini teslim {saat}. Takip: {takip_link} |
 | SMS-03a | `rejected` | {isletme}: {no} numaralı siparişiniz alınamadı. Sebep: {sebep}. Bilgi: {sube_tel} |
 | SMS-03b | `cancelled` | {isletme}: {no} numaralı siparişiniz iptal edildi. Sebep: {sebep}. Bilgi: {sube_tel} |
@@ -965,7 +965,7 @@ Pencere kapalıyken aynı içerik [D02 §5.2](02-whatsapp-entegrasyonu.md)'deki 
 - SMS-01'in son satırı tarayıcıların SMS kodunu otomatik doldurabilmesi içindir (WebOTP biçimi, teyit edilmeli).
 - Türkçe karakterler SMS segment sayısını artırabilir. Sağlayıcının Türkçe karakter desteği ve segment hesabı teyit edilmeli; metinler kısa tutulmuştur (§12).
 - SMS'ler işlemseldir, promosyon içermez.
-- **Gönderici başlığı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7):** Faz 1'de platformun onaylı alfanümerik başlığı kullanılır (≤ 11 karakter, ör. "SIPARISNDE" — teyit edilmeli). Müşteri mesajın kimden geldiğini gövdeden anlar: işletme adı her SMS'in başındadır (`{isletme}:` / "{isletme} sipariş doğrulama kodunuz"). İşletmeye özel başlık Faz 3.
+- **Gönderici başlığı ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7):** Faz 1'de platformun onaylı alfanümerik başlığı kullanılır (≤ 11 karakter, ör. "YEMEKGELSIN" — teyit edilmeli). Müşteri mesajın kimden geldiğini gövdeden anlar: işletme adı her SMS'in başındadır (`{isletme}:` / "{isletme} sipariş doğrulama kodunuz"). İşletmeye özel başlık Faz 3.
 - **Maliyet ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4):** SMS OTP ve kritik durum SMS'leri platform maliyetidir; aboneliğe adil kullanım kotasıyla dahildir (Esnaf 100, Pro 300, Zincir şube başına 300 SMS/ay). Kota aşımında işletme uyarılır, müşteriye giden SMS kesilmez [T]; Faz 2'de ek SMS paketi. Müşteri SMS için hiçbir ücret ödemez.
 
 ### 9.6 Mesaj bütçesi
@@ -1126,7 +1126,7 @@ Karara bağlanan maddeler "Karara bağlandı" diye kapatılmıştır; numaralar 
 | 10 | **İptal talebinin kabulünde `cancelled_by`.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 "Müşteri iptali"): `new`'de doğrudan iptal; `accepted` ve sonrasında iptal talebi, onaylanırsa `cancelled_by = customer`, `customer_request`, onaylayan personel `audit_log`'da (§7.4). |
 | 11 | **M13 zamanlaması ve sistem iptali.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10 alarm zinciri; süre sınırları proje kararıdır): otomatik iptal süresi işletme ayarı, 10–30 dk aralığında, varsayılan 15 dk; müşteriye bilgi (M13 + takip sayfası satırı) varsayılan t=10 dk'da ve her durumda iptalden **en az 5 dk önce** gider (§9.2 M13, K17). "Beklerim" süreyi uzatmaz. Bu sınırlar 00 §10'da kanonik olarak yer alıyor. |
 | 12 | **"Bu cihazda hatırla" çerezinin varsayılanı.** | Açık: işaretsiz (opt-in) uygulandı. Varsayılan açık olabilir mi ve 90 günlük süre avukata sorulacak (D08 §11). |
-| 13 | **SMS maliyeti ve gönderici.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4, §7): maliyet platformda, adil kullanım kotası (Esnaf 100, Pro 300, Zincir şube başına 300 SMS/ay; aşımda işletme uyarılır, Faz 2'de ek paket); platformun alfanümerik başlığı, gövdede işletme adı; işletmeye özel başlık Faz 3 (§9.5). Açık kalan: başlık adının ("SIPARISNDE") alınabilirliği, işlemsel SMS'in İYS istisnası ve Türkçe karakterlerin segment etkisi (sağlayıcı ve avukattan teyit). SMS maliyeti 01 §7.1 birim ekonomisinde COGS kalemi olarak yer alıyor. |
+| 13 | **SMS maliyeti ve gönderici.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4, §7): maliyet platformda, adil kullanım kotası (Esnaf 100, Pro 300, Zincir şube başına 300 SMS/ay; aşımda işletme uyarılır, Faz 2'de ek paket); platformun alfanümerik başlığı, gövdede işletme adı; işletmeye özel başlık Faz 3 (§9.5). Açık kalan: başlık adının ("YEMEKGELSIN") alınabilirliği, işlemsel SMS'in İYS istisnası ve Türkçe karakterlerin segment etkisi (sağlayıcı ve avukattan teyit). SMS maliyeti 01 §7.1 birim ekonomisinde COGS kalemi olarak yer alıyor. |
 | 14 | **Kurye maskeli arama.** | Açık, Faz 3'te değerlendirilir (sağlayıcı, maliyet, KVKK). Faz 1'de kurye telefonu gösterilmez, "İşletmeyi ara" kullanılır. |
 | 15 | **Akış B'de debounce sessizliği.** | **Karara bağlandı** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7): debounce yalnız Akış A'da; Akış B'de kod mesajına M05 anında gider (§3.2, §9.6). Sorun ortadan kalktı. |
 | 16 | **Online ödenen web siparişinin doğrulaması [Faz 2].** | Açık. Öneri: ödeme doğrulama sayılır, WhatsApp adımı atlanır, bildirimler utility şablonuyla gider. Faz 2 tasarımında karar gerekir. |

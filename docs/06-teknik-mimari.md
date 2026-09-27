@@ -83,7 +83,7 @@ flowchart TB
   ISL(["İşletme personeli<br/>owner · manager · cashier · kitchen"])
   KUR(["Kurye<br/>mobil tarayıcı"])
   PLT(["Platform ekibi ve bayi"])
-  SYS["<b>Siparişin Önünde</b><br/>storefront · panel · API · worker"]
+  SYS["<b>Yemek Gelsin</b><br/>storefront · panel · API · worker"]
   META["Meta WhatsApp Cloud API<br/>işletmenin WABA'sı + platform WABA'sı"]
   CF["Cloudflare<br/>DNS · WAF · CDN · R2 · Turnstile"]
   LLM["Anthropic Claude API"]
@@ -143,7 +143,7 @@ flowchart LR
 |---|---|---|---|---|
 | `web` | Pazarlama sitesi; storefront (menü, sepet, adres, checkout); takip sayfası `/t/{token}`; host → tenant | Next.js 16 | Yatay, stateless; ISR + CDN | 1 |
 | `api` | Panel/admin/storefront REST; SSE akışı; yetki; yazıcı ajanı WS **[Faz 2]** | Fastify 5, Zod 4, Better Auth | Yatay; SSE bağlantısı başına düşük bellek | 1 |
-| `api-hooks` | `hooks.siparisinonunde.com/wa`: imza → ham olay → 200 ([02](02-whatsapp-entegrasyonu.md) §7.2) | Aynı imaj, `ROLE=hooks` | **En az iki ayrı sunucu/VM** üzerinde (pilotta ana sunucu + ucuz ikinci VPS, §13.3); storefront trafiğinden yalıtılmış | 1 |
+| `api-hooks` | `hooks.yemekgelsin.net/wa`: imza → ham olay → 200 ([02](02-whatsapp-entegrasyonu.md) §7.2) | Aynı imaj, `ROLE=hooks` | **En az iki ayrı sunucu/VM** üzerinde (pilotta ana sunucu + ucuz ikinci VPS, §13.3); storefront trafiğinden yalıtılmış | 1 |
 | `worker` | Kuyruk tüketicileri (§8.1) | BullMQ | Pilotta tek süreç; Faz 2'de kuyruk grubuna göre ayrılır | 1 |
 | `panel` | İşletme paneli + kurye görünümü (`/kurye`) + bayi (`/bayi`, **[Faz 2]**) | Vite SPA/PWA | Statik | 1 |
 | `admin` | Süper admin: tenant, abonelik, WABA sağlığı, DLQ, impersonation, feature flag; destek gelen kutusu (platform WABA'sı iç `platform` tenant'ında modellenir, işletme panelindeki gelen kutusuyla aynı konuşma motoru; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4 "Destek hattı ve P1", [07](07-veri-modeli-ve-api.md) §3.4) | Vite SPA | Statik; Cloudflare Access + IP kısıtı | 1 |
@@ -155,15 +155,15 @@ flowchart LR
 ### 3.4 Alan adları ve yönlendirme
 | Host | Hedef | Not |
 |---|---|---|
-| `siparisinonunde.com` | `web` (pazarlama) | ISR, CDN cache |
-| `{slug}.siparisinonunde.com` | `web` (storefront) + `/api/v1/store/*` → `api` | Wildcard DNS ve sertifika (Cloudflare). Ayrılmış alt adlar: `www, panel, admin, api, hooks, status, cdn, static, mail, blog, destek, app` |
-| `panel.siparisinonunde.com` | `panel` SPA + `/api/v1/panel/*`, `/api/v1/courier/*` → `api` | **Aynı kaynaktan (same-origin)** API: çerez host'a özel (`__Host-` önekli), CORS yok |
-| `admin.siparisinonunde.com` | `admin` SPA + `/api/v1/admin/*` → `api` (admin route grubu) | Ayrı çerez, ayrı Better Auth örneği (§6.1) |
-| `api.siparisinonunde.com` | `api` (`/v1/…`) | Sunucudan sunucuya çağrılar, yazıcı ajanı **[Faz 2]**, açık API **[Faz 3]** |
-| `hooks.siparisinonunde.com` | `api-hooks` (iki düğüm, §13.3) | Meta webhook'u, SMS teslim raporu (Faz 1) ve Faz 2'de PSP callback'leri ([07](07-veri-modeli-ve-api.md) §6.6) |
+| `yemekgelsin.net` | `web` (pazarlama) | ISR, CDN cache |
+| `{slug}.yemekgelsin.net` | `web` (storefront) + `/api/v1/store/*` → `api` | Wildcard DNS ve sertifika (Cloudflare). Ayrılmış alt adlar: `www, panel, admin, api, hooks, status, cdn, static, mail, blog, destek, app` |
+| `panel.yemekgelsin.net` | `panel` SPA + `/api/v1/panel/*`, `/api/v1/courier/*` → `api` | **Aynı kaynaktan (same-origin)** API: çerez host'a özel (`__Host-` önekli), CORS yok |
+| `admin.yemekgelsin.net` | `admin` SPA + `/api/v1/admin/*` → `api` (admin route grubu) | Ayrı çerez, ayrı Better Auth örneği (§6.1) |
+| `api.yemekgelsin.net` | `api` (`/v1/…`) | Sunucudan sunucuya çağrılar, yazıcı ajanı **[Faz 2]**, açık API **[Faz 3]** |
+| `hooks.yemekgelsin.net` | `api-hooks` (iki düğüm, §13.3) | Meta webhook'u, SMS teslim raporu (Faz 1) ve Faz 2'de PSP callback'leri ([07](07-veri-modeli-ve-api.md) §6.6) |
 | Özel alan adı (`siparis.isletme.com`) **[Faz 3]** | `web` | Cloudflare for SaaS: ilk 100 hostname ücretsiz, sonra $0,10/ay (A04 §2.4) |
 
-Panel çerezinin `.siparisinonunde.com` üst alanına yazılmaması bilinçli bir karardır. Aksi halde oturum çerezi her tenant storefront'una da gönderilir.
+Panel çerezinin `.yemekgelsin.net` üst alanına yazılmaması bilinçli bir karardır. Aksi halde oturum çerezi her tenant storefront'una da gönderilir.
 
 ## 4. Repo yapısı ve kod kuralları
 ### 4.1 Klasör yapısı (pnpm + Turborepo)
@@ -249,7 +249,7 @@ interface PosAdapter {
 - **Uyum testi:** Her adaptör için sahte POS sunucusuyla sözleşme testi koşar: aynı sipariş iki kez gönderilir, zaman aşımı, 4xx/5xx ve iptal senaryoları. Sağlayıcı sandbox'ı yoksa yalnız sahte sunucu ve pilot işletmede gözetimli canlı deneme yapılır.
 
 **Açık API ilkeleri [Faz 3]:**
-1. **Adres ve sürüm:** `api.siparisinonunde.com/v1/…` (§3.4). Kırıcı değişiklik `/v2` ile gelir, kalkacak uçta `Deprecation`/`Sunset` başlıkları kullanılır (§16.5). OpenAPI 3.1 belgesi Zod şemalarından üretilir.
+1. **Adres ve sürüm:** `api.yemekgelsin.net/v1/…` (§3.4). Kırıcı değişiklik `/v2` ile gelir, kalkacak uçta `Deprecation`/`Sunset` başlıkları kullanılır (§16.5). OpenAPI 3.1 belgesi Zod şemalarından üretilir.
 2. **Kimlik:** Tenant başına API anahtarı (`api_keys`, yalnız hash'i saklanır, kapsamlı: `orders:read`, `orders:write`, `menu:read`, `menu:write` …), iptal edilebilir ve son kullanım zamanı görünür. Anahtar yalnız `owner` tarafından ve taze oturumla üretilir.
 3. **Giden webhook:** `webhook_subscriptions`; yük HMAC-SHA256 ile imzalı (`kid` ile anahtar döndürme), teslim en az bir kez, olay kimliğiyle tekilleştirme alıcının işidir, üstel backoff ile yeniden deneme ve teslim günlüğü tutulur. Olay adları §4.5'teki katalogdur.
 4. **Veri minimizasyonu:** Kişisel alan (ad, telefon, adres) yalnız ilgili kapsam verilmişse döner. İşletmenin bağladığı üçüncü taraf, işletmenin kendi tedarikçisidir; bu aktarımın KVKK rolü ve DPA'ya yansıması avukatla teyit edilmeli ([08](08-mevzuat-kvkk-odeme-fatura.md) §2.2).
@@ -359,7 +359,7 @@ Süreler [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4 "Oturum sürel
 4. Cihazlar panelde listelenir (son görülme, ses durumu, sürüm) ve tek tıkla iptal edilir.
 
 ### 6.4 Kurye magic link
-Kurye kullanıcısı telefon numarasıyla eklenir. Giriş linki platform WABA şablonuyla (yoksa SMS) gider: `panel.siparisinonunde.com/kurye/giris?t=…`. Token 15 dk geçerli ve tek kullanımlıktır, açılan oturum 12 saat (bir vardiya) sürer ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4); ertesi vardiyada yeni link gönderilir. Kurye görünümü SSE kullanmaz: 30 sn yoklama + atamada Web Push. `owner` kuryenin oturumunu anında kapatabilir.
+Kurye kullanıcısı telefon numarasıyla eklenir. Giriş linki platform WABA şablonuyla (yoksa SMS) gider: `panel.yemekgelsin.net/kurye/giris?t=…`. Token 15 dk geçerli ve tek kullanımlıktır, açılan oturum 12 saat (bir vardiya) sürer ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4); ertesi vardiyada yeni link gönderilir. Kurye görünümü SSE kullanmaz: 30 sn yoklama + atamada Web Push. `owner` kuryenin oturumunu anında kapatabilir.
 
 ### 6.5 RBAC izin matrisi
 İzinler kodda `resource:action` olarak tanımlanır (`packages/auth/permissions.ts`), roller izin kümesidir. Kontrol API'deki tek `authorize(ctx, perm, resource)` ile yapılır; UI yalnız gizler. Kısmi görünürlük alan projeksiyonuyla sağlanır: `kitchen` rolüne giden sipariş yanıtları ve SSE olayları fiyat alanı içermez.
@@ -651,8 +651,8 @@ Tek veri modelinden (`ReceiptDoc`) üç çıktı üretilir: `toHtml()`, `toEscPo
 `queued → sent → printed | failed | cancelled`. İşler sipariş onayında (veya ayara göre gelişte) outbox üzerinden, yazıcı yönlendirme kurallarına göre (kategori → mutfak/bar yazıcısı) oluşur. 30 sn içinde ack gelmezse iş en çok 3 kez yeniden gönderilir, sonra `failed` olur. Panelde "Yazıcı hatası, tekrar bas" gösterilir. Yeniden baskı yeni `kopya_no` ile yapılır ve "KOPYA" ibaresi taşır.
 
 ### 9.5 Yazıcı ajanı protokolü **[Faz 2]**
-- **Eşleştirme:** Panelde "Yazıcı ajanı ekle" 8 haneli kod üretir (10 dk geçerli). Ajan `POST https://api.siparisinonunde.com/v1/agent/pair {code, machine_id}` çağırır ve şubeye bağlı, iptal edilebilir `agent_token` alır. Token Windows DPAPI ile saklanır.
-- **Bağlantı:** Ajan **dışarıya** `wss://api.siparisinonunde.com/v1/agent/ws` bağlantısı açar (`Authorization: Bearer`). Platformdaki tek WebSocket kullanımı budur ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5). NAT/port açma gerekmez. Bloklanırsa HTTP uzun yoklama (`GET /v1/agent/jobs?wait=25`) kullanılır.
+- **Eşleştirme:** Panelde "Yazıcı ajanı ekle" 8 haneli kod üretir (10 dk geçerli). Ajan `POST https://api.yemekgelsin.net/v1/agent/pair {code, machine_id}` çağırır ve şubeye bağlı, iptal edilebilir `agent_token` alır. Token Windows DPAPI ile saklanır.
+- **Bağlantı:** Ajan **dışarıya** `wss://api.yemekgelsin.net/v1/agent/ws` bağlantısı açar (`Authorization: Bearer`). Platformdaki tek WebSocket kullanımı budur ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5). NAT/port açma gerekmez. Bloklanırsa HTTP uzun yoklama (`GET /v1/agent/jobs?wait=25`) kullanılır.
 
 | Yön | Mesaj | Alanlar |
 |---|---|---|
@@ -849,7 +849,7 @@ Adaylar: Turkcell Bulut, Türk Telekom, Huawei Cloud İstanbul, Radore, Bulutist
 Yük küçüktür: 1.000 işletmede zirvede ~1,7 sipariş/sn ve ~15–20 WhatsApp olayı/sn (A04 §12). Ölçekleme tetikleyicileri metriklerdir: DB CPU > %60 sürekli, p95 webhook→panel > 2 sn, kuyruk en eski iş > 10 sn, SSE bağlantısı > 3.000/düğüm.
 
 **İki düğümlü webhook alımı [Faz 1, pilot öncesi zorunlu]:** [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11'deki "en az iki ayrı sunucu/VM üzerinde webhook alımı" kuralı aynı makinede iki süreçle karşılanmaz; pilotta ikinci düğüm ucuz bir VPS'tir (~$5–15/ay [T]).
-- **Yönlendirme:** `hooks.siparisinonunde.com` Cloudflare'de iki origin'li, sağlık kontrollü bir havuza bağlanır (Cloudflare Load Balancing; plan ve fiyat teyit edilmeli). Sağlık kontrolü `GET /health` (imza doğrulama anahtarı yüklü + disk yazılabilir). Bir düğüm düşerse trafik 1 dk içinde diğerine geçer; Meta'nın yeniden denemeleri de ([02](02-whatsapp-entegrasyonu.md) §7.2) sağlıklı düğüme düşer.
+- **Yönlendirme:** `hooks.yemekgelsin.net` Cloudflare'de iki origin'li, sağlık kontrollü bir havuza bağlanır (Cloudflare Load Balancing; plan ve fiyat teyit edilmeli). Sağlık kontrolü `GET /health` (imza doğrulama anahtarı yüklü + disk yazılabilir). Bir düğüm düşerse trafik 1 dk içinde diğerine geçer; Meta'nın yeniden denemeleri de ([02](02-whatsapp-entegrasyonu.md) §7.2) sağlıklı düğüme düşer.
 - **Yazma yolu:** Her düğüm imzayı doğrular → ham olayı özel ağ/WireGuard üzerinden `wa_webhook_events`'e yazar (`ON CONFLICT DO NOTHING`) → 200. DB 150 ms [T] içinde yanıt vermezse veya erişilemezse olay düğümün **yerel kalıcı spool'una** (fsync'li, şifreli diskte, olay hash'iyle adlandırılmış dosya) yazılır ve yine 200 döner. `ingress-spool-drain` işi DB dönünce spool'u aynı idempotent yazımla boşaltır; süpürücü (§8.5) olayları kuyruğa alır. Spool da yazılamıyorsa 503 döner ve Meta'nın yeniden denemesine güvenilir.
 - **İzleme:** `ingress_spool_pending` ve `ingress_node_up{node}` metrikleri (§14.1); spool'da 5 dk'dan eski olay veya tek düğüme düşülmesi P1'dir.
 - **Kapsam dışı:** İkinci düğüm yalnız alımı güvenceye alır; ana sunucu düşerse panel, storefront ve işleme durur, ama hiçbir webhook kaybolmaz ve sunucu dönünce işlenir (sıralama ve dedupe kuralları [02](02-whatsapp-entegrasyonu.md) §7.3–7.4).
@@ -905,7 +905,7 @@ DNS; wildcard sertifika ve TLS; WAF ve DDoS koruması; rate limiting kuralları 
 ### 14.3 İz, hata izleme, uptime
 - **OpenTelemetry:** Trace bağlamı iş yüküne taşınır. Webhook → `wa-inbound` → FSM → outbox → `wa-outbound` → SSE zinciri tek trace'te görünür. Faz 1'de Grafana Tempo (self-host) kullanılır, örnekleme %10 + hata olan tüm trace'ler.
 - **Sentry:** `sendDefaultPii: false`, `beforeSend` ile gövde/çerez/başlık temizleme, kullanıcı yalnız `user_id`, istek gövdesi gönderilmez. Seçenek: Sentry SaaS (AB bölgesi, teyit edilmeli) veya TR'de self-host GlitchTip.
-- **Uptime Kuma** (self-host) + harici ikinci bir ping servisi izler: `hooks` GET doğrulama (her iki ingress düğümü ayrı ayrı), storefront örnek tenant, panel `/health`, `api` `/ready` (DB + Redis). Uçtan uca doğrulama sentetik canary'dedir (§7.10). Halka açık durum sayfası `status.siparisinonunde.com` **[Faz 2]**.
+- **Uptime Kuma** (self-host) + harici ikinci bir ping servisi izler: `hooks` GET doğrulama (her iki ingress düğümü ayrı ayrı), storefront örnek tenant, panel `/health`, `api` `/ready` (DB + Redis). Uçtan uca doğrulama sentetik canary'dedir (§7.10). Halka açık durum sayfası `status.yemekgelsin.net` **[Faz 2]**.
 
 ### 14.4 Alarmlar
 | Seviye | Örnekler | Kanal ve süre |
@@ -1050,7 +1050,7 @@ Playwright'ta ses için Chrome `--autoplay-policy=no-user-gesture-required` bayr
 - **Trunk-based:** `main` her an deploy edilebilir, özellikler feature flag arkasında birleşir. **Migration'lar:** drizzle-kit SQL üretir, SQL gözden geçirilip commit edilir. RLS, PostGIS, partition ve trigger'lar elle yazılmış SQL'dir. Migration'lar `app_owner` rolüyle, uygulama rolünden ayrı bir adımda ve **deploy'dan önce** çalışır.
 - **Expand/contract:** Sütun kaldırma veya yeniden adlandırma aynı sürümde yapılmaz. (1) ekle, (2) çift yaz + geri doldur (batch işi), (3) okumayı taşı, (4) sonraki sürümde kaldır.
 - **Güvenlik ayarları:** Her migration `SET lock_timeout = '5s'` ve makul `statement_timeout` ile çalışır. İndeksler `CREATE INDEX CONCURRENTLY` ile oluşturulur. Büyük tabloda tablo yeniden yazan değişiklik yoğun saatte yapılmaz. Migration geri alınmaz, ileri düzeltme (forward-fix) yapılır. Uygulama imajı bir önceki sürüme dönebilecek şekilde geriye uyumludur.
-- **Sürümleme:** Tüm API yolları URL'de `/v1` taşır (`/api/v1/{store|panel|courier|admin}/…`, `api.siparisinonunde.com/v1/…`); kırıcı değişiklik `/v2` ile gelir, kalkacak uçta `Deprecation`/`Sunset` başlıkları kullanılır ([07](07-veri-modeli-ve-api.md) §6.1). Panel API'si SPA ile birlikte deploy edilir. SPA `X-App-Version` farkını görünce yeni sürümü arka planda indirir ve yalnız §16.7'deki güvenli anlarda uygular; açık `new` sipariş varken paneli asla yeniden yüklemez. Açık API **[Faz 3]** de `/v1` ile başlar. Mobil uygulama ve yazıcı ajanı semver kullanır, sunucu minimum sürümü zorlar.
+- **Sürümleme:** Tüm API yolları URL'de `/v1` taşır (`/api/v1/{store|panel|courier|admin}/…`, `api.yemekgelsin.net/v1/…`); kırıcı değişiklik `/v2` ile gelir, kalkacak uçta `Deprecation`/`Sunset` başlıkları kullanılır ([07](07-veri-modeli-ve-api.md) §6.1). Panel API'si SPA ile birlikte deploy edilir. SPA `X-App-Version` farkını görünce yeni sürümü arka planda indirir ve yalnız §16.7'deki güvenli anlarda uygular; açık `new` sipariş varken paneli asla yeniden yüklemez. Açık API **[Faz 3]** de `/v1` ile başlar. Mobil uygulama ve yazıcı ajanı semver kullanır, sunucu minimum sürümü zorlar.
 - **Panel güncelleme politikası, sürüm treni, hotfix, öncü halka ve "Yenilikler":** §16.7.
 
 ### 16.6 Feature flag

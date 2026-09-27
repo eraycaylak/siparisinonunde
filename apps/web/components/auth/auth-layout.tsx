@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Logo } from '@/components/brand/logo';
+import { DemoNotice } from '@/components/common/demo-notice';
 
 /** Giriş/kayıt sayfaları için ortalanmış kabuk. */
 export function AuthLayout({
@@ -18,8 +19,9 @@ export function AuthLayout({
 }) {
   return (
     <div className="flex min-h-dvh flex-col bg-surface">
+      <DemoNotice />
       <header className="px-4 py-5">
-        <Link href="/" className="inline-flex min-h-hit items-center rounded-md p-1" aria-label="Siparişin Önünde ana sayfa">
+        <Link href="/" className="inline-flex min-h-hit items-center rounded-md p-1" aria-label="Yemek Gelsin ana sayfa">
           <Logo />
         </Link>
       </header>

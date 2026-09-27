@@ -1,7 +1,8 @@
 # syntax=docker/dockerfile:1.7
-# Siparişin Önünde — Cloudflare dev container'ı (15 §13): PostgreSQL 16 + API + worker + web tek imajda.
+# Yemek Gelsin — Cloudflare dev container'ı (15 §13): PostgreSQL 16 + API + worker + web tek imajda.
 # Derleme bağlamı depo köküdür (wrangler.jsonc image_build_context). Wrangler, image_vars'ı --build-arg olarak geçirir.
 # Üretim dağıtımı bu imajı KULLANMAZ (docker/*.Dockerfile + docker-compose.yml, Türkiye'de VPS).
+# NEXT_PUBLIC_DEPLOY_ENV=dev: web sayfalarının üstünde "Demo ortamı" uyarısı (apps/web/components/common/demo-notice.tsx).
 
 ARG NODE_VERSION=22
 
@@ -34,11 +35,12 @@ COPY apps/web/package.json apps/web/package.json
 RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
     pnpm config set store-dir /pnpm/store && \
     pnpm install --frozen-lockfile --filter "@siparis/web..."
-ARG NEXT_PUBLIC_SITE_URL=https://siparisinonunde-dev.example.workers.dev
+ARG NEXT_PUBLIC_SITE_URL=https://yemekgelsin.net
 ENV NEXT_PUBLIC_SITE_URL=$NEXT_PUBLIC_SITE_URL \
     APP_BASE_URL=$NEXT_PUBLIC_SITE_URL \
     NEXT_PUBLIC_ROOT_DOMAIN= \
     NEXT_PUBLIC_DEV_TOOLS=1 \
+    NEXT_PUBLIC_DEPLOY_ENV=dev \
     DEV_TOOLS=1 \
     NEXT_PUBLIC_DEMO_STORE_SLUG=bozok-pide \
     NEXT_PUBLIC_SUPPORT_WHATSAPP= \

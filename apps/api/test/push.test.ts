@@ -20,7 +20,7 @@ vi.mock('web-push', () => ({ default: { sendNotification }, sendNotification }))
 const VAPID = {
   VAPID_PUBLIC_KEY: 'BEIRDAhHyygHmkikexZb2oLuF-o5Wj2IeilLb8dNfIYUcFSTxncIIssodgVLvqJtTSBlXKP_AE6b-OGAfXe3ZEo',
   VAPID_PRIVATE_KEY: 'Iw5uGt4la3WgyCoi9xlPZIPFCfItfdBIwpRvk3TRgxU',
-  VAPID_SUBJECT: 'mailto:destek@siparisinonunde.local',
+  VAPID_SUBJECT: 'mailto:destek@yemekgelsin.net',
 };
 /** Geçerli biçimde istemci anahtarları (taklit servis çözmez). */
 const KEYS = { p256dh: 'BNcRdreALRFXTkOOUHK1EtK2wtaz5Ry4YfYCA_0QTpQtUbVlUls0VJXg7A8u-Ts1XbjhazAkj7I99e8QcYP7DkM', auth: 'tBHItJI5svbpez7KI4CCXg' };
@@ -78,7 +78,7 @@ describe('yapılandırma', () => {
     expect(noPush.pushEnabled).toBe(false);
     expect(webPushConfigWarnings(noPush)).toEqual([expect.stringContaining('VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT')]);
     expect(webPushConfigWarnings(loadConfig(prod))).toEqual([]);
-    expect(() => loadConfig({ ...prod, VAPID_SUBJECT: 'destek@siparisinonunde.com' })).toThrow(/VAPID_SUBJECT/);
+    expect(() => loadConfig({ ...prod, VAPID_SUBJECT: 'destek@yemekgelsin.net' })).toThrow(/VAPID_SUBJECT/);
     expect(() => loadConfig({ ...prod, VAPID_PUBLIC_KEY: 'kisa' })).toThrow(/VAPID_PUBLIC_KEY/);
   });
 

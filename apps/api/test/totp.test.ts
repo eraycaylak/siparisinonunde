@@ -95,7 +95,7 @@ describe('kurulum ve etkinleştirme', () => {
     expect(body.secret).toMatch(/^[A-Z2-7]{32}$/);
     expect(body.otpauthUrl.startsWith('otpauth://totp/')).toBe(true);
     expect(body.otpauthUrl).toContain(`secret=${body.secret}`);
-    expect(decodeURIComponent(body.otpauthUrl)).toContain('issuer=Siparişin Önünde');
+    expect(decodeURIComponent(body.otpauthUrl)).toContain('issuer=Yemek Gelsin');
     expect(decodeURIComponent(body.otpauthUrl)).toContain(m.user.email);
     expect(body.qrSvg.startsWith('<svg')).toBe(true);
 

@@ -1,6 +1,6 @@
-# CLAUDE.md — siparisinonunde
+# CLAUDE.md — Yemek Gelsin (depo: siparisinonunde)
 
-Türkiye'deki işletmeler için komisyonsuz, WhatsApp üzerinden sipariş alma SaaS'ı. Faz 1 kodu yazıldı ve çalışıyor (pilot: Yozgat / Merkez). Plan `docs/` altında; uygulamanın bağlayıcı teknik sözleşmesi `docs/14-uygulama-sartnamesi.md`, kurulum ve işletim `docs/15-kurulum-ve-isletim.md`.
+**Yemek Gelsin** (`yemekgelsin.net`): Türkiye'deki işletmeler için komisyonsuz, WhatsApp üzerinden sipariş alma SaaS'ı. Marka ve alan adı kararı 00 §12a madde 9; kod içi adlar (`@siparis/*`, veritabanı, ortam değişkenleri) değişmez. Faz 1 kodu yazıldı ve çalışıyor (pilot: Yozgat / Merkez). Plan `docs/` altında; uygulamanın bağlayıcı teknik sözleşmesi `docs/14-uygulama-sartnamesi.md`, kurulum ve işletim `docs/15-kurulum-ve-isletim.md`.
 
 ## Önce bunları oku
 - `docs/00-kararlar-ve-sozluk.md`: **bağlayıcı** kararlar, sözlük, sipariş durum makinesi, roller, enum'lar. Kodda ve dokümanda isimler buradakiyle birebir aynı olmalı. Bir kararı değiştirmek gerekiyorsa önce bu dosyayı güncelle, sonra kodu.

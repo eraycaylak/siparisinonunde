@@ -3,7 +3,7 @@
 > **Bağlayıcı belge.** Tüm plan dokümanları ve kod bu belgedeki isimleri, durum kodlarını, rolleri, fiyatları ve faz kararlarını aynen kullanır. Bir karar değişirse **önce bu belge** güncellenir, sonra ilgili dokümanlar. Açık kararlar bölüm 13'te; dokümanlar o maddelerde varsayılanla yazılmıştır.
 
 > Bu belge, plan dokümanlarını yazan herkes için **tek doğruluk kaynağıdır**. Buradaki isimler, durumlar, fiyatlar, roller ve kapsam kararları dokümanlarda **aynen** kullanılmalıdır. Bir karar araştırmayla çelişiyorsa burada yazan geçerlidir; gerekirse "açık karar" olarak işaretlenir.
-> Tarih: 2026-09-24. Çalışma adı: **siparisinonunde** (marka: "Siparişin Önünde"). Alan adı ve marka tescili henüz teyit edilmedi.
+> Tarih: 2026-09-24 (son güncelleme 27.09.2026). Ürün ve marka adı: **Yemek Gelsin**, alan adı `yemekgelsin.net` (§12a madde 9). Depo ve kod içindeki çalışma adı `siparisinonunde` olarak kalır. Marka tescili henüz teyit edilmedi.
 
 ## 1. Ürün tanımı (tek cümle)
 Türkiye'deki yerel işletmelerin (öncelik restoran/paket servis) **kendi WhatsApp numaralarından komisyonsuz sipariş almasını**, siparişleri **web panelinde sesli uyarıyla yönetmesini** ve müşterisine **otomatik WhatsApp durum bildirimleri** göndermesini sağlayan, sabit aylık abonelikli çok kiracılı (multi-tenant) SaaS.
@@ -12,18 +12,18 @@ Türkiye'deki yerel işletmelerin (öncelik restoran/paket servis) **kendi Whats
 
 **Bilinçli olarak yapılmayanlar (kapsam dışı):** tüketiciye yönelik ortak uygulama/pazaryeri, kurye filosu işletmek, işletme adına para tahsil etmek (ödeme aracılığı), resmi olmayan WhatsApp kütüphaneleri, genel amaçlı AI sohbet botu.
 
-## 2. Bileşenler ve alan adları (çalışma varsayımı)
+## 2. Bileşenler ve alan adları (alan adı `yemekgelsin.net`, §12a madde 9; alt alan adı düzeni üretim hedefidir)
 | Bileşen | Adres | Kullanıcı |
 |---|---|---|
-| Pazarlama sitesi | `siparisinonunde.com` | Ziyaretçi, işletme adayı |
-| İşletme storefront'u (menü + sipariş) | `{slug}.siparisinonunde.com` (Faz 3'te özel alan adı) | Son müşteri |
-| Sipariş takip sayfası | `{slug}.siparisinonunde.com/t/{token}` | Son müşteri |
-| İşletme paneli (PWA) | `panel.siparisinonunde.com` | İşletme sahibi ve personeli |
-| Kurye görünümü | `panel.siparisinonunde.com/kurye` (magic link ile, mobil) | Kurye |
-| Süper admin paneli | `admin.siparisinonunde.com` (2FA zorunlu, IP kısıtlı) | Platform ekibi |
-| Bayi paneli (Faz 2) | `panel.siparisinonunde.com/bayi` | Bayi/kurulum ortağı |
-| API | Panel, admin ve storefront için aynı kaynaktan `/api/v1/*` (`panel.`, `admin.`, `{slug}.siparisinonunde.com`; çerez host'a özel, CORS yok); `api.siparisinonunde.com` yalnız sunucudan sunucuya çağrılar, yazıcı ajanı (Faz 2) ve açık API (Faz 3) için (06 §3.4) | Panel, storefront, entegrasyonlar |
-| WhatsApp webhook | `hooks.siparisinonunde.com/wa` | Meta |
+| Pazarlama sitesi | `yemekgelsin.net` | Ziyaretçi, işletme adayı |
+| İşletme storefront'u (menü + sipariş) | `{slug}.yemekgelsin.net` (Faz 3'te özel alan adı) | Son müşteri |
+| Sipariş takip sayfası | `{slug}.yemekgelsin.net/t/{token}` | Son müşteri |
+| İşletme paneli (PWA) | `panel.yemekgelsin.net` | İşletme sahibi ve personeli |
+| Kurye görünümü | `panel.yemekgelsin.net/kurye` (magic link ile, mobil) | Kurye |
+| Süper admin paneli | `admin.yemekgelsin.net` (2FA zorunlu, IP kısıtlı) | Platform ekibi |
+| Bayi paneli (Faz 2) | `panel.yemekgelsin.net/bayi` | Bayi/kurulum ortağı |
+| API | Panel, admin ve storefront için aynı kaynaktan `/api/v1/*` (`panel.`, `admin.`, `{slug}.yemekgelsin.net`; çerez host'a özel, CORS yok); `api.yemekgelsin.net` yalnız sunucudan sunucuya çağrılar, yazıcı ajanı (Faz 2) ve açık API (Faz 3) için (06 §3.4) | Panel, storefront, entegrasyonlar |
+| WhatsApp webhook | `hooks.yemekgelsin.net/wa` | Meta |
 
 ## 3. Sözlük (Türkçe ↔ kod adı) — dokümanlarda bu eşleşme kullanılır
 | Türkçe | Kod / tablo | Not |
@@ -44,7 +44,7 @@ Türkiye'deki yerel işletmelerin (öncelik restoran/paket servis) **kendi Whats
 | Bayi | `reseller` | Faz 2 |
 | Denetim kaydı | `audit_log` | Tüm kritik işlemler |
 | Platform tenant'ı | `platform` (iç tenant) | Platform WABA'sı ve admin **destek gelen kutusu** bu iç tenant üzerinden aynı konuşma motorunu kullanır |
-| Ortak numara | `tenants.wa_mode = 'shared'`, `wa_accounts.provider = 'shared'` | Platformun tek WhatsApp numarası ("Siparişin Önünde"); varsayılan mod (§12a madde 8). Karşıtı kendi numarası: `wa_mode = 'own'` |
+| Ortak numara | `tenants.wa_mode = 'shared'`, `wa_accounts.provider = 'shared'` | Platformun tek WhatsApp numarası ("Yemek Gelsin"); varsayılan mod (§12a madde 8). Karşıtı kendi numarası: `wa_mode = 'own'` |
 | Dükkan kodu | `tenants.wa_code` | Ortak numarada dükkanı seçtiren kısa kod (ör. `BOZOK`); QR/bağlantıdaki `#KOD` |
 | Yönlendirme kaydı | `shared_wa_routes` | Ortak numaraya yazan kişinin güncel ve son dükkanları (platform düzeyi, asgari kişisel veri) |
 | Dükkan seçici | `shared_wa_messages` (P01–P05) | Ortak numaranın dükkan seçme/bilgi mesajları; hiçbir dükkanın sohbetine girmez |
@@ -109,10 +109,10 @@ Geçişler: `awaiting_customer→new|cancelled`; `new→accepted|rejected|cancel
 - **Değerlendirme:** Faz 1'de basit — "teslim edildi" mesajındaki butonlarla puan (3 seçenek) + opsiyonel kısa yorum; yalnız işletme panelinde görünür (`reviews` tablosu Faz 1). Herkese açık yayınlama ve işletme yanıtı Faz 2.
 - **Karşılama sıklığı (kanonik sıra):** opt-out/insan modu → kara liste veya askıya alınmış tenant (12 saatte 1 bilgi) → açık sipariş durum kartı (15 dk'da 1; şube kapalıyken de) → şube `closed` (6 saatte 1) / `paused` (12 saatte 1) bilgisi → tam karşılama / kısa yanıt. Tam karşılama (menü linkli) aynı müşteriye en fazla 12 saatte bir; arada gelen mesajlara kısa yanıt + "Menüyü aç" en fazla 30 dk'da bir; açık siparişi olan müşteriye karşılama yerine sipariş durumu kartı gider.
 - **Müşteri iptali:** `new` durumunda müşteri doğrudan iptal edebilir (`cancelled_by=customer`, `customer_request`); `accepted` ve sonrasında müşteri yalnız **iptal talebi** gönderir, işletme onaylarsa yine `cancelled_by=customer`, `customer_request` yazılır ve onaylayan personel audit log'a kaydedilir.
-- **SMS gönderici başlığı:** Faz 1'de platformun onaylı alfanümerik başlığı (≤ 11 karakter, ör. "SIPARISNDE" — teyit edilmeli), mesaj gövdesinde işletme adı; işletmeye özel başlık Faz 3.
+- **SMS gönderici başlığı:** Faz 1'de platformun onaylı alfanümerik başlığı (≤ 11 karakter, ör. "YEMEKGELSIN" — teyit edilmeli), mesaj gövdesinde işletme adı; işletmeye özel başlık Faz 3.
 - **Takip token'ı:** sipariş kimliğinden HMAC ile türetilir ve saklanmaz (gerektiğinde yeniden üretilebilir; 07 §1.2); DB'de yalnız `orders.tracking_token_hash` ve `orders.tracking_kid` tutulur; süresi `tracking_expires_at` = teslim/final durum + 7 gün; süresi dolmuş link 410 döner ve yalnız kişisel veri içermeyen özet gösterir.
 - **Destek kayıtları (Faz 1):** harici helpdesk yok; destek notları, etiketleri ve görüşme kayıtları admin panelinde (`admin_notes`, `admin_tasks`). Etiket sözlüğü tektir ve İngilizce snake_case'tir (ör. `wa_connect`, `order_not_received`, `printer`). İşletme sağlık skoru 0–100 ölçeğindedir, tanımı 10 §5.6'dadır; 05 ve 07 buna bağlanır.
-- **Storefront imzası:** storefront altbilgisinde tek metin: "Altyapı: Siparişin Önünde" (küçük, bağlantılı); işletme markası her zaman önde. İşletmenin ana rengi, logo ve kapak görseli şube/işletme ayarındadır (12 §5 tema kuralı).
+- **Storefront imzası:** storefront altbilgisinde tek metin: "Altyapı: Yemek Gelsin" (küçük, bağlantılı); işletme markası her zaman önde. İşletmenin ana rengi, logo ve kapak görseli şube/işletme ayarındadır (12 §5 tema kuralı).
 - **Test siparişlerinde alarm:** `onboarding_test` siparişinde zincir kısaltılmış çalışır — panel sesi + Web Push + (varsa) platform WhatsApp uyarısı "TEST" etiketiyle gider; SMS ve müşteri adımları atlanır, otomatik iptal yoktur. `canary` siparişinde hiçbir dış bildirim gitmez.
 - **Fişte kişisel veri:** mutfak fişinde müşteri adı/telefonu/adresi yok; paket (kurye) fişinde adres ve adres tarifi tam, telefon maskeli (son 4 hane) — kurye tam numarayı kurye görünümünden arar. UI'da emoji değil ikon kullanılır.
 - **Storefront link token'ı** GET isteğinde tüketilmez (link önizleme/prefetch yakmasın): ilk açılışta oturum çerezine çevrilir, URL temizlenir, "Ben değilim" kaçışı vardır.
@@ -202,7 +202,7 @@ Geçişler: `awaiting_customer→new|cancelled`; `new→accepted|rejected|cancel
    - Standart TOTP (RFC 6238, 30 sn, 6 hane, ±1 adım tolerans, aynı adımın kodu ikinci kez kabul edilmez); sır şifreli saklanır; 8 tek kullanımlık kurtarma kodu (yalnız özetleri saklanır); ikinci adım denemesi kullanıcı başına 5/10 dk.
 
 8. **Ortak WhatsApp numarası — varsayılan (26.09.2026).** §1'deki "kendi WhatsApp numaralarından" ifadesini ve §6 madde 2'yi (işletmenin kendi WABA'sı) günceller; ayrıntı 14 §8.1.
-   - **Gerekçe (maliyet):** aracı firma (360dialog) numara başına aylık ~49 € alıyor (teyit edilmeli); bu, Esnaf paketinin (990 TL/ay) üstündedir. Bu yüzden varsayılan olarak **tüm işletmeler platformun tek WhatsApp numarasını ("Siparişin Önünde") kullanır.** Toplamda tek numara vardır: işletme sahibine giden platform uyarıları (00 §10 alarm zinciri) ve müşteri siparişleri aynı platform numarası yapılandırmasını kullanır (`PLATFORM_WA_*`).
+   - **Gerekçe (maliyet):** aracı firma (360dialog) numara başına aylık ~49 € alıyor (teyit edilmeli); bu, Esnaf paketinin (990 TL/ay) üstündedir. Bu yüzden varsayılan olarak **tüm işletmeler platformun tek WhatsApp numarasını ("Yemek Gelsin") kullanır.** Toplamda tek numara vardır: işletme sahibine giden platform uyarıları (00 §10 alarm zinciri) ve müşteri siparişleri aynı platform numarası yapılandırmasını kullanır (`PLATFORM_WA_*`).
    - **Dükkan kodu:** her işletmenin kısa, tekil bir kodu vardır (`tenants.wa_code`; A–Z ve rakam, 3–12 karakter, en az bir harf — yalnız rakamdan oluşan kod `#1047` sipariş numarasıyla karışır; kayıtta slug'dan üretilir, çakışmada rakam soneki; bot komutu olan sözcükler ve Akış B koduna benzeyen kodlar kullanılmaz). Kodu **yalnız platform yöneticisi** değiştirir; işletme sahibi QR'ı indirir. İşletmenin QR'ı/bağlantısı: `wa.me/<ortak numara>?text=Merhaba, <İşletme> için sipariş vermek istiyorum. #KOD`.
    - **Müşteri deneyimi:** A dükkanının QR'ını okutan müşteriye bot **A olarak** yanıt verir (A'nın adıyla karşılama + "Menüyü aç" = Akış A); B'nin QR'ını okutursa **B olarak**. Sonradan **kodsuz** yazarsa: son 24 saatte konuştuğu dükkan varsa ona devam edilir; yoksa son dükkanları varsa "Hangi dükkandan sipariş vermek istersin?" sorusu en çok 2 son dükkan + "Diğer dükkanlar" butonuyla gelir; hiç dükkanı yoksa canlı dükkanların WhatsApp listesi gider (bölümlü, mesaj başına en çok 10 satır, fazlası sayfalı). Dükkan adını yazmak da çalışır (Türkçe karakter ve büyük/küçük harf duyarsız; tek eşleşme seçilir, birden çok eşleşme listelenir). "dükkanlar", "liste", "dükkan", "değiştir", "başka dükkan" komutları seçiciyi açar. Akış B sipariş kodu tüm işletmelerde tekildir; kodu yazan müşteri doğru işletmeye bağlanır. "DUR"/"BAŞLAT" dükkan başınadır: alıntılanan (yanıtlanan) dükkan mesajının dükkanına, alıntı yoksa müşteriye en son yazan dükkana uygulanır; müşterinin o an sipariş verdiği dükkan değişmez.
    - **Kimlik ve yalıtım:** müşteri sohbet başlığında platform adını görür; **dükkanın her mesajı dükkan adını taşır** (metinde kalın ilk satır, etkileşimli mesajda başlık; 24 saat dışı şablonların hepsi dükkan adını değişken olarak içerir). Siparişler yine o dükkanın panelinde; müşteri kaydı, sohbet ve siparişler dükkan başına ayrıdır (tenant yalıtımı aynen; müşteri kimliği `(tenant_id, wa_bsuid)`). Mesaj bütçesi, debounce ve İYS kuralları değişmez.
@@ -212,13 +212,22 @@ Geçişler: `awaiting_customer→new|cancelled`; `new→accepted|rejected|cancel
    - **Bağlantı yolu (madde 4'ü ortak numara için genişletir):** platformun tek numarası ya doğrudan Meta Cloud API'ye (platformun kendi Meta Business portföyü, geliştirici uygulaması ve kalıcı System User token'ı; kendi numarası için Tech Provider/App Review gerekmez — teyit edilmeli) ya da 360dialog üzerinden bağlanır; ikisi de desteklenir (`PLATFORM_WA_PROVIDER=cloud|d360`, kurulum 15 §6). Doğrudan Cloud API'de aracı ücreti yoktur, 360dialog kurulumu kısaltır ve aracı desteği sağlar; seçim proje sahibinindir. İşletmelerin kendi numaraları madde 4'teki gibi aracı üzerinden bağlanır.
    - **Meta ücreti:** ortak numaradaki mesajların Meta ücreti platform hesabına yansır (§6 madde 6'daki işletme başına pass-through yerine). Ücret mesaj bazında işletmeye göre izlenir (`messages.tenant_id`); pakete yansıtma açık karar.
 
+9. **Marka ve alan adı: "Yemek Gelsin" / `yemekgelsin.net` (27.09.2026).** Başlık notunu, §2'deki alan adını ve §13 madde 6'nın alan adı kısmını günceller.
+   - **Ürün ve marka adı:** **Yemek Gelsin** (iki kelime, Türkçe yazımıyla, baş harfler büyük). Önceki çalışma adı "Siparişin Önünde" kullanıcıya görünen hiçbir yerde kullanılmaz. Ortak WhatsApp numarasının görünen adı (madde 8), storefront imzası ("Altyapı: Yemek Gelsin"), iki adımlı doğrulama uygulamasında görünen ad (TOTP issuer), panel PWA adı, platform uyarı ve test mesajları bu adı taşır.
+   - **Alan adı:** `yemekgelsin.net` (Cloudflare Registrar ile alındı; bölge, dev ortamının Worker'ıyla aynı Cloudflare hesabında). §2'deki adresler bu alan adıyla okunur. Dev/demo ortamı herkese açık tek adrestir ve yol tabanlıdır: `https://yemekgelsin.net` (vitrin `/s/<slug>`, takip `/t/<token>`, panel `/panel`, admin `/admin`); `www.yemekgelsin.net` köke kalıcı yönlenir, yalnız geliştirici araçları (`/dev/*`, `/api/v1/dev/*`) parolalıdır (15 §13). Kişisel veri kuralı değişmez: gerçek işletme verisi yalnız Türkiye'deki üretim sunucusunda tutulur; alan adı üretime taşınırken DNS 15 §3'e göre ayarlanır. Bu yüzden dev ortamı sayfalarında "Demo ortamı" uyarısı görünür ve yeni işletme kaydı (`signup_open`) kapalı başlar (varsayılan; açmak proje sahibinin `/admin/bayraklar` kararıdır).
+   - **Logo:** geçici işaret mürekkep yuvarlatılmış kare içinde safran servis kapağı, beyaz tabak ve hız çizgileridir ("yemek yolda"), yanında "Yemek Gelsin" yazısı (12 §3.1). Nihai logo tasarımcıdan gelir.
+   - **İletişim adresi:** platformun iletişim e-postası `destek@yemekgelsin.net`. Posta kutusu henüz kurulmadı; künye ve yasal metinlerde yer tutucu olarak gösterilir, çalıştığı varsayılmaz.
+   - **Değişmeyenler (iç tanımlayıcılar):** depo adı, paket adları (`@siparis/*`), veritabanı adları, ortam değişkenleri, çerez ve tarayıcı depolama anahtarları, Docker imaj adları, Cloudflare Worker (`siparisinonunde-dev`) ve R2 kovası adları, WhatsApp şablon adları (marka içermez).
+   - **Demo hesapları** (yalnız geliştirme/dev): `admin@`, `demo@`, `mudur@`, `kasa@`, `mutfak@`, `kurye@`, `doner@yemekgelsin.net`. `SEED_PASSWORD` tanımlıysa tüm demo hesapları bu parolayı kullanır (dev ortamında `DEV_PASSWORD`); değilse yerel geliştirme parolaları (README). Önceki dönemin `@siparisinonunde.local` demo hesapları eski bir yedekten dönerse onlar da `SEED_PASSWORD`'e eşitlenir.
+   - **Açık kalanlar:** "Yemek Gelsin" marka tescili (9, 35, 38 ve 42. sınıflar) ve savunma alan adları (ör. `yemekgelsin.com`, `yemekgelsin.com.tr`; müsaitlik teyit edilmeli, 13 V-002); SMS gönderici başlığı (ör. "YEMEKGELSIN", ≤ 11 karakter, teyit edilmeli); ortak numaranın Meta'da "Yemek Gelsin" görünen adıyla onayı; kurumsal e-posta.
+
 ## 13. Açık kararlar (proje sahibine sorulacak — dokümanlar varsayılanla yazılır, varsayılan belirtilir)
 1. **Ekip ve stack:** Geliştiriciler TypeScript/React mi, PHP/Laravel mi? (Varsayılan: TypeScript monorepo.)
 2. **Pilot şehir/ilçeler** (saha satışı yakınlık ister). (Varsayılan: ekibin bulunduğu şehirde 2–3 ilçe.)
 3. **Şirket türü** (Ltd / AŞ) ve Teknokent. (Varsayılan: Ltd, yatırım planı netleşince AŞ'ye dönüşüm.)
 4. **Barındırma sağlayıcısı** (yurt içi teklifler). (Varsayılan: yurt içi yerli bulut.)
 5. **Meta modeli:** Tech Provider ile mi başlanacak, yoksa sürtünmesiz onboarding için baştan Solution Partner mı? (Varsayılan: Tech Provider + Plan B.)
-6. **Marka ve alan adı** müsaitliği ("Siparişin Önünde" / siparisinonunde.com).
+6. **Marka ve alan adı:** ~~alan adı~~ **karara bağlandı** (§12a madde 9: "Yemek Gelsin" / `yemekgelsin.net` alındı). Açık kalan: marka tescili ve savunma alan adları.
 7. **Kurye:** yalnız işletmenin kendi kuryesi mi (varsayılan), ileride kurye firması entegrasyonu stratejik mi?
 8. **AI serbest metin siparişi** hangi paketlerde / kotalı mı? (Varsayılan: Pro ve üstü, adil kullanım kotası.)
 9. **Yemek kartı** online tahsilat ne zaman? (Varsayılan: Faz 1 yalnız kapıda.)

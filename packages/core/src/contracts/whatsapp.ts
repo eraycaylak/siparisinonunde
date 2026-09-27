@@ -30,7 +30,7 @@ export type PanelWhatsappAccount = z.infer<typeof panelWhatsappAccountSchema>;
 export const panelWhatsappSharedSchema = z.object({
   /** Dükkan kodu (tenants.wa_code), ör. BOZOK */
   code: z.string().nullable(),
-  /** Müşterinin sohbet başlığında gördüğü ad ("Siparişin Önünde") */
+  /** Müşterinin sohbet başlığında gördüğü ad ("Yemek Gelsin") */
   displayName: z.string(),
   /** Ortak numara (E.164); yapılandırılmamışsa null */
   displayPhone: z.string().nullable(),

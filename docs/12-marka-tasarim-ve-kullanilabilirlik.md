@@ -1,6 +1,6 @@
 # 12 — Marka, Tasarım ve Kullanılabilirlik
 
-> **Amaç:** Siparişin Önünde'nin marka platformunu, görsel kimliğini, `packages/ui` tasarım sistemini, alarm seslerini ve basılı şablonları tek yerde tanımlamak. Ayrıca kasiyerin ve son müşterinin ürünü gerçekten kullanabildiğini pilottan önce kanıtlayacak araştırma, test, cihaz kabulü ve eğitim içeriği planını vermek.
+> **Amaç:** Yemek Gelsin'in marka platformunu, görsel kimliğini, `packages/ui` tasarım sistemini, alarm seslerini ve basılı şablonları tek yerde tanımlamak. Ayrıca kasiyerin ve son müşterinin ürünü gerçekten kullanabildiğini pilottan önce kanıtlayacak araştırma, test, cihaz kabulü ve eğitim içeriği planını vermek.
 > **Tarih:** 2026-09-24 (Hafta 0) · **Durum:** Taslak v1 · **Bağlayıcı kaynak:** [00](00-kararlar-ve-sozluk.md) §1 (konumlandırma, ana mesaj), §2 (alan adları), §4 (roller, P1 hattı), §5 (durum kodları), §6 (WhatsApp kararları), §9 (marka başvurusu), §10 (kademeli alarm, stack), §11 (fazlar, pilot). Çelişkide 00 geçerlidir.
 
 **Kapsam:** Marka platformu (misyon, kişilik, ses tonu, isim riski, alan adı, Meta/WhatsApp marka kuralları); görsel kimlik (logo brifi, renk, durum renkleri, tipografi, ikon, fotoğraf); tasarım token'ları, tema ve bileşen envanteri; storefront tema kuralı; ses tasarımı; basılı materyal şablonları; UX araştırması ve kullanılabilirlik testi (D13, [10](10-riskler-operasyon-ve-metrikler.md) §4.3); cihaz/tarayıcı destek matrisi ve kabul testi (UAT); eğitim ve destek içeriği üretimi; erişilebilirlik ve yerelleştirme ilkeleri.
@@ -36,15 +36,17 @@ Eksiksizlik eleştirisi dört boşluk buldu: ürün tasarımı kapasitesi ve kul
 
 ## 2. Marka platformu
 
+> **Güncelleme (27.09.2026):** Ürün ve marka adı **Yemek Gelsin**, alan adı `yemekgelsin.net` ([00](00-kararlar-ve-sozluk.md) §12a madde 9). §2.1–§2.5 ve §3.1 buna göre güncellendi. Önceki çalışma adı "Siparişin Önünde" yalnız aşağıdaki aday tablosunda tarihçe olarak geçer.
+
 ### 2.1 Misyon, vaat ve kanıt noktaları
-- **Misyon:** Mahallenin işletmesiyle kendi müşterisinin arasına kimse girmesin. Esnaf siparişini komisyonsuz, kendi WhatsApp'ından ve hiçbirini kaçırmadan alsın.
+- **Misyon:** Mahallenin işletmesiyle kendi müşterisinin arasına kimse girmesin. Esnaf siparişini komisyonsuz, WhatsApp'tan ve hiçbirini kaçırmadan alsın.
 - **Ana mesaj (kanonik, [00](00-kararlar-ve-sozluk.md) §1):** *"Keşif pazaryerinde, sadakat sende. Komisyonsuz, WhatsApp'tan."*
-- **Marka sözü (iç kullanım):** *"Siparişin önünde ol."* Müşterin senin, numaran güvende, sipariş sesle gelir.
+- **Marka sözü (iç kullanım) [T]:** *"Yemek gelsin, komisyon gitmesin."* Müşterin senin, sipariş sesle gelir.
 
 | Kanıt noktası | Dayanak | Dikkat |
 |---|---|---|
 | Resmi WhatsApp altyapısı, "numaran güvende" | [00](00-kararlar-ve-sozluk.md) §6.1 | "Ban riski sıfır" denmez ([05](05-admin-paneli-ve-pazarlama-sitesi.md) C.8) |
-| Numara ve WhatsApp Business uygulaması yerinde kalır | Coexistence, [00](00-kararlar-ve-sozluk.md) §6.4 | D11 sonucuna bağlı ([10](10-riskler-operasyon-ve-metrikler.md) §4.8) |
+| Numara bağlamadan başlanır: tüm dükkanlar ortak "Yemek Gelsin" numarasında, dükkan kodu ve QR ile | Ortak numara, [00](00-kararlar-ve-sozluk.md) §12a madde 8 | Kendi numarası isteğe bağlıdır; "siparişler kendi WhatsApp'ına gelir" varsayılan olarak denmez |
 | Sipariş başı ücret, ciro yüzdesi yok | [00](00-kararlar-ve-sozluk.md) §8 | Her zaman Meta ücreti notuyla |
 | Siparişi kaçırmamanız için 4 kademeli uyarı (ses, bildirim, WhatsApp, SMS) | [00](00-kararlar-ve-sozluk.md) §10 | "Hiçbir sipariş kaçmaz **garantisi**" denmez; "sipariş kaçmaz" iç adıdır |
 | Veriler Türkiye'de | [00](00-kararlar-ve-sozluk.md) §10 | Sağlayıcı seçilmeden yayınlanmaz ([05](05-admin-paneli-ve-pazarlama-sitesi.md) açık konu 26) |
@@ -69,18 +71,19 @@ Eksiksizlik eleştirisi dört boşluk buldu: ürün tasarımı kapasitesi ve kul
 | Destek (platform WhatsApp numarası) | siz [T] | Sorumluluk alan, süre veren | "Hemen bakıyorum, 5 dk içinde döneceğim." |
 | Yasal metin | siz | Resmi, açık | [08](08-mevzuat-kvkk-odeme-fatura.md) |
 
-**Yazım kuralları:** Marka metinde her zaman **"Siparişin Önünde"** yazılır (Türkçe karakterli, iki kelime, baş harfler büyük). `siparisinonunde` yalnız alan adında ve kodda geçer. "SÖ", "SiparişÖnde" gibi kısaltma yoktur. Panel ve müşteri metinlerinde ünlem en fazla bir tanedir ve emoji kullanılmaz (WhatsApp mesajlarındaki emoji kuralları [03](03-musteri-deneyimi-ve-storefront.md) §9.1'dedir).
+**Yazım kuralları:** Marka metinde her zaman **"Yemek Gelsin"** yazılır (iki kelime, baş harfler büyük). `yemekgelsin` yalnız alan adında ve e-posta adreslerinde geçer; kod içindeki çalışma adı `siparisinonunde` değişmez. "YG", "YemekGelsin" gibi kısaltma ve bitişik yazım metinde kullanılmaz. Panel ve müşteri metinlerinde ünlem en fazla bir tanedir ve emoji kullanılmaz (WhatsApp mesajlarındaki emoji kuralları [03](03-musteri-deneyimi-ve-storefront.md) §9.1'dedir).
 
 ### 2.4 İsim riski ve yedek isimler (R36)
-**Risk:** R36 "Marka / alan adı çakışması" ([10](10-riskler-operasyon-ve-metrikler.md) §3.3; olasılık 2, etki 2). Ek bir risk daha var: "sipariş" kelimesi 35 ve 42. sınıflarda tanımlayıcıdır. Bu yüzden "Siparişin Önünde" **ayırt edici değil** gerekçesiyle TÜRKPATENT tarafından reddedilebilir (A03 §7.4.3). Öneri kelime + logo başvurusudur. Başvuru 2 Ekim'de yapılacak ([09](09-yol-haritasi-ve-sprint-plani.md) §1.1, F0-H05).
+**Risk:** R36 "Marka / alan adı çakışması" ([10](10-riskler-operasyon-ve-metrikler.md) §3.3; olasılık 2, etki 2). Ek riskler: "yemek" kelimesi yemek siparişi hizmetlerinde tanımlayıcıdır, bu yüzden "Yemek Gelsin" **ayırt edici değil** gerekçesiyle TÜRKPATENT tarafından reddedilebilir (A03 §7.4.3); "Yemek" ile başlayan pazaryeri markalarıyla benzerlik itirazı da olasıdır (marka vekiliyle **teyit edilmeli**). Öneri kelime + logo başvurusudur. Başvuru tarihi [09](09-yol-haritasi-ve-sprint-plani.md) §1.1, F0-H05'e göre yeniden planlanır.
 
-**İsim değişirse etkilenenler:** marka başvurusu, alan adları ve e-posta, platform WABA görünen adı "Siparişin Önünde" (değişiklik Meta incelemesine girer, [02](02-whatsapp-entegrasyonu.md) §3.6), SMS başlığı ("SIPARISNDE", ≤ 11 karakter, [00](00-kararlar-ve-sozluk.md) §7), Business Verification'daki web sitesi, künye, basılı materyal. **İsim kilidi H1 sonudur.** Marka vekilinin tescil edilebilirlik görüşü 1 Ekim'e kadar olumsuz gelirse başvuru yedek isimle yapılır.
+**İsim değişikliğinin (27.09.2026) etkiledikleri:** ürün arayüzü, WhatsApp metinleri, alan adı ve demo ortamı güncellendi ([00](00-kararlar-ve-sozluk.md) §12a madde 9). Kalanlar: marka başvurusu, kurumsal e-posta (`destek@yemekgelsin.net` henüz kurulmadı), platform WABA görünen adı "Yemek Gelsin" (Meta incelemesine girer, [02](02-whatsapp-entegrasyonu.md) §3.6), SMS başlığı ("YEMEKGELSIN", 11 karakter, [00](00-kararlar-ve-sozluk.md) §7, teyit edilmeli), Business Verification'daki web sitesi, künye, basılı materyal. Marka vekilinin tescil edilebilirlik görüşü olumsuz gelirse başvuru yedek isimle yapılır.
 
 **Eleme ölçütleri:** (1) "WhatsApp", "Whats", "WA" içermez (§2.6). (2) Pazaryeri markalarına ve "Sipariş Ustası" gibi mevcut sektör adlarına benzemez (A02 §3). (3) Telefonda harf harf söylemeden yazılır; ASCII karşılığı tektir. (4) SMS başlığına sığar (≤ 11 ASCII karakter). (5) Olumsuz argo çağrışımı yoktur.
 
 | Aday | Mantık | ASCII / SMS başlığı | Tescil riski [T] | Müsaitlik |
 |---|---|---|---|---|
-| **Siparişin Önünde** (birincil) | Konumlandırmayı anlatır | `siparisinonunde` / `SIPARISNDE` | Orta-yüksek (tanımlayıcı unsur); kelime + logo şart | 00 §13 #6, **(teyit edilmeli)** |
+| **Yemek Gelsin** (seçildi, 00 §12a madde 9) | Ürünün vaadini söyler: sipariş ver, yemek gelsin | `yemekgelsin` / `YEMEKGELSIN` | Orta-yüksek (tanımlayıcı "yemek", benzerlik itirazı olası); kelime + logo şart | `yemekgelsin.net` alındı; marka **(teyit edilmeli)** |
+| Siparişin Önünde (önceki çalışma adı, bırakıldı) | Konumlandırmayı anlatır | `siparisinonunde` / `SIPARISNDE` | Orta-yüksek (tanımlayıcı unsur) | — |
 | **Tıkır** | "İşler tıkırında": sorunsuz akan dükkân | `tikir` / `TIKIR` | Orta (gündelik kelime, yazılım için keyfi) | **(teyit edilmeli)**: EPATS, `.com.tr`, sosyal medya, MERSİS |
 | **Tamamdır** | Esnafın onay sözü; ürünün çekirdek eylemi "Onayla" | `tamamdir` / `TAMAMDIR` | Orta-yüksek (yaygın ifade) | **(teyit edilmeli)** |
 | **Sipaş** | Türetilmiş ad ("sipariş" + "-aş"); en ayırt edici | `sipas` / `SIPAS` | Düşük-orta | **(teyit edilmeli)** |
@@ -88,7 +91,7 @@ Eksiksizlik eleştirisi dört boşluk buldu: ürün tasarımı kapasitesi ve kul
 Aramalar A03 §7.4'teki yöntemle yapılır: TÜRKPATENT araştırması, EPATS, sesli benzerlik (ş/s, ı/i), WIPO Global Brand Database, alan adı, sosyal medya kullanıcı adları, ticaret unvanı. Sonuç 00 §13 #6'ya işlenir.
 
 ### 2.5 Alan adı stratejisi
-- **Ana:** `siparisinonunde.com` ([00](00-kararlar-ve-sozluk.md) §2). **Savunma:** `siparisinonunde.com.tr` (TRABİS ile belgesiz alınabiliyor, A03 §7.4) ve en olası 2 yazım hatası (ör. `siparisonunde.com`). Bunlar 301 ile ana adrese yönlenir [T]. Türkçe karakterli IDN (`siparişinönünde.com`) yalnız yönlendirme olarak kullanılabilir. Basılıda ve linklerde asla yer almaz, çünkü önizlemede punycode görünür.
+- **Ana:** `yemekgelsin.net` (Cloudflare Registrar ile alındı; [00](00-kararlar-ve-sozluk.md) §2, §12a madde 9). `www.yemekgelsin.net` köke 301 ile yönlenir. **Savunma:** `yemekgelsin.com` ve `yemekgelsin.com.tr` (TRABİS ile belgesiz alınabiliyor, A03 §7.4; müsaitlik **teyit edilmeli**) ve en olası yazım hatası (ör. `yemekgelsn.net`). Bunlar 301 ile ana adrese yönlenir [T]. Adda Türkçe karakter olmadığından IDN/punycode sorunu yoktur.
 - **Yedek isimler:** Aday isimlerin `.com.tr` adresleri Gün 1'de düşük maliyetle alınır [T]. Marka görüşü olumsuz çıkarsa gün kaybedilmez.
 - **Kısa alan adı (opsiyonel) [T]:** ≤ 10 karakterlik ikinci bir alan adı `/q/{kod}` yönlendirmesi ve takip linki için kullanılabilir. İki kazancı vardır: QR içeriği kısalır, modüller büyür ve eski telefonlar daha kolay okur; SMS kısalır. Türkçe karakterli SMS 70 karakterlik segmentlere bölünür ve uzun link segment sayısını, dolayısıyla maliyeti artırır ([03](03-musteri-deneyimi-ve-storefront.md) açık konu 13, **teyit edilmeli**).
 - **Koruma:** Kayıt kuruluşu kilidi, otomatik yenileme, en az 2 yönetici ve donanım anahtarı (iş sürekliliği; eklendi: [10](10-riskler-operasyon-ve-metrikler.md) §10.1 kritik hesap envanteri "Alan adı kayıt kuruluşu" satırı, risk R42). E-posta alanında SPF, DKIM ve DMARC (`p=reject` hedefi) kurulur. Esnafa "Meta kartınızı güncelleyin" gibi sahte e-posta gelmesi marka riski olduğundan pazarlama sitesinde bir **"Resmi kanallarımız"** sayfası bulunur: platform WhatsApp numarası, P1 hattı, e-posta alan adı ve "Sizden asla parola veya kart bilgisi istemeyiz" notu [T].
@@ -110,7 +113,8 @@ Kaynak: WhatsApp Brand Resources ve Meta marka yönergeleri. Güncel sürüm yay
 
 ### 3.1 Logo brifi (TAS'a verilecek; Gün 1, [09](09-yol-haritasi-ve-sprint-plani.md) §3.5)
 - **Teslim takvimi:** 25 Eyl brif → 28 Eyl 3 yön → 29 Eyl KUR + MV seçimi ve benzerlik ön kontrolü → 1 Eki son vektör → **2 Eki marka başvurusu** (kelime + logo). Takvim sıkıdır. Logo yetişmezse kelime markası 2 Ekim'de, şekil markası 2–3 hafta sonra ayrı başvurulabilir (marka vekiliyle **teyit edilmeli**).
-- **Anlatması gereken:** "önünde olmak" (ileri ok, sıranın başı) ve/veya "zil" (sipariş sesi). Esnaf sıcaklığı (tabela, tente) da düşünülebilir. Mizah yok, teknoloji klişesi (devre, bulut) yok.
+- **Anlatması gereken:** "yemek geliyor" (servis kapağı, hız çizgisi) ve/veya "zil" (sipariş sesi). Esnaf sıcaklığı (tabela, tente) da düşünülebilir. Mizah yok, teknoloji klişesi (devre, bulut) yok.
+- **Geçici işaret (27.09.2026, uygulamada):** mürekkep (`ink-900`) yuvarlatılmış kare içinde safran (`saffron-500`) servis kapağı, beyaz tabak ve sol tarafta hız çizgileri; yanında "Yemek Gelsin" yazısı (kalın, `fg` rengi). Dosyalar: `apps/web/app/icon.svg`, `apps/web/public/icon.svg` (panel PWA simgesi), `apps/web/components/brand/logo.tsx`. 32 px'te okunur; nihai logo bu brifle tasarımcıdan gelir.
 - **Kaçınılacaklar:** Konuşma balonu + ahize, WhatsApp yeşili, motor kuryesi ve paket çantası (pazaryeri çağrışımı; kurye filosu işletmiyoruz, [00](00-kararlar-ve-sozluk.md) §1), çatal-bıçak klişesi, pazaryeri logolarına benzeyen renk ve biçimler.
 - **Çıktılar:** (1) yatay kilit (işaret + yazı), (2) dikey kilit, (3) yalnız işaret. İşaret 16 px favicon'da, 192/512 px PWA ikonunda ve maskelenebilir ikonda okunur olmalıdır. (4) Tek renk: siyah, beyaz ve **1 bit raster** (58 mm termal fişte titremeden basılmalı). (5) 640×640 px daire kırpmaya uygun WhatsApp profil fotoğrafı (platform WABA için, boyut **teyit edilmeli**). (6) Marka başvurusu için siyah-beyaz görsel. (7) SVG, PDF ve PNG kaynak dosyaları, kullanım kılavuzu (1 sayfa: boşluk alanı, en küçük boyut, yasaklar).
 - **Kabul kriteri:** İşaret 16 px'te ve 1 bit baskıda tanınır. İsim 24 px yükseklikte, 2 m mesafeden okunur. Renkli sürüm beyaz ve mürekkep zemin üzerinde ≥ 3:1 (WCAG 1.4.11).
@@ -264,8 +268,8 @@ Her bileşenin Storybook'ta **tüm durumları × iki tema × gerçek Türkçe me
 
 Yüklemede boyut yetersizse görsel reddedilmez, "Bu görsel bulanık görünebilir" uyarısı çıkar. Esnaf engellenmez [T].
 
-### 5.3 "Altyapı: Siparişin Önünde" imzası kuralı
-- **Metin (kanonik):** "Altyapı: Siparişin Önünde" ([00](00-kararlar-ve-sozluk.md) §7 "Storefront imzası"; [03](03-musteri-deneyimi-ve-storefront.md) §1 İ5 ve §4.0). A05 §6.4 ve görev tanımındaki "Siparişin Önünde ile" kullanılmaz (§13 #1).
+### 5.3 "Altyapı: Yemek Gelsin" imzası kuralı
+- **Metin (kanonik):** "Altyapı: Yemek Gelsin" ([00](00-kararlar-ve-sozluk.md) §7 "Storefront imzası"; [03](03-musteri-deneyimi-ve-storefront.md) §1 İ5 ve §4.0). A05 §6.4 ve görev tanımındaki "Yemek Gelsin ile" kullanılmaz (§13 #1).
 - **Yer:** Yalnız storefront altbilgisinde ve takip sayfasının altbilgisinde. Checkout başlığında, onay butonu çevresinde, WhatsApp mesajlarında ve müşteriye giden SMS'te yer almaz. Gerekçe: "sipariş ekranında platform markasının öne çıkması" ETAHS (pazaryeri) sayılma riskini artıran bir sinyaldir (A03 §4.2).
 - **Biçim:** 12–13 px, `text-muted` (≥ 4,5:1), logosuz, tek satır. Pazarlama sitesine `rel="nofollow"` bağlantıyla gider ve `?src=sf_footer` taşır. Toplu link şeması görüntüsü verilmez (A05 §6.4).
 - **Basılı materyalde imza yoktur.** Kart, magnet, afiş ve fişte platform adı Faz 1'de ve pilotta **kullanılmaz** (§7.2). Gerekçeler: isim henüz güvende değil (R36), işletmenin markası önde olmalı (T3), isim değişirse yeniden baskı maliyeti doğar.
@@ -733,7 +737,7 @@ Storefront tablosu [03](03-musteri-deneyimi-ve-storefront.md) §10.3'tedir. Pane
 
 | # | Konu | Bu dokümandaki varsayım / öneri |
 |---|---|---|
-| 1 | ~~**İmza metni:** Görev tanımı ve A05 §6.4 "Siparişin Önünde ile", 03 §1 İ5 ve §4.0 "Altyapı: Siparişin Önünde" diyor.~~ | **Karara bağlandı:** tek metin "Altyapı: Siparişin Önünde" ([00](00-kararlar-ve-sozluk.md) §7 "Storefront imzası"; [03](03-musteri-deneyimi-ve-storefront.md) §4.0). İşletme ayarıyla kaldırılamaz ([04](04-isletme-paneli.md) §7.2). §5.3 buna göre güncellendi. |
+| 1 | ~~**İmza metni:** Görev tanımı ve A05 §6.4 "Yemek Gelsin ile", 03 §1 İ5 ve §4.0 "Altyapı: Yemek Gelsin" diyor.~~ | **Karara bağlandı:** tek metin "Altyapı: Yemek Gelsin" ([00](00-kararlar-ve-sozluk.md) §7 "Storefront imzası"; [03](03-musteri-deneyimi-ve-storefront.md) §4.0). İşletme ayarıyla kaldırılamaz ([04](04-isletme-paneli.md) §7.2). §5.3 buna göre güncellendi. |
 | 2 | **Marka ve alan adı müsaitliği** (00 §13 #6, R36). "Sipariş" unsuru tanımlayıcı; ret riski var. | İsim kilidi H1 sonu. Yedek adaylar (Tıkır, Tamamdır, Sipaş) **teyit edilmeli**. Sonuç 00'a işlenir; isim değişirse platform WABA görünen adı, SMS başlığı, alan adı ve künye birlikte değişir. |
 | 3 | ~~**Marka rengi alanı yok:** [04](04-isletme-paneli.md) §3.3 adım 2 ve P-26'da "Ana renk" alanı, [07](07-veri-modeli-ve-api.md) `tenants`'ta marka rengi, türetilmiş palet, logo ve kapak görseli alanları tanımlı değil.~~ | **Eklendi:** P-26 "Marka görünümü" (ana renk, logo, kapak) [04](04-isletme-paneli.md) §7.2'de; [07](07-veri-modeli-ve-api.md) `tenants` ve `branches` (şube geçersiz kılması, Faz 2) tablolarında `brand_color`, `brand_palette` (jsonb), `logo_url`, `cover_url`. Bu dokümanın eski önerisindeki `logo_image_id`/`cover_image_id` adları kullanılmaz. Açık kalan: R2 anahtarı mı URL mi saklanacağı deseni ([07](07-veri-modeli-ve-api.md) §11 #24). |
 | 4 | ~~**D13 ve hipotez H15** 10'da yok; §8.9'daki satırlar 10'a eklenmeli. 09'a §12.2'deki görevler ve §12.3'teki bütçe satırları eklenmeli.~~ | **Eklendi:** H15 ve D13 [10](10-riskler-operasyon-ve-metrikler.md) §4.2, §4.3, §4.1 takvimi ve §4.10 "Tasarım kontrolü"nde; R05 azaltmasına bağlandı. Görevler [09](09-yol-haritasi-ve-sprint-plani.md) §3.6 (F0-D01…D06), sprint tablolarındaki UX epiği (S1-11…S6-20) ve §8'de (F2-20, F2-21, F3-16); bütçe §10.2 satır 20–22; alarm laboratuvar testi ve prova §11.1 P0 listesinde. |

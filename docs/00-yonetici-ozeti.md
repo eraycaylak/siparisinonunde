@@ -1,6 +1,6 @@
 # 00 — Yönetici Özeti
 
-> **siparisinonunde** ("Siparişin Önünde") planının 3 sayfalık özeti. Tarih: 24 Eylül 2026. Tüm bağlayıcı kararlar [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) dosyasında, ayrıntılar 01–10 no'lu dokümanlarda, ham araştırma ve kaynaklar [arastirma/](arastirma/) klasöründe.
+> **Yemek Gelsin** (`yemekgelsin.net`; depo adı `siparisinonunde`) planının 3 sayfalık özeti. Tarih: 24 Eylül 2026. Tüm bağlayıcı kararlar [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) dosyasında, ayrıntılar 01–10 no'lu dokümanlarda, ham araştırma ve kaynaklar [arastirma/](arastirma/) klasöründe.
 
 ## 1. Ne yapıyoruz?
 
@@ -95,7 +95,7 @@ Bunu destekleyen altyapı:
 
 ```mermaid
 gantt
-  title siparisinonunde — ilk 5 ay (özet)
+  title Yemek Gelsin — ilk 5 ay (özet)
   dateFormat YYYY-MM-DD
   axisFormat %d %b
   section Şirket ve Meta

@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
-# Siparişin Önünde — Cloudflare dev container'ı (15 §13): PostgreSQL + API + worker + web tek container'da.
+# Yemek Gelsin — Cloudflare dev container'ı (15 §13): PostgreSQL + API + worker + web tek container'da.
 #
 # Container diski geçicidir: her başlangıçta boş bir veritabanı kurulur ve son yedek R2'den geri yüklenir.
 # Yedek, Worker'daki "yedek.internal" çıkış işleyicisi üzerinden R2'ye yazılır/okunur (deploy/cloudflare/src/index.ts).
+# Veri dönemi (DATA_EPOCH) container'a açılışta verilir ve ömrü boyunca sabittir: yedek yolu /e<dönem>/db olur, R2
+# anahtarı e2/db/son.dump. Worker dönemi yoldan okur; yeniden dağıtımda kapanan eski container'ın son yedeği yeni
+# döneme düşmez. DATA_EPOCH artırılınca yeni container yedek bulamaz, demo sıfırdan kurulur.
+# Seed, SEED_PASSWORD (= DEV_PASSWORD) ile tüm demo hesaplarının parolasını belirler/eşitler.
 # Sıra: PostgreSQL → yedekten geri yükle → migrate → seed (idempotent) → api + worker + web → 10 dk'da bir yedek.
 # SIGTERM (uyku, yeniden dağıtım): uygulamalar durur, son yedek alınır, PostgreSQL kapanır.
 set -Eeuo pipefail
@@ -14,12 +18,24 @@ PGPORT="${PGPORT:-5432}"
 UPLOAD_DIR="${UPLOAD_DIR:-/data/uploads}"
 BACKUP_URL="${BACKUP_URL:-http://yedek.internal}"
 BACKUP_INTERVAL_SEC="${BACKUP_INTERVAL_SEC:-600}"
+DATA_EPOCH="${DATA_EPOCH:-}"
 DB_NAME=siparis
 export PGHOST=127.0.0.1 PGPORT PGUSER=siparis PGPASSWORD=siparis
 export DATABASE_URL="postgres://siparis:siparis@127.0.0.1:${PGPORT}/${DB_NAME}"
 export UPLOAD_DIR
 
 log() { echo "[baslat] $(date -u +%H:%M:%S) $*"; }
+
+# Yedek yolu dönemi taşır: DATA_EPOCH=2 → http://yedek.internal/e2/db; boşsa ilk dönemin öneksiz yolu (/db)
+if [ -n "$DATA_EPOCH" ]; then
+  if ! [[ "$DATA_EPOCH" =~ ^[0-9]{1,6}$ ]]; then
+    log "HATA: DATA_EPOCH geçersiz (\"$DATA_EPOCH\"; yalnız rakam, en çok 6 hane). wrangler.jsonc vars.DATA_EPOCH'u düzeltin."
+    exit 1
+  fi
+  BACKUP_BASE="$BACKUP_URL/e$DATA_EPOCH"
+else
+  BACKUP_BASE="$BACKUP_URL"
+fi
 
 APP_PIDS=()
 BACKUP_LOOP_PID=""
@@ -31,7 +47,7 @@ SHUTTING_DOWN=0
 # GET <yol> → dosya. 0 = bulundu, 2 = yedek yok (404), 1 = hata (ağ/sunucu).
 fetch_backup() {
   local path="$1" out="$2" code
-  code=$(curl -sS --max-time 120 -o "$out" -w '%{http_code}' "$BACKUP_URL/$path" 2>/dev/null) || code=000
+  code=$(curl -sS --max-time 120 -o "$out" -w '%{http_code}' "$BACKUP_BASE/$path" 2>/dev/null) || code=000
   case "$code" in
     200) return 0 ;;
     404) rm -f "$out"; return 2 ;;
@@ -53,7 +69,7 @@ fetch_backup_retry() {
 upload_backup() {
   local path="$1" file="$2"
   [ -s "$file" ] || { log "boş yedek gönderilmedi ($path)"; return 1; }
-  curl -fsS --max-time 300 -X PUT --data-binary @"$file" -H 'content-type: application/octet-stream' "$BACKUP_URL/$path" >/dev/null
+  curl -fsS --max-time 300 -X PUT --data-binary @"$file" -H 'content-type: application/octet-stream' "$BACKUP_BASE/$path" >/dev/null
 }
 
 backup_now() {
@@ -110,7 +126,7 @@ fi
 pg_ctl -D "$PGDATA" -w -l /tmp/postgres.log \
   -o "-c listen_addresses=127.0.0.1 -c port=$PGPORT -c unix_socket_directories='' -c shared_buffers=48MB -c max_connections=40 -c work_mem=2MB -c maintenance_work_mem=32MB -c timezone=UTC" \
   start >/dev/null
-log "PostgreSQL çalışıyor"
+log "PostgreSQL çalışıyor (veri dönemi: ${DATA_EPOCH:-öneksiz})"
 
 fresh=0
 if ! psql -d postgres -Atc "select 1 from pg_database where datname = '$DB_NAME'" | grep -q 1; then

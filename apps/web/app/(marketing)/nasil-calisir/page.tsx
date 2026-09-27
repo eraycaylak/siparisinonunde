@@ -13,24 +13,24 @@ import {
   PackageCheck,
   Phone,
   QrCode,
-  Smartphone,
   Store,
   UtensilsCrossed,
 } from 'lucide-react';
 import { buttonVariants } from '@/components/ui/button';
 import { CtaBand } from '@/components/marketing/cta-band';
 import { Section } from '@/components/marketing/section';
+import { SITE_NAME } from '@/lib/site';
 
 export const metadata: Metadata = pageMetadata({
   title: 'Nasıl çalışır',
-  description: 'Müşterin WhatsApp’tan yazar ya da QR’ı okutur, sepetini kendisi yapar; sipariş panele sesli düşer, sen tek dokunuşla onaylarsın.',
+  description: 'Müşterin QR’ını okutup WhatsApp’tan yazar, sepetini kendisi yapar; sipariş panele sesli düşer, sen tek dokunuşla onaylarsın.',
   path: '/nasil-calisir',
 });
 
 const STEPS = [
   {
-    title: 'Müşterin yazar',
-    text: 'WhatsApp’tan “Merhaba” der ya da paketteki QR’ı okutur. Menü linki saniyeler içinde gelir.',
+    title: 'Müşterin QR’ını okutur',
+    text: `Paketteki QR’ını okutur ya da bağlantına dokunur; WhatsApp’ta ortak ${SITE_NAME} numarasında senin dükkanının adıyla karşılanır. Menü linki saniyeler içinde gelir.`,
     Icon: MessageCircle,
   },
   {
@@ -49,9 +49,9 @@ const SETUP = [
   { title: 'Hesabını aç', text: 'İşletme adın, telefonun ve e-postanla birkaç dakikada.', Icon: Store },
   { title: 'Menünü ekle ya da biz ekleyelim', text: 'Kategoriler, ürünler, porsiyon ve ekstralar. İstersen menünü biz gireriz.', Icon: UtensilsCrossed },
   {
-    title: 'WhatsApp’ını bağla',
-    text: 'Mevcut numaran yerinde kalır. Meta’nın istediği ödeme yöntemi adımını birlikte tamamlarız.',
-    Icon: Smartphone,
+    title: 'QR’ını al',
+    text: 'Dükkan kodun, müşteri bağlantın ve QR’ın hazır; ortak WhatsApp numarası için bağlantı kurman gerekmez. İstersen kendi numaranı da bağlarız.',
+    Icon: QrCode,
   },
   { title: 'Deneme siparişi ver', text: 'Kendi telefonundan sipariş ver, panelde sesi duy, onayla. Hazırsın.', Icon: PackageCheck },
 ];
@@ -66,7 +66,7 @@ const ALARM = [
 ];
 
 const CHANNELS = [
-  { title: 'Paket içi kart ve magnet', text: 'Her pakete QR’lı kart; müşteri bir dahakine doğrudan sana yazar.', Icon: QrCode },
+  { title: 'Paket içi kart ve magnet', text: 'Her pakete QR’lı kart; müşteri bir dahakine QR’dan doğrudan sana ulaşır.', Icon: QrCode },
   { title: 'Kasa QR’ı ve masa standı', text: 'Gel-al müşterisi menüyü telefonundan açar.', Icon: Store },
   { title: 'Google ve Instagram linki', text: 'İşletme profiline ve biyografine tek link.', Icon: Link2 },
   { title: 'Telefon siparişi', text: 'Arayan müşterinin siparişini panele sen girersin; bildirimler yine kendiliğinden gider.', Icon: Phone },
@@ -96,7 +96,7 @@ export default function HowItWorksPage() {
         </ol>
       </Section>
 
-      <Section id="kurulum" tone="muted" eyebrow="Kurulum" title="Kurulum 4 adım" lead="İstersen hepsini biz yaparız: menün, WhatsApp bağlantın, QR stand ve paket kartı tasarımın.">
+      <Section id="kurulum" tone="muted" eyebrow="Kurulum" title="Kurulum 4 adım" lead="İstersen hepsini biz yaparız: menün, QR stand ve paket kartı tasarımın.">
         <ol className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           {SETUP.map(({ title, text, Icon }, i) => (
             <li key={title} className="flex flex-col gap-2 rounded-xl border border-border bg-surface-raised p-5">
@@ -131,7 +131,7 @@ export default function HowItWorksPage() {
         </ol>
       </Section>
 
-      <Section id="kanal" tone="muted" eyebrow="Müşteriyi kendi kanalına taşı" title="Sadık müşterin bir dahakine doğrudan sana yazsın">
+      <Section id="kanal" tone="muted" eyebrow="Müşteriyi kendi kanalına taşı" title="Sadık müşterin bir dahakine doğrudan sana ulaşsın">
         <ul className="grid gap-5 sm:grid-cols-2">
           {CHANNELS.map(({ title, text, Icon }) => (
             <li key={title} className="flex gap-4 rounded-xl border border-border bg-surface-raised p-5">

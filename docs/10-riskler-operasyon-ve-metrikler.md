@@ -1,6 +1,6 @@
 # 10 — Riskler, Operasyon ve Metrikler
 
-> **Amaç:** Siparişin Önünde'yi neyin öldürebileceğini erken görmek, en pahalı varsayımları ürünü tam yazmadan test etmek ve pilottan itibaren işi yürütecek destek, olay yönetimi, SLO ve metrik düzenini tek yerde tanımlamak.
+> **Amaç:** Yemek Gelsin'i neyin öldürebileceğini erken görmek, en pahalı varsayımları ürünü tam yazmadan test etmek ve pilottan itibaren işi yürütecek destek, olay yönetimi, SLO ve metrik düzenini tek yerde tanımlamak.
 > **Tarih:** 2026-09-24 (Hafta 0) · **Durum:** Taslak (1. sürüm; düzeltme turu uygulandı) · **Bağlayıcı kaynak:** [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) (özellikle §5 durum ve sebep kodları, §10 kademeli alarm zamanlaması, §11 fazlar ve talep deneyi, §12 başarı metrikleri, §13.10 SLO varsayılanları).
 
 **Kapsam:** Risk kaydı (risk register), pre-mortem ve rekabet tepkisi oyun kitabı; "önce doğrula" hipotezleri ve deney tasarımları (Seviye 0 concierge talep deneyi, Hafta 8 go/no-go kapısı, fiyat, onboarding, Coexistence, `request_welcome`, kullanılabilirlik ve alarm duyulabilirlik testleri) ve deney politikası; destek ve onboarding operasyonu; işletme sağlık skoru ve churn önleme; sahte sipariş süreci; Meta eskalasyonu; olay yönetimi (SEV1–SEV4, iletişim şablonları, postmortem, runbook'lar); SLO/SLI ve hata bütçesi; KPI ağacı ve metrik sözlüğü; dashboard'lar ve yönetim ritmi; güvenlik operasyonları takvimi; iş sürekliliği ve sigorta.
@@ -240,7 +240,7 @@ D13'ün test protokolü, görev senaryoları (PT-01…08, MT-01…07) ve bulgula
 
 **Kurulum (yazılım yok; resmî olmayan hiçbir araç yok):**
 1. **Başlangıç sayımı (1 hafta):** Kasiyer günlük çetele tutar: pazaryeri sipariş sayısı, WhatsApp/telefon sipariş sayısı, kaçan/geciken sipariş (kaçırma çetelesi, A06 §4.4). Bu, kanal payının paydası ve satış argümanıdır.
-2. **Kodlu QR'lar:** Her malzeme ve teşvik varyantı ayrı QR taşır. QR, `wa.me/<işletme numarası>?text=Merhaba, sipariş vermek istiyorum (K1A)` bağlantısını açar. Kod şeması: işletme no (1–9) + malzeme (K kart, M magnet, S kasa standı, I Instagram, G Google) + teşvik varyantı (A/B/C). QR'lar sayım için `siparisinonunde.com/q/{kod}` kısa yönlendirmesinden geçer; yalnız kod başına tarama **sayısı** tutulur, IP veya cihaz bilgisi saklanmaz [T].
+2. **Kodlu QR'lar:** Her malzeme ve teşvik varyantı ayrı QR taşır. QR, `wa.me/<işletme numarası>?text=Merhaba, sipariş vermek istiyorum (K1A)` bağlantısını açar. Kod şeması: işletme no (1–9) + malzeme (K kart, M magnet, S kasa standı, I Instagram, G Google) + teşvik varyantı (A/B/C). QR'lar sayım için `yemekgelsin.net/q/{kod}` kısa yönlendirmesinden geçer; yalnız kod başına tarama **sayısı** tutulur, IP veya cihaz bilgisi saklanmaz [T].
 3. **Malzeme:** Paket içi kart (D4 varyantları eşit sayıda), buzdolabı magneti, kasa QR standı; Google İşletme Profili ve Instagram bio'ya kodlu link. Kart metni nötrdür: "Bir dahaki siparişinizde bize WhatsApp'tan doğrudan yazın" + teşvik. Pazaryeri adı ve karşılaştırma içermez ([08](08-mevzuat-kvkk-odeme-fatura.md) karşılaştırmalı reklam notu).
 4. **Menü sayfası varyantı (H4, işletmelerin yarısında):** Tek sayfalık statik menü (fotoğraf + fiyat) ve "WhatsApp'tan sipariş ver" butonu. Diğer yarıda QR doğrudan sohbeti açar.
 5. **Sayım:** İşletme, WhatsApp Business uygulamasının sohbet etiketleriyle ("Kanal-yeni", "Kanal-tekrar") kodlu siparişleri işaretler (özelliğin sürümdeki adı teyit edilmeli). Kurucu her gün 5 dk arar veya akşam etiket sayılarının ekran görüntüsünü alır; haftada bir ziyaret eder.
@@ -395,9 +395,9 @@ Esnaf gece yarısına kadar ve hafta sonu açıktır; e-posta yazmaz, arar veya 
 | **P1 acil telefon hattı** (tek numara, nöbetçiye yönlendirilir; panelde "Acil destek" butonu ve kasa tabletinin yanında etiket) | Yalnız P1 (§5.2) | Her gün 10:00–02:00 canlı yanıt; 02:00–10:00 sesli mesaj + nöbetçiye SMS, en geç 30 dk içinde geri dönüş; kurucular nöbetçidir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4 "Destek hattı ve P1") | Nöbet rotasyonu; saatler pilot işletmelerinin kapanış saatlerine göre ayarlanır | **[Faz 1]** |
 | **WhatsApp destek hattı** (platform WhatsApp numarası, yani uyarı şablonlarını gönderen platform WABA'sı; işletme mesajları ve uyarı şablonlarına verilen yanıtlar admin panelindeki destek gelen kutusuna düşer; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4 "Destek hattı ve P1") | P2–P4, ekran görüntüsü, sesli mesaj | Her gün 10:00–22:00 | Her gün 09:00–23:00 [T] | **[Faz 1]** |
 | **Panel içi "Yardım"**: bilgi bankası + "Sorun bildir" formu (tenant, şube, cihaz tanı verisi otomatik eklenir) | Self-servis ve kayıt | 7/24 (yanıt destek saatlerinde); temas admin panelinde `admin_notes` (`kind = contact`) olarak kaydedilir | Aynı; talep sistemi `support_tickets` ile | **[Faz 1]** / talep sistemi **[Faz 2]** |
-| **E-posta** (`destek@siparisinonunde.com`) | Fatura, sözleşme, KVKK başvurusu, P4 | İş günü 09:00–18:00 | Aynı | **[Faz 1]** |
+| **E-posta** (`destek@yemekgelsin.net`) | Fatura, sözleşme, KVKK başvurusu, P4 | İş günü 09:00–18:00 | Aynı | **[Faz 1]** |
 | **Yerinde ziyaret / uzaktan ekran paylaşımı** | Onboarding, çözülemeyen P2 | Randevuyla (kurucu) | Randevuyla; bayi **[Faz 2]** | **[Faz 1]** |
-| **Panel duyuru bandı + durum sayfası** | Olay iletişimi | Bant (duyurular); durum sayfası §6.4 | `status.siparisinonunde.com` | Bant **[Faz 1]** / sayfa **[Faz 2]** |
+| **Panel duyuru bandı + durum sayfası** | Olay iletişimi | Bant (duyurular); durum sayfası §6.4 | `status.yemekgelsin.net` | Bant **[Faz 1]** / sayfa **[Faz 2]** |
 
 - Faz 1'de **harici helpdesk yoktur**; destek notları, etiketleri ve temas kayıtları admin panelinde tutulur: `admin_notes` (`kind` = `note`/`contact`, `tags`, `contact_channel`, `priority`, `root_cause`, `preventable`) ve `admin_tasks` ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 "Destek kayıtları"; [07](07-veri-modeli-ve-api.md) §3.7; [05](05-admin-paneli-ve-pazarlama-sitesi.md) A-10). Talep sistemi (`support_tickets`) **[Faz 2]**.
 - Paket bazlı öncelik **[Faz 2]**: Zincir paketi için genel destek ilk yanıt süreleri yarıya iner [T].
@@ -552,7 +552,7 @@ Pilot ve ilk 100 işletmede kurulum ekip tarafından yapılır ([00-kararlar-ve-
 
 > **{Ay} ayında {işletme adı} özeti**
 > Kendi kanalınızdan **{n} sipariş** aldınız (geçen ay {m}). Bu siparişlerin toplamı **{ciro} TL**.
-> Aynı siparişler pazaryerinden gelseydi, girdiğiniz %{oran} kesinti oranıyla yaklaşık **{kesinti} TL** kesinti ödeyecektiniz. Siparişin Önünde aboneliğiniz: {ücret} TL.
+> Aynı siparişler pazaryerinden gelseydi, girdiğiniz %{oran} kesinti oranıyla yaklaşık **{kesinti} TL** kesinti ödeyecektiniz. Yemek Gelsin aboneliğiniz: {ücret} TL.
 > Bu ay **{k} müşteriniz** size ikinci kez sipariş verdi. Siparişleri ortalama **{s} saniyede** onayladınız.
 > Önümüzdeki ay için önerimiz: {öneri — ör. "Paket kartlarınız azalmış olabilir; yeni kart için bize yazın."}
 
@@ -665,21 +665,21 @@ flowchart LR
 | `platform_planli_bakim_v1` | 1 tarih, 2 başlangıç saati, 3 tahmini süre (dk), 4 siparişlere etkisi | URL "Ayrıntılar" (durum sayfası) |
 
 **1. WhatsApp — ilk duyuru (dolu örnek, `platform_hizmet_bildirimi_v1`):**
-> Siparişin Önünde bilgilendirme: Bugün 19:40'tan beri müşterilerinize giden WhatsApp durum mesajlarında gecikme var. Siparişleriniz panele düşmeye devam ediyor; siparişleri her zamanki gibi panelden onaylayın. Ekibimiz sorunu çözmek için çalışıyor. Bir sonraki bilgiyi en geç 20:15'te vereceğiz.
+> Yemek Gelsin bilgilendirme: Bugün 19:40'tan beri müşterilerinize giden WhatsApp durum mesajlarında gecikme var. Siparişleriniz panele düşmeye devam ediyor; siparişleri her zamanki gibi panelden onaylayın. Ekibimiz sorunu çözmek için çalışıyor. Bir sonraki bilgiyi en geç 20:15'te vereceğiz.
 
 **2. WhatsApp — çözüldü (`platform_hizmet_duzeldi_v1`):**
-> Siparişin Önünde bilgilendirme: Durum mesajlarındaki gecikme 20:05 itibarıyla giderildi. Bekleyen mesajlar müşterilerinize gönderildi. Panelde onay bekleyen sipariş kalmadığını kontrol etmenizi rica ederiz. Yaşattığımız aksaklık için özür dileriz.
+> Yemek Gelsin bilgilendirme: Durum mesajlarındaki gecikme 20:05 itibarıyla giderildi. Bekleyen mesajlar müşterilerinize gönderildi. Panelde onay bekleyen sipariş kalmadığını kontrol etmenizi rica ederiz. Yaşattığımız aksaklık için özür dileriz.
 
 **3. SMS — WhatsApp genel kesintisi (WhatsApp kullanılamazken):**
-> Siparişin Önünde: WhatsApp genelinde kesinti var (19:40'tan beri). Web menünüzden gelen siparişler panele düşüyor, paneli açık tutun. Telefon siparişlerini panele girin. Bilgi 20:15'te.
+> Yemek Gelsin: WhatsApp genelinde kesinti var (19:40'tan beri). Web menünüzden gelen siparişler panele düşüyor, paneli açık tutun. Telefon siparişlerini panele girin. Bilgi 20:15'te.
 
 **4. SMS — SEV1 kesinti (sipariş alma etkilendi):**
-> Siparişin Önünde: 19:40'tan beri online siparişler panele ulaşmıyor. Lütfen telefonla sipariş almaya devam edin. Çözüm için çalışıyoruz; acil hat: {P1 numarası}. Bilgi 20:10'da.
+> Yemek Gelsin: 19:40'tan beri online siparişler panele ulaşmıyor. Lütfen telefonla sipariş almaya devam edin. Çözüm için çalışıyoruz; acil hat: {P1 numarası}. Bilgi 20:10'da.
 
 SMS'te Türkçe karakterler segment sayısını artırabilir; sağlayıcının Türkçe karakter ayarı pilot öncesi test edilir (teyit edilmeli). Metinler 2 segmenti geçmeyecek biçimde kısaltılır.
 
 **5. E-posta — SEV1/SEV2 ilk duyuru:**
-> **Konu:** [Siparişin Önünde] Hizmet aksaklığı — {tarih} {saat}
+> **Konu:** [Yemek Gelsin] Hizmet aksaklığı — {tarih} {saat}
 >
 > Merhaba {ad},
 >
@@ -688,10 +688,10 @@ SMS'te Türkçe karakterler segment sayısını artırabilir; sağlayıcının T
 > **Sizden ricamız:** {ör. "Paneli açık tutun, onay bekleyen siparişleri kontrol edin."}
 > **Bir sonraki bilgilendirme:** en geç {saat}. Acil durumda {P1 numarası} numaralı hattı arayabilirsiniz.
 >
-> Siparişin Önünde ekibi
+> Yemek Gelsin ekibi
 
 **6. E-posta — olay özeti (SEV1/SEV2 kapanışından sonra ≤ 24 saat; postmortem'den sade özet 5 iş günü içinde):**
-> **Konu:** [Siparişin Önünde] {tarih} aksaklığı: ne oldu, ne yapıyoruz?
+> **Konu:** [Yemek Gelsin] {tarih} aksaklığı: ne oldu, ne yapıyoruz?
 >
 > {Tarih} {başlangıç}–{bitiş} arasında {sorun} yaşandı. Bu sürede {etki: ör. "12 işletmede 37 sipariş panele ortalama 9 dakika gecikmeyle düştü; kaybolan sipariş olmadı"}. Nedeni {sade kök neden}. Tekrarlanmaması için {1–3 somut önlem}. İşletmenize özel etki raporunu panelinizde bulabilirsiniz. {Varsa: "Bu ayki faturanıza {x} günlük hizmet kredisi yansıtılacaktır."}
 
@@ -704,11 +704,11 @@ SMS'te Türkçe karakterler segment sayısını artırabilir; sağlayıcının T
 
 ### 6.4 Durum sayfası **[Faz 1–2]**
 
-- **[Faz 2]** `status.siparisinonunde.com` ([06](06-teknik-mimari.md) §14.3). **Öneri [T]:** Basit bir sürümü pilot öncesinde açılsın (Uptime Kuma'nın durum sayfası özelliği), çünkü olay duyurularındaki "Durumu gör" butonu buraya bağlanır (açık konu).
+- **[Faz 2]** `status.yemekgelsin.net` ([06](06-teknik-mimari.md) §14.3). **Öneri [T]:** Basit bir sürümü pilot öncesinde açılsın (Uptime Kuma'nın durum sayfası özelliği), çünkü olay duyurularındaki "Durumu gör" butonu buraya bağlanır (açık konu).
 - **Ana altyapıdan bağımsız barındırılır** (farklı sağlayıcı/lokasyon); bizim kesintimizde de erişilebilir olmalıdır.
 - **Bileşenler:** Online sipariş (storefront) · İşletme paneli · WhatsApp mesajları (Meta dahil) · SMS bildirimleri · Fiş yazdırma **[Faz 2 otomatik]** · Online ödeme **[Faz 2]**.
 - **Durumlar:** Çalışıyor · Yavaşlama · Kısmi kesinti · Kesinti · Bakım. Otomatik sentetik kontroller "yavaşlama/kesinti" önerir; yayını IC veya iletişim sorumlusu onaylar.
-- Geçmiş olaylar 90 gün görünür; SEV1/SEV2 kayıtlarına sade dilde özet eklenir. Planlı bakım en az 48 saat önce ve yoğun saat dışında duyurulur: durum sayfası + panel bandı + onay veren `owner`'lara `platform_planli_bakim_v1` ([02](02-whatsapp-entegrasyonu.md) §5.3). Dolu örnek: "Siparişin Önünde planlı bakım bilgilendirmesi: 14 Ocak tarihinde saat 03:00 itibarıyla yaklaşık 20 dakikalık bakım çalışması yapılacak. Siparişlerinize etkisi: bu sürede panel ve online sipariş kısa süre erişilemeyebilir. Ayrıntıları aşağıdaki bağlantıdan görebilirsiniz."
+- Geçmiş olaylar 90 gün görünür; SEV1/SEV2 kayıtlarına sade dilde özet eklenir. Planlı bakım en az 48 saat önce ve yoğun saat dışında duyurulur: durum sayfası + panel bandı + onay veren `owner`'lara `platform_planli_bakim_v1` ([02](02-whatsapp-entegrasyonu.md) §5.3). Dolu örnek: "Yemek Gelsin planlı bakım bilgilendirmesi: 14 Ocak tarihinde saat 03:00 itibarıyla yaklaşık 20 dakikalık bakım çalışması yapılacak. Siparişlerinize etkisi: bu sürede panel ve online sipariş kısa süre erişilemeyebilir. Ayrıntıları aşağıdaki bağlantıdan görebilirsiniz."
 
 ### 6.5 Olay sonrası inceleme (blameless postmortem) **[Faz 1]**
 
@@ -1031,7 +1031,7 @@ Faz 1'de ayrı bir BI aracı kurulmaz: sistem metrikleri Grafana'da, iş ve ür�
 ### 9.4 Aylık kurucu / yatırımcı raporu şablonu **[Faz 1]**
 
 ```markdown
-# Siparişin Önünde — {Ay Yıl} raporu
+# Yemek Gelsin — {Ay Yıl} raporu
 ## 1. Üç cümlede ay
 - En iyi gelişme / en büyük sorun / önümüzdeki ayın tek önceliği
 

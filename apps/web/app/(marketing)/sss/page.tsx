@@ -10,7 +10,7 @@ import { FAQ } from '@/lib/faq';
 
 export const metadata: Metadata = pageMetadata({
   title: 'Sık sorulan sorular',
-  description: 'Numaram gider mi, komisyon var mı, Meta ücreti kimde, kurulum ne kadar sürer? Kısa cevaplar.',
+  description: 'Numara bağlamam gerekir mi, komisyon var mı, Meta ücreti kimde, kurulum ne kadar sürer? Kısa cevaplar.',
   path: '/sss',
 });
 

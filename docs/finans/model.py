@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Siparişin Önünde — 24 aylık finansal model (Ekim 2026 – Eylül 2028)
+Yemek Gelsin — 24 aylık finansal model (Ekim 2026 – Eylül 2028)
 
 Kullanım (repo kökünden):
     python3 docs/finans/model.py            # CSV'leri yazar + özet tabloları Markdown olarak ekrana basar

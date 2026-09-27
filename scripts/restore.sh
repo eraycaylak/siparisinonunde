@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Siparişin Önünde — yedekten geri yükleme (docs/15-kurulum-ve-isletim.md §8).
+# Yemek Gelsin — yedekten geri yükleme (docs/15-kurulum-ve-isletim.md §8).
 #
 #   ./scripts/restore.sh backups/db-siparis-20261001T031500Z.dump                 # canlı veritabanına (onay ister)
 #   ./scripts/restore.sh --uploads backups/uploads-20261001T031500Z.tar.gz <dump>  # görsellerle birlikte

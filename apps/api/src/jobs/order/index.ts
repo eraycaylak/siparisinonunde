@@ -186,7 +186,7 @@ export async function runAlarmStep(db: Database, payload: AlarmStepPayload): Pro
             tenantId: order.tenantId,
             orderId: order.id,
             to,
-            body: `Siparişin Önünde: ${tenant?.name ?? 'İşletmeniz'} için ${formatOrderNo(order.number)} numaralı sipariş (${formatTL(order.totalKurus)}) 5 dakikadır onay bekliyor. Lütfen paneli açın.`,
+            body: `Yemek Gelsin: ${tenant?.name ?? 'İşletmeniz'} için ${formatOrderNo(order.number)} numaralı sipariş (${formatTL(order.totalKurus)}) 5 dakikadır onay bekliyor. Lütfen paneli açın.`,
             purpose: 'alarm',
             countsTowardQuota: true,
           },

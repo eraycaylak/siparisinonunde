@@ -37,8 +37,8 @@ export const metadata: Metadata = pageMetadata({
 
 const STEPS = [
   {
-    title: 'Müşterin yazar',
-    text: 'WhatsApp’tan “Merhaba” der ya da paketteki QR’ı okutur. Menü linki saniyeler içinde gelir.',
+    title: 'Müşterin QR’ını okutur',
+    text: 'Paketteki QR’ını okutur ya da bağlantına dokunur; WhatsApp’ta senin dükkanının adıyla karşılanır. Menü linki saniyeler içinde gelir.',
     Icon: MessageCircle,
   },
   {
@@ -64,7 +64,7 @@ const FEATURES = [
 
 const TRUST = [
   { text: 'Resmi WhatsApp Business Platform altyapısı', Icon: ShieldCheck },
-  { text: 'Numaran ve WhatsApp Business uygulaman yerinde kalır', Icon: Smartphone },
+  { text: 'Numara bağlamadan başla: ortak WhatsApp hattı hazır', Icon: Smartphone },
   { text: 'Verilerin Türkiye’de barındırılır', Icon: Server },
 ];
 
@@ -92,10 +92,7 @@ export default function HomePage() {
             <h1 id="hero-baslik" className="text-4xl font-bold leading-[1.1] tracking-tight text-fg sm:text-5xl lg:text-6xl">
               Keşif pazaryerinde, <span className="underline decoration-saffron decoration-[6px] underline-offset-[10px]">sadakat sende.</span>
             </h1>
-            <p className="max-w-xl text-lg leading-8 text-fg-muted sm:text-xl">
-              Müşterin sana zaten WhatsApp’tan yazıyor. Siparişini komisyonsuz al, panelde sesli uyarıyla yönet; müşterine “Onaylandı” ve
-              “Yolda” mesajı kendiliğinden gitsin.
-            </p>
+            <p className="max-w-xl text-lg leading-8 text-fg-muted sm:text-xl">{SITE_DESCRIPTION}</p>
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <Link href="/hesaplayici" className={buttonVariants({ variant: 'primary', size: 'lg' })}>
                 Ne kadar tasarruf ederim?
@@ -162,7 +159,7 @@ export default function HomePage() {
         id="hesapla"
         eyebrow="Hesapla"
         title="Pazaryerine ayda ne ödüyorsun?"
-        lead="Üç rakamı gir, aylık kesintini ve Siparişin Önünde’nin kaç siparişte kendini amorti ettiğini gör."
+        lead="Üç rakamı gir, aylık kesintini ve Yemek Gelsin’in kaç siparişte kendini amorti ettiğini gör."
       >
         <MiniCalculator />
       </Section>
@@ -180,16 +177,18 @@ export default function HomePage() {
         </ul>
       </Section>
 
-      {/* Numaran güvende */}
-      <Section id="numaran-guvende" eyebrow="Numaran güvende" title="Telefonundaki WhatsApp Business’tan yazmaya devam edersin.">
+      {/* Ortak numara (00 §12a madde 8) */}
+      <Section id="whatsapp-hatti" eyebrow="WhatsApp hattı" title={`Numara bağlamadan başlarsın: siparişler ortak ${SITE_NAME} numarasından gelir.`}>
         <div className="grid gap-6 md:grid-cols-2">
           <p className="text-lg leading-8 text-fg-muted">
-            Siparişler aynı anda panele düşer. Resmi WhatsApp Business Platform altyapısını kullanırız; resmi olmayan araçlarla numaranı
-            riske atmayız. İstersen sipariş için yeni bir numara da bağlayabilirsin.
+            Her dükkanın kendi kodu ve QR’ı vardır. Müşterin QR’ını okutunca sohbet senin dükkanınla açılır; her mesaj dükkanının adıyla
+            başlar, siparişler yalnız senin paneline düşer. Müşteri listen ve siparişlerin başka dükkanlarla paylaşılmaz. Telefonundaki
+            WhatsApp’a dokunulmaz.
           </p>
           <p className="text-lg leading-8 text-fg-muted">
-            WhatsApp bağlantın tamamlanana kadar web siparişlerini SMS doğrulamasıyla almaya başlayabilirsin. WhatsApp’ta bir arıza olursa
-            aynı yol kendiliğinden devreye girer; siparişin durmaz.
+            Resmi WhatsApp Business Platform altyapısını kullanırız; resmi olmayan araçlar kullanmayız. İstersen kendi WhatsApp numaranı da
+            bağlayabiliriz (isteğe bağlı). WhatsApp’ta bir arıza olursa web siparişleri SMS doğrulamasıyla kendiliğinden devam eder; siparişin
+            durmaz.
           </p>
         </div>
       </Section>
@@ -208,7 +207,10 @@ export default function HomePage() {
             </div>
           ))}
         </div>
-        <p className="mt-5 text-base text-fg-muted">WhatsApp (Meta) mesaj ücretleri abonelik fiyatına dahil değildir; işletmenin kendi Meta hesabından tahsil edilir.</p>
+        <p className="mt-5 text-base text-fg-muted">
+          Ortak numarada ayrı bir Meta hesabı ya da kart gerekmez. Kendi numaranı bağlarsan WhatsApp (Meta) mesaj ücretleri abonelik fiyatına
+          dahil değildir; kendi Meta hesabından tahsil edilir.
+        </p>
         <Link href="/fiyatlar" className={cn(buttonVariants({ variant: 'secondary' }), 'mt-6')}>
           Tüm fiyatlar ve paketler
           <ArrowRight aria-hidden />

@@ -101,7 +101,7 @@ function routeTag(m: ThreadMessage) {
   if (m.platform) {
     return (
       <Badge variant="info" size="sm">
-        {m.direction === 'in' ? 'Dükkan seçilmedi' : 'Siparişin Önünde · dükkan seçici'}
+        {m.direction === 'in' ? 'Dükkan seçilmedi' : 'Yemek Gelsin · dükkan seçici'}
       </Badge>
     );
   }

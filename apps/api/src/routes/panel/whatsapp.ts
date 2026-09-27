@@ -73,7 +73,7 @@ export function qrSvgFor(link: string): Promise<string> {
 function sharedModeConflict(): AppError {
   return conflict(
     'wa_shared_mode',
-    'İşletmeniz ortak numarayı (Siparişin Önünde) kullanıyor. Kendi WhatsApp numaranızı bağlamak için bizimle iletişime geçin.',
+    'İşletmeniz ortak numarayı (Yemek Gelsin) kullanıyor. Kendi WhatsApp numaranızı bağlamak için bizimle iletişime geçin.',
   );
 }
 
@@ -331,7 +331,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         enforceRateLimit(sharedTestLimiter, auth.tenantId);
       }
       const [tenant] = await app.db.select({ name: tenants.name }).from(tenants).where(eq(tenants.id, auth.tenantId));
-      const text = `Siparişin Önünde test mesajı: ${tenant?.name ?? 'İşletmeniz'} WhatsApp bağlantısı çalışıyor.`;
+      const text = `Yemek Gelsin test mesajı: ${tenant?.name ?? 'İşletmeniz'} WhatsApp bağlantısı çalışıyor.`;
       const ref = toAccountRef(acc, app.config);
       try {
         const { wamid } = await providerForAccount(acc, app.config).sendText(ref, { phone: to }, text);

@@ -6,7 +6,7 @@ import { LEGAL_ENTITY, SITE_NAME } from '@/lib/site';
 
 export const metadata: Metadata = pageMetadata({
   title: 'Gizlilik politikası',
-  description: 'Siparişin Önünde gizlilik politikası (taslak).',
+  description: `${SITE_NAME} gizlilik politikası (taslak).`,
   path: '/yasal/gizlilik',
 });
 

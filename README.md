@@ -1,13 +1,17 @@
-# siparisinonunde — Siparişin Önünde
+# Yemek Gelsin
 
-**WhatsApp'tan komisyonsuz sipariş.** Türkiye'deki restoranlar ve yerel işletmeler için bir SaaS:
+**WhatsApp'tan komisyonsuz sipariş.** Türkiye'deki restoranlar ve yerel işletmeler için bir SaaS · [yemekgelsin.net](https://yemekgelsin.net)
 
-- Müşteri dükkanın QR'ını okutur ya da WhatsApp'tan yazar (varsayılan: tüm dükkanlar için tek "Siparişin Önünde" numarası).
+- Müşteri dükkanın QR'ını okutur ya da bağlantısına dokunur ve WhatsApp'tan yazar (varsayılan: tüm dükkanlar için tek "Yemek Gelsin" numarası, dükkan kodu ile).
 - Sipariş web paneline sesli uyarıyla düşer.
 - İşletme tek dokunuşla onaylar.
 - Müşteri durum bildirimlerini WhatsApp'tan alır.
 
 İşletme sipariş başına komisyon değil, sabit aylık ücret öder.
+
+Marka ve alan adı kararı: [00 §12a madde 9](docs/00-kararlar-ve-sozluk.md). Depo, paket (`@siparis/*`) ve veritabanı adlarındaki `siparisinonunde` / `siparis` iç çalışma adıdır ve değişmez.
+
+**Canlı demo:** https://yemekgelsin.net (Cloudflare dev ortamı; tüm sağlayıcılar taklit, gerçek mesaj gitmez, gerçek veri girilmez). Demo hesapları aşağıdaki tablodaki e-postalardır, parolası `DEV_PASSWORD`'dür; WhatsApp simülatörü `/dev/whatsapp` (kullanıcı adı `dev`, parola `DEV_PASSWORD`). Ayrıntı: [15 §13](docs/15-kurulum-ve-isletim.md).
 
 > **Durum:** Faz 1 çalışır durumda: pazarlama sitesi, işletme vitrini ve sipariş akışları (A, B, E), işletme paneli, admin paneli, kurye ekranı, WhatsApp (ortak numara ya da işletmenin kendi numarası; 360dialog / Cloud API / geliştirme simülatörü), SMS yedeği, Docker ile kurulum. Canlıya çıkıştan önce kalanlar: [15 §12 kontrol listesi](docs/15-kurulum-ve-isletim.md) ve hukuki metinlerin incelemesi. Pilot: Yozgat / Merkez.
 
@@ -66,7 +70,7 @@ Ham araştırma raporları ve kaynak bağlantıları: [docs/arastirma/](docs/ara
 
 WhatsApp'ta numara başına aracı firma ücreti (360dialog ~49 €/ay) Esnaf paketinden (990 TL) pahalı olduğu için varsayılan model **tek numaradır** ([00 §12a madde 8](docs/00-kararlar-ve-sozluk.md)):
 
-- Tüm dükkanlar platformun tek WhatsApp numarasını ("Siparişin Önünde") kullanır. Her dükkanın kısa bir **dükkan kodu** (ör. `BOZOK`) ve bu kodla açılan QR'ı/bağlantısı vardır: `wa.me/<ortak numara>?text=Merhaba, Bozok Pide Salonu için sipariş vermek istiyorum. #BOZOK`.
+- Tüm dükkanlar platformun tek WhatsApp numarasını ("Yemek Gelsin") kullanır. Her dükkanın kısa bir **dükkan kodu** (ör. `BOZOK`) ve bu kodla açılan QR'ı/bağlantısı vardır: `wa.me/<ortak numara>?text=Merhaba, Bozok Pide Salonu için sipariş vermek istiyorum. #BOZOK`.
 - Müşteri A dükkanının QR'ını okutursa bot A dükkanı adına yanıt verir (her mesajın ilk satırı kalın dükkan adıdır); B'nin QR'ını okutursa B adına.
 - Müşteri **sonra kodsuz yazarsa**: son 24 saatte konuştuğu dükkan varsa o devam eder. Yoksa "Hangi dükkandan sipariş vermek istersin?" sorulur: son sipariş verdiği en çok 2 dükkan düğme olarak + "Diğer dükkanlar"; hiç dükkanı yoksa dükkan listesi. Dükkan adını ya da kodunu yazmak da yeter; "dükkanlar", "değiştir" komutları seçiciyi açar.
 - Siparişler yine o dükkanın kendi paneline düşer; müşteri, sohbet ve sipariş verisi dükkanlar arasında ayrıdır.
@@ -98,23 +102,25 @@ Gereksinimler: Node.js 22+, pnpm 10 (`corepack enable`), PostgreSQL 16+.
    ```
 4. **Çalıştırma:** `pnpm dev` → API `http://localhost:4000` (+ worker), web `http://localhost:3000`.
 
-Demo hesapları (seed, yalnız geliştirme):
+Demo hesapları (seed, yalnız geliştirme ve dev ortamı):
 
-| Rol | Giriş | Parola | Adres |
+| Rol | Giriş | Parola (yerel) | Adres |
 |---|---|---|---|
-| Platform yöneticisi | `admin@siparisinonunde.local` | `admin1234` | `/admin/giris` |
-| İşletme sahibi | `demo@siparisinonunde.local` | `demo1234` | `/panel/giris` |
-| Yönetici | `mudur@siparisinonunde.local` | `mudur1234` | `/panel/giris` |
-| Kasiyer | `kasa@siparisinonunde.local` | `kasa1234` | `/panel/giris` |
-| Mutfak | `mutfak@siparisinonunde.local` | `mutfak1234` | `/panel/giris` |
-| Kurye | `kurye@siparisinonunde.local` | `kurye1234` | panel > Kuryeler > giriş bağlantısı |
-| İşletme sahibi (Çamlık Döner) | `doner@siparisinonunde.local` | `doner1234` | `/panel/giris` |
+| Platform yöneticisi | `admin@yemekgelsin.net` | `admin1234` | `/admin/giris` |
+| İşletme sahibi | `demo@yemekgelsin.net` | `demo1234` | `/panel/giris` |
+| Yönetici | `mudur@yemekgelsin.net` | `mudur1234` | `/panel/giris` |
+| Kasiyer | `kasa@yemekgelsin.net` | `kasa1234` | `/panel/giris` |
+| Mutfak | `mutfak@yemekgelsin.net` | `mutfak1234` | `/panel/giris` |
+| Kurye | `kurye@yemekgelsin.net` | `kurye1234` | panel > Kuryeler > giriş bağlantısı |
+| İşletme sahibi (Çamlık Döner) | `doner@yemekgelsin.net` | `doner1234` | `/panel/giris` |
+
+`SEED_PASSWORD` (en az 8 karakter) tanımlıysa seed **tüm** demo hesaplarına bu parolayı verir ve var olan demo hesaplarının parolasını da buna eşitler; tanımlı değilse tablodaki yerel parolalar geçerlidir. Cloudflare dev ortamında (https://yemekgelsin.net) `SEED_PASSWORD = DEV_PASSWORD`'dür; orada sayfaların üstünde "Demo ortamı" uyarısı görünür ve yeni işletme kaydı kapalı başlar (`/admin/bayraklar`, 15 §13). Bu adresler yalnız demo içindir; gerçek yöneticiler başka adres kullanır (ör. `yonetici@yemekgelsin.net`, 15 §5).
 
 Yukarıdaki işletme hesapları Bozok Pide Salonu'na aittir; Çamlık Döner ikinci demo işletmedir (aynı ortak numarada, kodu `DONER`). Seed işletme başına tekrar çalıştırılabilir: var olan işletme atlanır, eksik olan eklenir.
 
 Vitrin: `http://localhost:3000/s/bozok-pide` ve `/s/camlik-doner` · Canlı sipariş ekranı: `/panel` ("Vardiyayı başlat").
 
-**WhatsApp simülatörü** (`/dev/whatsapp`, yalnız `DEV_TOOLS=1`): gerçek WhatsApp hesabı olmadan uçtan uca akış. Numara olarak "Siparişin Önünde · ortak numara"yı seçin, müşteri telefonu yazın ve sohbetin altındaki **#BOZOK** çipine basın (Bozok'un QR'ını okutmakla aynı: ön-dolu mesaj gider) → Bozok adına gelen karşılamadaki **Menüyü aç** vitrini Akış A bağlamıyla açar; sipariş verin, paneli izleyin. **#DONER** ile aynı müşteri Çamlık Döner'e geçer; kodsuz yazınca (ya da "değiştir", "dükkanlar") dükkan seçici gelir, butonlar ve liste satırları tıklanır. Sohbet, müşterinin ortak numaradaki tek sohbetidir: her mesajda hangi dükkana gittiği ya da dükkan seçici (platform) olduğu etiketlenir. Akış B için vitrinden doğrudan sipariş verip doğrulama ekranındaki kodu simülatörden `Sipariş kodu: XXXXXX` olarak gönderin. "Bekleyen işleri çalıştır" worker'ı beklemeden kuyruğu işler; "SMS kutusu" ve "Platform uyarıları" sekmeleri mock SMS'leri ve işletme sahibine giden uyarıları gösterir. Aynı uçlar API'de: `/api/v1/dev/*` (14 §6.5).
+**WhatsApp simülatörü** (`/dev/whatsapp`, yalnız `DEV_TOOLS=1`): gerçek WhatsApp hesabı olmadan uçtan uca akış. Numara olarak "Yemek Gelsin · ortak numara"yı seçin, müşteri telefonu yazın ve sohbetin altındaki **#BOZOK** çipine basın (Bozok'un QR'ını okutmakla aynı: ön-dolu mesaj gider) → Bozok adına gelen karşılamadaki **Menüyü aç** vitrini Akış A bağlamıyla açar; sipariş verin, paneli izleyin. **#DONER** ile aynı müşteri Çamlık Döner'e geçer; kodsuz yazınca (ya da "değiştir", "dükkanlar") dükkan seçici gelir, butonlar ve liste satırları tıklanır. Sohbet, müşterinin ortak numaradaki tek sohbetidir: her mesajda hangi dükkana gittiği ya da dükkan seçici (platform) olduğu etiketlenir. Akış B için vitrinden doğrudan sipariş verip doğrulama ekranındaki kodu simülatörden `Sipariş kodu: XXXXXX` olarak gönderin. "Bekleyen işleri çalıştır" worker'ı beklemeden kuyruğu işler; "SMS kutusu" ve "Platform uyarıları" sekmeleri mock SMS'leri ve işletme sahibine giden uyarıları gösterir. Aynı uçlar API'de: `/api/v1/dev/*` (14 §6.5).
 
 ## Testler
 

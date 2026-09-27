@@ -4,9 +4,9 @@
 //
 // Kullanım (sunucuda, konteyner içinde):
 //   docker compose run --rm api node --import tsx /app/scripts/create-admin.ts \
-//     --email eray@siparisinonunde.com --name "Eray" [--role platform_owner] [--password ...] [--reset-password]
+//     --email yonetici@yemekgelsin.net --name "Platform Yöneticisi" [--role platform_owner] [--password ...] [--reset-password]
 // Telefonu kaybeden yöneticinin iki adımlı doğrulamasını sıfırlama (tek başına kullanılır; tüm oturumları kapatır):
-//   docker compose run --rm api node --import tsx /app/scripts/create-admin.ts --email eray@siparisinonunde.com --reset-totp
+//   docker compose run --rm api node --import tsx /app/scripts/create-admin.ts --email yonetici@yemekgelsin.net --reset-totp
 // Yerelde:
 //   pnpm exec tsx --env-file=.env scripts/create-admin.ts --email admin@example.com --name "Admin"
 // Parola ortam değişkeniyle de verilebilir (kabuk geçmişine düşmesin). `read` değişkeni dışa aktarmaz; export

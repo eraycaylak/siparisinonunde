@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Siparişin Önünde — günlük yedek (docs/15-kurulum-ve-isletim.md §8).
+# Yemek Gelsin — günlük yedek (docs/15-kurulum-ve-isletim.md §8).
 # PostgreSQL mantıksal dökümü (pg_dump -Fc, sıkıştırılmış) + yüklenen görseller (uploads birimi).
 # 14 günden eski yedekler silinir. Sunucuda, depoyu ve compose'u yöneten `siparis` kullanıcısının crontab'ında
 # (root'un değil; `crontab -e` siparis olarak) her gece çalıştırın. Log kullanıcının ev dizinine yazılır:

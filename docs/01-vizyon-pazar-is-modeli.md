@@ -1,6 +1,6 @@
 # 01 — Vizyon, Pazar ve İş Modeli
 
-> **Amaç:** Siparişin Önünde'nin hangi problemi, kimin için ve hangi iş modeliyle çözdüğünü; pazarı, rakipleri, fiyatlandırmayı, birim ekonomiyi ve pazara giriş planını tek yerde tanımlamak.
+> **Amaç:** Yemek Gelsin'in hangi problemi, kimin için ve hangi iş modeliyle çözdüğünü; pazarı, rakipleri, fiyatlandırmayı, birim ekonomiyi ve pazara giriş planını tek yerde tanımlamak.
 > **Kapsam:** Problem ve çözüm, vizyon ve konumlandırma, pazar büyüklüğü, rakipler, personalar, paketler ve fiyat kuralları, birim ekonomi, go-to-market (GTM), pazaryerleriyle birlikte kullanım, savunulabilirlik.
 > **Kapsam dışı:** WhatsApp teknik ayrıntıları ve mesaj akışları ([02](02-whatsapp-entegrasyonu.md)), ekran ve özellik tasarımı ([03](03-musteri-deneyimi-ve-storefront.md), [04](04-isletme-paneli.md), [05](05-admin-paneli-ve-pazarlama-sitesi.md)), sözleşme, vergi ve tahsilat ([08](08-mevzuat-kvkk-odeme-fatura.md)), takvim ([09](09-yol-haritasi-ve-sprint-plani.md)), risk matrisi ve KPI'lar ([10](10-riskler-operasyon-ve-metrikler.md)).
 > **İlgili dokümanlar:** [00 Kararlar ve sözlük](00-kararlar-ve-sozluk.md) (bağlayıcı) · [02 WhatsApp entegrasyonu](02-whatsapp-entegrasyonu.md) · [04 İşletme paneli](04-isletme-paneli.md) · [05 Admin paneli ve pazarlama sitesi](05-admin-paneli-ve-pazarlama-sitesi.md) · [06 Teknik mimari](06-teknik-mimari.md) · [08 Mevzuat](08-mevzuat-kvkk-odeme-fatura.md) · [09 Yol haritası](09-yol-haritasi-ve-sprint-plani.md) · [10 Riskler ve metrikler](10-riskler-operasyon-ve-metrikler.md)
@@ -50,7 +50,7 @@
 
 ### 1.2 Çözüm
 
-Siparişin Önünde, işletmenin **kendi WhatsApp numarasını** resmi WhatsApp Cloud API üzerinden düzenli bir sipariş kanalına ve operasyon paneline çevirir.
+Yemek Gelsin, işletmenin **kendi WhatsApp numarasını** resmi WhatsApp Cloud API üzerinden düzenli bir sipariş kanalına ve operasyon paneline çevirir.
 
 ```mermaid
 flowchart LR
@@ -89,7 +89,7 @@ flowchart LR
 
 ### 2.2 Konumlandırma cümlesi
 
-> **Paket servis yapan bağımsız restoranlar için** Siparişin Önünde, **kendi WhatsApp numaranı komisyonsuz bir sipariş kanalına ve operasyon paneline çeviren** yazılımdır. **Pazaryerlerinden farklı olarak** müşteri ve veri senindir, sipariş başına ödeme yapmazsın. **WhatsApp'tan sipariş alan diğer araçlardan farklı olarak** resmi Meta altyapısıyla çalışır; sipariş panele düzenli düşer, müşteriye otomatik bildirim gider.
+> **Paket servis yapan bağımsız restoranlar için** Yemek Gelsin, **kendi WhatsApp numaranı komisyonsuz bir sipariş kanalına ve operasyon paneline çeviren** yazılımdır. **Pazaryerlerinden farklı olarak** müşteri ve veri senindir, sipariş başına ödeme yapmazsın. **WhatsApp'tan sipariş alan diğer araçlardan farklı olarak** resmi Meta altyapısıyla çalışır; sipariş panele düzenli düşer, müşteriye otomatik bildirim gider.
 
 - **Ana mesaj:** *"Keşif pazaryerinde, sadakat sende. Komisyonsuz, WhatsApp'tan."*
 - **Asla kullanılmayacak mesaj:** "Yemeksepeti'ni bırak." Yerine: **"Pazaryerine bağımlı kalma."**
@@ -221,7 +221,7 @@ Kaynaklar: arastirma/02 §5. **Abrasel araştırması (Mart 2025, 2.176 işletme
 
 ### 4.4 Farklılaşma tablosu
 
-| Kriter | **Siparişin Önünde** | `wa.me` modeli (QR menü → hazır metin) | Resmi olmayan botlar (QR ile WhatsApp Web) | Pazaryeri |
+| Kriter | **Yemek Gelsin** | `wa.me` modeli (QR menü → hazır metin) | Resmi olmayan botlar (QR ile WhatsApp Web) | Pazaryeri |
 |---|---|---|---|---|
 | WhatsApp altyapısı | Resmi Cloud API (Tech Provider) | API yok, tüketici linki | Tersine mühendislik, ToS ihlali | Kendi uygulaması |
 | Numara riski | Yok; Coexistence ile uygulama da çalışır | Yok | **Yüksek** (kapatılma) | — |
@@ -308,7 +308,7 @@ Rol kodları [00 Kararlar ve sözlük](00-kararlar-ve-sozluk.md) ile aynıdır. 
 |---|---|---|---|---|
 | **Sipariş kanalları** | | | | |
 | WhatsApp sipariş hattı: resmi Cloud API, Coexistence veya yeni numara | [Faz 1] | ✓ | ✓ | ✓ (şube başı numara) |
-| Storefront `{slug}.siparisinonunde.com`: menü, seçenek grupları, sepet | [Faz 1] | ✓ | ✓ | ✓ |
+| Storefront `{slug}.yemekgelsin.net`: menü, seçenek grupları, sepet | [Faz 1] | ✓ | ✓ | ✓ |
 | Akış A (sohbet + web sepeti), Akış B (doğrudan web + WhatsApp ile onay), Akış E (manuel/telefon) | [Faz 1] | ✓ | ✓ | ✓ |
 | "WhatsApp'sız mod": Akış B'de SMS OTP doğrulaması (müşterinin WhatsApp'ı yoksa, işletmenin Meta bağlantısı tamamlanmadıysa veya WhatsApp kanalı arızalıysa) | [Faz 1] | ✓ | ✓ | ✓ |
 | Akış D: storefront'ta "Son siparişin" kartı (aynısından tekrar) | [Faz 1] | ✓ | ✓ | ✓ |
@@ -407,11 +407,11 @@ Rol kodları [00 Kararlar ve sözlük](00-kararlar-ve-sozluk.md) ile aynıdır. 
 | Siparel Başlangıç | 680 | AI odaklı |
 | OxyMenu Lite / Start | 749 (+KDV) / 1.499 | Adisyon ağırlıklı |
 | Adisyo (yıllık lisans / 12) | 750 / 1.250 / 1.833 (+KDV) | POS |
-| **Siparişin Önünde Esnaf** | **990 (+KDV)** | Resmi API, panel, sesli uyarı |
+| **Yemek Gelsin Esnaf** | **990 (+KDV)** | Resmi API, panel, sesli uyarı |
 | KolaySiparis Başlangıç | 999 (liste 1.499) | Dikeyler arası |
 | WhatsApp AI botları | 1.490–5.490 | Çoğunda sipariş paneli yok; muhtemelen resmi değil |
-| **Siparişin Önünde Pro** | **1.790 (+KDV)** | + kurye, sınırsız bölge, tüm roller; [Faz 2] online ödeme, AI, kupon |
-| **Siparişin Önünde Zincir** | **2.990 / şube (+KDV)** | + çoklu şube [Faz 2] |
+| **Yemek Gelsin Pro** | **1.790 (+KDV)** | + kurye, sınırsız bölge, tüm roller; [Faz 2] online ödeme, AI, kupon |
+| **Yemek Gelsin Zincir** | **2.990 / şube (+KDV)** | + çoklu şube [Faz 2] |
 | İletmen TekMenü | Günde 30 pakette 5.391 (5,99 × 900) | Paket başı ücret |
 | Yemek Butik | En fazla 10.000 | Ciroya bağlı |
 | Owner.com (ABD) | 499 $ ≈ 24.150 | Referans; farklı pazar |
@@ -471,7 +471,7 @@ Geçişten sonra
 | Doğrudan kanal teşviki (Cp × t) | −3.150 | −6.300 | −6.300 |
 | Kartla tahsilat maliyeti (Cp × o × c) | −787,5 | −787,5 | −787,5 |
 | Ek kurye (N × K; 25–45 TL bandından 40 TL) | 0 | 0 | −7.200 |
-| Siparişin Önünde Pro (U) | −1.790 | −1.790 | −1.790 |
+| Yemek Gelsin Pro (U) | −1.790 | −1.790 | −1.790 |
 | **Net aylık kazanç** | **+3.722,5** | **+6.872,5** | **+5.972,5** |
 | Yıllık | ~44.670 | ~82.470 | ~71.670 |
 | Başa baş (N*, yukarı yuvarlama) | 1.790 / (350 × 0,0875) = 1.790 / 30,625 = 58,4 → **59/ay** | 1.790 / (350 × 0,1375) = 1.790 / 48,125 = 37,2 → **38/ay** | 1.790 / (350 × 0,2375 − 40) = 1.790 / 43,125 = 41,5 → **42/ay** |

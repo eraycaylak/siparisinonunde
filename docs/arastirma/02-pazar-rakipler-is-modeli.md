@@ -1,6 +1,6 @@
 # 02 — Pazar, Rakipler ve İş Modeli Araştırması
 
-**Proje:** siparisinonunde (Siparişin Önünde): WhatsApp üzerinden komisyonsuz sipariş alma SaaS'ı
+**Proje:** siparisinonunde (Yemek Gelsin): WhatsApp üzerinden komisyonsuz sipariş alma SaaS'ı
 **Tarih:** 2026-09-24
 **Kapsam:** Türkiye online yemek pazarı, yerli ve global rakipler, POS ekosistemi, fiyatlandırma, birim ekonomi, go-to-market (GTM), personalar, moat
 
@@ -341,7 +341,7 @@ Getirilen kurallar:
 - **Deneme:** **14 gün, kredi kartı istenmeden.** Piyasadaki örnekler: Siparel 7, Anota 7, Restoran Ödül 14, SiparişGo 14, Adisyo 15, OxyMenu 30 gün.
 - **Şube:** 2. ve sonraki şubelerde şube başına %20 indirim.
 - **Pazarlama mesajı kredisi:** Fiyat kuralı **Meta maliyeti × 1,6** (çeyreklik güncellenir). Bugünkü maliyetle 1.000 mesajın Meta bedeli ≈ 532 TL, satış fiyatı ≈ **850–890 TL + KDV** [T]. Eğer BSP mesaj başına 0,003–0,010 $ ek ücret alıyorsa ([B] bossbot.uk ve whautomate kaynakları) maliyet 0,68–1,02 TL/mesaja çıkar; fiyat buna göre ≈ **1.200 TL + KDV / 1.000 mesaj** olur.
-- **Opsiyonel ücretsiz katman (Faz 2, ürün oturduktan sonra):** "Menü" paketi. QR/web menü ve web siparişinin panele düşmesini sağlar; **ayda 50 sipariş** sınırı ve "siparisinonunde ile" markası taşır; WhatsApp API içermez. Amaç ücretsiz QR menü rakiplerinden müşteri toplamak (Take App ve Goomer modeli).
+- **Opsiyonel ücretsiz katman (Faz 2, ürün oturduktan sonra):** "Menü" paketi. QR/web menü ve web siparişinin panele düşmesini sağlar; **ayda 50 sipariş** sınırı ve "Yemek Gelsin ile" markası taşır; WhatsApp API içermez. Amaç ücretsiz QR menü rakiplerinden müşteri toplamak (Take App ve Goomer modeli).
 
 ### 7.3 Rakip fiyatlarıyla kıyas (aylık, TL)
 
@@ -349,11 +349,11 @@ Getirilen kurallar:
 |---|---|---|
 | Siparel Başlangıç | 680 | AI odaklı |
 | OxyMenu Lite / Start | 749 (+KDV) / 1.499 | Adisyon ağırlıklı |
-| **siparisinonunde Esnaf** | **990 (+KDV)** | Resmi API, panel, CRM |
+| **Yemek Gelsin Esnaf** | **990 (+KDV)** | Resmi API, panel, CRM |
 | KolaySiparis Başlangıç | 999 (liste 1.499) | Dikeyler arası |
 | Adisyo (yıllık lisans / 12) | 750 / 1.250 / 1.833 (+KDV) | POS |
 | QrMenum (yıllık / 12) | 500 / 833 (+AI 833) | QR ağırlıklı |
-| **siparisinonunde Pro** | **1.790 (+KDV)** | |
+| **Yemek Gelsin Pro** | **1.790 (+KDV)** | |
 | WhatsApp AI botları | 1.490–5.490 | Çoğu sipariş paneli sunmuyor |
 | İletmen TekMenü | Paket başı 5,99 TL: günde 30 sipariş = **5.391/ay** | Hacim arttıkça pahalılaşıyor |
 | Yemek Butik | En fazla 10.000/ay | Ciroya bağlı |
@@ -386,7 +386,7 @@ Platformdaki 30 siparişin 6'sı kendi kanalına geçiyor: ayda 180 sipariş, 63
 | Kaçınılan komisyon (KDV hariç) | 9.450 | 15.750 | 22.050 |
 | Müşteriye doğrudan sipariş teşviki | −3.150 (%5) | −6.300 (%10) | −6.300 (%10) |
 | Online ödeme komisyonu (siparişlerin %50'si kartla, %2,5) | −787,5 | −787,5 | −787,5 |
-| siparisinonunde Pro (KDV hariç) | −1.790 | −1.790 | −1.790 |
+| Yemek Gelsin Pro (KDV hariç) | −1.790 | −1.790 | −1.790 |
 | Ek kurye maliyeti (180 × 40 TL) [B: paket başı 25–45 TL bandı] | 0 (kurye zaten var) | 0 | −7.200 |
 | **Net aylık kazanç** | **+3.722,5 TL** | **+6.872,5 TL** | **+5.972,5 TL** |
 | Yıllık | ~44.670 TL | ~82.470 TL | ~71.670 TL |
@@ -593,7 +593,7 @@ Platformdaki 30 siparişin 6'sı kendi kanalına geçiyor: ayda 180 sipariş, 63
 4. **Resmi WhatsApp altyapısında operasyonel mükemmellik:** Coexistence, şablon kütüphanesi, kalite puanı yönetimi, mesaj maliyeti optimizasyonu. Resmi olmayan bot rakiplerine karşı "numaran banlanmaz" güvencesi.
 5. **Dikey derinlik:** Restoran + su/tüp + pastane için özelleşmiş akışlar: abonelik siparişi, damacana depozitosu, özel pasta formu.
 6. **Veri ürünleri:** Tekrar sipariş tahmini ("Ayşe Hanım 10 gündür sipariş vermedi"), en iyi kampanya zamanı, menü mühendisliği. Anonim ve toplu kıyas: "ilçendeki dönercilerin ortalama sepeti".
-7. **Marka ve güven:** Esnafın yanında duran marka hikâyesi ("Siparişin Önünde"), şeffaf fiyat, taahhütsüzlük.
+7. **Marka ve güven:** Esnafın yanında duran marka hikâyesi ("Yemek Gelsin"), şeffaf fiyat, taahhütsüzlük.
 8. **Bilinçli olarak pazaryeri olmamak:** Tüketiciye yönelik ortak bir uygulama kurmamak. Rekabeti, fiyat baskısını ve soğuk başlangıç sorununu önler. İleride en fazla "keşfet" dizini olabilir.
 
 ### 11.2 Pazaryerleriyle birlikte kullanım: müşteriyi kendi kanalına taşıma taktikleri
@@ -672,7 +672,7 @@ Platformdaki 30 siparişin 6'sı kendi kanalına geçiyor: ayda 180 sipariş, 63
     - Rakiplerin kullandığı WhatsApp altyapısı.
     - Posrestoran verisi.
     - Meta Business Agent'ın Türkiye'de Türkçe olarak kullanılabilir olup olmadığı.
-12. **Marka:** "Siparişin Önünde" adı ve alan adları müsait mi, marka tescili yapılacak mı?
+12. **Marka:** "Yemek Gelsin" adı ve alan adları müsait mi, marka tescili yapılacak mı?
 
 ---
 

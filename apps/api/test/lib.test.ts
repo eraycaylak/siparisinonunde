@@ -97,7 +97,7 @@ describe('config', () => {
     expect(c.DEV_TOOLS).toBe(true);
     expect(c.cookieSecure).toBe(false);
     expect(loadConfig({ ...base, DEV_TOOLS: '0' }).DEV_TOOLS).toBe(false);
-    expect(loadConfig({ ...base, APP_BASE_URL: 'https://siparisinonunde.com' }).cookieSecure).toBe(true);
+    expect(loadConfig({ ...base, APP_BASE_URL: 'https://yemekgelsin.net' }).cookieSecure).toBe(true);
   });
   it('platform WhatsApp numarası kimliği şemada (boş → undefined)', () => {
     expect(loadConfig({ ...base, PLATFORM_WA_PHONE_NUMBER_ID: ' 1234567890 ' }).PLATFORM_WA_PHONE_NUMBER_ID).toBe('1234567890');
@@ -135,7 +135,7 @@ describe('config', () => {
     });
     it('seçilen gerçek sağlayıcının anahtarları eksikse reddedilir', () => {
       expect(() => loadConfig({ ...prod, SMS_PROVIDER: 'netgsm', NETGSM_USERCODE: 'u', NETGSM_PASSWORD: '' })).toThrow(/NETGSM/);
-      expect(loadConfig({ ...prod, SMS_PROVIDER: 'netgsm', NETGSM_USERCODE: 'u', NETGSM_PASSWORD: 'p', NETGSM_HEADER: 'SIPARISNDE' }).SMS_PROVIDER).toBe('netgsm');
+      expect(loadConfig({ ...prod, SMS_PROVIDER: 'netgsm', NETGSM_USERCODE: 'u', NETGSM_PASSWORD: 'p', NETGSM_HEADER: 'YEMEKGELSIN' }).SMS_PROVIDER).toBe('netgsm');
       expect(() => loadConfig({ ...prod, PLATFORM_WA_PROVIDER: 'd360', PLATFORM_WA_API_KEY: '' })).toThrow(/PLATFORM_WA_API_KEY/);
       expect(() => loadConfig({ ...prod, PLATFORM_WA_PROVIDER: 'cloud', PLATFORM_WA_API_KEY: 'k' })).toThrow(/PLATFORM_WA_PHONE_NUMBER_ID/);
       // Ortak numara (00 §12a madde 8): gerçek platform sağlayıcısında gösterim numarası ve webhook belirteci zorunlu

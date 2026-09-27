@@ -349,7 +349,7 @@ function SharedWhatsappReady({ code, displayPhone, isOwner }: { code: string | n
           </Badge>
         </span>
       }
-      description="Siparişleriniz ortak Siparişin Önünde numarasından gelir; ayrıca numara bağlamanız gerekmez."
+      description="Siparişleriniz ortak Yemek Gelsin numarasından gelir; ayrıca numara bağlamanız gerekmez."
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
         {!qrFailed ? (

@@ -1,4 +1,4 @@
-# Siparişin Önünde — tek VPS dağıtımı (00 §12a, 14 §1): postgres, migrate, api, worker, web, caddy.
+# Yemek Gelsin — tek VPS dağıtımı (00 §12a, 14 §1): postgres, migrate, api, worker, web, caddy.
 # Kurulum ve işletim: docs/15-kurulum-ve-isletim.md
 #   cp docker/env.production.example .env   # değerleri doldurun
 #   docker compose build

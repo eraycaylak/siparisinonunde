@@ -75,8 +75,8 @@ export const DEMO = {
   waDisplayPhone: '+905550000000',
   /** Dükkan kodu (QR'daki #KOD) */
   waCode: 'BOZOK',
-  owner: { email: 'demo@siparisinonunde.local', password: 'demo1234' },
-  admin: { email: 'admin@siparisinonunde.local', password: 'admin1234' },
+  owner: { email: 'demo@yemekgelsin.net', password: 'demo1234' },
+  admin: { email: 'admin@yemekgelsin.net', password: 'admin1234' },
   courier: { name: 'Burak Kurye' },
 } as const;
 
@@ -85,8 +85,8 @@ export const DONER = {
   slug: 'camlik-doner',
   tenantName: 'Çamlık Döner',
   waCode: 'DONER',
-  owner: { email: 'doner@siparisinonunde.local', password: 'doner1234' },
+  owner: { email: 'doner@yemekgelsin.net', password: 'doner1234' },
 } as const;
 
 /** Simülatördeki ortak numara seçeneği (components/whatsapp/simulator.tsx). */
-export const SHARED_NUMBER_LABEL = 'Siparişin Önünde · ortak numara';
+export const SHARED_NUMBER_LABEL = 'Yemek Gelsin · ortak numara';

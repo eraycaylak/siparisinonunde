@@ -709,7 +709,7 @@ export const ORDER_CODE_PATTERN = /\b([A-HJ-NP-Z2-9]{6})\b/;
 export function sms01Otp(v: { isletme: string; kod: string; slug?: string | null; domain?: string }): string {
   const base = `${v.isletme} sipariş doğrulama kodunuz: ${v.kod}. 5 dakika geçerlidir, kimseyle paylaşmayın.`;
   if (!v.slug) return base;
-  return `${base}\n@${v.slug}.${v.domain ?? 'siparisinonunde.com'} #${v.kod}`;
+  return `${base}\n@${v.slug}.${v.domain ?? 'yemekgelsin.net'} #${v.kod}`;
 }
 
 export function sms02Accepted(v: { isletme: string; no: string; saat: string; takipLink: string }): string {
@@ -826,7 +826,7 @@ export function templateForStatus(status: OrderStatus, ctx: { cancelReason?: Can
 }
 
 /** Storefront altbilgisi imzası (00 §7). */
-export const STOREFRONT_SIGNATURE = 'Altyapı: Siparişin Önünde';
+export const STOREFRONT_SIGNATURE = 'Altyapı: Yemek Gelsin';
 
 /** Mesafeli satış onay ibaresi (00 §9). */
 export const PAYMENT_OBLIGATION_NOTICE = 'Siparişi onayladığınızda ödeme yükümlülüğü doğar.';
@@ -860,7 +860,7 @@ export const SHARED_PICKER_TEXTS = {
   listFirstPage: 'Listenin başı',
   matchesBody: 'Yazdığına uyan birden fazla dükkan var. Hangisinden sipariş vermek istersin?',
   codeNotFound: 'Bu sipariş kodunu bulamadık. Kodu, siparişi verdiğin sayfadan kontrol edebilirsin.',
-  footer: 'Siparişin Önünde',
+  footer: 'Yemek Gelsin',
   /** P05 · Seçilebilir dükkan yok */
   noShops: 'Şu an bu numaradan sipariş alan dükkan yok. Daha sonra tekrar yazabilirsin.',
 } as const;

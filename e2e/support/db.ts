@@ -45,7 +45,8 @@ export function runDbScript(script: 'reset' | 'migrate' | 'seed'): void {
   execFileSync('pnpm', ['--silent', '--filter', '@siparis/db', script], {
     cwd: ROOT_DIR,
     stdio: 'inherit',
-    env: { ...process.env, DATABASE_URL: E2E_DATABASE_URL, ALLOW_DB_RESET: '1', NODE_ENV: 'test' },
+    // SEED_PASSWORD boş: demo hesapları e2e/support/env.ts'deki yerel parolalarla açılır (kabukta tanımlı olsa bile)
+    env: { ...process.env, DATABASE_URL: E2E_DATABASE_URL, ALLOW_DB_RESET: '1', NODE_ENV: 'test', SEED_PASSWORD: '' },
   });
 }
 

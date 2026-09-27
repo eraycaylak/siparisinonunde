@@ -69,20 +69,22 @@ curl -fsSL https://get.docker.com | sh                                     # Doc
 
 ## 3. Alan adı ve DNS
 
-Alan adı Cloudflare'de yönetilir (00 §10: Faz 1 wildcard alt alan adı). Kayıtlar (`203.0.113.10` yerine sunucu IP'si):
+Alan adı `yemekgelsin.net` Cloudflare'de (Registrar + DNS) yönetilir (00 §10: Faz 1 wildcard alt alan adı; 00 §12a madde 9). Kayıtlar (`203.0.113.10` yerine sunucu IP'si):
+
+> **Bugünkü durum (27.09.2026):** `yemekgelsin.net` ve `www.yemekgelsin.net` Cloudflare dev ortamının Worker'ına **Custom Domain** olarak bağlıdır (§13); DNS kayıtlarını ve sertifikayı Cloudflare kendisi yönetir. Üretim VPS'ine geçerken önce `deploy/cloudflare/wrangler.jsonc`'deki `routes` kaldırılıp dev ortamı yeniden dağıtılır (ya da Workers & Pages > `siparisinonunde-dev` > Settings > Domains & Routes'tan silinir); Custom Domain'in oluşturduğu kayıtlar böylece kalkar. Ardından aşağıdaki kayıtlar eklenir. Dev ortamı için ayrı bir alt alan adı (ör. `demo.yemekgelsin.net`) seçilirse: `wrangler.jsonc`'de `routes` yalnız `{ "pattern": "demo.yemekgelsin.net", "custom_domain": true }` olur (kök ve `www` satırları çıkar), `vars.APP_BASE_URL` ve `image_vars.NEXT_PUBLIC_SITE_URL` bu adrese çevrilir, iş akışındaki `SITE_URL` `https://demo.yemekgelsin.net` yapılır. İş akışındaki `ZONE` `yemekgelsin.net` olarak kalır (token izinleri bu bölge içindir); `www` → kök denetimi `SITE_URL` alt alan adındayken kendiliğinden atlanır.
 
 | Tür | Ad | Değer | Proxy |
 |---|---|---|---|
-| A | `@` (siparisinonunde.com) | 203.0.113.10 | Yalnız DNS (gri bulut) |
-| A | `*` (tüm vitrinler: `{slug}.siparisinonunde.com`) | 203.0.113.10 | Yalnız DNS |
+| A | `@` (yemekgelsin.net) | 203.0.113.10 | Yalnız DNS (gri bulut) |
+| A | `*` (tüm vitrinler: `{slug}.yemekgelsin.net`) | 203.0.113.10 | Yalnız DNS |
 | A | `www`, `panel`, `admin`, `hooks` | 203.0.113.10 | Yalnız DNS (wildcard kapsar; açık kayıt okunurluk içindir) |
 | AAAA | yukarıdakilerin aynısı | sunucunun IPv6'sı | Sunucuda IPv6 varsa |
 | CAA | `@` | `0 issue "letsencrypt.org"` ve `0 issuewild "letsencrypt.org"` | — |
 
 - **Wildcard sertifika** Let's Encrypt'te yalnız DNS-01 doğrulamasıyla alınır. Bu yüzden Caddy imajı Cloudflare DNS modülüyle derlenir (`docker/caddy.Dockerfile`) ve `.env`'de `CLOUDFLARE_API_TOKEN` gerekir. Belirteç: Cloudflare > My Profile > API Tokens > "Edit zone DNS" şablonu, yalnız bu bölge (Zone.DNS:Edit + Zone.Zone:Read).
 - **Proxy (turuncu bulut) başlangıçta kapalı** önerilir: SSE bağlantısı Cloudflare'in 100 sn boşta kalma sınırına ve tamponlamasına takılabilir (15 sn ping bunu çoğu zaman aşar ama doğrulanmadı — teyit edilmeli). Proxy açılacaksa SSL modu "Full (strict)" olmalı ve `Caddyfile`'daki `trusted_proxies` bloğu açılmalıdır (aksi halde hız sınırı tüm istekleri Cloudflare IP'sine sayar).
-- **Ayrılmış alt alan adları** vitrin olamaz: `www, api, app, panel, admin, kurye, dev, static, assets, uploads, mail, smtp, help, destek, blog, hooks, status, docs, demo, test, bayi, yardim` (`packages/core/src/slug.ts`).
-- DNS yayıldıktan sonra doğrulama: `dig +short bozok-pide.siparisinonunde.com` sunucu IP'sini döndürmeli.
+- **Ayrılmış alt alan adları** vitrin olamaz: `www, api, app, panel, admin, kurye, dev, static, assets, uploads, mail, smtp, help, destek, blog, hooks, status, docs, demo, test, bayi, yardim, siparisinonunde, yemekgelsin, yemek-gelsin` (`packages/core/src/slug.ts`).
+- DNS yayıldıktan sonra doğrulama: `dig +short bozok-pide.yemekgelsin.net` sunucu IP'sini döndürmeli.
 
 ## 4. Ortam değişkenleri (.env)
 
@@ -90,13 +92,13 @@ Alan adı Cloudflare'de yönetilir (00 §10: Faz 1 wildcard alt alan adı). Kay�
 
 | Değişken | Zorunlu | Açıklama | Üretme / örnek |
 |---|---|---|---|
-| `DOMAIN` | evet | Kök alan adı; `APP_BASE_URL=https://${DOMAIN}` ve web derleme argümanları bundan kurulur | `siparisinonunde.com` |
-| `ACME_EMAIL` | evet | Let's Encrypt bildirim e-postası | `ops@siparisinonunde.com` |
+| `DOMAIN` | evet | Kök alan adı; `APP_BASE_URL=https://${DOMAIN}` ve web derleme argümanları bundan kurulur | `yemekgelsin.net` |
+| `ACME_EMAIL` | evet | Let's Encrypt bildirim e-postası | `destek@yemekgelsin.net` |
 | `CLOUDFLARE_API_TOKEN` | evet (wildcard için) | DNS-01 doğrulaması | §3 |
 | `POSTGRES_USER`, `POSTGRES_DB` | hayır | Varsayılan `siparis` / `siparis` | — |
 | `POSTGRES_PASSWORD` | evet | Veritabanı parolası; URL'ye girdiği için yalnız harf/rakam | `openssl rand -hex 24` |
 | `DATABASE_URL` | (compose kurar) | `postgres://USER:PASS@postgres:5432/DB`; `.env`'e yazmayın | — |
-| `APP_BASE_URL` | (compose kurar) | Linkler, takip sayfası, webhook adresi | `https://siparisinonunde.com` |
+| `APP_BASE_URL` | (compose kurar) | Linkler, takip sayfası, webhook adresi | `https://yemekgelsin.net` |
 | `SESSION_SECRET` | evet | Oturum/çerez imzaları (storefront müşteri çerezi HMAC). Değişirse "Son siparişin" çerezleri geçersizleşir | `openssl rand -base64 48` |
 | `TRACKING_SECRET` | evet | Takip linki HMAC'i (14 §7.4). **Değişirse tüm takip linkleri kırılır** | `openssl rand -base64 32` |
 | `ENCRYPTION_KEY` | evet | WhatsApp/SMS API anahtarlarını şifreler (AES-256-GCM, 32 bayt base64). **Kaybolursa kayıtlı anahtarlar çözülemez**, parola yöneticisinde ve ayrı bir yerde saklayın | `openssl rand -base64 32` |
@@ -118,7 +120,7 @@ Alan adı Cloudflare'de yönetilir (00 §10: Faz 1 wildcard alt alan adı). Kay�
 | `DEMO_STORE_SLUG` | hayır | Pazarlama sitesindeki "demo vitrin" bağlantısı | `bozok-pide` |
 | `SUPPORT_WHATSAPP` | önerilir | Platform destek hattı (WhatsApp), rakamlarla. Giriş ekranındaki "Parolamı unuttum" işletme sahibine bu numarayı (WhatsApp + arama) gösterir; boşsa iletişim formuna yönlendirir. Web'e derleme anında gömülür | `905321234567` |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | önerilir | Web Push anahtar çifti: yeni sipariş bildirimi panel kapalıyken de cihazlara gider (00 §10 alarm t=0, §10). Boşsa push kapalıdır; API/worker açılır, logda uyarı yazar. **Değişirse** tüm cihazların aboneliği geçersizleşir, cihazlar bir sonraki "Siparişleri almaya başla"da yeniden abone olur | aşağıda |
-| `VAPID_SUBJECT` | push için | İtme servislerinin (Google, Apple, Mozilla) sorun olursa ulaşacağı adres; `mailto:` ya da `https://` ile başlamalı | `mailto:ops@siparisinonunde.com` |
+| `VAPID_SUBJECT` | push için | İtme servislerinin (Google, Apple, Mozilla) sorun olursa ulaşacağı adres; `mailto:` ya da `https://` ile başlamalı | `mailto:destek@yemekgelsin.net` |
 | `BACKUP_REMOTE`, `RETENTION_DAYS` | önerilir | Yedeğin ikinci konumu (rclone) ve saklama günü | §8 |
 | `BACKUP_PING_URL` | önerilir | Her başarılı yedekten sonra çağrılan dış izleme (push) adresi; 26 saat gelmezse alarm | §8 |
 
@@ -164,14 +166,14 @@ docker compose build                   # api (api+worker+migrate aynı imaj), we
 docker compose up -d                   # sıra: postgres (sağlıklı) → migrate (bir kez) → api, worker → web → caddy
 docker compose ps -a                   # migrate "Exited (0)" (-a olmadan listelenmez), diğerleri "healthy"
 docker compose logs migrate            # "Migration tamam: N yeni, 0 zaten uygulanmış."
-curl -fsS https://siparisinonunde.com/api/v1/health     # {"ok":true,"db":"up",...}
+curl -fsS https://yemekgelsin.net/api/v1/health     # {"ok":true,"db":"up",...}
 ```
 
 **Seed üretimde çalıştırılmaz.** `pnpm db:seed` demo işletmeyi ve parolası herkesçe bilinen hesapları (`demo1234`, `admin1234`) oluşturur; yalnız geliştirme içindir. İlk platform yöneticisi betikle açılır:
 
 ```bash
 docker compose run --rm api node --import tsx /app/scripts/create-admin.ts \
-  --email eray@siparisinonunde.com --name "Eray"               # rol varsayılan platform_owner
+  --email yonetici@yemekgelsin.net --name "Platform Yöneticisi"               # rol varsayılan platform_owner
 # Parola verilmezse güçlü bir parola üretilip BİR KEZ gösterilir. Kendiniz vermek için (kabuk geçmişine düşmesin;
 # `read` değişkeni dışa aktarmaz, export edilmezse konteynere boş gider ve betik sessizce rastgele parola üretir):
 #   read -rs ADMIN_PASSWORD && export ADMIN_PASSWORD && docker compose run --rm -e ADMIN_PASSWORD api node --import tsx /app/scripts/create-admin.ts --email ... --name ...; unset ADMIN_PASSWORD
@@ -190,7 +192,7 @@ Sonraki girişlerde parolanın ardından uygulamadaki kod istenir; telefon yanı
 **Telefon ve kurtarma kodları kaybolduysa** (operatör kurtarması; kişinin kimliğini başka bir kanaldan doğrulamadan yapmayın):
 
 ```bash
-docker compose run --rm api node --import tsx /app/scripts/create-admin.ts --email eray@siparisinonunde.com --reset-totp
+docker compose run --rm api node --import tsx /app/scripts/create-admin.ts --email yonetici@yemekgelsin.net --reset-totp
 # TOTP sırrı ve kurtarma kodları silinir, kullanıcının tüm oturumları kapanır (audit: platform.totp_reset_cli).
 # Kişi yeniden girip /admin/guvenlik ekranında kurulumu tekrarlar.
 ```
@@ -211,7 +213,7 @@ Yedek cron'unu kurmayı unutmayın (§8).
 
 ## 6. WhatsApp bağlama: ortak numara (varsayılan) ve kendi numarası
 
-00 §12a madde 8 gereği **tüm platformda tek WhatsApp numarası** vardır: "Siparişin Önünde" ortak numarası. Bütün işletmeler varsayılan olarak bu numaradan sipariş alır; işletme sahiplerine giden platform uyarıları (yeni sipariş alarmı, bağlantı sorunu …) da aynı numaradan gider. Yapılandırma tek yerdedir: `.env`'deki `PLATFORM_WA_*` değişkenleri. Kod sağlayıcıdan bağımsızdır (`apps/api/src/wa/providers/{mock,cloud,d360}.ts`); yalnız resmi WhatsApp Business Platform (Cloud API) kullanılır.
+00 §12a madde 8 gereği **tüm platformda tek WhatsApp numarası** vardır: "Yemek Gelsin" ortak numarası. Bütün işletmeler varsayılan olarak bu numaradan sipariş alır; işletme sahiplerine giden platform uyarıları (yeni sipariş alarmı, bağlantı sorunu …) da aynı numaradan gider. Yapılandırma tek yerdedir: `.env`'deki `PLATFORM_WA_*` değişkenleri. Kod sağlayıcıdan bağımsızdır (`apps/api/src/wa/providers/{mock,cloud,d360}.ts`); yalnız resmi WhatsApp Business Platform (Cloud API) kullanılır.
 
 Numarayı iki yoldan biriyle bağlarsınız; ikisi de aynı sonucu verir, uygulama tarafında yalnız birkaç değişken farklıdır:
 
@@ -236,14 +238,14 @@ Yol A'da aracı ücreti yoktur ama adım sayısı fazladır; Yol B kurulumu kıs
 
 Menü adları Meta'nın arayüz diline göre Türkçe ya da İngilizce görünür; ikisi birlikte yazılmıştır. Meta ekranları sık değişir: her adım canlıya çıkmadan önce güncel belgeyle doğrulanır (teyit edilmeli).
 
-**Hazırlık:** WhatsApp'ta hiç kullanılmamış (ya da WhatsApp/WhatsApp Business uygulamasındaki hesabı silinmiş) bir telefon numarası: SMS ya da sesli arama alabilen bir cep hattı veya sabit/0850 hat. Şirketin resmi bilgileri (unvan, adres, vergi levhası) ve `siparisinonunde.com` sitesinin yayında olması (görünen ad ve işletme doğrulaması siteye bakar).
+**Hazırlık:** WhatsApp'ta hiç kullanılmamış (ya da WhatsApp/WhatsApp Business uygulamasındaki hesabı silinmiş) bir telefon numarası: SMS ya da sesli arama alabilen bir cep hattı veya sabit/0850 hat. Şirketin resmi bilgileri (unvan, adres, vergi levhası) ve `yemekgelsin.net` sitesinin yayında olması (görünen ad ve işletme doğrulaması siteye bakar).
 
 1. **İşletme portföyü (Business portfolio):** [business.facebook.com](https://business.facebook.com) → **Hesap oluştur (Create account)** → şirket adı, adınız, iş e-postası. Sonra **Ayarlar (Settings) > İşletme bilgileri (Business info)**: yasal unvan, adres, telefon, web sitesi.
 2. **İşletme doğrulaması (Business verification):** **Ayarlar > Güvenlik Merkezi (Security Center) > Doğrulamayı başlat (Start verification)** → vergi levhası / ticaret sicil belgesi yükleyin. Doğrulanmamış portföyde günlük iletişim sınırı düşüktür (§6.7) ve görünen ad onayı zorlaşır (teyit edilmeli). Birkaç gün sürebilir; hemen başlatın.
 3. **Ödeme yöntemi:** **Ayarlar > Faturalandırma ve ödemeler (Billing & payments)** ya da WhatsApp Manager > **Ödeme yöntemleri (Payment methods)** → şirket kartını ekleyin. Kart yoksa ücretli mesajlar (şablonlar) gönderilmez, hata 131042 döner.
-4. **Geliştirici uygulaması:** [developers.facebook.com](https://developers.facebook.com) → aynı Facebook hesabıyla giriş → **Uygulamalarım (My Apps) > Uygulama oluştur (Create app)** → kullanım amacı olarak **"Müşterilerle WhatsApp üzerinden iletişim kurun" (Connect with customers through WhatsApp)** (eski ekranda: **Diğer (Other) > İşletme (Business)**) → uygulama adı `siparisinonunde`, 1. adımdaki işletme portföyünü seçin → **Oluştur**.
+4. **Geliştirici uygulaması:** [developers.facebook.com](https://developers.facebook.com) → aynı Facebook hesabıyla giriş → **Uygulamalarım (My Apps) > Uygulama oluştur (Create app)** → kullanım amacı olarak **"Müşterilerle WhatsApp üzerinden iletişim kurun" (Connect with customers through WhatsApp)** (eski ekranda: **Diğer (Other) > İşletme (Business)**) → uygulama adı `yemekgelsin`, 1. adımdaki işletme portföyünü seçin → **Oluştur**.
 5. **WhatsApp ürününü ekleyin:** Uygulama panosunda **WhatsApp > Kur (Set up)** → işletme portföyünü seçin. Meta bir WhatsApp Business hesabı (WABA) ve deneme numarası açar. Sol menüde **WhatsApp > API Kurulumu (API Setup)** sayfası görünür.
-6. **Gerçek numarayı ekleyin:** **API Kurulumu > Telefon numarası ekle (Add phone number)** → işletme görünen adı **Siparişin Önünde**, saat dilimi İstanbul, kategori (Yemek ve içecek / Food & beverage), kısa açıklama → numara (ülke kodu +90) → **SMS ya da sesli arama** ile gelen 6 haneli kodu girin.
+6. **Gerçek numarayı ekleyin:** **API Kurulumu > Telefon numarası ekle (Add phone number)** → işletme görünen adı **Yemek Gelsin**, saat dilimi İstanbul, kategori (Yemek ve içecek / Food & beverage), kısa açıklama → numara (ülke kodu +90) → **SMS ya da sesli arama** ile gelen 6 haneli kodu girin.
 7. **Görünen ad onayı:** [business.facebook.com](https://business.facebook.com) > **WhatsApp Manager > Telefon numaraları (Phone numbers)** → numaranın yanında görünen ad durumu "Onaylandı (Approved)" olmalı. Ad, sitede ve belgelerde geçen marka adıyla aynı olmalıdır; onay 1–3 gün sürebilir (teyit edilmeli).
 8. **Numarayı Cloud API'ye kaydedin (register) ve iki adımlı PIN:** WhatsApp Manager > Telefon numaraları > numara > **İki adımlı doğrulama (Two-step verification)** → 6 haneli PIN belirleyin, parola yöneticisinde saklayın. Numara API Kurulumu'nda "Bağlı değil (Pending)" görünüyorsa bir kez kaydedin (9. adımdaki token ile):
    ```bash
@@ -251,13 +253,13 @@ Menü adları Meta'nın arayüz diline göre Türkçe ya da İngilizce görünü
      -H "Authorization: Bearer <KALICI_TOKEN>" -H "Content-Type: application/json" \
      -d '{"messaging_product":"whatsapp","pin":"<6 haneli PIN>"}'
    ```
-9. **Kalıcı erişim anahtarı (System User token):** business.facebook.com > **Ayarlar > Kullanıcılar > Sistem kullanıcıları (System users) > Ekle (Add)** → ad `siparisinonunde-api`, rol **Yönetici (Admin)** →
+9. **Kalıcı erişim anahtarı (System User token):** business.facebook.com > **Ayarlar > Kullanıcılar > Sistem kullanıcıları (System users) > Ekle (Add)** → ad `yemekgelsin-api`, rol **Yönetici (Admin)** →
    - **Varlık ata (Assign assets):** **Uygulamalar**'da 4. adımdaki uygulama (Tam kontrol / Full control), **WhatsApp hesapları**'nda WABA (Tam kontrol).
    - **Yeni token oluştur (Generate new token)** → uygulamayı seçin → süre **Hiçbir zaman (Never)** → izinler: `whatsapp_business_messaging`, `whatsapp_business_management` → **Oluştur**. Token **bir kez** gösterilir; doğrudan parola yöneticisine kopyalayın, e-posta/WhatsApp ile taşımayın. (API Kurulumu sayfasındaki "geçici token" 24 saatte biter; üretimde kullanılmaz.)
-10. **Kimlikler ve uygulama gizli anahtarı:** developers.facebook.com > uygulama > **WhatsApp > API Kurulumu**: **Telefon numarası kimliği (Phone number ID)** ve **WhatsApp Business hesap kimliği (WABA ID)**. **Uygulama ayarları > Temel (App settings > Basic) > Uygulama gizli anahtarı (App secret) > Göster (Show)**. Aynı sayfada **Gizlilik politikası URL'si**: `https://siparisinonunde.com/yasal/gizlilik`.
+10. **Kimlikler ve uygulama gizli anahtarı:** developers.facebook.com > uygulama > **WhatsApp > API Kurulumu**: **Telefon numarası kimliği (Phone number ID)** ve **WhatsApp Business hesap kimliği (WABA ID)**. **Uygulama ayarları > Temel (App settings > Basic) > Uygulama gizli anahtarı (App secret) > Göster (Show)**. Aynı sayfada **Gizlilik politikası URL'si**: `https://yemekgelsin.net/yasal/gizlilik`.
 11. **`.env`'i doldurun** (§6.4'teki ortak blok + Yol A satırları) ve API/worker'ı yeniden başlatın: `docker compose up -d api worker`. Webhook doğrulaması (12. adım) çalışan API'ye ihtiyaç duyar.
 12. **Webhook:** developers.facebook.com > uygulama > **WhatsApp > Yapılandırma (Configuration) > Webhook > Düzenle (Edit)**:
-    - **Geri çağırma URL'si (Callback URL):** `https://siparisinonunde.com/api/v1/webhooks/wa/shared/<PLATFORM_WA_WEBHOOK_TOKEN>`
+    - **Geri çağırma URL'si (Callback URL):** `https://yemekgelsin.net/api/v1/webhooks/wa/shared/<PLATFORM_WA_WEBHOOK_TOKEN>`
     - **Doğrulama belirteci (Verify token):** `.env`'deki `WA_VERIFY_TOKEN`
     - **Doğrula ve kaydet (Verify and save)** → API `hub.challenge`'ı geri döndürür. Hata alırsanız: 404 = belirteç yol ile `.env`'dekinden farklı ya da `PLATFORM_WA_WEBHOOK_TOKEN` boş; 403 = `WA_VERIFY_TOKEN` farklı.
     - Aynı ekranda **Webhook alanları (Webhook fields) > Yönet (Manage)** → **`messages`** alanına abone olun (gelen mesajlar ve teslim/okundu durumları bununla gelir).
@@ -268,14 +270,14 @@ Menü adları Meta'nın arayüz diline göre Türkçe ya da İngilizce görünü
 ### 6.3 Yol B — 360dialog ile (tek numara)
 
 1. **Hesap:** [hub.360dialog.com](https://hub.360dialog.com) → platform şirketi adına hesap açın; ödeme planı numara başına ~49 €/ay (teyit edilmeli). Meta mesaj ücretleri ayrıca Meta'ya tanımlı karttan çekilir (§6.2 madde 3).
-2. **Numara ekleme:** 360dialog Hub'da **Numara ekle** → Facebook hesabıyla giriş (Embedded Signup) → işletme portföyünü seçin (yoksa oluşturun; §6.2 madde 1–2 burada da geçerlidir) → görünen ad **Siparişin Önünde** → numarayı SMS/arama koduyla doğrulayın. Bu numara yalnız platform içindir; yeni bir hat kullanın.
+2. **Numara ekleme:** 360dialog Hub'da **Numara ekle** → Facebook hesabıyla giriş (Embedded Signup) → işletme portföyünü seçin (yoksa oluşturun; §6.2 madde 1–2 burada da geçerlidir) → görünen ad **Yemek Gelsin** → numarayı SMS/arama koduyla doğrulayın. Bu numara yalnız platform içindir; yeni bir hat kullanın.
 3. **API anahtarı:** Hub'da numaranın ayarlarından API anahtarı üretin (bir kez gösterilir — teyit edilmeli) → parola yöneticisine.
 4. **`.env`** (§6.4, Yol B satırları) → `docker compose up -d api worker`.
 5. **Webhook:** platform numarasının webhook adresini API ile tanımlayın (teyit edilmeli: v2 uç noktası `configs/webhook`):
    ```bash
    curl -X POST https://waba-v2.360dialog.io/v1/configs/webhook \
      -H "D360-API-KEY: <PLATFORM_WA_API_KEY>" -H "Content-Type: application/json" \
-     -d '{"url":"https://siparisinonunde.com/api/v1/webhooks/wa/shared/<PLATFORM_WA_WEBHOOK_TOKEN>"}'
+     -d '{"url":"https://yemekgelsin.net/api/v1/webhooks/wa/shared/<PLATFORM_WA_WEBHOOK_TOKEN>"}'
    ```
    360dialog Meta imzasını (`X-Hub-Signature-256`) göndermez; `PLATFORM_WA_PROVIDER=d360` iken imza denetlenmez, URL'deki gizli belirteç korur (teyit edilmeli). Belirteci gizli tutun: loglarda ve ekran görüntülerinde paylaşmayın.
 6. **Şablonlar ve deneme:** §6.5 ve §6.6.
@@ -352,7 +354,7 @@ Kendi numaranın bağlantısı koparsa (hesap `error`, token/ödeme hatası) iş
 SMS OTP (WhatsApp'sız mod), kritik durum SMS'leri ve 5. dakika alarm SMS'i platform maliyetidir (00 §4 kotalar: Esnaf 100, Pro 300 SMS/ay).
 
 1. Netgsm kurumsal hesabı açılır; **API kullanıcısı** tanımlanır ve API erişimi açılır. Netgsm panelinde API erişimi IP kısıtlıysa sunucunun çıkış IP'si eklenir (teyit edilmeli).
-2. **Gönderici başlığı:** platformun onaylı alfanümerik başlığı (≤ 11 karakter, ör. `SIPARISNDE`); onay süresi pilot öncesine sığmalı (V-020, teyit edilmeli). Mesaj gövdesinde işletme adı geçer.
+2. **Gönderici başlığı:** platformun onaylı alfanümerik başlığı (≤ 11 karakter, ör. `YEMEKGELSIN`); onay süresi pilot öncesine sığmalı (V-020, teyit edilmeli). Mesaj gövdesinde işletme adı geçer.
 3. SMS'ler "bilgilendirme" türüyle gönderilir, İYS onayı gerektirmez (V-023, teyit edilmeli); SMS metinlerine promosyon eklenmez.
 4. `.env`: `SMS_PROVIDER=netgsm`, `NETGSM_USERCODE`, `NETGSM_PASSWORD`, `NETGSM_HEADER` → `docker compose up -d api worker`.
 5. Deneme: WhatsApp'ı bağlı olmayan bir deneme işletmesinin vitrininden sipariş verin → doğrulama ekranı "SMS ile doğrulayın" açılmalı; kod telefonunuza gelmeli. Gönderim hataları `sms_messages.error` ve worker loglarında görünür (Netgsm hata kodları `apps/api/src/sms/providers/netgsm.ts`).
@@ -399,7 +401,7 @@ git pull --ff-only
 docker compose build                         # değişen imajlar
 docker compose run --rm migrate              # yeni migration'lar (up -d de otomatik çalıştırır)
 docker compose up -d                         # değişen servisler yeniden başlar
-docker compose ps && curl -fsS https://siparisinonunde.com/api/v1/health
+docker compose ps && curl -fsS https://yemekgelsin.net/api/v1/health
 ```
 
 - Yeniden başlatma birkaç saniye sürer; panel SSE bağlantısı `Last-Event-ID` ile kaldığı yerden devam eder ve 45 sn'lik emniyet sorgusu eksikleri toplar (14 §7.1). Yine de güncellemeyi yoğun saatlerin (öğle, akşam) dışında yapın.
@@ -487,7 +489,7 @@ docker compose exec postgres psql -U siparis -c "select b.name, p.last_seen_at, 
 
 - [ ] `SUPPORT_WHATSAPP` dolu ve web bu değerle derlendi: `/panel/giris` › "Parolamı unuttum" destek numarasını gösteriyor. İşletme sahibinin parolası, kimlik başka kanaldan doğrulandıktan sonra admin panelinden sıfırlanır.
 - [ ] `.env`'de `DEV_TOOLS=0` ve web bu değerle derlendi: `curl -o /dev/null -w '%{http_code}' https://DOMAIN/dev/whatsapp` → 404, `https://DOMAIN/api/v1/dev/wa/accounts` → 404.
-- [ ] Seed çalıştırılmadı: `select email from users where email like '%@siparisinonunde.local'` boş; demo işletme (`bozok-pide`) yok.
+- [ ] Seed çalıştırılmadı: `select email from users where email in ('admin@yemekgelsin.net','demo@yemekgelsin.net','mudur@yemekgelsin.net','kasa@yemekgelsin.net','mutfak@yemekgelsin.net','kurye@yemekgelsin.net','doner@yemekgelsin.net')` boş; demo işletmeler (`bozok-pide`, `camlik-doner`) yok. Gerçek yöneticiler bu demo adreslerini kullanmaz (ör. `yonetici@yemekgelsin.net`).
 - [ ] Gizli anahtarlar rastgele üretildi (§4) ve `ENCRYPTION_KEY`, `TRACKING_SECRET` parola yöneticisinde + ayrı bir güvenli yerde saklı.
 - [ ] Platform yöneticileri `create-admin.ts` ile açıldı ve her biri **iki adımlı doğrulamayı (TOTP) kurdu** (00 §12a madde 7, 14 §5): girişte `/admin/guvenlik` → QR'ı okut → 6 haneli kodla aç → 8 kurtarma kodunu kaydet (§5). Kontrol: `docker compose exec api printenv ADMIN_TOTP_REQUIRED` → `true`; `select email from users where is_platform_admin and totp_enabled_at is null` boş; kurtarma kodlarıyla giriş bir kez denendi (kullanılan kod yenilenerek yerine konur).
 - [ ] Yedek cron'u `siparis` kullanıcısının crontab'ında kurulu, ilk elle çalıştırmada `backups/` altında `600` izinli döküm oluştu, `BACKUP_REMOTE` ikinci Türkiye lokasyonuna kopyalıyor, `BACKUP_PING_URL` dış izlemede 26 saatlik push monitörüne bağlı, bir geri yükleme tatbikatı (`restore.sh --target`) başarıyla yapıldı; PITR (WAL arşivleme) kuruldu (00 §11).
@@ -497,7 +499,7 @@ docker compose exec postgres psql -U siparis -c "select b.name, p.last_seen_at, 
 - [ ] Web Push açık: `VAPID_*` dolu, açılış logunda `Web Push kapalı` uyarısı yok; bir Android tablette ve ana ekrana eklenmiş bir iPhone'da "Siparişleri almaya başla" → izin → `Ayarlar › Bu cihazda bildirimler › Test bildirimi gönder` geldi; panel sekmesi kapalıyken verilen deneme siparişinde "Yeni sipariş #…" bildirimi geldi (§10).
 - [ ] Panel çevrimdışı uyarısı denendi: açık saatte paneli kapatıp 5 dk bekleyince sahibin telefonuna `isletme_panel_cevrimdisi_v1` geldi (`notifications` tablosunda `kind = 'panel_offline'`).
 - [ ] Sunucu: UFW açık (22/80/443), SSH yalnız anahtarla, otomatik güvenlik güncellemeleri açık, `.env` izni 600.
-- [ ] Ortak numara bağlı (§6.2 Meta Cloud API ya da §6.3 360dialog): görünen ad "Siparişin Önünde" onaylı, işletme doğrulaması tamam, ödeme kartı tanımlı, `PLATFORM_WA_DISPLAY_PHONE` ve `PLATFORM_WA_WEBHOOK_TOKEN` dolu, webhook tanımlı (`Admin > WhatsApp` ortak numara kartında sorun satırı yok). İki farklı işletmenin QR'ı gerçek telefonla okutuldu: her birinde o işletmenin adıyla karşılama → "Menüyü aç" → sipariş → doğru işletmenin panelinde alarm → onay mesajı; kodsuz yazınca dükkan seçici geldi. Müşteri ve platform şablonları onaylı (V-011).
+- [ ] Ortak numara bağlı (§6.2 Meta Cloud API ya da §6.3 360dialog): görünen ad "Yemek Gelsin" onaylı, işletme doğrulaması tamam, ödeme kartı tanımlı, `PLATFORM_WA_DISPLAY_PHONE` ve `PLATFORM_WA_WEBHOOK_TOKEN` dolu, webhook tanımlı (`Admin > WhatsApp` ortak numara kartında sorun satırı yok). İki farklı işletmenin QR'ı gerçek telefonla okutuldu: her birinde o işletmenin adıyla karşılama → "Menüyü aç" → sipariş → doğru işletmenin panelinde alarm → onay mesajı; kodsuz yazınca dükkan seçici geldi. Müşteri ve platform şablonları onaylı (V-011).
 - [ ] Netgsm başlığı onaylı, OTP ve "onaylandı" SMS'i gerçek telefona geldi (V-012, V-020, V-023).
 - [ ] `pnpm test` ve `pnpm e2e` yeşil (yayınlanan sürüm etiketinde).
 
@@ -516,45 +518,56 @@ docker compose exec postgres psql -U siparis -c "select b.name, p.last_seen_at, 
 
 ## 13. Cloudflare dev (demo) ortamı
 
-Sistemi gerçek işletme verisi olmadan denemek ve göstermek için ayrı bir ortamdır. **Üretimin yerine geçmez:** üretim Türkiye'deki VPS'tedir (§1–§12). Dev ortamında:
+Sistemi gerçek işletme verisi olmadan denemek ve göstermek için ayrı bir ortamdır. Adresi **https://yemekgelsin.net**'tir (00 §12a madde 9). **Üretimin yerine geçmez:** üretim Türkiye'deki VPS'tedir (§1–§12). Dev ortamında:
 - tüm sağlayıcılar `mock` çalışır, gerçek WhatsApp mesajı ya da SMS gitmez;
-- WhatsApp simülatörü (`/dev/whatsapp`) açıktır;
-- site tek bir dev parolasıyla korunur;
-- veriler yurt dışındadır (Cloudflare R2, ENAM). Bu yüzden gerçek müşteri verisi girilmez (00 §12a, 08).
+- site **herkese açıktır**: pazarlama sitesi, vitrinler (`/s/*`), takip (`/t/*`), yasal sayfalar, panel ve admin giriş ekranları, API ve webhook'lar;
+- pazarlama, vitrin, takip ve giriş sayfalarının üstünde **"Demo ortamı"** uyarısı görünür (siparişler örnektir, WhatsApp/SMS gitmez, gerçek adres ve telefon girilmez). Uyarı derleme anında açılır: `deploy/cloudflare/Dockerfile` `NEXT_PUBLIC_DEPLOY_ENV=dev`; üretim imajında yoktur;
+- **yeni işletme kaydı kapalı başlar**: seed `DEPLOY_ENV=dev` iken `signup_open` bayrağını ilk kurulumda kapalı yazar (veriler yurt dışında ve sağlayıcılar mock olduğundan gerçek işletme kaydolmamalı). Kayıt formu "Yeni kayıtlar geçici olarak kapalı" der. Proje sahibi açmak isterse `/admin/bayraklar`'dan açar; sonraki açılışlar ve dağıtımlar bayrağa dokunmaz;
+- **yalnız geliştirici araçları** parolalıdır: WhatsApp simülatörü (`/dev/*`) ve `/api/v1/dev/*` (HTTP Basic, kullanıcı adı serbest, parola `DEV_PASSWORD`);
+- demo hesaplarının parolası da `DEV_PASSWORD`'dür (seed `SEED_PASSWORD = DEV_PASSWORD` ile kurar);
+- arama motorları dizinlemez: `DEPLOY_ENV=dev` iken her yanıtta `x-robots-tag: noindex, nofollow`;
+- veriler yurt dışındadır (Cloudflare R2, ENAM). Bu yüzden gerçek müşteri ve işletme verisi girilmez (00 §12a, 08).
 
 **Yapı** (`deploy/cloudflare/`): tek bir Worker ve Workers Paid planının Containers özelliğiyle çalışan tek bir container örneği (`basic`: 1/4 vCPU, 1 GiB).
-- Container içinde aynı anda PostgreSQL 16, API, worker ve web çalışır. İmaj depo kökünden derlenir (`deploy/cloudflare/Dockerfile`).
-- Worker `/api/*` isteklerini API'ye (4000), diğer istekleri web'e (3000) aktarır. WhatsApp webhook'ları (`/api/v1/webhooks/`: işletmeye özel adresler ve ortak numara `/api/v1/webhooks/wa/shared/<belirteç>`) ve PWA dosyaları dışında her şey HTTP Basic ile korunur: kullanıcı adı serbest, parola `DEV_PASSWORD`.
-- Container diski geçicidir. `entrypoint.sh` her açılışta boş bir veritabanı kurar, son yedeği Worker'ın `yedek.internal` çıkış işleyicisi üzerinden R2'den (`siparisinonunde-dev-yedek`) geri yükler, migration'ları uygular ve seed'i çalıştırır. Seed işletme başına idempotenttir: var olan demo işletme atlanır, yedekte olmayan yeni demo işletme (ör. Çamlık Döner) eklenir.
+- **Alan adı:** `yemekgelsin.net` ve `www.yemekgelsin.net` Worker'a **Custom Domain** olarak bağlıdır (`wrangler.jsonc` `routes`); DNS kaydını ve sertifikayı Cloudflare oluşturur. `www` her yolda köke kalıcı yönlenir (301; gövdeli istekte 308). `workers.dev` adresi yedek olarak açık kalır: API ve webhook istekleri orada da çalışır, tarayıcı sayfa gezinmeleri (GET, `text/html`) `https://yemekgelsin.net`'e geçici yönlenir (302). Kurallar: `deploy/cloudflare/src/access.ts` (testleri `npm test`).
+- Container içinde aynı anda PostgreSQL 16, API, worker ve web çalışır. İmaj depo kökünden derlenir (`deploy/cloudflare/Dockerfile`). Worker `/api/*` isteklerini API'ye (4000), diğer istekleri web'e (3000) aktarır.
+- Container diski geçicidir. `entrypoint.sh` her açılışta boş bir veritabanı kurar, son yedeği Worker'ın `yedek.internal` çıkış işleyicisi üzerinden R2'den (`siparisinonunde-dev-yedek`) geri yükler, migration'ları uygular ve seed'i çalıştırır. Seed işletme başına idempotenttir: var olan demo işletme atlanır, yedekte olmayan yeni demo işletme (ör. Çamlık Döner) eklenir; `SEED_PASSWORD` değiştiyse var olan demo hesaplarının parolası yeni değere eşitlenir. Önceki marka döneminin demo hesapları (`admin@`, `demo@`, `mudur@`, `kasa@`, `mutfak@`, `kurye@`, `doner@siparisinonunde.local`; varsayılan parolaları eski README'de yayımlıydı) eski bir yedekten dönerse onlar da `SEED_PASSWORD`'e eşitlenir (`LEGACY_DEMO_EMAILS`); herkese açık sitede `admin1234` gibi parolalarla giriş olmaz.
+- **Veri dönemi (`DATA_EPOCH`):** R2 anahtarları veri dönemiyle öneklenir: `e2/db/son.dump`, `e2/uploads/son.tar.gz`, `e2/db/gun-<0–6>.dump`. Dönem Worker değişkeni `DATA_EPOCH`'tan container **açılırken** alınır (ortam değişkeni) ve container'ın ömrü boyunca sabittir: `entrypoint.sh` yedek yoluna yazar (`http://yedek.internal/e2/db`), Worker anahtarı bu yoldan kurar (`src/access.ts` `parseBackupPath`), kendi o anki değerinden değil. Böylece yeniden dağıtım sırasında kapanan eski container'ın son yedeği yeni döneme düşmez; yeni dönemin container'ı yedek bulamaz ve boş veritabanı + seed ile (yeni marka ve demo hesaplarıyla) açılır. Dönemsiz yol (`/db`, ilk sürümün entrypoint'i) önekli olmayan eski `db/…` nesnelerine gider. Eski dönemin nesnelerine dokunulmaz. Geçersiz değer (rakam dışı) dağıtımdan önce `scripts/prepare-config.mjs`'te, container'da da açılışta reddedilir.
 - Yedek 10 dakikada bir, kapanışta ve çökmede alınır. Veritabanı ve görsel yedeğinin haftanın her günü için bir kopyası tutulur (7 gün). R2'ye ulaşılamazsa container boş veritabanıyla açılmaz, çıkar; böylece iyi yedeğin üzerine yazılmaz.
 - Son istekten 30 dakika sonra container uyur. Açık bir panel (SSE) uyumayı engeller. Uyanış yaklaşık 30–60 saniye sürer; bu sırada tarayıcıda "Sistem başlatılıyor" sayfası görünür ve kendiliğinden yenilenir.
-- `DEPLOY_ENV=dev`, üretim derlemesinde geliştirici araçlarını yalnız tüm sağlayıcılar `mock` iken açar (`apps/api/src/config.ts`, `devToolsAllowed`). Yönetici 2FA'sı dev ortamında isteğe bağlıdır (`ADMIN_TOTP_REQUIRED=false`).
+- `DEPLOY_ENV=dev`, üretim derlemesinde geliştirici araçlarını yalnız tüm sağlayıcılar `mock` iken açar (`apps/api/src/config.ts`, `devToolsAllowed`). Yönetici 2FA'sı dev ortamında isteğe bağlıdır (`ADMIN_TOTP_REQUIRED=false`); site herkese açık olduğundan proje sahibinin admin hesabında `/admin/guvenlik`'ten iki adımlı doğrulamayı açması önerilir.
 
 **Kurulum (bir kez):**
 1. Cloudflare hesabında **Workers Paid** planını açın (aylık 5 $; Containers bu planla gelir). Container sürekli açık kalırsa kullanım ücreti ayda yaklaşık 7 $ tutar; uyuyan container ücretlendirilmez.
-2. Cloudflare > My Profile > API Tokens > **Create Token** > **"Edit Cloudflare Workers"** şablonuyla bir token oluşturun.
+2. Cloudflare > My Profile > API Tokens > **Create Token** > **"Edit Cloudflare Workers"** şablonuyla bir token oluşturun (var olan token da düzenlenebilir). **Özel alan adı için** token'da şu izinler `yemekgelsin.net` bölgesini kapsamalıdır (Zone Resources: Include > Specific zone > `yemekgelsin.net`, ya da hesabın tüm bölgeleri):
+   - **Zone > Workers Routes > Edit**
+   - **Zone > Zone > Read**
+   Eksikse iş akışı dağıtımdan önce durur ve eksik izni adıyla yazan bir hata verir. Alan adında `@` ya da `www` için önceden elle eklenmiş A/AAAA/CNAME kaydı varsa Custom Domain eklenemez; Cloudflare > `yemekgelsin.net` > DNS > Records'tan silin.
 3. GitHub deposunda **Settings > Secrets and variables > Actions > New repository secret** ile şunları ekleyin:
    - `CLOUDFLARE_API_TOKEN`: 2. adımdaki token.
-   - `DEV_PASSWORD`: siteye girişte sorulacak parola, en az 8 karakter.
+   - `DEV_PASSWORD`: geliştirici araçlarının ve demo hesaplarının parolası, en az 8 karakter.
    - `CLOUDFLARE_ACCOUNT_ID`: yalnız token birden fazla hesaba erişiyorsa gerekir.
 4. GitHub > **Actions > "Dev ortamı (Cloudflare)" > Run workflow**. Sonraki her push, `main` ya da çalışma dalına, ortamı kendiliğinden günceller.
 
 **İş akışı** (`.github/workflows/deploy-dev-cloudflare.yml`):
-1. workers.dev adresini bulur.
-2. Adresi web derlemesine (`NEXT_PUBLIC_SITE_URL`) ve API'ye (`APP_BASE_URL`) yazar (`scripts/prepare-config.mjs`).
-3. Eksik gizli değerleri bir kez üretir (`scripts/secrets.mjs`): `SESSION_SECRET`, `TRACKING_SECRET`, `ENCRYPTION_KEY`, `WA_VERIFY_TOKEN`, `PLATFORM_WA_WEBHOOK_TOKEN` (ortak numara webhook yolu) ve VAPID çifti. Worker'da zaten olanlara dokunmaz; `ENCRYPTION_KEY` değişirse yedekteki şifreli veriler okunamaz.
-4. `wrangler deploy` ile Worker'ı ve container imajını yayınlar.
-5. Duman testi yapar: sağlık uçları, vitrin, giriş sayfaları, simülatör, parolasız erişimin 401 dönmesi ve ortak numara webhook yolunun parolasız API'ye ulaşması (yanlış belirteçle 404). Adres, iş akışı özetine yazılır: `https://siparisinonunde-dev.<alt-alan>.workers.dev`.
+1. Tür denetimi ve Worker kural testleri (`npm run typecheck`, `npm test`).
+2. Hesabı bulur ve token'ın iş akışındaki `ZONE` (`yemekgelsin.net`) bölgesine erişimini denetler (Zone > Zone > Read ile bölge, Zone > Workers Routes > Edit ile Worker rotaları). workers.dev adresini yalnız yedek adres denetimi için bulur.
+3. Sitenin adresini iş akışındaki `SITE_URL` değerinden (varsayılan `https://yemekgelsin.net`) web derlemesine (`NEXT_PUBLIC_SITE_URL`) ve API'ye (`APP_BASE_URL`) yazar (`scripts/prepare-config.mjs`).
+4. Eksik gizli değerleri bir kez üretir (`scripts/secrets.mjs`): `SESSION_SECRET`, `TRACKING_SECRET`, `ENCRYPTION_KEY`, `WA_VERIFY_TOKEN`, `PLATFORM_WA_WEBHOOK_TOKEN` (ortak numara webhook yolu) ve VAPID çifti. Worker'da zaten olanlara dokunmaz; `ENCRYPTION_KEY` değişirse yedekteki şifreli veriler okunamaz. `DEV_PASSWORD` her dağıtımda GitHub secret'ından güncellenir.
+5. `wrangler deploy` ile Worker'ı, container imajını ve Custom Domain'leri yayınlar. Yalnız wrangler'ın son hata bloğu Custom Domain API'sine (`/workers/domains`) aitse izin hatasında eksik izni, DNS çakışmasında silinecek kaydı Türkçe `::error::` ile yazar; imaj derleme ya da rollout hataları genel "wrangler deploy başarısız" iletisiyle raporlanır.
+6. Duman testi: `https://yemekgelsin.net/api/v1/health` 200 (Custom Domain, sertifika ve ilk açılış için en çok 15 dakika bekler; süreyle sınırlıdır, container açılamazsa da 15 dakikada Türkçe hatayla durur); `/`, `/s/bozok-pide`, `/s/camlik-doner`, `/panel/giris`, `/admin/giris` parolasız 200; ana sayfada ve vitrinde "Demo ortamı" uyarısı; `/dev/whatsapp` ve `/api/v1/dev/*` parolasız 401, `/dev/whatsapp` parolayla 200; ortak numara webhook yolu parolasız API'ye ulaşır (yanlış belirteçle 404); `www` → kök 301 (yalnız `SITE_URL` kök alan adındaysa); workers.dev'de API 200 ve sayfa gezinmesi → `yemekgelsin.net` (302). Sonuç iş akışı özetine yazılır.
 
 **Kullanım:**
-- Giriş için README'deki demo hesapları kullanılır: `demo@siparisinonunde.local` / `demo1234` vb.
-- Demo işletmeler: `/s/bozok-pide` (`#BOZOK`) ve `/s/camlik-doner` (`#DONER`, sahibi `doner@siparisinonunde.local` / `doner1234`).
-- WhatsApp akışları `/dev/whatsapp` simülatöründen denenir: numara "Siparişin Önünde · ortak numara" (`+905550000000`, mock); `#BOZOK` / `#DONER` çipleri dükkanın QR'ını okutmakla aynıdır, kodsuz yazınca dükkan seçici gelir.
+- Site: https://yemekgelsin.net · Panel: `/panel/giris` · Admin: `/admin/giris`.
+- Demo hesapları README'deki e-postalardır; **parola her hesap için `DEV_PASSWORD`**: `demo@yemekgelsin.net` (Bozok Pide sahibi), `mudur@`, `kasa@`, `mutfak@`, `kurye@yemekgelsin.net`, `doner@yemekgelsin.net` (Çamlık Döner sahibi), platform yöneticisi `admin@yemekgelsin.net`.
+- Demo işletmeler: `/s/bozok-pide` (`#BOZOK`) ve `/s/camlik-doner` (`#DONER`).
+- WhatsApp akışları `/dev/whatsapp` simülatöründen denenir (tarayıcı kullanıcı adı ve parola sorar: kullanıcı adı `dev`, parola `DEV_PASSWORD`): numara "Yemek Gelsin · ortak numara" (`+905550000000`, mock); `#BOZOK` / `#DONER` çipleri dükkanın QR'ını okutmakla aynıdır, kodsuz yazınca dükkan seçici gelir.
+- `DEV_PASSWORD` değişince (GitHub secret'ı güncellenip iş akışı çalışınca) container yeniden başlar ve seed demo hesaplarının parolasını yeni değere eşitler.
 
-**Sıfırlama:** R2'deki `db/son.dump` ve `uploads/son.tar.gz` nesnelerini silip container'ı yeniden başlatın (yeniden dağıtım yeterli). Sistem demo verisiyle yeniden kurulur.
+**Sıfırlama (demo verisini baştan kurmak):** `deploy/cloudflare/wrangler.jsonc` içindeki `vars.DATA_EPOCH` değerini bir artırın (ör. `"2"` → `"3"`) ve push edin (ya da iş akışını elle çalıştırın). Yeni container yeni dönemde yedek bulamadığından boş veritabanı + seed ile açılır; kapanan eski container'ın son yedeği kendi dönemine (`e2/…`) yazılır. Eski dönemin nesneleri R2'de kalır; yer kaplamasın isterseniz Cloudflare > R2 > `siparisinonunde-dev-yedek` içinden eski önekli nesneleri (`e2/…` ya da öneksiz `db/…`, `uploads/…`) silebilirsiniz. Eski bir döneme dönmek önerilmez: o dönemin verisi geri gelir, `signup_open` bayrağı o dönemdeki haliyle kalır ve ilk (öneksiz) dönemde demo hesapları eski `@siparisinonunde.local` adresleridir (seed parolalarını `DEV_PASSWORD`'e eşitler, yeni `@yemekgelsin.net` hesapları eklenmez).
 
 **Sorun giderme:**
 - Container günlükleri: Cloudflare > Workers & Pages > `siparisinonunde-dev` > Logs, ya da `npx wrangler tail siparisinonunde-dev`.
-- İlk dağıtımdan sonra container'ın hazırlanması birkaç dakika sürebilir; duman testi 10 dakikaya kadar bekler.
+- İlk dağıtımda Custom Domain'in DNS kaydı ve sertifikası birkaç dakika sürebilir; duman testi en çok 15 dakika bekler. Bu sürede site workers.dev üzerinden (API) denenebilir. 15 dakikada sağlık denetimi 200 dönmezse container günlüğünde `[baslat]` satırlarına bakın (seed ya da migration hatası, bellek).
+- "Özel alan adı kurulamadı … izni eksik" hatası: §13 Kurulum 2. adımdaki iki izni token'a ekleyip iş akışını yeniden çalıştırın.
 - "Failed to start container" hatası çoğunlukla bellek yetmediğini gösterir. `wrangler.jsonc` içinde `instance_type` değerini `standard-1` yapın (4 GiB; maliyet artar).
-

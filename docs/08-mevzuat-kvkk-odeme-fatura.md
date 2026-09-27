@@ -2,7 +2,7 @@
 
 > **UYARI: Bu doküman hukuki veya mali müşavirlik tavsiyesi değildir.** Ürün ve operasyon planlaması için hazırlandı. Buradaki yorumlar ve süreler, canlıya çıkmadan önce KVKK/e-ticaret alanında çalışan bir avukat ve bir mali müşavir tarafından teyit edilmelidir. Kaynak araştırma, mevzuat sitelerine canlı erişim olmadan yapıldı (A03 §0). Bu yüzden tutarlar, eşikler ve yürürlük tarihleri birincil kaynaktan yeniden okunmalıdır.
 
-> **Amaç:** Siparişin Önünde'nin KVKK, ticari elektronik ileti (İYS), e-ticaret, ödeme, abonelik tahsilatı, e-fatura ve vergi yükümlülüklerini ürün kararlarına ve iş listelerine çevirmek.
+> **Amaç:** Yemek Gelsin'in KVKK, ticari elektronik ileti (İYS), e-ticaret, ödeme, abonelik tahsilatı, e-fatura ve vergi yükümlülüklerini ürün kararlarına ve iş listelerine çevirmek.
 > **Kapsam:** KVKK rolleri ve süreçleri, ETK/İYS, ETHS/ETAHS ve mesafeli satış, 6493 ve son müşteri ödemesi, abonelik tahsilatı ve e-Fatura/e-Arşiv, şirket/marka/sözleşme seti, vergi, uyum kontrol listesi.
 > **Kapsam dışı (bağlantı verilir):** mesaj metinleri ve checkout ekranları → [03](03-musteri-deneyimi-ve-storefront.md); panel ekranları → [04](04-isletme-paneli.md); admin/finans ekranları ve pazarlama sitesi → [05](05-admin-paneli-ve-pazarlama-sitesi.md); barındırma, şifreleme ve log mimarisi → [06](06-teknik-mimari.md); tablo alanları → [07](07-veri-modeli-ve-api.md); takvim → [09](09-yol-haritasi-ve-sprint-plani.md); olay yönetimi ve SLO → [10](10-riskler-operasyon-ve-metrikler.md).
 > **İlgili dokümanlar:** [00 Kararlar](00-kararlar-ve-sozluk.md) (özellikle bölüm 9, bağlayıcı) · [01 İş modeli](01-vizyon-pazar-is-modeli.md) · [02 WhatsApp](02-whatsapp-entegrasyonu.md) · [06 Mimari](06-teknik-mimari.md) · [07 Veri modeli](07-veri-modeli-ve-api.md)
@@ -99,13 +99,13 @@ Dayanak: m.10 ve Aydınlatma Tebliği (RG 10.03.2018) [Y]. Zorunlu içerik: VS k
 
 | Metin | Kim adına | Nerede yayınlanır | Faz |
 |---|---|---|---|
-| A. Kurumsal aydınlatma metni + gizlilik politikası (ziyaretçi, demo talebi, işletme yetkilisi, abonelik) | Biz | `siparisinonunde.com` altbilgisi, kayıt formu, panel. **Meta App için gizlilik politikası URL'si de bu sayfadır** (A01 §1.3) | Faz 0 |
+| A. Kurumsal aydınlatma metni + gizlilik politikası (ziyaretçi, demo talebi, işletme yetkilisi, abonelik) | Biz | `yemekgelsin.net` altbilgisi, kayıt formu, panel. **Meta App için gizlilik politikası URL'si de bu sayfadır** (A01 §1.3) | Faz 0 |
 | B. Son müşteri aydınlatma metni **şablonu**. İşletme unvanı, adresi ve iletişim bilgisi otomatik dolar; sürümlüdür | İşletme (VS) | Storefront altbilgisi ve checkout, takip sayfası, WhatsApp karşılama mesajındaki kısa satır + link, SMS OTP kod ekranındaki (WhatsApp'sız mod) kısa satır + link | Faz 1 |
 | C. Panel kullanıcıları (personel, kurye) için kısa bilgilendirme. Web Push aboneliği (tarayıcı push servisleri FCM/APNs/Mozilla, yurt dışı) ile SMS ve platform WhatsApp alarmlarında işlenen iletişim verisi dahil | Hesap güvenliği için biz, personel yönetimi için işletme | Panel girişi, kurye magic link ekranı | Faz 1 |
 
 **Son müşteri şablonunun iskeleti (avukat metni yazar) [T]:**
 1. **Veri sorumlusu** {işletme unvanı, adres, telefon, e-posta, varsa MERSİS}; **işlenen veriler**: ad, WhatsApp kullanıcı kimliği/telefon, SMS doğrulaması için cep telefonu numarası ve doğrulama kaydı, teslimat adresi ve konum, sipariş ve ödeme yöntemi, sipariş notu, WhatsApp yazışmaları, işlem güvenliği (IP, cihaz); **amaçlar ve hukuki sebepler** (m.5/2-c, ç, f; siparişin doğrulanması ve sahte siparişin önlenmesi dahil); **toplama yöntemi** (WhatsApp, web vitrini, SMS doğrulaması, telefon).
-2. **Aktarılan taraflar:** yazılım sağlayıcısı Siparişin Önünde (veri işleyen) ve onun alt işleyenleri: yurt içi barındırma; **SMS hizmet sağlayıcısı (yurt içi; doğrulama kodu ve WhatsApp'sız modda onay/iptal SMS'i) [Faz 1]**; Meta/WhatsApp (**yurt dışı**, ülke ve dayanak açıkça); harita hizmeti (Google Maps, **yurt dışı**; adres otomatik tamamlama, ad ve telefon gönderilmez); işletmenin kuryesi; [Faz 2] ödeme kuruluşu ve yapay zekâ hizmet sağlayıcısı (yurt dışı); yetkili kurumlar. Güncel alt işleyen listesine link verilir (§2.11).
+2. **Aktarılan taraflar:** yazılım sağlayıcısı Yemek Gelsin (veri işleyen) ve onun alt işleyenleri: yurt içi barındırma; **SMS hizmet sağlayıcısı (yurt içi; doğrulama kodu ve WhatsApp'sız modda onay/iptal SMS'i) [Faz 1]**; Meta/WhatsApp (**yurt dışı**, ülke ve dayanak açıkça); harita hizmeti (Google Maps, **yurt dışı**; adres otomatik tamamlama, ad ve telefon gönderilmez); işletmenin kuryesi; [Faz 2] ödeme kuruluşu ve yapay zekâ hizmet sağlayıcısı (yurt dışı); yetkili kurumlar. Güncel alt işleyen listesine link verilir (§2.11).
 3. **Saklama süreleri** (§2.8 özetle). Sipariş notunda paylaşılan bilgilerin (sağlık bilgisi dahil) yalnız o sipariş için kullanıldığı ve 30 gün sonra silindiği (§2.7).
 4. **m.11 hakları ve başvuru yolu:** işletmenin iletişim kanalı; [Faz 2] storefront başvuru formu.
 
@@ -397,7 +397,7 @@ Dayanak: 7416 sayılı Kanun'la 6563'te yapılan değişiklik (RG 07.07.2022, y�
 
 Net işlem hacmi 10 milyar TL'yi aşan ETAHS'ler için lisans ve kademeli yükümlülükler getirildi [O]; 2026 eşikleri [D?] (teyit edilmeli). Bu eşikler bizim için yıllarca ilgisizdir [T].
 
-**Senaryo A'yı güçlendiren önlemler [Faz 1]:** Vitrin altbilgisinde beyan: *"Bu sayfa {İşletme Unvanı} tarafından işletilmektedir. Siparişin Önünde yalnızca yazılım altyapısı sağlar."* Ayrıca vitrinde işletmenin künyesi (§4.7), işletme adına düzenlenen ön bilgilendirme ve sözleşme, işletmenin kendi hesabına ödeme.
+**Senaryo A'yı güçlendiren önlemler [Faz 1]:** Vitrin altbilgisinde beyan: *"Bu sayfa {İşletme Unvanı} tarafından işletilmektedir. Yemek Gelsin yalnızca yazılım altyapısı sağlar."* Ayrıca vitrinde işletmenin künyesi (§4.7), işletme adına düzenlenen ön bilgilendirme ve sözleşme, işletmenin kendi hesabına ödeme.
 
 ### 4.2 Kırmızı çizgiler (yapmayacaklarımız)
 
@@ -678,7 +678,7 @@ sequenceDiagram
 ### 7.3 Marka tescili [Faz 0]
 
 Dayanak: 6769 sayılı Sınai Mülkiyet Kanunu [Y]. Adımlar (A03 §7.4):
-1. TÜRKPATENT araştırması ve EPATS: "Siparişin Önünde", "Sipariş Önde", "Siparişönünde" ve ş/s, ü/u varyantları.
+1. TÜRKPATENT araştırması ve EPATS: "Yemek Gelsin", "Sipariş Önde", "Siparişönünde" ve ş/s, ü/u varyantları.
 2. **Sınıflar ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9):** 9 (yazılım), 35 (işletme yönetimi, reklam), 38 (telekomünikasyon/mesajlaşma), 42 (SaaS). Kurye hizmeti eklenirse 39. Sınıf 43 bize ait değildir.
 3. "Sipariş" kelimesi bu sınıflarda tanımlayıcı olduğu için **kelime + ayırt edici logo** ile başvurulur; marka vekilinden tescil edilebilirlik görüşü alınır [T].
 4. Başvuru, **isim kamuya duyurulmadan önce** yapılır. Bültende yayından sonra **2 ay itiraz süresi** işler [O]; toplam süre ve resmi ücret [D?] (teyit edilmeli).
@@ -694,7 +694,7 @@ Dayanak: 6769 sayılı Sınai Mülkiyet Kanunu [Y]. Adımlar (A03 §7.4):
 | 4 | **Çerez politikası + rıza paneli** | §2.13 | Biz; vitrinde işletme adına | Avukat + geliştirme | **Faz 1** | Rıza kaydı (sürüm, tercih, zaman) |
 | 5 | **Son müşteri aydınlatma metni şablonu** | §2.4-B; yurt dışına aktarım bölümü dahil | İşletme (VS) adına | Avukat; otomatik doldurma geliştirme | **Faz 1** | Sipariş başına sürüm kimliği |
 | 6 | **Ön bilgilendirme formu + mesafeli satış sözleşmesi şablonu** | §4.4; cayma istisnası, teslimat ücreti, ödeme | İşletme ↔ Son müşteri | Avukat | **Faz 1** | Checkout onayı; sipariş başına sürüm |
-| 7 | **Vitrin kullanım koşulları** | "Satıcı işletmedir; Siparişin Önünde altyapı sağlayıcıdır" | İşletme adına, rol beyanımızla | Avukat | **Faz 1** | Vitrin altbilgisi; sürüm |
+| 7 | **Vitrin kullanım koşulları** | "Satıcı işletmedir; Yemek Gelsin altyapı sağlayıcıdır" | İşletme adına, rol beyanımızla | Avukat | **Faz 1** | Vitrin altbilgisi; sürüm |
 | 8 | **Site künyesi** (bizim ve vitrin) | 6563 m.3, 5651 (§4.7) | — | Ürün | **Faz 0–1** | Vitrinde işletme verisinden otomatik |
 | 9 | **İçerik bildirim ve kaldırma politikası** | 5651 yer sağlayıcı (§4.7) | Biz | Avukat | **Faz 1** | Yayın |
 | 10 | **Veri ihlali müdahale planı** (iç) | §2.9 | Biz | Teknik lider + avukat | **Faz 1** | Yıllık gözden geçirme + tatbikat |

@@ -5,7 +5,7 @@ import { LEGAL_ENTITY, SITE_NAME } from '@/lib/site';
 
 export const metadata: Metadata = pageMetadata({
   title: 'Kullanım koşulları',
-  description: 'Siparişin Önünde abonelik ve kullanım koşulları (taslak).',
+  description: `${SITE_NAME} abonelik ve kullanım koşulları (taslak).`,
   path: '/yasal/kullanim-kosullari',
 });
 
@@ -25,8 +25,10 @@ export default function TermsPage() {
           body: (
             <>
               <p>
-                {SITE_NAME}; işletmenin kendi WhatsApp numarası ve web menüsü üzerinden sipariş almasını, siparişleri panelde yönetmesini ve
-                müşterisine durum bildirimi göndermesini sağlayan bir yazılım hizmetidir.
+                {SITE_NAME}; işletmenin WhatsApp ve web menüsü üzerinden sipariş almasını, siparişleri panelde yönetmesini ve müşterisine durum
+                bildirimi göndermesini sağlayan bir yazılım hizmetidir. Varsayılan olarak tüm işletmeler platformun ortak WhatsApp numarasını
+                (“{SITE_NAME}”) işletmeye özel dükkan kodu ve QR ile kullanır; bu numaradan giden her mesaj işletmenin adını taşır. İsteyen
+                işletme kendi WhatsApp numarasını bağlayabilir.
               </p>
               <p>
                 Satıcı her zaman işletmedir. {SITE_NAME} altyapı sağlayıcıdır; müşteri adına sipariş almaz, müşteri parasını tahsil etmez,
@@ -50,10 +52,17 @@ export default function TermsPage() {
         {
           title: 'WhatsApp (Meta) ücretleri',
           body: (
-            <p>
-              WhatsApp (Meta) mesaj ücretleri abonelik fiyatına dahil değildir; işletmenin kendi Meta/WhatsApp hesabından tahsil edilir.
-              WhatsApp hesabı, numarası ve bu hesaba bağlı varlıklar işletmeye aittir.
-            </p>
+            <>
+              <p>
+                Ortak numarada WhatsApp (Meta) mesaj ücretleri platform hesabına yansır; işletmenin ayrı bir Meta hesabı açması gerekmez. Bu
+                ücretlerin abonelik ücretine yansıtılması halinde değişiklik yürürlükten en az 30 gün önce bildirilir. Ortak numara platforma
+                aittir; işletmeye özel dükkan kodu ve QR yalnız hizmet süresince kullanılır.
+              </p>
+              <p>
+                İşletme kendi numarasını bağlarsa WhatsApp (Meta) mesaj ücretleri abonelik fiyatına dahil değildir ve işletmenin kendi
+                Meta/WhatsApp hesabından tahsil edilir; bu durumda WhatsApp hesabı, numarası ve bu hesaba bağlı varlıklar işletmeye aittir.
+              </p>
+            </>
           ),
         },
         {

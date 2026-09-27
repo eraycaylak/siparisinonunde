@@ -102,7 +102,7 @@ test.describe('İşletme sahibi 360 px', () => {
   test('WhatsApp sayfası: ortak numara, dükkan kodu, müşteri bağlantısı, QR indirme ve masa kartı', async ({ page }) => {
     await loginPanel(page, DEMO.owner);
     await page.goto('/panel/ayarlar/whatsapp');
-    await expect(page.getByText('Siparişleriniz ortak Siparişin Önünde numarasından gelir.')).toBeVisible();
+    await expect(page.getByText('Siparişleriniz ortak Yemek Gelsin numarasından gelir.')).toBeVisible();
     await expect(page.getByText(`#${DEMO.waCode}`, { exact: true }).first()).toBeVisible();
     const link = await page.getByRole('textbox', { name: 'Müşteri bağlantısı' }).inputValue();
     expect(link).toMatch(new RegExp(`^https://wa\\.me/${DEMO.waDisplayPhone.replace('+', '')}\\?text=`));

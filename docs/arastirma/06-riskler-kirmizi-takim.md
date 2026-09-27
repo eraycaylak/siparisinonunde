@@ -1,6 +1,6 @@
 # 06 — Riskler ve Kırmızı Takım Analizi: Bu fikri ne öldürür?
 
-**Proje:** siparisinonunde ("Siparişin Önünde"), WhatsApp üzerinden komisyonsuz sipariş alma SaaS'ı
+**Proje:** siparisinonunde ("Yemek Gelsin"), WhatsApp üzerinden komisyonsuz sipariş alma SaaS'ı
 **Rapor tarihi:** 24 Eylül 2026
 **Kapsam:** Meta/WhatsApp, pazar, operasyon, teknik, hukuk ve finans riskleri; benzer girişimlerden dersler; MVP'den önce doğrulanması gereken hipotezler ve hızlı deney tasarımları; risk matrisi; en kritik 5 tavsiye.
 **Okuma notu:** Bu rapor bilerek karamsar yazıldı. Amaç fikri savunmak değil, zayıf noktalarını erken bulmak. Her riskin yanında somut bir azaltma önerisi var.
@@ -747,7 +747,7 @@ Benzer bir ES belgesinde (Vacademy, 17.07.2026 [GH]) açıkça şunlar not edilm
 | Kesinti sonrası tazminat talebi (R33) | "Sistemin yüzünden Cuma 30 sipariş kaçtı" | Sorumluluk sınırı (ör. son 3 ay abonelik bedeli), SLA kredisi, durum sayfası kaydı [T] |
 | Pazaryeri sözleşmesi ihlali nedeniyle esnafın cezalandırılması (R32) | Paket içi kart ve fiyat farkı maddeleri [K02 D?] | Pilot öncesi 3 sözleşme incelemesi; esnafa "kendi sözleşmeni kontrol et" uyarısı |
 | Karşılaştırmalı reklam | "Yemeksepeti'nden %25 ucuz" gibi iddialar [K03] | Kaynaklı, nesnel dil; avukat kontrolü |
-| Marka/alan adı çakışması (R36) | "Siparişin Önünde" tescil durumu DOĞRULANAMADI (KARARLAR) | TÜRKPATENT araştırması + 9/35/38/42. sınıflarda başvuru [K03] |
+| Marka/alan adı çakışması (R36) | "Yemek Gelsin" tescil durumu DOĞRULANAMADI (KARARLAR) | TÜRKPATENT araştırması + 9/35/38/42. sınıflarda başvuru [K03] |
 | Mesafeli satış ön bilgilendirme | WhatsApp siparişinde onay adımı [K03] | Özet + toplam + "Onaylıyorum" butonu + link |
 
 ---

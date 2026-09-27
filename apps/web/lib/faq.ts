@@ -1,4 +1,5 @@
-// SSS (05 C.3.4; 15 soru, kısa cevaplar). Hitap "sen" (05 C.3).
+// SSS (05 C.3.4; kısa cevaplar). Hitap "sen" (05 C.3). Varsayılan WhatsApp modeli ortak numaradır (00 §12a madde 8):
+// tüm dükkanlar tek "Yemek Gelsin" numarasında, dükkan kodu/QR ile; işletmenin kendi numarası isteğe bağlıdır.
 
 export interface FaqItem {
   id: string;
@@ -8,14 +9,19 @@ export interface FaqItem {
 
 export const FAQ: readonly FaqItem[] = [
   {
-    id: 'numaram-gider-mi',
-    q: 'Numaram gider mi?',
-    a: 'Hayır. Mevcut WhatsApp Business numaranı bağlarız. Telefonundaki uygulamadan yazmaya devam edersin, siparişler aynı anda panele düşer. İstersen sipariş için yeni bir numara da bağlayabilirsin.',
+    id: 'numara-gerekir-mi',
+    q: 'WhatsApp numarası bağlamam gerekiyor mu?',
+    a: 'Hayır. Varsayılan olarak tüm dükkanlar tek Yemek Gelsin WhatsApp numarasını kullanır. Sana özel bir dükkan kodu, müşteri bağlantısı ve QR verilir; müşterin QR’ını okutunca ya da bağlantına dokununca sohbet senin dükkanınla açılır ve her mesaj dükkanının adıyla başlar. Telefonundaki WhatsApp’a dokunulmaz.',
   },
   {
-    id: 'normal-whatsapp',
-    q: 'Normal (yeşil) WhatsApp kullanıyorum, olur mu?',
-    a: 'Olur. Önce aynı numarayla ücretsiz WhatsApp Business uygulamasına geçersin; kurulumda adım adım gösteriyoruz.',
+    id: 'baska-dukkan',
+    q: 'Aynı numarada başka dükkanlar da var; müşterim karışır mı?',
+    a: 'Senin QR’ını ya da bağlantını kullanan müşteri doğrudan senin dükkanına bağlanır, siparişi yalnız senin paneline düşer. Müşteri kodsuz yazarsa ya da “dükkanlar” derse hangi dükkandan sipariş vereceği sorulur. Müşteri listen, sohbetlerin ve siparişlerin başka dükkanlarla paylaşılmaz.',
+  },
+  {
+    id: 'kendi-numara',
+    q: 'Kendi WhatsApp numaramdan sipariş alabilir miyim?',
+    a: 'Evet, isteğe bağlı. Kendi numaranı resmi WhatsApp Business Platform’a bir aracı firma (360dialog) ya da doğrudan Meta üzerinden bağlarız; müşterilerin o zaman doğrudan senin numarana yazar. Geçmek için bize yazman yeterli.',
   },
   {
     id: 'komisyon',
@@ -25,12 +31,12 @@ export const FAQ: readonly FaqItem[] = [
   {
     id: 'meta-ucreti',
     q: 'WhatsApp mesaj ücreti var mı, kim öder?',
-    a: 'Var. Meta, müşterine giden mesajlar için küçük bir ücret alır ve bunu senin WhatsApp hesabına tanımladığın ödeme yönteminden çeker; aboneliğe dahil değildir. Her numarada ayda ilk 1.000 servis mesajı ücretsizdir. Tutarı panelinde her ay görürsün.',
+    a: 'Var. Meta, işletmelerin gönderdiği WhatsApp mesajları için küçük bir ücret alır. Varsayılan ortak numarada mesajlar platform hesabından gider; ayrı bir Meta hesabı ya da kart tanımlaman gerekmez. Bu ücretin pakete yansıtılıp yansıtılmayacağı henüz kesinleşmedi; değişirse önceden bildiririz. Kendi numaranı bağlarsan ücret senin Meta hesabından çekilir ve aboneliğe dahil değildir; her numarada ayda ilk 1.000 servis mesajı ücretsizdir.',
   },
   {
     id: 'kart-ekleme',
-    q: 'Neden WhatsApp hesabıma ödeme yöntemi eklemem gerekiyor? Denemede de mi?',
-    a: 'Evet, denemede de. Meta, müşterilerine WhatsApp mesajı gönderen her işletmeden ödeme yöntemi tanımlamasını istiyor. Bu yüzden WhatsApp bağlantısını kurarken ödeme yöntemi adımı zorunludur. Kartı sen tanımlarsın; biz görmeyiz, bize kart vermezsin. WhatsApp bağlantın tamamlanana kadar web siparişlerini SMS doğrulamasıyla almaya başlayabilirsin.',
+    q: 'WhatsApp için kart tanımlamam gerekiyor mu?',
+    a: 'Ortak numarada hayır. Kendi numaranı bağlarsan evet: Meta, müşterilerine kendi numarasından WhatsApp mesajı gönderen her işletmeden kendi hesabına ödeme yöntemi tanımlamasını ister. Kartı sen tanımlarsın; biz görmeyiz, bize kart vermezsin.',
   },
   {
     id: 'uygulama',
@@ -40,7 +46,7 @@ export const FAQ: readonly FaqItem[] = [
   {
     id: 'whatsappsiz',
     q: 'Müşterimin WhatsApp’ı yoksa?',
-    a: 'Web menüden sipariş verir, telefonuna gelen SMS koduyla siparişini doğrular. Siparişin durumunu takip linkinden izler; “onaylandı” ve “iptal” gibi önemli durumlar ona SMS ile de gider. WhatsApp bağlantın henüz tamamlanmadıysa ya da WhatsApp’ta bir arıza olursa aynı yol kendiliğinden devreye girer, yani siparişin durmaz. Bu SMS’ler aboneliğine dahildir (Esnaf’ta ayda 100, Pro’da 300, Zincir’de şube başına 300 SMS’e kadar).',
+    a: 'Web menüden sipariş verir, telefonuna gelen SMS koduyla siparişini doğrular. Siparişin durumunu takip linkinden izler; “onaylandı” ve “iptal” gibi önemli durumlar ona SMS ile de gider. WhatsApp’ta bir arıza olursa aynı yol kendiliğinden devreye girer, yani siparişin durmaz. Bu SMS’ler aboneliğine dahildir (Esnaf’ta ayda 100, Pro’da 300, Zincir’de şube başına 300 SMS’e kadar).',
   },
   {
     id: 'pazaryeri',
@@ -65,7 +71,7 @@ export const FAQ: readonly FaqItem[] = [
   {
     id: 'kurulum-suresi',
     q: 'Kurulum ne kadar sürer?',
-    a: 'WhatsApp bağlantısı kısa bir adımdır; asıl süreyi menünün büyüklüğü belirler. Web siparişini WhatsApp bağlantısı bitmeden de almaya başlayabilirsin. İstersen biz kurarız.',
+    a: 'Ortak numara hazır olduğu için WhatsApp tarafında beklemen gerekmez; asıl süreyi menünün büyüklüğü belirler. İstersen menünü de biz gireriz.',
   },
   {
     id: 'taahhut',
@@ -85,4 +91,4 @@ export const FAQ: readonly FaqItem[] = [
 ];
 
 /** Ana sayfadaki 5 soru (05 C.3.1). */
-export const HOME_FAQ_IDS = ['numaram-gider-mi', 'komisyon', 'meta-ucreti', 'uygulama', 'taahhut'] as const;
+export const HOME_FAQ_IDS = ['numara-gerekir-mi', 'komisyon', 'meta-ucreti', 'uygulama', 'taahhut'] as const;

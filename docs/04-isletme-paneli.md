@@ -1,6 +1,6 @@
 # 04 — İşletme Paneli (ve kurye, mutfak görünümleri)
 
-> **Amaç:** İşletme panelinin (`panel.siparisinonunde.com`), kurye ve mutfak görünümlerinin ekran ekran ürün spesifikasyonunu vermek. Tasarımcı, frontend geliştirici ve test ekibi bu dokümandan doğrudan çalışabilmelidir.
+> **Amaç:** İşletme panelinin (`panel.yemekgelsin.net`), kurye ve mutfak görünümlerinin ekran ekran ürün spesifikasyonunu vermek. Tasarımcı, frontend geliştirici ve test ekibi bu dokümandan doğrudan çalışabilmelidir.
 > **Tarih:** 2026-09-24 · **Durum:** Taslak (düzeltme turu sonrası) · **Bağlayıcı kaynak:** [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4 (roller, müşteri verisi yetkisi, oturum süreleri, SMS kotası), §5 (durum makinesi, sebep kodları, enum'lar), §7 (akışlar, mesaj koruma kuralları, ret geri alma, `ordering_state`), §10 (kademeli alarm zamanlaması), §11 (fazlar). Çelişkide 00 geçerlidir.
 
 **Kapsam:** Panel ilkeleri, bilgi mimarisi ve rol matrisi, onboarding sihirbazı, canlı sipariş ekranı (alarm, onay, ret, durum, düzenleme, telefon siparişi, yazdırma, kurye atama), WhatsApp gelen kutusu, menü yönetimi, işletme ayarları, müşteriler (CRM), kurye görünümü, mutfak görünümü, raporlar, pazarlama araçları, Faz 2–3 panel özellikleri, ekran listesi ve mikro metin sözlüğü.
@@ -198,7 +198,7 @@ flowchart TD
 | # | Adım | Ekran içeriği | Süre hedefi [T] | `onboarding_step` |
 |---|---|---|---|---|
 | 1 | **Hesap** | Ad soyad, cep telefonu (SMS OTP), e-posta, parola; kullanım koşulları + abonelik sözleşmesi + DPA click-wrap (sürümlü, [08](08-mevzuat-kvkk-odeme-fatura.md) §7.5); **TOTP kurulumu** (QR + 6 haneli kod + yedek kodlar; `owner` için zorunlu, D06 §6.6) | 2 dk | `account_created` |
-| 2 | **İşletme bilgisi** | Görünen ad, işletme türü (çip: dönerci, pideci, kebap, burger, pizza, ev yemeği, kafe, diğer), adres (haritada pin + yazılı), müşteriye gösterilecek telefon, **marka görünümü (opsiyonel):** logo, kapak görseli ve ana renk (12 hazır renk veya serbest seçici; otomatik kontrast düzeltmesiyle, [12](12-marka-tasarim-ve-kullanilabilirlik.md) §5; sonradan P-26'dan değiştirilir, §7.2); **künye**: unvan veya ad-soyad, VKN/TCKN, vergi dairesi, MERSİS no (varsa), meslek odası, işletme kayıt no (5996, opsiyonel). Slug önerisi: `kardeslerdoner` → `kardeslerdoner.siparisinonunde.com` | 2 dk | `profile_done` |
+| 2 | **İşletme bilgisi** | Görünen ad, işletme türü (çip: dönerci, pideci, kebap, burger, pizza, ev yemeği, kafe, diğer), adres (haritada pin + yazılı), müşteriye gösterilecek telefon, **marka görünümü (opsiyonel):** logo, kapak görseli ve ana renk (12 hazır renk veya serbest seçici; otomatik kontrast düzeltmesiyle, [12](12-marka-tasarim-ve-kullanilabilirlik.md) §5; sonradan P-26'dan değiştirilir, §7.2); **künye**: unvan veya ad-soyad, VKN/TCKN, vergi dairesi, MERSİS no (varsa), meslek odası, işletme kayıt no (5996, opsiyonel). Slug önerisi: `kardeslerdoner` → `kardeslerdoner.yemekgelsin.net` | 2 dk | `profile_done` |
 | 3 | **Menü** | Kartlar: **Elle gir** (kategori + ürün + fiyat, seçenek grubu şablonları: Porsiyon, Ekmek, Acı, Çıkarılacaklar, İçecek) · **Excel ile yükle** (§6.6; Faz 1 temel sürümü kesilebilir "C" maddesidir, kesilirse Excel dosyası "Biz kuralım" ile ekibe gönderilir) · **Biz kuralım** (menü fotoğrafı/PDF yükle; ekip AI aracıyla taslak çıkarır, esnaf fiyatları onaylar; A05 §8.5, D06 §11.7) | 3 dk (hazır menüyle) | `menu_done` |
 | 4 | **Çalışma saatleri** | Hazır şablonlar ("Her gün 11–23", "Hafta içi 10–22, hafta sonu 11–24"); gün bazında düzenleme; gece yarısını geçen kapanış | 30 sn | — |
 | 5 | **Bölge ve ödeme** | Haritada şube çevresinde **3 km yarıçaplı hazır bölge**; ücret, min. sepet, tahmini süre alanları; "Poligon çiz" seçeneği; gel-al aç/kapa; ödeme çipleri (Kapıda nakit · Kapıda kart · Yemek kartı + markalar · Kasada öde) | 1,5 dk | `ops_done` (+ isteğe bağlı `web_live`) |
@@ -718,7 +718,7 @@ Salt-okunur abonelik modunda (G+10) menü, fiyat, ayar, bölge, personel ekranla
   - **Kapak görseli:** önerilen 1200×630 px (1,91:1), en az 800×420 px; JPEG, PNG veya WebP, ≤ 5 MB. Görselde yazı olmamalı. Menü üst görseli ve link önizlemesi olarak kullanılır.
   - Boyut yetersizse yükleme reddedilmez; "Bu görsel bulanık görünebilir" uyarısı çıkar. Önizleme telefon çerçevesinde gösterilir ([Müşteri gibi gör], §6.9).
   - Tek şubeli işletmede marka alanları işletme düzeyindedir. Şube bazında farklı logo ve renk çoklu şubeyle **[Faz 2]** gelir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 "Storefront imzası").
-  - Storefront altbilgisindeki "Altyapı: Siparişin Önünde" imzası işletme ayarıyla kaldırılamaz ([03](03-musteri-deneyimi-ve-storefront.md) §4.0).
+  - Storefront altbilgisindeki "Altyapı: Yemek Gelsin" imzası işletme ayarıyla kaldırılamaz ([03](03-musteri-deneyimi-ve-storefront.md) §4.0).
 - **Künye** (6563 m.3): unvan veya ad-soyad, VKN/TCKN, vergi dairesi, MERSİS no, meslek odası, e-posta, işletme kayıt no (opsiyonel). Eksikse storefront yayında değildir ve kırmızı kart gösterilir ([08](08-mevzuat-kvkk-odeme-fatura.md) §4.7).
 - **Slug** değişikliği uyarılı: "Adresiniz değişecek; basılı QR'lar eski adrese yönlenir (30 gün yönlendirme) ve WhatsApp şablonları yeniden onaya girer" (D02 §5.1) [T].
 
@@ -877,7 +877,7 @@ Salt-okunur abonelik modunda (G+10) menü, fiyat, ayar, bölge, personel ekranla
 ## 9. Kurye görünümü **[Faz 1]**
 
 ### 9.1 Giriş (K-01)
-- `owner`/`manager` P-24'ten **[Giriş linki gönder]** der; kurye telefonuna platform WhatsApp şablonu (yoksa SMS) ile `panel.siparisinonunde.com/kurye/giris?t=…` gelir. Link tek kullanımlıktır ve 15 dk içinde açılmalıdır (D06 §6.4); açılan kurye oturumu **12 saat** (vardiya) sürer ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4). Süre dolunca kurye ekranında "Oturum süreniz doldu. İşletmenizden yeni giriş linki isteyin." yazar. Şifre yok.
+- `owner`/`manager` P-24'ten **[Giriş linki gönder]** der; kurye telefonuna platform WhatsApp şablonu (yoksa SMS) ile `panel.yemekgelsin.net/kurye/giris?t=…` gelir. Link tek kullanımlıktır ve 15 dk içinde açılmalıdır (D06 §6.4); açılan kurye oturumu **12 saat** (vardiya) sürer ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4). Süre dolunca kurye ekranında "Oturum süreniz doldu. İşletmenizden yeni giriş linki isteyin." yazar. Şifre yok.
 - Kurye görünümü SSE kullanmaz: 30 sn yoklama + atamada Web Push. İlk açılışta "Bildirimlere izin ver" ve "Ana ekrana ekle" rehberi.
 
 ### 9.2 Atanan siparişler (K-02) ve detay (K-03)

@@ -129,7 +129,8 @@ export const PLAN_MATRIX: readonly MatrixGroup[] = [
   {
     title: 'Sipariş kanalları',
     rows: [
-      { label: 'WhatsApp sipariş hattı (resmi altyapı; mevcut numaran ya da yeni numara)', esnaf: true, pro: true, zincir: 'Şube başı numara' },
+      { label: 'WhatsApp sipariş hattı (resmi altyapı; ortak Yemek Gelsin numarası, sana özel dükkan kodu ve QR)', esnaf: true, pro: true, zincir: true },
+      { label: 'Kendi WhatsApp numaranla sipariş (isteğe bağlı, ayrıca görüşülür)', esnaf: 'İsteğe bağlı', pro: 'İsteğe bağlı', zincir: 'İsteğe bağlı' },
       { label: 'Fotoğraflı web menü, seçenekler ve sepet', esnaf: true, pro: true, zincir: true },
       { label: 'WhatsApp sohbetinden menü linkiyle sipariş, doğrudan web siparişi, telefon siparişi girişi', esnaf: true, pro: true, zincir: true },
       { label: 'WhatsApp’sız mod: SMS koduyla sipariş doğrulama', esnaf: true, pro: true, zincir: true },

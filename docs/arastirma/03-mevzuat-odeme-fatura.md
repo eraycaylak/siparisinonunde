@@ -1,6 +1,6 @@
 # 03 — Türkiye Mevzuatı, Ödeme ve Faturalama Araştırması
 
-**Proje:** siparisinonunde (Siparişin Önünde), WhatsApp üzerinden komisyonsuz sipariş alma SaaS'ı
+**Proje:** siparisinonunde (Yemek Gelsin), WhatsApp üzerinden komisyonsuz sipariş alma SaaS'ı
 **Rapor tarihi:** 24 Eylül 2026
 **Kapsam:** KVKK (roller, DPA, VERBİS, aydınlatma, açık rıza, saklama, ihlal, yurt dışına aktarım), 6563 sayılı Kanun ve İYS, e-ticaret mevzuatı (ETAHS/ETHS, ETBİS, mesafeli satış, fiyat gösterimi), 6493 sayılı Kanun ve online ödeme, SaaS abonelik tahsilatı ve e-Fatura, şirket kurulumu, marka ve sözleşmeler, vergi.
 **Uyarı:** Bu metin hukuki veya mali müşavirlik tavsiyesi değildir. Ürün planlaması için hazırlandı. Canlıya çıkmadan önce KVKK ve e-ticaret alanında çalışan bir avukat ile bir mali müşavir tarafından teyit edilmelidir.
@@ -132,7 +132,7 @@ KVKK'da GDPR m.28 gibi maddeleri tek tek sayan bir liste yok. Ancak m.12/2'deki 
 
 | Metin | Kim adına | Nerede yayımlanır |
 |---|---|---|
-| A. Kurumsal site aydınlatma metni + gizlilik politikası (ziyaretçi, demo talebi, işletme yetkilisi, abonelik) | Biz | siparisinonunde.com altbilgisi, kayıt formu, panel |
+| A. Kurumsal site aydınlatma metni + gizlilik politikası (ziyaretçi, demo talebi, işletme yetkilisi, abonelik) | Biz | yemekgelsin.net altbilgisi, kayıt formu, panel |
 | B. **Son müşteri aydınlatma metni şablonu.** İşletmenin unvanı, adresi ve iletişim bilgisi otomatik dolar | İşletme (VS) | Storefront altbilgisi ve checkout, sipariş takip sayfası, **WhatsApp'taki ilk otomatik yanıtta kısa özet ve link** |
 | C. Panel kullanıcıları (işletme personeli) için kısa bilgilendirme | Hesap güvenliği için biz; personel yönetimi için işletme | Panel girişi |
 
@@ -476,7 +476,7 @@ Madde numaraları ve sınırları teyit edilmeli.
 
 | Senaryo | Özellikler | Muhtemel nitelik [T] | Risk |
 |---|---|---|---|
-| **A. Saf SaaS (önerilen MVP)** | Her işletmenin kendi markalı vitrini (`isletme.siparisinonunde.com` veya işletmenin kendi alan adı). WhatsApp numarası işletmenin. Satış sözleşmesi işletme ile müşteri arasında. Fiyatı işletme belirler. Tahsilat işletmenin kendi POS/PSP hesabından. Biz sabit abonelik alırız | **Biz: yazılım/altyapı sağlayıcı.** E-ticaret altyapısı satan SaaS şirketlerinin modeline benzer. **İşletme: ETHS** | **Düşük** |
+| **A. Saf SaaS (önerilen MVP)** | Her işletmenin kendi markalı vitrini (`isletme.yemekgelsin.net` veya işletmenin kendi alan adı). WhatsApp numarası işletmenin. Satış sözleşmesi işletme ile müşteri arasında. Fiyatı işletme belirler. Tahsilat işletmenin kendi POS/PSP hesabından. Biz sabit abonelik alırız | **Biz: yazılım/altyapı sağlayıcı.** E-ticaret altyapısı satan SaaS şirketlerinin modeline benzer. **İşletme: ETHS** | **Düşük** |
 | **B. A + pasif dizin** | "Şehrindeki işletmeler" listesi. Her kart işletmenin kendi vitrinine veya WhatsApp'ına link verir. Sıralama nesnel ve ücretsiz. Ortak sepet, ortak hesap, ortak ödeme yok | **Gri alan.** "İlan/yönlendirme" savunusu var, ama "aracılık" unsuru tartışmaya açılır | **Orta** |
 | **C. Pazaryeri özellikleri** | Ortak arama ve sepet, ortak müşteri hesabı, bizim markamızla sipariş, ortak ödeme (pazaryeri/alt üye işyeri), ücretli öne çıkarma, sipariş başı ücret | **ETAHS (pazaryeri)** | **Yüksek.** ETAHS yükümlülükleri, Nisan 2026 yemek sipariş kuralları [K02], müşteri verisinde VS rolü (§2.1) |
 
@@ -490,7 +490,7 @@ Madde numaraları ve sınırları teyit edilmeli.
 - Fiyat veya kampanyayı bizim belirlememiz
 
 **Senaryo A'yı güçlendiren önlemler [T]:**
-- Vitrinin altbilgisinde şu beyan yer alsın: *"Bu sayfa [İşletme Unvanı] tarafından işletilmektedir. Siparişin Önünde yalnızca yazılım altyapısı sağlar."*
+- Vitrinin altbilgisinde şu beyan yer alsın: *"Bu sayfa [İşletme Unvanı] tarafından işletilmektedir. Yemek Gelsin yalnızca yazılım altyapısı sağlar."*
 - İşletmenin künyesi vitrinde gösterilsin (§4.10).
 - Ön bilgilendirme formu ve mesafeli satış sözleşmesi **işletme adına** düzenlensin.
 - Ödeme işletmenin kendi hesabına alınsın.
@@ -815,7 +815,7 @@ Her iki durumda da yapılması gerekenler:
 **Kontrol adımları [O/T]:**
 
 1. **TÜRKPATENT çevrimiçi marka araştırması** (https://www.turkpatent.gov.tr, "Araştırma" bölümü) ve **EPATS** (https://epats.turkpatent.gov.tr, e-Devlet ile giriş).
-   - Aranacak ifadeler: "Siparişin Önünde", "Sipariş Önde", "Siparişönünde", "Önde Sipariş". Ayrıca "sipariş" ve "önünde/önde" unsurları ayrı ayrı. Sesli benzerlik ve farklı yazımlar (ş/s, ü/u) da kontrol edilmeli.
+   - Aranacak ifadeler: "Yemek Gelsin", "Sipariş Önde", "Siparişönünde", "Önde Sipariş". Ayrıca "sipariş" ve "önünde/önde" unsurları ayrı ayrı. Sesli benzerlik ve farklı yazımlar (ş/s, ü/u) da kontrol edilmeli.
 2. **Sınıflar (Nice) [O/T]:**
    - 9: yazılım
    - 35: işletme yönetimi, reklam, çevrimiçi sipariş aracılığı
@@ -843,7 +843,7 @@ Her iki durumda da yapılması gerekenler:
 | 4 | **Çerez Politikası + rıza paneli** | Biz (sitemiz). Vitrinde işletme adına | **Evet** | §2.13 |
 | 5 | **Son Müşteri Aydınlatma Metni şablonu** | İşletme (VS) adına | **Evet** | §2.4-B. Yurt dışına aktarım bölümü dahil |
 | 6 | **Ön Bilgilendirme Formu + Mesafeli Satış Sözleşmesi şablonu** | İşletme ↔ Son müşteri | **Evet** | §4.7. Cayma istisnası, teslimat ücreti, ödeme |
-| 7 | **Vitrin Kullanım Koşulları** | İşletme adına, bizim rol beyanımızla | **Evet** | "Satıcı işletmedir, Siparişin Önünde altyapı sağlayıcıdır" |
+| 7 | **Vitrin Kullanım Koşulları** | İşletme adına, bizim rol beyanımızla | **Evet** | "Satıcı işletmedir, Yemek Gelsin altyapı sağlayıcıdır" |
 | 8 | **Site künyesi** (bizim ve vitrin için) | — | **Evet** | §4.10 |
 | 9 | **Veri İhlali Müdahale Planı** (iç doküman) | Biz | **Evet** | §2.8 |
 | 10 | **Saklama ve İmha Politikası** (iç doküman) | Biz | **Evet** (iyi uygulama) | §2.7 |

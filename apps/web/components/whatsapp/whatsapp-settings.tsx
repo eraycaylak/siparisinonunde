@@ -512,7 +512,7 @@ function SharedNumberCard({ data, shared }: { data: WhatsappSettings; shared: Sh
           <Alert variant={health.level === 'error' ? 'danger' : 'warning'}>{health.message}</Alert>
         ) : null}
         <p className="text-sm text-fg-muted">
-          Dükkan kodunu yalnız Siparişin Önünde ekibi değiştirebilir; kod değişirse eski QR’lar çalışmaz. Son 24 saat: {health.sentLast24h} mesaj gönderildi
+          Dükkan kodunu yalnız Yemek Gelsin ekibi değiştirebilir; kod değişirse eski QR’lar çalışmaz. Son 24 saat: {health.sentLast24h} mesaj gönderildi
           {health.failedLast24h ? ` · ${health.failedLast24h} gönderilemedi` : ''}
           {health.lastInboundAt ? ` · son gelen mesaj ${formatRelative(health.lastInboundAt)}` : ''}.
         </p>
@@ -696,8 +696,8 @@ export function WhatsappSettingsPage() {
         title="WhatsApp"
         description={
           shared
-            ? 'Ortak numara, dükkan kodunuz, müşteri bağlantınız ve QR kodunuz. Siparişin Önünde yalnız resmi WhatsApp Business Platform’u kullanır.'
-            : 'Numaranız, bağlantı sağlığı ve test mesajı. Siparişin Önünde yalnız resmi WhatsApp Business Platform’u kullanır.'
+            ? 'Ortak numara, dükkan kodunuz, müşteri bağlantınız ve QR kodunuz. Yemek Gelsin yalnız resmi WhatsApp Business Platform’u kullanır.'
+            : 'Numaranız, bağlantı sağlığı ve test mesajı. Yemek Gelsin yalnız resmi WhatsApp Business Platform’u kullanır.'
         }
       />
       {q.isPending ? (

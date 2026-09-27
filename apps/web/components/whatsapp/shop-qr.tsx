@@ -122,7 +122,7 @@ export function TableCard({ shopName, code, qrSrc, phoneFormatted, brandColor, l
         ) : null}
       </div>
       <p className="px-[6cqw] pb-[3.5cqw] text-[2.4cqw] leading-snug text-[#4b5563]">
-        Sohbette “Siparişin Önünde” adını görürsünüz; mesajlarınız yalnız {shopName} işletmesine iletilir ve numaranız yalnız siparişiniz için kullanılır.
+        Sohbette “Yemek Gelsin” adını görürsünüz; mesajlarınız yalnız {shopName} işletmesine iletilir ve numaranız yalnız siparişiniz için kullanılır.
       </p>
     </div>
   );

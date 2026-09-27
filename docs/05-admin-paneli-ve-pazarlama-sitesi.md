@@ -22,7 +22,7 @@ Admin paneli sıradan bir CRUD ekranı değildir. Üç soruya saniyeler içinde 
 
 | # | İlke | Kural |
 |---|---|---|
-| 1 | **Ayrı alan adı, ayrı kimlik** | `admin.siparisinonunde.com`; ayrı Better Auth örneği (`adminAuth`), ayrı kullanıcı tablosu ve çerez. Platform ve işletme kimlikleri karışmaz ([06](06-teknik-mimari.md) §6.1). Pazarlama sitesinden link verilmez, `noindex`. |
+| 1 | **Ayrı alan adı, ayrı kimlik** | `admin.yemekgelsin.net`; ayrı Better Auth örneği (`adminAuth`), ayrı kullanıcı tablosu ve çerez. Platform ve işletme kimlikleri karışmaz ([06](06-teknik-mimari.md) §6.1). Pazarlama sitesinden link verilmez, `noindex`. |
 | 2 | **Ağ kısıtı** | Cloudflare Access (şirket kimliği) + IP izin listesi (ofis, şirket VPN). **Yurt dışı IP'lerden erişim kapalıdır:** yurt dışından uzaktan erişim KVKK m.9 anlamında aktarım sayılabilir ([08](08-mevzuat-kvkk-odeme-fatura.md) §2.11). İstisna yalnız PO onaylı, süreli ve kayıtlıdır. |
 | 3 | **Zorunlu 2FA** | E-posta + parola + TOTP (yedek kodlar). Oturum 8 saat, 30 dk hareketsizlikte kilit ([06](06-teknik-mimari.md) §6.2). Passkey/WebAuthn **[Faz 2]** seçenek olarak eklenir. |
 | 4 | **Taze doğrulama** | Hassas aksiyonlar son 5 dk içinde yeniden TOTP ister: yazma modlu impersonation, askıya alma, kill-switch, rol değişikliği, iade, tenant verisi silme, toplu dışa aktarma. |
@@ -301,7 +301,7 @@ Kurallar [06](06-teknik-mimari.md) §6.7 ile aynıdır; UI ve süreç burada.
   - Açık alarmlar (P1/P2/P3).
   - Meta, Anthropic, Cloudflare durum sayfası bağlantıları.
 - **Deploy yasağı göstergesi:** her gün 11:30–14:00 ve 18:00–22:30, Cuma 17:00 sonrası ve ilan edilmiş maç/iftar akşamlarında kırmızı "deploy yok" bandı ([06](06-teknik-mimari.md) §16.2; A06 §5.5).
-- **[Faz 2]** Olay kaydı açma → `status.siparisinonunde.com` yayını + panel duyurusu (A-14) tek akışta.
+- **[Faz 2]** Olay kaydı açma → `status.yemekgelsin.net` yayını + panel duyurusu (A-14) tek akışta.
 
 ### A-13 Feature flag ve kill-switch **[Faz 1]**
 - **Flag'ler** ([06](06-teknik-mimari.md) §16.6): anahtar, açıklama, sahibi, kural (plan, yüzde, tenant listesi), tenant override (gerekçe + bitiş tarihi), `expires_at` geçmiş flag uyarısı. **Paket hakları flag değildir**; `plan_features` üzerinden yönetilir.
@@ -475,7 +475,7 @@ Her alarmın runbook'u `infra/runbooks/` altındadır ([06](06-teknik-mimari.md)
 
 ## B.1 Program, roller ve sınırlar
 - **Kim:** POS bayileri ve teknik servisler (Adisyo, SambaPOS, robotPOS), yerel reklam ajansları; ileride sertifikalı kurulum ortakları ([01](01-vizyon-pazar-is-modeli.md) §5.6, §8.5). Persona: "Bayi Serkan", tek seferlik değil yinelenen gelir ister, kurulumda mahcup olmak istemez.
-- **Adres:** `panel.siparisinonunde.com/bayi` ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §2). Kimlik `panelAuth`; **TOTP zorunlu** [T] (bayi birden çok işletmenin ticari verisini görür).
+- **Adres:** `panel.yemekgelsin.net/bayi` ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §2). Kimlik `panelAuth`; **TOTP zorunlu** [T] (bayi birden çok işletmenin ticari verisini görür).
 - **Roller ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4, kanonik):**
   - `reseller_admin` (**RA**, bayi yöneticisi): bayinin getirdiği tüm işletmeler, komisyon raporu, bayi kullanıcılarını yönetme, teknisyeni işletmeye atama.
   - `reseller_technician` (**RT**, kurulum teknisyeni): yalnız kendisine atandığı işletmelerin kurulum kontrol listesi (§B.4) ve onboarding adımı; owner onay verirse kurulum erişimi (B-06). Komisyon, ödeme durumu ve işletme özet metrikleri görmez.
@@ -539,7 +539,7 @@ Her alarmın runbook'u `infra/runbooks/` altındadır ([06](06-teknik-mimari.md)
 |---|---|
 | Ödül | Getiren ve gelen işletmeye **1'er ay ücretsiz**; kendi paketinin o ayki net tutarı kadar **hesap alacağı** olarak (nakit değil) |
 | Tetik | Gelen işletme ilk ücretli faturasını ödedikten ve 30 gün `active` kaldıktan sonra [T] |
-| Mekanik | Owner panelinde "Arkadaşını davet et": kişisel kod ve `siparisinonunde.com/r/{kod}` linki; kayıt formunda kod alanı |
+| Mekanik | Owner panelinde "Arkadaşını davet et": kişisel kod ve `yemekgelsin.net/r/{kod}` linki; kayıt formunda kod alanı |
 | Sınırlar [T] | Getiren işletme yılda en fazla 12 ay alacak biriktirir. Aynı VKN, telefon veya adresle kendini davet engellenir. Bayi kodlu kayıtta referans ödülü doğmaz (ilk geçerli kod kuralı) |
 | Kayıt | `referrals` tablosu; A-23'te ödül durumu (`pending`, `earned`, `applied`, `void`) |
 
@@ -552,7 +552,7 @@ Her alarmın runbook'u `infra/runbooks/` altındadır ([06](06-teknik-mimari.md)
 
 ---
 
-# BÖLÜM C — PAZARLAMA WEB SİTESİ (`siparisinonunde.com`)
+# BÖLÜM C — PAZARLAMA WEB SİTESİ (`yemekgelsin.net`)
 
 ## C.1 Hedefler ve dönüşüm hunisi
 
@@ -592,14 +592,14 @@ flowchart LR
 ## C.2 Sayfa haritası
 
 ```
-siparisinonunde.com
+yemekgelsin.net
 ├─ /                          Ana sayfa                                        [Faz 0 tek sayfa → Faz 1 tam]
 ├─ /nasil-calisir             3 adım + kurulum + 60 sn video                   [Faz 1]
 ├─ /fiyatlar                  Esnaf / Pro / Zincir; KDV hariç + dahil           [Faz 1]
 ├─ /komisyon-hesaplayici      Birincil satış aracı (§C.4)                       [Faz 1]
 ├─ /demo                      Demo talebi (§C.5)                                [Faz 1]
 ├─ /kayit                     Faz 1: onaylı kayıt · Faz 2: 14 gün deneme        [Faz 1]
-├─ /giris                     → panel.siparisinonunde.com                       [Faz 1]
+├─ /giris                     → panel.yemekgelsin.net                       [Faz 1]
 ├─ /sss                       12–15 soru                                        [Faz 1]
 ├─ /kunye                     6563 m.3 künyesi                                  [Faz 0]
 ├─ /yasal/…                   kullanim-kosullari, abonelik-sozlesmesi, gizlilik-ve-aydinlatma,
@@ -611,7 +611,7 @@ siparisinonunde.com
 ├─ /referans                  Referans programı koşulları                       [Faz 2]
 ├─ /gloriafood-gecis          Geçiş rehberi (kapanış 30.04.2027)                [Faz 2, zaman sınırlı]
 ├─ /yardim                    Videolu yardım merkezi                            [Faz 2]
-├─ status.siparisinonunde.com Sistem durumu                                     [Faz 2]
+├─ status.yemekgelsin.net Sistem durumu                                     [Faz 2]
 ├─ /sektorler/{restoran|pastane|su-bayi|…}   Dikey landing'ler                  [Faz 3]
 └─ /sehirler/{il}[/{ilce}]    Yalnız §C.6.3 kuralını geçen yerler               [Faz 3]
 ```
@@ -686,7 +686,7 @@ Aylık/yıllık anahtarı. Büyük rakam KDV hariç, hemen altında KDV dahil ([
 15. **Bot müşterilerimle kendi kafasına göre konuşur mu?** Hayır. Bot selam verir, menü linkini ve sipariş bilgisini yollar. Müşteri "Yetkiliyle görüş" dediğinde sen devralırsın; istersen botu tamamen kapatırsın. Alkol, tütün ve ilaç ise WhatsApp'tan satılamaz.
 
 ### C.3.5 Demo `/demo`
-Başlık: **"15 dakikada kendi telefonunda gör."** · Alt metin: "Kendi telefonundan demo işletmemize sipariş ver, tablette 'ding' sesini duy, 'Onaylandı' mesajı telefonuna gelsin. Sonra kendi rakamlarınla ne kadar tasarruf edeceğini birlikte hesaplayalım." · Form (§C.5.1) · "Ne olacak?" 3 madde: "1 iş günü içinde arıyoruz" · "Yüz yüze ya da görüntülü 15 dakikalık demo" · "Kendi rakamlarınla hesap" · Yan kutu: [Demo menüye göz at] → `demo.siparisinonunde.com` (demo tenant; üst bant "Bu bir demo işletmedir, sipariş teslim edilmez").
+Başlık: **"15 dakikada kendi telefonunda gör."** · Alt metin: "Kendi telefonundan demo işletmemize sipariş ver, tablette 'ding' sesini duy, 'Onaylandı' mesajı telefonuna gelsin. Sonra kendi rakamlarınla ne kadar tasarruf edeceğini birlikte hesaplayalım." · Form (§C.5.1) · "Ne olacak?" 3 madde: "1 iş günü içinde arıyoruz" · "Yüz yüze ya da görüntülü 15 dakikalık demo" · "Kendi rakamlarınla hesap" · Yan kutu: [Demo menüye göz at] → `demo.yemekgelsin.net` (demo tenant; üst bant "Bu bir demo işletmedir, sipariş teslim edilmez").
 
 ### C.3.6 Kayıt `/kayit`
 - **[Faz 1] "Kurucu üye listesine katıl":** Hesap açılır, ekip onayından sonra kurulum açılır (§C.5.2). Metin: "İlk 100 işletmeden biri ol: 12 ay %30 indirim, kurulum bizden. Başvurunu aldıktan sonra seni arayıp kurulumu birlikte planlıyoruz."
@@ -753,7 +753,7 @@ Geçişten sonra
 1. **Bugün pazaryerine ödediğin:** aylık ve yıllık; "gerçek maliyet (KDV hariç)" ve "nakit çıkışı (KDV dahil)" iki ayrı satır.
 2. **Seçilen geçiş oranında net aylık ve yıllık kazanç**; kalem kalem döküm (kaçınılan komisyon, teşvik, kart maliyeti, ek kurye, abonelik, Meta tahmini ayrı satırda).
 3. **%10 / %20 / %30 geçiş karşılaştırma şeridi.**
-4. **Başa baş:** "Ayda N* sipariş kendi kanalına geçerse Siparişin Önünde kendini amorti eder."
+4. **Başa baş:** "Ayda N* sipariş kendi kanalına geçerse Yemek Gelsin kendini amorti eder."
 5. **Önerilen paket:** toplam günlük sipariş < 20 → Esnaf; ≥ 20 → Pro; 2+ şube → Zincir (Faz 2; öncesinde "Bize ulaş"); 5+ şube → özel teklif.
 6. **Paylaşılabilir sonuç kartı:** PNG/PDF indir (esnafın ortağına veya muhasebecisine göndermesi için). Kartta kişisel veri yoktur.
 
@@ -769,7 +769,7 @@ Geçişten sonra
 
 ### C.4.5 Lead yakalama
 - **Sonuç e-posta veya telefon duvarının arkasına saklanmaz.**
-- **[Bu hesabı WhatsApp'ıma gönder]:** ad, WhatsApp numarası, işletme adı (isteğe bağlı); aydınlatma linki (bilgilendirme, onay değil); işaretsiz kutu: **"Siparişin Önünde'nin bana WhatsApp'tan yazmasını kabul ediyorum. İstediğim zaman DUR yazarak çıkabilirim."** Bu kutu yalnız WhatsApp gönderimi için zorunludur (Meta opt-in); işaretlenmezse e-posta seçeneği sunulur. Gönderim platform WABA'mızdan ayrı bir şablonla (`hesap_sonucu_v1` [T]; kategori riski teyit edilmeli) yapılır.
+- **[Bu hesabı WhatsApp'ıma gönder]:** ad, WhatsApp numarası, işletme adı (isteğe bağlı); aydınlatma linki (bilgilendirme, onay değil); işaretsiz kutu: **"Yemek Gelsin'in bana WhatsApp'tan yazmasını kabul ediyorum. İstediğim zaman DUR yazarak çıkabilirim."** Bu kutu yalnız WhatsApp gönderimi için zorunludur (Meta opt-in); işaretlenmezse e-posta seçeneği sunulur. Gönderim platform WABA'mızdan ayrı bir şablonla (`hesap_sonucu_v1` [T]; kategori riski teyit edilmeli) yapılır.
 - **[Demo iste]:** hesaplayıcı girdileri demo formuna taşınır.
 - Her iki yol da A-20'de `source = calculator` lead'i ve hesap anlık görüntüsü oluşturur.
 - **Paylaşım linki:** girdiler URL parametresinde (kişisel veri yok); parametreli URL `noindex`, kanonik adres hesaplayıcı sayfası.
@@ -823,7 +823,7 @@ Geçişten sonra
 - Core Web Vitals "iyi" eşikleri hedeflenir: LCP < 2,5 sn, INP < 200 ms, CLS < 0,1 [E]. Sistem yazı tipleri, AVIF/WebP görseller, rıza öncesi üçüncü taraf script yok.
 - Google Search Console, Bing Webmaster Tools ve Yandex Webmaster (Türkiye'de Yandex payı nedeniyle [E]) kaydı.
 - Storefront SEO'su (`Restaurant` + `Menu` işaretlemesi, `/t/` ve `/s/` yollarının `noindex` olması, altbilgi marka linki; takip linki `/t/{token}` teslimden 7 gün sonra geçersizleşir, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7) [03](03-musteri-deneyimi-ve-storefront.md)'tedir. Altbilgi linki tüm storefront'larda şablon olarak tekrarlandığı için `rel="nofollow"` önerilir; toplu link şeması izlenimi verilmez [E] (teyit edilmeli).
-- **Storefront imzası (tek metin):** Storefront ve takip sayfası altbilgisindeki platform imzası her yerde aynen **"Altyapı: Siparişin Önünde"**dir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 "Storefront imzası"; [03](03-musteri-deneyimi-ve-storefront.md) §4.0). Bağlantı `siparisinonunde.com/?src=sf_footer` adresine gider ve `rel="nofollow"` taşır. Site analitiğinde `src = sf_footer` ayrı kaynak olarak izlenir (§C.9). Pazarlama sitesi, reklam ve vaka metinlerinde bu imzanın başka varyantı ("… ile çalışır", "Powered by") kullanılmaz. Basılı materyalde imza yoktur ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §5.3).
+- **Storefront imzası (tek metin):** Storefront ve takip sayfası altbilgisindeki platform imzası her yerde aynen **"Altyapı: Yemek Gelsin"**dir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 "Storefront imzası"; [03](03-musteri-deneyimi-ve-storefront.md) §4.0). Bağlantı `yemekgelsin.net/?src=sf_footer` adresine gider ve `rel="nofollow"` taşır. Site analitiğinde `src = sf_footer` ayrı kaynak olarak izlenir (§C.9). Pazarlama sitesi, reklam ve vaka metinlerinde bu imzanın başka varyantı ("… ile çalışır", "Powered by") kullanılmaz. Basılı materyalde imza yoktur ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §5.3).
 
 ### C.6.2 Anahtar kelime kümeleri (arama hacimleri doğrulanamadı, A05 §6.4)
 | Küme | Örnek sorgular | Hedef sayfa | Faz |
@@ -952,7 +952,7 @@ Rakip marka adları yalnız bilgi amaçlı blog içeriğinde ve §C.8 kuralları
 23. Ramazan 2027 tarihleri (içerik takvimi çapası).
 
 **Proje sahibi kararları ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §13; bu doküman varsayılanla yazıldı)**
-24. **Marka ve alan adı (00 §13 #6):** site, admin ve bayi adresleri `siparisinonunde.com` varsayımıyla yazıldı; marka değişirse §C.2 sayfa haritası, §C.8 metinleri ve künye güncellenir.
+24. **Marka ve alan adı (00 §13 #6, §12a madde 9):** marka "Yemek Gelsin", alan adı `yemekgelsin.net` (alındı); site, admin ve bayi adresleri buna göre yazıldı. Marka tescili açık; ad yeniden değişirse §C.2 sayfa haritası, §C.8 metinleri ve künye güncellenir.
 25. **Pilot şehir/ilçeler (00 §13 #2):** demo formundaki "sıcak lead" kuralı (§C.5.1) ve lead dağıtımı (A-20) bu karara bağlıdır.
 26. **Barındırma sağlayıcısı (00 §13 #4):** "Verilerin Türkiye'de barındırılır" iddiası (§C.3.1, SSS #14) sağlayıcı seçimi ve alt işleyen envanteriyle (A-17) teyit edilmeden yayınlanmaz.
 27. **AI siparişin paketi ve kotası (00 §13 #8):** fiyat sayfasında AI sipariş varsayılan olarak Pro'da "yakında" gösterilir.

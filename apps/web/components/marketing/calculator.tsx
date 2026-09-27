@@ -23,6 +23,7 @@ import {
 } from '@/lib/calculator';
 import { formatLira, formatNumber, formatPercent } from '@/lib/format';
 import { FOUNDER_DISCOUNT, getPlan } from '@/lib/plans';
+import { SITE_NAME } from '@/lib/site';
 import { NumberField } from './number-field';
 
 type Mode = 'quick' | 'breakdown';
@@ -397,8 +398,8 @@ export function Calculator() {
             <Row label="Kendi kanalına teşvik" value={result.incentiveCost} sign="−" />
             <Row label="Kartla tahsilat maliyeti" value={result.cardCost} sign="−" />
             {input.courierModel === 'platform' ? <Row label="Ek kurye maliyeti" value={result.courierCost} sign="−" /> : null}
-            <Row label={`Siparişin Önünde ${getPlan(plan).name}${founder ? ' (kurucu üye)' : ''}`} value={result.subscription} sign="−" />
-            <Row label="Meta’ya tahmini mesaj ücreti" value={result.metaCost} sign="−" />
+            <Row label={`Yemek Gelsin ${getPlan(plan).name}${founder ? ' (kurucu üye)' : ''}`} value={result.subscription} sign="−" />
+            <Row label="Tahmini WhatsApp (Meta) mesaj ücreti" value={result.metaCost} sign="−" />
             <Row label="Net aylık kazanç" value={result.net} sign={result.net < 0 ? '−' : '+'} strong />
           </dl>
         </div>
@@ -428,8 +429,8 @@ export function Calculator() {
           <h3 className="text-sm font-bold uppercase tracking-wider text-fg-muted">Başa baş</h3>
           {result.breakEven ? (
             <p className="mt-2 text-lg text-fg">
-              Ayda <strong className="tabular-nums">{result.breakEven.ordersPerMonth} sipariş</strong> kendi kanalına geçerse Siparişin
-              Önünde kendini amorti eder; yani günde yaklaşık{' '}
+              Ayda <strong className="tabular-nums">{result.breakEven.ordersPerMonth} sipariş</strong> kendi kanalına geçerse{' '}
+              {SITE_NAME} kendini amorti eder; yani günde yaklaşık{' '}
               <strong className="tabular-nums">{formatNumber(result.breakEven.ordersPerDay, 1)}</strong> sipariş.
             </p>
           ) : (
@@ -469,7 +470,7 @@ export function Calculator() {
             <li>Kesinti dökümünü pazaryeri panelinden alabilirsin: kalemler ayrı gösteriliyor.</li>
             <li>Geçiş oranı bir tahmindir, garanti değildir. Müşteri paket içi kart, QR ve doğrudan kanala özel avantajla taşınır.</li>
             <li>KDV mükellefiysen gerçek maliyetin KDV hariç kesintidir; basit usuldeysen KDV dahil tutardır.</li>
-            <li>WhatsApp (Meta) mesaj ücreti abonelik dışındadır; tahmini tutarı ayrı satırda gösterdik.</li>
+            <li>WhatsApp (Meta) mesaj ücretini temkinli olmak için ayrı satırda düştük: kendi numaranı bağlarsan bu ücret kendi Meta hesabından tahsil edilir; ortak numarada pakete yansıtılması henüz kesinleşmedi.</li>
             {input.courierModel === 'platform' ? <li>Kurye sağlamıyoruz; kendi kurye maliyetini ekledik.</li> : null}
             <li>Paketine kart koymadan önce pazaryeri sözleşmendeki yönlendirme maddelerini kontrol et.</li>
           </ul>

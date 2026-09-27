@@ -2,7 +2,8 @@
 // menü, saatler, bölgeler, WhatsApp hesabı, personel, kill-switch'ler ve birkaç geçmiş sipariş; ikinci demo işletme
 // "Çamlık Döner" (Yozgat Merkez, küçük menü, yalnız sahip hesabı). İkisi de ortak numarada (00 §12a madde 8):
 // Bozok #BOZOK, Çamlık Döner #DONER; ortak numara geliştirmede +90 555 000 00 00 (mock). Her işletme ayrı ayrı
-// eklenir (var olan atlanır). Parolalar yalnız geliştirme içindir.
+// eklenir (var olan atlanır). Parolalar yalnız geliştirme içindir: SEED_PASSWORD tanımlıysa tüm demo hesapları onu
+// kullanır (Cloudflare dev ortamında DEV_PASSWORD; 00 §12a madde 9), değilse aşağıdaki yerel parolalar (admin1234 …).
 
 import {
   KILL_SWITCHES,
@@ -25,7 +26,7 @@ import {
   type TenantRole,
   type VerificationMethod,
 } from '@siparis/core';
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { pathToFileURL } from 'node:url';
 import { createDb, type Database } from './client';
 import { nextOrderNumber } from './helpers';
@@ -52,18 +53,18 @@ import {
   users,
   waAccounts,
 } from './schema/index';
-import { hashPasswordForSeed } from './seed-password';
+import { hashPasswordForSeed, resolveSeedPassword, seedPasswordMatches } from './seed-password';
 
 export const DEMO = {
-  admin: { email: 'admin@siparisinonunde.local', password: 'admin1234', name: 'Platform Yöneticisi' },
+  admin: { email: 'admin@yemekgelsin.net', password: 'admin1234', name: 'Platform Yöneticisi' },
   tenantSlug: 'bozok-pide',
   tenantName: 'Bozok Pide Salonu',
   users: [
-    { email: 'demo@siparisinonunde.local', password: 'demo1234', name: 'Mehmet Usta', phone: '+905550000010', role: 'owner' },
-    { email: 'mudur@siparisinonunde.local', password: 'mudur1234', name: 'Hasan Yönetici', phone: '+905550000011', role: 'manager' },
-    { email: 'kasa@siparisinonunde.local', password: 'kasa1234', name: 'Elif Kasa', phone: '+905550000012', role: 'cashier' },
-    { email: 'mutfak@siparisinonunde.local', password: 'mutfak1234', name: 'Mutfak Ekranı', phone: null, role: 'kitchen' },
-    { email: 'kurye@siparisinonunde.local', password: 'kurye1234', name: 'Burak Kurye', phone: '+905550000014', role: 'courier' },
+    { email: 'demo@yemekgelsin.net', password: 'demo1234', name: 'Mehmet Usta', phone: '+905550000010', role: 'owner' },
+    { email: 'mudur@yemekgelsin.net', password: 'mudur1234', name: 'Hasan Yönetici', phone: '+905550000011', role: 'manager' },
+    { email: 'kasa@yemekgelsin.net', password: 'kasa1234', name: 'Elif Kasa', phone: '+905550000012', role: 'cashier' },
+    { email: 'mutfak@yemekgelsin.net', password: 'mutfak1234', name: 'Mutfak Ekranı', phone: null, role: 'kitchen' },
+    { email: 'kurye@yemekgelsin.net', password: 'kurye1234', name: 'Burak Kurye', phone: '+905550000014', role: 'courier' },
   ] as { email: string; password: string; name: string; phone: string | null; role: TenantRole }[],
   /** Ortak numara (00 §12a madde 8): Bozok ve Çamlık Döner aynı platform numarasını kullanır */
   waDisplayPhone: MOCK_SHARED_WA_DISPLAY_PHONE,
@@ -74,8 +75,25 @@ export const DEMO = {
     slug: 'camlik-doner',
     name: 'Çamlık Döner',
     waCode: 'DONER',
-    owner: { email: 'doner@siparisinonunde.local', password: 'doner1234', name: 'Kadir Usta', phone: '+905550000020' },
+    owner: { email: 'doner@yemekgelsin.net', password: 'doner1234', name: 'Kadir Usta', phone: '+905550000020' },
   },
+} as const;
+
+/**
+ * Önceki marka dönemindeki demo hesaplarının e-postaları (00 §12a madde 9 öncesi seed'i; parolaları README'de yayımlıydı:
+ * admin1234, demo1234 …). Eski veri geri yüklenirse (ör. eski DATA_EPOCH'a dönüş) herkese açık sitede varsayılan
+ * parolayla giriş olmasın diye SEED_PASSWORD verildiğinde bunlar da o parolaya eşitlenir (syncDemoPasswords).
+ */
+export const LEGACY_DEMO_EMAILS = {
+  admin: 'admin@siparisinonunde.local',
+  members: [
+    'demo@siparisinonunde.local',
+    'mudur@siparisinonunde.local',
+    'kasa@siparisinonunde.local',
+    'mutfak@siparisinonunde.local',
+    'kurye@siparisinonunde.local',
+    'doner@siparisinonunde.local',
+  ],
 } as const;
 
 export interface SeedResult {
@@ -91,7 +109,59 @@ export interface SeedResult {
 
 type Log = (msg: string) => void;
 
-async function ensureFeatureFlags(tx: Database) {
+export interface SeedOptions {
+  now?: Date;
+  log?: Log;
+  /**
+   * Tüm demo hesaplarının ortak parolası (SEED_PASSWORD, en az 8 karakter). Boşsa her hesap DEMO'daki yerel geliştirme
+   * parolasını kullanır. Doluysa var olan demo hesaplarının parolası da buna eşitlenir (yalnız farklıysa).
+   */
+  password?: string | null;
+  /**
+   * Herkese açık demo dağıtımı (DEPLOY_ENV=dev, Cloudflare; 15 §13). Yeni işletme kaydı (signup_open) kapalı kurulur:
+   * veriler Türkiye dışında tutulur ve tüm sağlayıcılar mock olduğundan gerçek işletme kaydolmamalı. Bayrak yalnız ilk
+   * kurulumda yazılır; platform yöneticisi /admin/bayraklar'dan açabilir, sonraki açılışlar dokunmaz.
+   */
+  demoDeployment?: boolean;
+}
+
+/** Hesabın seed parolası: ortak parola varsa o, yoksa hesabın yerel geliştirme parolası. */
+function demoPassword(opts: SeedOptions, localPassword: string): string {
+  return opts.password || localPassword;
+}
+
+/**
+ * SEED_PASSWORD verildiyse var olan demo hesaplarının parolasını eşitler (yedekten dönen dev ortamında parola
+ * değişince girişler yeni parolayla çalışsın). Yalnız demo hesapları: platform yöneticisi e-postası (platform admini
+ * ise) ve demo işletmelerin (is_demo) üyeleri; aynı e-postayla elle açılmış başka hesaplara dokunulmaz. Önceki marka
+ * döneminin demo e-postaları (LEGACY_DEMO_EMAILS) da eşitlenir: eski yedek dönerse varsayılan parolalar geçmez.
+ */
+async function syncDemoPasswords(tx: Database, password: string, log: Log): Promise<number> {
+  const adminEmails: string[] = [DEMO.admin.email, LEGACY_DEMO_EMAILS.admin];
+  const emails = [...adminEmails, ...DEMO.users.map((u) => u.email), DEMO.doner.owner.email, ...LEGACY_DEMO_EMAILS.members];
+  const rows = await tx
+    .select({ id: users.id, email: users.email, passwordHash: users.passwordHash, isPlatformAdmin: users.isPlatformAdmin })
+    .from(users)
+    .where(inArray(users.email, emails));
+  if (rows.length === 0) return 0;
+  const demoMembers = await tx
+    .select({ userId: memberships.userId })
+    .from(memberships)
+    .innerJoin(tenants, eq(tenants.id, memberships.tenantId))
+    .where(and(inArray(memberships.userId, rows.map((r) => r.id)), eq(tenants.isDemo, true)));
+  const demoUserIds = new Set(demoMembers.map((m) => m.userId));
+  let updated = 0;
+  for (const r of rows) {
+    const isDemoAccount = r.email !== null && adminEmails.includes(r.email) ? r.isPlatformAdmin : demoUserIds.has(r.id);
+    if (!isDemoAccount || (await seedPasswordMatches(password, r.passwordHash))) continue;
+    await tx.update(users).set({ passwordHash: await hashPasswordForSeed(password) }).where(eq(users.id, r.id));
+    updated++;
+  }
+  if (updated > 0) log(`${updated} demo hesabının parolası SEED_PASSWORD ile eşitlendi.`);
+  return updated;
+}
+
+async function ensureFeatureFlags(tx: Database, opts: SeedOptions) {
   const descriptions: Record<string, string> = {
     signup_open: 'Yeni işletme kaydı',
     wa_onboarding: 'WhatsApp bağlama akışı',
@@ -102,7 +172,13 @@ async function ensureFeatureFlags(tx: Database) {
   for (const key of KILL_SWITCHES) {
     await tx
       .insert(featureFlags)
-      .values({ key, enabled: true, kind: 'kill_switch', description: descriptions[key] ?? null })
+      .values({
+        key,
+        // Herkese açık demo dağıtımında yeni kayıt kapalı başlar (SeedOptions.demoDeployment)
+        enabled: !(opts.demoDeployment && key === 'signup_open'),
+        kind: 'kill_switch',
+        description: descriptions[key] ?? null,
+      })
       .onConflictDoNothing();
   }
   await tx
@@ -111,7 +187,7 @@ async function ensureFeatureFlags(tx: Database) {
     .onConflictDoNothing();
 }
 
-async function ensureAdmin(tx: Database): Promise<string> {
+async function ensureAdmin(tx: Database, opts: SeedOptions): Promise<string> {
   const [existing] = await tx.select({ id: users.id }).from(users).where(eq(users.email, DEMO.admin.email));
   if (existing) return existing.id;
   const [row] = await tx
@@ -119,7 +195,7 @@ async function ensureAdmin(tx: Database): Promise<string> {
     .values({
       email: DEMO.admin.email,
       name: DEMO.admin.name,
-      passwordHash: await hashPasswordForSeed(DEMO.admin.password),
+      passwordHash: await hashPasswordForSeed(demoPassword(opts, DEMO.admin.password)),
       isPlatformAdmin: true,
       platformRole: 'platform_owner',
     })
@@ -189,7 +265,7 @@ async function freeWaCode(tx: Database, preferred: string): Promise<string> {
 }
 
 /** İkinci demo işletme: Çamlık Döner (ortak numara #DONER), küçük menü, yalnız sahip hesabı. */
-async function seedDoner(tx: Database, now: Date, log: Log): Promise<string | null> {
+async function seedDoner(tx: Database, now: Date, log: Log, opts: SeedOptions): Promise<string | null> {
   const d = DEMO.doner;
   const [existing] = await tx.select({ id: tenants.id }).from(tenants).where(eq(tenants.slug, d.slug));
   if (existing) {
@@ -250,7 +326,7 @@ async function seedDoner(tx: Database, now: Date, log: Log): Promise<string | nu
 
   const [owner] = await tx
     .insert(users)
-    .values({ email: d.owner.email, phone: d.owner.phone, name: d.owner.name, passwordHash: await hashPasswordForSeed(d.owner.password) })
+    .values({ email: d.owner.email, phone: d.owner.phone, name: d.owner.name, passwordHash: await hashPasswordForSeed(demoPassword(opts, d.owner.password)) })
     .returning({ id: users.id });
   await tx.insert(memberships).values({ tenantId, userId: owner!.id, role: 'owner' });
   await tx.insert(subscriptions).values({ tenantId, planCode: 'esnaf', status: 'trialing', trialEndsAt: tenant!.trialEndsAt, notes: 'Pilot işletme (3 ay ücretsiz)' });
@@ -313,18 +389,19 @@ async function seedDoner(tx: Database, now: Date, log: Log): Promise<string | nu
   return tenantId;
 }
 
-export async function seedDemo(db: Database, opts: { now?: Date; log?: Log } = {}): Promise<SeedResult> {
+export async function seedDemo(db: Database, opts: SeedOptions = {}): Promise<SeedResult> {
   const now = opts.now ?? new Date();
   const log: Log = opts.log ?? (() => {});
 
   return db.transaction(async (tx) => {
-    await ensureFeatureFlags(tx);
-    const adminUserId = await ensureAdmin(tx);
-    const donerTenantId = await seedDoner(tx, now, log);
+    await ensureFeatureFlags(tx, opts);
+    const adminUserId = await ensureAdmin(tx, opts);
+    const donerTenantId = await seedDoner(tx, now, log, opts);
 
     const [existingTenant] = await tx.select({ id: tenants.id }).from(tenants).where(eq(tenants.slug, DEMO.tenantSlug));
     if (existingTenant) {
       log(`"${DEMO.tenantSlug}" zaten var; demo verisi atlandı.`);
+      if (opts.password) await syncDemoPasswords(tx, opts.password, log);
       return { skipped: true, adminUserId, tenantId: existingTenant.id, branchId: null, ownerUserId: null, waAccountId: null, donerTenantId };
     }
 
@@ -379,7 +456,7 @@ export async function seedDemo(db: Database, opts: { now?: Date; log?: Log } = {
     for (const u of DEMO.users) {
       const [row] = await tx
         .insert(users)
-        .values({ email: u.email, phone: u.phone, name: u.name, passwordHash: await hashPasswordForSeed(u.password) })
+        .values({ email: u.email, phone: u.phone, name: u.name, passwordHash: await hashPasswordForSeed(demoPassword(opts, u.password)) })
         .returning({ id: users.id });
       userIds[u.role] = row!.id;
       await tx.insert(memberships).values({ tenantId, userId: row!.id, role: u.role });
@@ -806,6 +883,8 @@ export async function seedDemo(db: Database, opts: { now?: Date; log?: Log } = {
     }
 
     log(`Demo işletme oluşturuldu: ${DEMO.tenantName} (${DEMO.tenantSlug}, #${DEMO.waCode}), ${past.length} geçmiş sipariş.`);
+    // Bozok yeni ama Çamlık Döner yedekten dönmüş olabilir
+    if (opts.password) await syncDemoPasswords(tx, opts.password, log);
     return { skipped: false, adminUserId, tenantId, branchId, ownerUserId, waAccountId: wa!.id, donerTenantId };
   });
 }
@@ -816,15 +895,21 @@ async function main() {
     console.error('DATABASE_URL tanımlı değil (.env).');
     process.exit(1);
   }
+  // Ortak demo parolası (Cloudflare dev: DEV_PASSWORD). Tanımlıysa loga yazılmaz.
+  const password = resolveSeedPassword(process.env.SEED_PASSWORD);
+  const shown = (local: string) => (password ? 'SEED_PASSWORD' : local);
+  // Cloudflare demo dağıtımı (15 §13): yeni işletme kaydı kapalı başlar
+  const demoDeployment = process.env.DEPLOY_ENV === 'dev';
   const handle = createDb(url, { max: 2 });
   try {
-    const res = await seedDemo(handle.db, { log: (m) => console.log(m) });
+    const res = await seedDemo(handle.db, { log: (m) => console.log(m), password, demoDeployment });
+    if (demoDeployment) console.log('Demo dağıtımı: yeni işletme kaydı (signup_open) ilk kurulumda kapalı.');
     if (!res.skipped) {
       console.log('Girişler (yalnız geliştirme):');
-      console.log(`  Platform admini : ${DEMO.admin.email} / ${DEMO.admin.password}`);
-      for (const u of DEMO.users) console.log(`  ${u.role.padEnd(15)} : ${u.email} / ${u.password}`);
+      console.log(`  Platform admini : ${DEMO.admin.email} / ${shown(DEMO.admin.password)}`);
+      for (const u of DEMO.users) console.log(`  ${u.role.padEnd(15)} : ${u.email} / ${shown(u.password)}`);
       console.log(`  Storefront      : /s/${DEMO.tenantSlug}`);
-      console.log(`  ${DEMO.doner.name.padEnd(15)} : ${DEMO.doner.owner.email} / ${DEMO.doner.owner.password} (/s/${DEMO.doner.slug})`);
+      console.log(`  ${DEMO.doner.name.padEnd(15)} : ${DEMO.doner.owner.email} / ${shown(DEMO.doner.owner.password)} (/s/${DEMO.doner.slug})`);
       console.log(`  Ortak numara    : ${DEMO.waDisplayPhone} (mock) — dükkan kodları #${DEMO.waCode}, #${DEMO.doner.waCode}`);
     }
   } finally {

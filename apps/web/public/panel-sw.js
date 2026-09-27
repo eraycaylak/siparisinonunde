@@ -1,4 +1,4 @@
-// Siparişin Önünde — işletme paneli service worker'ı (00 §10 alarm t=0 "ses + Web Push", 04 §4.5).
+// Yemek Gelsin — işletme paneli service worker'ı (00 §10 alarm t=0 "ses + Web Push", 04 §4.5).
 // Yalnız bildirim işler: önbellek, çevrimdışı sayfa ve fetch yakalama yoktur (panel her zaman ağdan yüklenir).
 // Kayıt: components/push/push-client.ts → register('/panel-sw.js', { scope: '/panel/', updateViaCache: 'none' }).
 // Yük (API services/push/send.ts): { kind, title, body, url, tag, orderId } — müşteri adı/telefonu/adresi yoktur.

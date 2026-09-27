@@ -71,7 +71,7 @@ export const configSchema = z.object({
     message: 'VAPID_PRIVATE_KEY base64url biçiminde olmalı (npx web-push generate-vapid-keys)',
   }),
   VAPID_SUBJECT: optionalString.refine((v) => v === undefined || /^(mailto:\S+@\S+|https:\/\/\S+)$/.test(v), {
-    message: 'VAPID_SUBJECT mailto: ya da https:// ile başlamalı (ör. mailto:destek@siparisinonunde.com)',
+    message: 'VAPID_SUBJECT mailto: ya da https:// ile başlamalı (ör. mailto:destek@yemekgelsin.net)',
   }),
   DEV_TOOLS: bool01.default(false),
   /**

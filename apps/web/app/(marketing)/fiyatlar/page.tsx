@@ -61,16 +61,21 @@ export default function PricingPage() {
             Fiyatlara KDV (%{VAT_RATE * 100}) dahil değildir; KDV dahil tutar her fiyatın altında yazar.
           </p>
           <p>
-            <strong>WhatsApp (Meta) mesaj ücretleri abonelik fiyatına dahil değildir; işletmenin kendi Meta hesabından tahsil edilir.</strong>{' '}
-            Her numarada ayda ilk 1.000 servis mesajı ücretsizdir. Günde 30 siparişte tahmini tutar ayda yaklaşık 113–152 TL’dir (kura ve Meta
-            tarifesine göre değişir).
+            <strong>WhatsApp hattı:</strong> Varsayılan olarak siparişlerini ortak {SITE_NAME} numarasından, sana özel dükkan kodu ve QR ile
+            alırsın; numara bağlaman, Meta hesabı açman ya da kart tanımlaman gerekmez. Ortak numaradaki WhatsApp (Meta) mesaj ücretlerinin pakete
+            yansıtılıp yansıtılmayacağı henüz kesinleşmedi; değişirse önceden bildiririz.
+          </p>
+          <p>
+            <strong>Kendi numaran (isteğe bağlı):</strong> Kendi WhatsApp numaranı bağlarsan Meta mesaj ücretleri abonelik fiyatına dahil
+            değildir; kendi Meta hesabından tahsil edilir. Her numarada ayda ilk 1.000 servis mesajı ücretsizdir. Günde 30 siparişte tahmini
+            tutar ayda yaklaşık 113–152 TL’dir (kura ve Meta tarifesine göre değişir).
           </p>
           <p>
             <strong>Kurucu üye (ilk {FOUNDER_SLOTS} işletme):</strong> {FOUNDER_MONTHS} ay boyunca liste fiyatından %{FOUNDER_DISCOUNT * 100}{' '}
             indirim. İndirim oranı sabittir; liste fiyatı yıllık TÜFE güncellemesine tabidir.
           </p>
           <p>
-            <strong>Biz kuralım:</strong> menün, WhatsApp bağlantın, QR stand ve paket kartı tasarımın bizden. {formatLira(SETUP_FEE_TL)} + KDV (
+            <strong>Biz kuralım:</strong> menün, QR stand ve paket kartı tasarımın bizden. {formatLira(SETUP_FEE_TL)} + KDV (
             {formatLira(withVat(SETUP_FEE_TL))}) tek sefer; ilk {FOUNDER_SLOTS} işletmeye ücretsiz.
           </p>
           <p>
@@ -78,8 +83,8 @@ export default function PricingPage() {
             Zincir’de şube başına 300 SMS’e kadar (adil kullanım). Aşımda seni uyarırız.
           </p>
           <p>
-            {TRIAL_DAYS} gün ücretsiz dene, bize kart verme. WhatsApp mesajlarının gitmesi için WhatsApp hesabına ödeme yöntemi eklemen gerekir;
-            bu Meta’nın kuralıdır.
+            {TRIAL_DAYS} gün ücretsiz dene, bize kart verme. Ortak numarayla denemede de kart gerekmez; kendi numaranı bağlarsan Meta, WhatsApp
+            hesabına ödeme yöntemi eklemeni ister.
           </p>
           <p className="text-fg-muted">Zincir paketi çoklu şube özelliğiyle birlikte satışa açılır; 5 ve üzeri şube için özel teklif veririz.</p>
         </div>

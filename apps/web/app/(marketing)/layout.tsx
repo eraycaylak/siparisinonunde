@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { DemoNotice } from '@/components/common/demo-notice';
 import { SiteFooter } from '@/components/marketing/site-footer';
 import { SiteHeader } from '@/components/marketing/site-header';
 
@@ -11,6 +12,7 @@ export default function MarketingLayout({ children }: { children: ReactNode }) {
       >
         İçeriğe geç
       </a>
+      <DemoNotice />
       <SiteHeader />
       <main id="icerik" className="flex-1" tabIndex={-1}>
         {children}

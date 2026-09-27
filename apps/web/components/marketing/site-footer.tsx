@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { Logo } from '@/components/brand/logo';
-import { LEGAL_ENTITY, LEGAL_NAV, MARKETING_NAV, PILOT_AREA, SITE_TAGLINE } from '@/lib/site';
+import { LEGAL_ENTITY, LEGAL_NAV, MARKETING_NAV, PILOT_AREA, SITE_NAME, SITE_TAGLINE } from '@/lib/site';
 
 /** Altbilgi: ürün ve yasal bağlantılar, künye özeti, Meta ücreti notu (05 C.3.1). */
 export function SiteFooter() {
@@ -14,7 +14,8 @@ export function SiteFooter() {
             {SITE_TAGLINE} Komisyonsuz, WhatsApp’tan. Pilot bölge: {PILOT_AREA.city} / {PILOT_AREA.district}.
           </p>
           <p className="max-w-sm text-sm text-fg-muted">
-            WhatsApp (Meta) mesaj ücretleri abonelik fiyatına dahil değildir; işletmenin kendi Meta hesabından tahsil edilir.
+            Siparişler varsayılan olarak ortak {SITE_NAME} WhatsApp numarasından gelir. Kendi numaranı bağlarsan WhatsApp (Meta) mesaj
+            ücretleri kendi Meta hesabından tahsil edilir.
           </p>
         </div>
         <nav aria-label="Ürün" className="flex flex-col gap-1">

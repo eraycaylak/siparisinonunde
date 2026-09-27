@@ -52,11 +52,11 @@ Süreler **bizim tahminimizdir**; Meta inceleme süreleri resmi olarak taahhüt 
 | ☐ | Adım | Sorumlu | Tahmini süre | Çıktı / bitti tanımı |
 |---|---|---|---|---|
 | ☐ | Şirket kuruluşu, vergi levhası, ticaret sicil/faaliyet belgesi | Kurucu + mali müşavir | 1–2 hafta | Resmi ünvan ve adres, belgeler PDF ([08](08-mevzuat-kvkk-odeme-fatura.md)) |
-| ☐ | `siparisinonunde.com` yayında: gizlilik politikası, kullanım koşulları, veri silme talimatı sayfası, kurumsal e-posta (`@siparisinonunde.com`) | Kurucu + teknik lider | 2–3 gün | URL'ler 200 dönüyor; ünvan/adres sitede görünür |
+| ☐ | `yemekgelsin.net` yayında: gizlilik politikası, kullanım koşulları, veri silme talimatı sayfası, kurumsal e-posta (`@yemekgelsin.net`) | Kurucu + teknik lider | 2–3 gün | URL'ler 200 dönüyor; ünvan/adres sitede görünür |
 | ☐ | Meta **Business Portfolio** (şirket adına, 2 yönetici) | Kurucu | 1 saat | Portfolio ID kayıtlı |
 | ☐ | **Business Verification** başvurusu (ünvan, adres, telefon, e-posta, web sitesi; gerekirse belge yükleme) | Kurucu | Başvuru 1 gün; inceleme birkaç gün–2 hafta | "Verified" rozeti. Türkiye'de pratikte vergi levhası, sicil/faaliyet belgesi ve alan adlı e-posta istenir (A01 §1.3, teyit edilmeli) |
 | ☐ | **Meta App** ("Business" tipi), WhatsApp ürünü, ikon, gizlilik URL'si, kategori | Teknik lider | 1 gün | App ID; App Secret secret manager'da |
-| ☐ | Uygulama seviyesinde **webhook**: callback `https://hooks.siparisinonunde.com/wa`, verify token, alan abonelikleri (§7.9) | Teknik lider | 1 gün | GET doğrulaması başarılı, test olayı ingress'e düşüyor |
+| ☐ | Uygulama seviyesinde **webhook**: callback `https://hooks.yemekgelsin.net/wa`, verify token, alan abonelikleri (§7.9) | Teknik lider | 1 gün | GET doğrulaması başarılı, test olayı ingress'e düşüyor |
 | ☐ | **Tech Provider** kaydı (App Dashboard → WhatsApp → Tech Provider adımları) | Teknik lider | 1 gün + Meta onayı | Tech Provider durumu aktif |
 | ☐ | **ES v4 yapılandırması** (§2.3) | Teknik lider | 1 gün | `config_id` ortam değişkeninde |
 | ☐ | **Demo ortamı** (inceleme için): ES ile bağlanma, panelden mesaj gönderme, panelden şablon oluşturma | Geliştirici | 1–2 hafta (Faz 1 ilk sprintleri) | Aşağıdaki video senaryoları kesintisiz çalışıyor |
@@ -72,7 +72,7 @@ Süreler **bizim tahminimizdir**; Meta inceleme süreleri resmi olarak taahhüt 
 - Facebook Login for Business → **"WhatsApp Embedded Signup" konfigürasyonu** oluştur → `config_id` al (A01 §2.2).
   - İzinler: `whatsapp_business_management`, `whatsapp_business_messaging` (+ gerekirse `business_management`).
   - Token süresi: mümkünse süresiz; konfigürasyon adlarında "60 gün" ifadesi görülüyor (A01 §2.3 [?], teyit edilmeli). Süreli seçilirse §7.8'deki yenileme alarmı zorunlu.
-- **Client OAuth ayarları:** JS SDK ile giriş açık, HTTPS zorunlu, **Allowed Domains:** `panel.siparisinonunde.com` (+ staging: `panel.staging.siparisinonunde.com`), **Valid OAuth Redirect URIs:** `https://panel.siparisinonunde.com/wa/connect`. Ortamlar: prod ve staging için ayrı Meta App (ayrı App Secret, ayrı webhook). Staging uygulaması Development modda kalır.
+- **Client OAuth ayarları:** JS SDK ile giriş açık, HTTPS zorunlu, **Allowed Domains:** `panel.yemekgelsin.net` (+ staging: `panel.staging.yemekgelsin.net`), **Valid OAuth Redirect URIs:** `https://panel.yemekgelsin.net/wa/connect`. Ortamlar: prod ve staging için ayrı Meta App (ayrı App Secret, ayrı webhook). Staging uygulaması Development modda kalır.
 - ES v2 8 Ekim 2026'da kalkıyor; kodda yalnız v4 akışı. v4'e özgü `extras` alanları (örn. sürüm parametresi) resmi dokümandan teyit edilmeli.
 
 ### 2.4 App Review video senaryoları
@@ -80,7 +80,7 @@ Süreler **bizim tahminimizdir**; Meta inceleme süreleri resmi olarak taahhüt 
 Meta iki kanıt istiyor: (a) uygulamamızdan gönderilen mesajın WhatsApp istemcisinde alınması, (b) uygulamamızdan şablon oluşturulması (A01 §1.3). Ekran kaydı tek parça, kesintisiz; telefon ekranı ikinci pencerede (scrcpy vb.) görünür.
 
 **Video 1 — `whatsapp_business_messaging` (≈2 dk)**
-1. `panel.siparisinonunde.com`'a demo işletme hesabıyla giriş; Ayarlar → WhatsApp'ta numara "Bağlı" görünür.
+1. `panel.yemekgelsin.net`'a demo işletme hesabıyla giriş; Ayarlar → WhatsApp'ta numara "Bağlı" görünür.
 2. Telefondan (test müşteri) işletme numarasına "Merhaba" yazılır.
 3. Panelde mesaj sohbet kutusunda belirir (webhook kanıtı); bot karşılaması ve "Menüyü aç" butonu telefonda görünür.
 4. Panelden operatör serbest yanıt yazar → telefonda alınır.
@@ -116,7 +116,7 @@ sequenceDiagram
   participant M as Meta ES v4 penceresi
   participant A as API (onboarding servisi)
   participant G as Graph API
-  participant H as hooks.siparisinonunde.com/wa
+  participant H as hooks.yemekgelsin.net/wa
   E->>P: "WhatsApp'ı Bağla" + yol seçimi + geçmiş aktarımı tercihi
   P->>M: FB.login(config_id, response_type=code, featureType?)
   E->>M: Portföy seç/oluştur → WABA → numara / WA Business uygulamasında onay
@@ -389,7 +389,7 @@ Varsayım: Akış A, sipariş başına 5 service mesajı (karşılama + 4 durum;
 - Platform bir **ana şablon seti** tutar (ad, sürüm, kategori, gövde, değişken şeması, butonlar). Onboarding'de her tenant WABA'sında programatik oluşturulur; onay her WABA'da ayrı yürür.
 - Ad biçimi: `snake_case` + sürüm eki (`_v1`). Metin değişikliği = yeni sürüm (eski sürüm onaylı kaldıkça kullanılmaya devam eder).
 - Dil: `tr`. Değişkenler konumsal (`{{1}}`). Meta'nın gövdenin değişkenle başlamasını/bitmesini ve değişken/metin oranının yüksek olmasını reddedebildiği bilinir (teyit edilmeli); metinler buna göre yazıldı.
-- URL butonlarında taban adres tenant'a özeldir (`https://{slug}.siparisinonunde.com/t/{{1}}`); slug değişirse ilgili şablonlar yeni sürümle yeniden oluşturulur.
+- URL butonlarında taban adres tenant'a özeldir (`https://{slug}.yemekgelsin.net/t/{{1}}`); slug değişirse ilgili şablonlar yeni sürümle yeniden oluşturulur.
 - Boş değişken gönderilmez: müşteri adı bilinmiyorsa `{{1}}` = "değerli müşterimiz". URL butonunun değişkeni gövdeden bağımsızdır (takip token'ı).
 - **Durum şablonları saf bilgilendirmedir:** promosyon dili, indirim/kupon kodu ve takip linki dışında URL içeremez (Meta promosyonlu utility'yi marketing'e de çevirir, A01 §5). Şablon editörü (panel/admin) bunu sunucu tarafında engeller: yasaklı ifade listesi ("indirim", "kampanya", "fırsat", "kupon", "hediye"…) + kupon kodu kalıbı + URL beyaz listesi; ihlalde kaydetmez. Aynı kontrol, işletmenin özelleştirdiği pencere içi durum metinlerine de uygulanır.
 - Şablon limiti: doğrulanmamış portföyde WABA başına 250, doğrulanmışta 6.000 (A01 §5) — setimiz bunun çok altında.
@@ -451,13 +451,13 @@ Bu şablonlar **yalnız pencere dışında** kullanılır (§4.4). Pencere için
 
 ### 5.3 Platform WABA'sı şablonları (işletmeye ve kuryeye)
 
-**[Faz 1]** Ayrı bir **platform WhatsApp numarasından** (kendi portföyümüzdeki WABA, Cloud API, görünen ad "Siparişin Önünde") işletme sahibi/personelinin ve kuryenin kişisel numarasına gider; kademeli alarmın 3. basamağıdır (§10.3). Onboarding'de `owner`'dan açık onay alınır ("Kritik uyarıları WhatsApp'tan almak istiyorum"); `manager` kendi profilinden katılabilir. Kurye için onay, `owner`/`manager` kuryeyi eklerken işaretlenir ("Kurye giriş linkini WhatsApp'tan almayı kabul etti"); yoksa link SMS ile gider. Ücret bizim WABA'mızdan çıkar; gönderimler `notifications` tablosuna (`channel = 'platform_wa'`) yazılır. WhatsApp'a ulaşılamazsa (şablon `failed`, onay yok) aynı uyarı e-posta ve SMS ile gider (SMS sağlayıcısı → [06](06-teknik-mimari.md)); yeni sipariş alarmında bu yedek yalnız e-postadır, SMS zincirin t=5 dk basamağında gider (§10.3). **Meta/WhatsApp genel kesintisinde** platform şablonları kullanılmaz; SMS + e-posta + panel duyuru bandı kullanılır ([10](10-riskler-operasyon-ve-metrikler.md) §6.3). **Destek hattı ([00](00-kararlar-ve-sozluk.md) §4):** aynı platform numarası işletmelerin destek WhatsApp'ıdır; işletmelerden gelen mesajlar ve işletme sahibinin uyarı şablonlarına verdiği yanıtlar admin panelindeki destek gelen kutusuna düşer ([05](05-admin-paneli-ve-pazarlama-sitesi.md) A-10). Bu kutu aynı konuşma motorunu (§6) kullanır; platform kendi "platform" tenant'ıdır, sipariş akışı ve müşteri karşılaması bu tenant'ta kapalıdır. Kill-switch adları yalnız [00](00-kararlar-ve-sozluk.md) §4'teki listedir (`signup_open`, `wa_onboarding`, `campaigns_global`, `llm_parsing`, `sms_fallback`, tenant bazında `ordering_enabled`); platform şablonları için ayrı bir kill-switch tanımlanmaz; Meta/WhatsApp kesintisinde platform şablonlarını durduran `platform_wa_alerts` olağan bir `ops` feature flag'idir ([06](06-teknik-mimari.md) §16.6, [10](10-riskler-operasyon-ve-metrikler.md) §6.6).
+**[Faz 1]** Ayrı bir **platform WhatsApp numarasından** (kendi portföyümüzdeki WABA, Cloud API, görünen ad "Yemek Gelsin") işletme sahibi/personelinin ve kuryenin kişisel numarasına gider; kademeli alarmın 3. basamağıdır (§10.3). Onboarding'de `owner`'dan açık onay alınır ("Kritik uyarıları WhatsApp'tan almak istiyorum"); `manager` kendi profilinden katılabilir. Kurye için onay, `owner`/`manager` kuryeyi eklerken işaretlenir ("Kurye giriş linkini WhatsApp'tan almayı kabul etti"); yoksa link SMS ile gider. Ücret bizim WABA'mızdan çıkar; gönderimler `notifications` tablosuna (`channel = 'platform_wa'`) yazılır. WhatsApp'a ulaşılamazsa (şablon `failed`, onay yok) aynı uyarı e-posta ve SMS ile gider (SMS sağlayıcısı → [06](06-teknik-mimari.md)); yeni sipariş alarmında bu yedek yalnız e-postadır, SMS zincirin t=5 dk basamağında gider (§10.3). **Meta/WhatsApp genel kesintisinde** platform şablonları kullanılmaz; SMS + e-posta + panel duyuru bandı kullanılır ([10](10-riskler-operasyon-ve-metrikler.md) §6.3). **Destek hattı ([00](00-kararlar-ve-sozluk.md) §4):** aynı platform numarası işletmelerin destek WhatsApp'ıdır; işletmelerden gelen mesajlar ve işletme sahibinin uyarı şablonlarına verdiği yanıtlar admin panelindeki destek gelen kutusuna düşer ([05](05-admin-paneli-ve-pazarlama-sitesi.md) A-10). Bu kutu aynı konuşma motorunu (§6) kullanır; platform kendi "platform" tenant'ıdır, sipariş akışı ve müşteri karşılaması bu tenant'ta kapalıdır. Kill-switch adları yalnız [00](00-kararlar-ve-sozluk.md) §4'teki listedir (`signup_open`, `wa_onboarding`, `campaigns_global`, `llm_parsing`, `sms_fallback`, tenant bazında `ordering_enabled`); platform şablonları için ayrı bir kill-switch tanımlanmaz; Meta/WhatsApp kesintisinde platform şablonlarını durduran `platform_wa_alerts` olağan bir `ops` feature flag'idir ([06](06-teknik-mimari.md) §16.6, [10](10-riskler-operasyon-ve-metrikler.md) §6.6).
 
 | Ad | Kategori | Değişkenler | Buton | Tetik |
 |---|---|---|---|---|
-| `isletme_yeni_siparis_v1` | Utility | 1 işletme adı, 2 sipariş no, 3 bekleme dk, 4 tutar | URL "Siparişi aç" → `panel.siparisinonunde.com/o/{{1}}` | `new` 2 dk onaylanmadı (§10.3 basamak 3); bekleyen ret varsa gitmez; `onboarding_test` siparişinde `{{2}}` = "TEST #1001" (aşağıdaki notlar) |
-| `isletme_panel_cevrimdisi_v1` | Utility | 1 şube adı, 2 dakika | URL "Paneli aç" → `panel.siparisinonunde.com` | Panel çevrimdışı dedektörü: şube açıkken sesi açık ve nabız gönderen hiç cihaz yok ([06](06-teknik-mimari.md) §7.7); 30 dk'da en fazla 1, SMS ile birlikte |
-| `kurye_giris_v1` | Utility (risk: Meta authentication sayabilir, teyit edilmeli) | 1 işletme adı | URL "Kurye ekranını aç" → `panel.siparisinonunde.com/kurye/giris?t={{1}}` (tek kullanımlık token) | `owner`/`manager` panelde kurye için "Giriş linki gönder" ([04](04-isletme-paneli.md) P-24); kurye oturumu 12 saat (vardiya, [00](00-kararlar-ve-sozluk.md) §4) |
+| `isletme_yeni_siparis_v1` | Utility | 1 işletme adı, 2 sipariş no, 3 bekleme dk, 4 tutar | URL "Siparişi aç" → `panel.yemekgelsin.net/o/{{1}}` | `new` 2 dk onaylanmadı (§10.3 basamak 3); bekleyen ret varsa gitmez; `onboarding_test` siparişinde `{{2}}` = "TEST #1001" (aşağıdaki notlar) |
+| `isletme_panel_cevrimdisi_v1` | Utility | 1 şube adı, 2 dakika | URL "Paneli aç" → `panel.yemekgelsin.net` | Panel çevrimdışı dedektörü: şube açıkken sesi açık ve nabız gönderen hiç cihaz yok ([06](06-teknik-mimari.md) §7.7); 30 dk'da en fazla 1, SMS ile birlikte |
+| `kurye_giris_v1` | Utility (risk: Meta authentication sayabilir, teyit edilmeli) | 1 işletme adı | URL "Kurye ekranını aç" → `panel.yemekgelsin.net/kurye/giris?t={{1}}` (tek kullanımlık token) | `owner`/`manager` panelde kurye için "Giriş linki gönder" ([04](04-isletme-paneli.md) P-24); kurye oturumu 12 saat (vardiya, [00](00-kararlar-ve-sozluk.md) §4) |
 | `isletme_baglanti_sorunu_v1` | Utility | 1 işletme adı, 2 sorun özeti | URL "Yeniden bağlan" | Token 190, Coexistence kopması, abonelik iptali |
 | `isletme_meta_odeme_v1` | Utility | 1 işletme adı | URL "Rehberi aç" | 131042 |
 | `isletme_kalite_uyari_v1` | Utility | 1 işletme adı, 2 kalite durumu | URL "Ayrıntılar" | Kalite `YELLOW`/`RED` |
@@ -467,7 +467,7 @@ Bu şablonlar **yalnız pencere dışında** kullanılır (§4.4). Pencere için
 | `abonelik_odeme_hatirlatma_v1` | Utility | 1 paket adı, 2 tutar, 3 tarih | URL "Faturalarım" | Yenilemeden 3 gün önce [Faz 2] |
 | `abonelik_odeme_basarisiz_v1` | Utility | 1 paket adı, 2 tutar, 3 son tarih | URL "Ödeme bilgisini güncelle" | Tahsilat başarısız: G (ödeme günü) ve G+1/G+3/G+7 yeniden denemeleri başarısız oldukça; `{{3}}` = salt-okunur moda geçiş tarihi (G+10). Sonraki adımlar: G+21 askıya alma, G+75 hesap kapatma ([00](00-kararlar-ve-sozluk.md) §9) [Faz 2] |
 | `deneme_bitiyor_v1` | Utility (risk: marketing'e çevrilebilir) | 1 bitiş tarihi, 2 alınan sipariş sayısı | URL "Paketimi seç" | Denemenin 12. günü [Faz 2] |
-| `hesap_sonucu_v1` [T] | Utility (risk: marketing'e çevrilebilir, teyit edilmeli) | 1 aylık kesinti (TL), 2 başa baş sipariş sayısı | URL "Hesabı gör" → `siparisinonunde.com/komisyon-hesaplayici?…` (kişisel veri içermeyen parametreli link) | Pazarlama sitesindeki hesaplayıcıda aday işletmenin "Bu hesabı WhatsApp'ıma gönder" isteği ve işaretsiz WhatsApp opt-in kutusu ([05](05-admin-paneli-ve-pazarlama-sitesi.md) §C.4.5) [Faz 1]; marketing'e çevrilirse gönderilmez, e-posta varsayılan olur |
+| `hesap_sonucu_v1` [T] | Utility (risk: marketing'e çevrilebilir, teyit edilmeli) | 1 aylık kesinti (TL), 2 başa baş sipariş sayısı | URL "Hesabı gör" → `yemekgelsin.net/komisyon-hesaplayici?…` (kişisel veri içermeyen parametreli link) | Pazarlama sitesindeki hesaplayıcıda aday işletmenin "Bu hesabı WhatsApp'ıma gönder" isteği ve işaretsiz WhatsApp opt-in kutusu ([05](05-admin-paneli-ve-pazarlama-sitesi.md) §C.4.5) [Faz 1]; marketing'e çevrilirse gönderilmez, e-posta varsayılan olur |
 
 Metinler:
 - **`isletme_yeni_siparis_v1`** — "Yeni sipariş onay bekliyor. İşletme: {{1}}, sipariş no: {{2}}, bekleme: {{3}} dakika, tutar: {{4}}. Müşteriniz beklemesin, panelden onaylayın ya da reddedin."
@@ -476,17 +476,17 @@ Metinler:
 - **`isletme_baglanti_sorunu_v1`** — "Dikkat: {{1}} WhatsApp bağlantısında sorun var ({{2}}). Çözülene kadar müşterilerinize mesaj gitmeyebilir. Panelde \"Yeniden bağlan\" adımını tamamlayın."
 - **`isletme_meta_odeme_v1`** — "Dikkat: {{1}} WhatsApp hesabında Meta ödeme yöntemi eksik veya geçersiz. Müşterilerinize giden mesajlar durdu. Meta hesabınıza geçerli bir kart ekleyin; adım adım rehber panelde."
 - **`isletme_kalite_uyari_v1`** — "Bilgilendirme: {{1}} WhatsApp numaranızın kalite durumu {{2}} oldu. Numaranızı korumak için izinsiz toplu mesajdan kaçının; ayrıntılar panelde."
-- **`platform_planli_bakim_v1`** — "Siparişin Önünde planlı bakım bilgilendirmesi: {{1}} tarihinde saat {{2}} itibarıyla yaklaşık {{3}} dakikalık bakım çalışması yapılacak. Siparişlerinize etkisi: {{4}}. Ayrıntıları aşağıdaki bağlantıdan görebilirsiniz."
-- **`platform_hizmet_bildirimi_v1`** — "Siparişin Önünde bilgilendirme: Bugün saat {{1}} itibarıyla {{2}} yaşanıyor. Siparişlerinize etkisi: {{3}}. Ekibimiz sorunu çözmek için çalışıyor; bir sonraki bilgiyi en geç saat {{4}} itibarıyla vereceğiz."
-- **`platform_hizmet_duzeldi_v1`** — "Siparişin Önünde bilgilendirme: {{1}} saat {{2}} itibarıyla giderildi. Sizden ricamız: {{3}}. Yaşattığımız aksaklık için özür dileriz."
-- **`abonelik_odeme_hatirlatma_v1`** — "Siparişin Önünde {{1}} paketinizin {{2}} tutarındaki ödemesi {{3}} tarihinde alınacak. Fatura ve ödeme bilgilerinizi panelden görebilirsiniz."
+- **`platform_planli_bakim_v1`** — "Yemek Gelsin planlı bakım bilgilendirmesi: {{1}} tarihinde saat {{2}} itibarıyla yaklaşık {{3}} dakikalık bakım çalışması yapılacak. Siparişlerinize etkisi: {{4}}. Ayrıntıları aşağıdaki bağlantıdan görebilirsiniz."
+- **`platform_hizmet_bildirimi_v1`** — "Yemek Gelsin bilgilendirme: Bugün saat {{1}} itibarıyla {{2}} yaşanıyor. Siparişlerinize etkisi: {{3}}. Ekibimiz sorunu çözmek için çalışıyor; bir sonraki bilgiyi en geç saat {{4}} itibarıyla vereceğiz."
+- **`platform_hizmet_duzeldi_v1`** — "Yemek Gelsin bilgilendirme: {{1}} saat {{2}} itibarıyla giderildi. Sizden ricamız: {{3}}. Yaşattığımız aksaklık için özür dileriz."
+- **`abonelik_odeme_hatirlatma_v1`** — "Yemek Gelsin {{1}} paketinizin {{2}} tutarındaki ödemesi {{3}} tarihinde alınacak. Fatura ve ödeme bilgilerinizi panelden görebilirsiniz."
 - **`abonelik_odeme_basarisiz_v1`** — "Ödemeniz alınamadı. {{1}} paketinizin {{2}} tutarındaki ödemesi başarısız oldu. Hizmetinizin kesintisiz sürmesi için {{3}} tarihine kadar ödeme bilginizi güncelleyin."
 - **`deneme_bitiyor_v1`** — "Deneme süreniz {{1}} tarihinde bitiyor. Bu sürede kendi kanalınızdan {{2}} sipariş aldınız. Kesintisiz devam etmek için panelden paketinizi seçin."
 - **`hesap_sonucu_v1`** — "İstediğiniz komisyon hesabı hazır. Girdiğiniz bilgilere göre pazaryerine aylık kesintiniz yaklaşık {{1}} TL; ayda {{2}} sipariş kendi kanalınıza geçerse abonelik kendini amorti eder. Ayrıntılar aşağıdaki bağlantıda."
 
 **Notlar:**
 - **Kurye giriş linki:** Meta, giriş/doğrulama amaçlı içeriği authentication kategorisine çevirebilir; authentication şablonları URL butonu taşımaz, yalnız kod gönderir. Şablon reddedilir veya kategori değişirse yedek: kurye ekranında 6 haneli kod girişi ile authentication şablonu (telefona gönderilir) ya da doğrudan SMS (`sms_messages.purpose = 'courier_login'`). Link tek kullanımlıktır ve 15 dk içinde açılmalıdır; açılan kurye oturumu 12 saat (vardiya) sürer ([00](00-kararlar-ve-sozluk.md) §4, [06](06-teknik-mimari.md) §6.4).
-- **Olay duyuruları:** Admin panelindeki olay kaydından tetiklenir, yalnız etkilenen tenant'lara ve platform bildirim onayı olan `owner`'lara gider; aynı olay için ilk duyuru + en fazla bir güncelleme + "çözüldü" (spam ve kalite koruması). SEV1'de SMS her durumda ek olarak gider. Paralel olarak panelde duyuru bandı (SSE `announcement` olayı) ve e-posta çıkar. "Durumu gör" butonu `status.siparisinonunde.com` durum sayfasına açılır; sayfa Faz 2'de tam haliyle gelir, pilot öncesi basit sürüm önerisi [10](10-riskler-operasyon-ve-metrikler.md) §6.4'tedir. Tanıtım/sürüm notu duyuruları WhatsApp'tan gönderilmez ([05](05-admin-paneli-ve-pazarlama-sitesi.md)).
+- **Olay duyuruları:** Admin panelindeki olay kaydından tetiklenir, yalnız etkilenen tenant'lara ve platform bildirim onayı olan `owner`'lara gider; aynı olay için ilk duyuru + en fazla bir güncelleme + "çözüldü" (spam ve kalite koruması). SEV1'de SMS her durumda ek olarak gider. Paralel olarak panelde duyuru bandı (SSE `announcement` olayı) ve e-posta çıkar. "Durumu gör" butonu `status.yemekgelsin.net` durum sayfasına açılır; sayfa Faz 2'de tam haliyle gelir, pilot öncesi basit sürüm önerisi [10](10-riskler-operasyon-ve-metrikler.md) §6.4'tedir. Tanıtım/sürüm notu duyuruları WhatsApp'tan gönderilmez ([05](05-admin-paneli-ve-pazarlama-sitesi.md)).
 - **Test siparişinde `isletme_yeni_siparis_v1` ([00](00-kararlar-ve-sozluk.md) §7 "Test siparişlerinde alarm"; [06](06-teknik-mimari.md) §7.6, [07](07-veri-modeli-ve-api.md) §4.1):** `onboarding_test` siparişinde (sihirbaz test siparişi, pilot UAT'ı) kısaltılmış zincirin 3. basamağı olarak aynı onaylı şablon gider; ayrı bir "test" şablonu açılmaz. "TEST" etiketi şablon parametresiyle taşınır: `{{2}}` (sipariş no) = "TEST #1001" biçimindedir, gövde metni değişmez. Uyarı yalnız `owner`'ın platform WhatsApp onayı varsa gider; basamak 4–6 (SMS, müşteriye gecikme bilgisi, otomatik iptal) test siparişinde hiç planlanmaz. Meta'nın değişken parametre kuralları (izin verilen karakterler, parametre içeriğinin şablon kategorisini etkilememesi) bu biçime izin veriyor mu **(teyit edilmeli)**; izin vermezse "TEST" etiketi `{{1}}` işletme adının önüne eklenir ("TEST · {işletme adı}") [T]. `canary` siparişinde bu şablon hiç gönderilmez.
 - Duyuru ve bakım şablonları ile kurye şablonu pilot öncesi `APPROVED` olmalıdır; kategori kararı Meta'dadır (Açık konular #16).
 
@@ -576,7 +576,7 @@ async function onInbound(m: InboundMessage) {
 ### 6.3 Karşılama ve menü linki (Akış A) **[Faz 1]**
 
 - Yanıt: interaktif **CTA URL** mesajı. Gövde: karşılama + çalışma durumu + tahmini teslim süresi; buton: "Menüyü aç" (buton metni sınırı ~20 karakter, teyit edilmeli). CTA URL mesajı tek buton taşır; ikinci mesaj göndermemek için "Yetkiliyle görüş" yolu gövdede "Yetkiliyle görüşmek için *yetkili* yazın" satırıyla verilir.
-- Link: `https://{slug}.siparisinonunde.com/?wa=<token>`. Token imzalı ve kısa ömürlüdür:
+- Link: `https://{slug}.yemekgelsin.net/?wa=<token>`. Token imzalı ve kısa ömürlüdür:
 
 ```ts
 type MenuToken = { v: 1; kid: string; t: string /*tenant*/; b: string /*branch*/; c: string /*customer*/; cv: string /*conversation*/; exp: number }; // telefon yok
@@ -704,7 +704,7 @@ Varsayılan stack: Fastify 5 ingress, BullMQ, PostgreSQL 18 + RLS, Redis/Valkey;
 
 ```mermaid
 flowchart LR
-  Meta[("Meta Cloud API<br/>tüm tenant WABA'ları")] -- webhook POST --> ING["wa-ingress<br/>hooks.siparisinonunde.com/wa<br/>imza + ham kayıt + 200"]
+  Meta[("Meta Cloud API<br/>tüm tenant WABA'ları")] -- webhook POST --> ING["wa-ingress<br/>hooks.yemekgelsin.net/wa<br/>imza + ham kayıt + 200"]
   ING --> RAW[(wa_webhook_events<br/>ham olay)]
   ING --> Q1[["BullMQ: wa-inbound<br/>jobId = olay hash'i"]]
   RAW -. süpürücü, 1 dk .-> Q1
@@ -1011,4 +1011,4 @@ Proje sahibine sorulacak kararlar [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozl
 | 14 | **Meta Business Agent** ile ilişki (rakip mi, işletmenin açabileceği seçenek mi)? | Ürün kararı; Coexistence'ta ikisinin aynı numarada çakışması test edilmeli. |
 | 15 | **Pilot takvimi riski:** App Review/Business Verification Hafta 8'e kadar yoksa Plan A' (tester rolü) veya Plan B (Solution Partner; Hafta 6'da hazırlanır, [00](00-kararlar-ve-sozluk.md) §11). Pilot Hafta 10–20. | Proje sahibi kararı: 00 §13 madde 5 (varsayılan: Tech Provider + Plan B). Plan A' seçeneğinin standart erişimle çalıştığı teyit edilmeli (§2.5). |
 | 16 | **Platform şablonlarının kategorisi:** `kurye_giris_v1` (giriş linki) Meta tarafından authentication sayılabilir; `platform_planli_bakim_v1`, `platform_hizmet_bildirimi_v1`, `platform_hizmet_duzeldi_v1` marketing'e çevrilebilir. | Pilot öncesi onaya gönderilir; kurye şablonu reddedilirse kod tabanlı authentication şablonu veya SMS (§5.3 notları). `isletme_yeni_siparis_v1`'in `onboarding_test` siparişinde "TEST #1001" parametresiyle sorunsuz teslim edildiği ilk test gönderiminde denenir (§5.3 notları, teyit edilmeli). |
-| 17 | **Durum sayfası:** olay duyurularındaki "Durumu gör" butonu `status.siparisinonunde.com`'a bağlanır; tam sayfa Faz 2. | Pilot öncesi basit sürüm önerisi [10](10-riskler-operasyon-ve-metrikler.md) §6.4; açılmazsa buton "Paneli aç" sürümüyle onaylatılır. |
+| 17 | **Durum sayfası:** olay duyurularındaki "Durumu gör" butonu `status.yemekgelsin.net`'a bağlanır; tam sayfa Faz 2. | Pilot öncesi basit sürüm önerisi [10](10-riskler-operasyon-ve-metrikler.md) §6.4; açılmazsa buton "Paneli aç" sürümüyle onaylatılır. |

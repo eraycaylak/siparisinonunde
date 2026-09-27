@@ -1,10 +1,11 @@
 import type { Metadata } from 'next';
 import { pageMetadata } from '@/lib/seo';
 import { LegalPage } from '@/components/marketing/legal-page';
+import { SITE_NAME } from '@/lib/site';
 
 export const metadata: Metadata = pageMetadata({
   title: 'Çerez politikası',
-  description: 'Siparişin Önünde çerez politikası (taslak).',
+  description: `${SITE_NAME} çerez politikası (taslak).`,
   path: '/yasal/cerez',
 });
 

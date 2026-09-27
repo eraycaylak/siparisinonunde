@@ -1,6 +1,6 @@
 # 01 — WhatsApp Business Platform (Cloud API): Teknik, Maliyet ve Politika Temeli
 
-**Proje:** siparisinonunde (Siparişin Önünde): WhatsApp üzerinden komisyonsuz sipariş SaaS'ı
+**Proje:** siparisinonunde (Yemek Gelsin): WhatsApp üzerinden komisyonsuz sipariş SaaS'ı
 **Rapor tarihi:** 24 Eylül 2026
 **Kapsam:** Erişim modelleri, multi-tenant onboarding (Embedded Signup), Coexistence, fiyatlandırma (1 Ekim 2026 değişikliği dahil), sipariş için mesaj özellikleri, politikalar, kullanıcı adları/BSUID, resmi olmayan çözümler, webhook/rate-limit/hata kodları, önerilen mimari ve onboarding akışı.
 

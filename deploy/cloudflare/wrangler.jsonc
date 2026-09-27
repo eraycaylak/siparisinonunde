@@ -1,11 +1,18 @@
-// Siparişin Önünde — Cloudflare dev/demo ortamı (15 §13). Dağıtım: .github/workflows/deploy-dev-cloudflare.yml
+// Yemek Gelsin — Cloudflare dev/demo ortamı (15 §13). Dağıtım: .github/workflows/deploy-dev-cloudflare.yml
 // Container imajı depo kökünden derlenir (deploy/cloudflare/Dockerfile). NEXT_PUBLIC_SITE_URL derleme anında gömülür;
-// iş akışı workers.dev adresini bulup scripts/prepare-config.mjs ile wrangler.generated.jsonc'yi üretir.
+// iş akışı SITE_URL'yi (https://yemekgelsin.net) scripts/prepare-config.mjs ile wrangler.generated.jsonc'ye yazar.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "siparisinonunde-dev",
   "main": "src/index.ts",
   "compatibility_date": "2026-09-22",
+  // yemekgelsin.net aynı Cloudflare hesabında (Registrar). Custom Domain: DNS kaydı ve sertifika otomatik; token'da
+  // bölge için Zone > Workers Routes > Edit ve Zone > Zone > Read gerekir. www, Worker'da köke 301 ile yönlenir.
+  "routes": [
+    { "pattern": "yemekgelsin.net", "custom_domain": true },
+    { "pattern": "www.yemekgelsin.net", "custom_domain": true }
+  ],
+  // Yedek adres: API ve webhook istekleri çalışır, sayfa gezinmeleri özel alan adına yönlenir (src/access.ts)
   "workers_dev": true,
   "observability": { "enabled": true },
   "containers": [
@@ -17,7 +24,7 @@
       "instance_type": "basic",
       "max_instances": 1,
       "image_vars": {
-        "NEXT_PUBLIC_SITE_URL": "https://siparisinonunde-dev.example.workers.dev"
+        "NEXT_PUBLIC_SITE_URL": "https://yemekgelsin.net"
       }
     }
   ],
@@ -28,7 +35,12 @@
   // MCP ile oluşturuldu (bölge ENAM); yalnız dev ortamının demo verisinin yedeği
   "r2_buckets": [{ "binding": "BACKUPS", "bucket_name": "siparisinonunde-dev-yedek" }],
   "vars": {
-    "APP_BASE_URL": "https://siparisinonunde-dev.example.workers.dev"
+    "APP_BASE_URL": "https://yemekgelsin.net",
+    "DEPLOY_ENV": "dev",
+    // Veri dönemi: R2 yedek anahtarlarının öneki (e2/db/son.dump …; yalnız rakam). Container açılışta alır ve ömrü boyunca
+    // kullanır. Demo verisini sıfırlamak için artırın: yeni container yeni önekte yedek bulamaz, boş veritabanı + seed ile
+    // açılır; eski container'ın son yedeği ve eski nesneler kendi öneklerinde kalır (15 §13 "Sıfırlama").
+    "DATA_EPOCH": "2"
   },
   "secrets": {
     "required": [

@@ -275,7 +275,7 @@ Plan B, pilotun bir **Türk Solution Partner** üzerinden başlatılmasıdır ([
 | F0-H03 | Ltd kuruluşu: unvan, adres, ana sözleşme, MERSİS, tescil, vergi levhası, imza sirküleri, faaliyet belgesi, NACE | KUR, MM | 1–2 hafta | H01, H02 | Belgeler PDF |
 | F0-H04 | Banka hesabı, e-Tebligat, e-imza, şirket kartı | KUR | H2 | H03 | IBAN, kart |
 | F0-H05 | Marka araştırması (EPATS) ve başvuru: 9, 35, 38, 42. sınıflar, kelime + logo | KUR, MV, TAS | H0–H1 | Logo taslağı (F0-D01), tescil edilebilirlik görüşü (F0-D02) | Başvuru numarası |
-| F0-H06 | Alan adları, Cloudflare DNS, kurumsal e-posta | TL | Gün 1 | H01 (isim teyidi) | `@siparisinonunde.com` (savunma alan adları ve DMARC: F0-D03) |
+| F0-H06 | Alan adları, Cloudflare DNS, kurumsal e-posta | TL | Gün 1 | H01 (isim teyidi) | `@yemekgelsin.net` (savunma alan adları ve DMARC: F0-D03) |
 | F0-H07 | Avukat seçimi; uyum paketinin kapsamı ve takvimi (§2.3) | KUR, AV | H0–H1 | — | Sabit ücretli iş emri |
 | F0-H08 | Gizlilik politikası, kullanım koşulları, veri silme talimatı | AV | H1–H2 | H07 | Yayında URL'ler |
 | F0-H09 | Pay sahipleri sözleşmesi, fikri hak devirleri, personel gizlilik taahhütnameleri | AV, KUR | H1–H4 | H03 | İmzalı belgeler |
@@ -298,7 +298,7 @@ Plan B, pilotun bir **Türk Solution Partner** üzerinden başlatılmasıdır ([
 | F0-M05 | ES v4 yapılandırması (`config_id`, staging ve prod için Allowed Domains) | TL | H2 | M04 | `config_id` ortam değişkeninde |
 | F0-M06 | Web sitesi v0: künye, gizlilik, kullanım koşulları, iletişim | FE | H1–H2 | H05, H08 | Yayında site |
 | F0-M07 | **Business Verification başvurusu** | KUR | H2 (en geç 16 Eki) | H03, H06, M06 | Onay hedefi 23 Eki |
-| F0-M08 | Platform WABA: numara, görünen ad "Siparişin Önünde", platform şablonları ([02](02-whatsapp-entegrasyonu.md) §5.3): `isletme_yeni_siparis_v1` (alarm), `isletme_panel_cevrimdisi_v1`, `kurye_giris_v1`, `isletme_baglanti_sorunu_v1`, `isletme_meta_odeme_v1`, `isletme_kalite_uyari_v1`, `platform_planli_bakim_v1`, `platform_hizmet_bildirimi_v1`, `platform_hizmet_duzeldi_v1`; ayrıca platform canary numarası ([06](06-teknik-mimari.md) §7.10, [10](10-riskler-operasyon-ve-metrikler.md) §7.3) | TL | H3–H4 | H04 | Şablonlar `APPROVED`, canary numarası kayıtlı |
+| F0-M08 | Platform WABA: numara, görünen ad "Yemek Gelsin", platform şablonları ([02](02-whatsapp-entegrasyonu.md) §5.3): `isletme_yeni_siparis_v1` (alarm), `isletme_panel_cevrimdisi_v1`, `kurye_giris_v1`, `isletme_baglanti_sorunu_v1`, `isletme_meta_odeme_v1`, `isletme_kalite_uyari_v1`, `platform_planli_bakim_v1`, `platform_hizmet_bildirimi_v1`, `platform_hizmet_duzeldi_v1`; ayrıca platform canary numarası ([06](06-teknik-mimari.md) §7.10, [10](10-riskler-operasyon-ve-metrikler.md) §7.3) | TL | H3–H4 | H04 | Şablonlar `APPROVED`, canary numarası kayıtlı |
 | F0-M09 | App Review demo dilimi (S2), 2 video, inceleyici notları ([02](02-whatsapp-entegrasyonu.md) §2.4) | TL, FE | H3–H5 | M05 | 2 video |
 | F0-M10 | **App Review başvurusu**: `whatsapp_business_messaging`, `whatsapp_business_management` | TL | 27 Eki | M07, M09 | Başvuru kaydı |
 | F0-M11 | Solution Partner görüşmeleri (3–4 Türk BSP): Plan B pilotu ve Faz 3 MPS | KUR | H2–H6 | — | İmzaya hazır teklif + teknik not |
@@ -312,7 +312,7 @@ Plan B, pilotun bir **Türk Solution Partner** üzerinden başlatılmasıdır ([
 | F0-T02 | GitHub organizasyonu, korumalı `main`, secret manager, herkes için 2FA | TL | Gün 1–2 | — | Erişimler |
 | F0-T03 | Monorepo, `CLAUDE.md` v1 ([06](06-teknik-mimari.md) §4.4), CI | TL, FE, AI | S1 | T01 | Yeşil CI |
 | F0-T04 | Geçici staging VM (TR) | TL | H1 | — | `staging` ortamı |
-| F0-T05 | D3: `siparisinonunde.com/q/{kod}` sayım yönlendirmesi (yalnız tarama sayısı) ve statik menü sayfası şablonu (işletmelerin yarısı için, çerezsiz) | FE, AI | H1–H2 | — | Yönlendirme + ~4 menü sayfası |
+| F0-T05 | D3: `yemekgelsin.net/q/{kod}` sayım yönlendirmesi (yalnız tarama sayısı) ve statik menü sayfası şablonu (işletmelerin yarısı için, çerezsiz) | FE, AI | H1–H2 | — | Yönlendirme + ~4 menü sayfası |
 | F0-T06 | Açılış sayfası ve komisyon hesaplayıcı v0 (D5): 2 değer önerisi × 3 fiyat varyantı, demo formu, çerezsiz ölçüm | FE, AI | H2 | H05, avukat metin kontrolü | Yayında sayfa (H3) |
 
 ### 3.4 Talep ve GTM
@@ -377,7 +377,7 @@ Plan B, pilotun bir **Türk Solution Partner** üzerinden başlatılmasıdır ([
 - **KUR:** Tescilden sonra banka hesabı, e-Tebligat, e-imza. Vergi levhası takibi. D1 görüşmeleri.
 - **OPS:** D3'te 1 haftalık başlangıç sayımı başlar (pazaryeri, WhatsApp/telefon, kaçan sipariş). D2 kesinti dökümlerinden en az 3'ü toplanır.
 - **TL:** Staging'e ilk deploy (Compose), Sentry (PII scrub), pgBackRest WAL arşivi.
-- **FE + AI:** `siparisinonunde.com/q/{kod}` sayım yönlendirmesi ve ilk işletmeler için statik menü sayfaları (kodlu `wa.me` linkleri).
+- **FE + AI:** `yemekgelsin.net/q/{kod}` sayım yönlendirmesi ve ilk işletmeler için statik menü sayfaları (kodlu `wa.me` linkleri).
 
 **Gün 8 — Salı 6 Ekim**
 - **KUR:** Meta portföyü resmi unvan ve adresle güncellenir. Avukatın gizlilik ve kullanım koşulları taslağı gözden geçirilir.
@@ -444,7 +444,7 @@ D8 (panel dayanıklılık gözlemi) ve D9 (destek yükü) pilotta yapılır (§7
 
 | Materyal | Ayrıntı | Hazırlayan | Hazır |
 |---|---|---|---|
-| Kodlu QR'lar | Kod şeması: işletme no + malzeme (K kart, M magnet, S kasa standı, I Instagram, G Google) + teşvik varyantı (A/B/C). QR `siparisinonunde.com/q/{kod}` kısa yönlendirmesinden geçer ve `wa.me/<numara>?text=Merhaba, sipariş vermek istiyorum (K1A)` açar. Yönlendirme yalnız tarama **sayısını** tutar; IP ve cihaz bilgisi saklanmaz. Resmi olmayan hiçbir araç kullanılmaz ([00](00-kararlar-ve-sozluk.md) §6.1) | FE, AI | H2 |
+| Kodlu QR'lar | Kod şeması: işletme no + malzeme (K kart, M magnet, S kasa standı, I Instagram, G Google) + teşvik varyantı (A/B/C). QR `yemekgelsin.net/q/{kod}` kısa yönlendirmesinden geçer ve `wa.me/<numara>?text=Merhaba, sipariş vermek istiyorum (K1A)` açar. Yönlendirme yalnız tarama **sayısını** tutar; IP ve cihaz bilgisi saklanmaz. Resmi olmayan hiçbir araç kullanılmaz ([00](00-kararlar-ve-sozluk.md) §6.1) | FE, AI | H2 |
 | Paket içi kart (D4, 3 varyant) | (a) ücretsiz içecek, (b) %10 indirim, (c) "10. sipariş bedava" kâğıt damga kartı. Metin nötrdür: pazaryeri adı ve karşılaştırma yoktur. Varyantlar eşit sayıda dağıtılır | TAS, OPS | Baskı H2, dağıtım H3 (D10 ilk okumasından sonra) |
 | Buzdolabı magneti, kasa QR standı | Ayrı kodlar | TAS | H2 |
 | Statik menü sayfası (işletmelerin yarısında; H4 testi) | Fotoğraf + fiyat, sepet yok, "WhatsApp'tan sipariş ver" butonu. Çerez kullanılmaz | FE, AI | H2 |
@@ -572,7 +572,7 @@ D8 (panel dayanıklılık gözlemi) ve D9 (destek yükü) pilotta yapılır (§7
 | S2-01 | E4 Menü → Kategori, ürün ve seçenek grubu yönetimi (P-09, P-10, P-11) | min/max, zorunlu, fiyat farkı; bir grup birden çok ürüne bağlanır; alerjen ve gramaj alanları var | M |
 | S2-02 | E4 → Tükenenler (P-12) | Storefront'ta en geç 5 sn içinde "Tükendi" görünür. "Bugün tükendi" ertesi açılışta otomatik geri gelir | M |
 | S2-03 | E4 → Satış engeli bayrağı ve "WhatsApp'ta gösterme/satma" bayrağı | Alkol ve tütün storefront'ta ve WhatsApp'ta satılamaz, sepete eklenemez; nargile, ilaç ve tehlikeli madde kategori filtresine takılır ([00](00-kararlar-ve-sozluk.md) §6.10, §9) | M |
-| S2-04 | E1 Storefront → Host çözümleme, menü, ürün detayı, işletme bilgisi (S-01, S-02, S-14) + künye (P-26) | `{slug}.siparisinonunde.com` doğru tenant'ı açar, bilinmeyen host 404 döner. Menü değişikliği 10 sn içinde yansır. Künye eksikse vitrin yayına çıkmaz | M |
+| S2-04 | E1 Storefront → Host çözümleme, menü, ürün detayı, işletme bilgisi (S-01, S-02, S-14) + künye (P-26) | `{slug}.yemekgelsin.net` doğru tenant'ı açar, bilinmeyen host 404 döner. Menü değişikliği 10 sn içinde yansır. Künye eksikse vitrin yayına çıkmaz | M |
 | S2-05 | E1 → Sepet ve fiyat motoru (`packages/core/pricing`, S-03) | Tutarlar kuruş cinsinden `integer`. KDV dahil gösterim ve min sepet çubuğu. İstemciden gelen tutar yok sayılır. Özellik tabanlı testlerle %100 dal kapsamı | M |
 | S2-06 | E2 → ES v4 minimal | Staging'de test işletmesi ES ile bağlanır (`FINISH` ve `FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING`). Kod takası sunucuda yapılır, token envelope encryption ile saklanır. `subscribed_apps` çağrılır | M |
 | S2-07 | E7 Gelen kutusu → Minimal sohbet görünümü ve serbest yanıt (P-08 çekirdeği) | Gelen mesaj panelde görünür. Panelden yazılan yanıt telefona ulaşır (App Review Video 1) | M |

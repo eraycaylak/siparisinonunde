@@ -17,7 +17,7 @@ import { ORDER_CODE_ALPHABET, sha256Hex } from '../../lib/tokens';
 export type UserRow = typeof users.$inferSelect;
 
 /** Doğrulama uygulamasında görünen hesap sağlayıcı adı. */
-export const TOTP_ISSUER = 'Siparişin Önünde';
+export const TOTP_ISSUER = 'Yemek Gelsin';
 /** Zaman adımı (sn); uygulamaların varsayılanı. */
 export const TOTP_STEP_SEC = 30;
 /** Saat kayması toleransı: önceki ve sonraki adım da kabul edilir. */

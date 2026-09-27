@@ -274,14 +274,14 @@ describe('NetGSM (teyit edilmeli)', () => {
       calls.push(url);
       return new Response('00 123456789', { status: 200 });
     });
-    const p = createNetgsmProvider({ usercode: 'u', password: 'p', header: 'SIPARISNDE' });
+    const p = createNetgsmProvider({ usercode: 'u', password: 'p', header: 'YEMEKGELSIN' });
     const res = await p.send('+905321234567', 'Kod: 123456');
     expect(res.id).toBe('123456789');
     const u = new URL(calls[0]!);
     expect(u.origin + u.pathname).toBe('https://api.netgsm.com.tr/sms/send/get');
     expect(u.searchParams.get('usercode')).toBe('u');
     expect(u.searchParams.get('gsmno')).toBe('905321234567');
-    expect(u.searchParams.get('msgheader')).toBe('SIPARISNDE');
+    expect(u.searchParams.get('msgheader')).toBe('YEMEKGELSIN');
     expect(u.searchParams.get('message')).toBe('Kod: 123456');
   });
 
