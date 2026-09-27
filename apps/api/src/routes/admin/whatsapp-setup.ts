@@ -1,13 +1,15 @@
 // Ortak numara "WhatsApp kurulumu" (15 §6.2a): yalnız platform_owner (izin whatsapp:setup). Durum dışındaki her çağrı
-// (bilgileri göster, Meta Graph adımları) başarılı da olsa başarısız da olsa denetim kaydına yazılır. Kayıtta gizli değer,
-// PIN ya da webhook belirteci yoktur; yalnız sonuç ve hata kodu.
+// (bilgileri göster, sağlayıcı adımları) başarılı da olsa başarısız da olsa denetim kaydına yazılır. Kayıtta gizli değer,
+// PIN, webhook belirteci ya da adresi yoktur; yalnız sonuç ve hata kodu. d360 = 360dialog (varsayılan), cloud = Meta doğrudan.
 //   GET  /admin/whatsapp/setup               durum (gizliler yalnız son 4 karakter)
-//   POST /admin/whatsapp/setup/reveal        Meta'ya girilecek tam webhook adresi + doğrulama belirteci
-//   POST /admin/whatsapp/setup/test          GET /{phone_number_id}?fields=… (bağlantı testi)
-//   POST /admin/whatsapp/setup/register      {pin} → POST /{phone_number_id}/register
-//   GET  /admin/whatsapp/setup/subscription  GET /{waba_id}/subscribed_apps
-//   POST /admin/whatsapp/setup/subscription  POST /{waba_id}/subscribed_apps (+ güncel liste)
-//   GET  /admin/whatsapp/setup/templates     kod kataloğundaki şablonların Meta durumu
+//   POST /admin/whatsapp/setup/reveal        cloud: Meta'ya girilecek tam webhook adresi + doğrulama belirteci
+//   POST /admin/whatsapp/setup/test          cloud: GET /{phone_number_id}?fields=…; d360: GET /health_status + webhook
+//   POST /admin/whatsapp/setup/register      cloud: {pin} → POST /{phone_number_id}/register
+//   GET  /admin/whatsapp/setup/subscription  cloud: GET /{waba_id}/subscribed_apps
+//   POST /admin/whatsapp/setup/subscription  cloud: POST /{waba_id}/subscribed_apps (+ güncel liste)
+//   GET  /admin/whatsapp/setup/webhook       d360: GET /v1/configs/webhook (adres maskeli)
+//   POST /admin/whatsapp/setup/webhook       d360: POST /v1/configs/webhook {url: ortak webhook} (zaten doğruysa yazmaz)
+//   GET  /admin/whatsapp/setup/templates     kod kataloğundaki şablonların durumu (cloud /{waba}/message_templates, d360 /message_templates)
 //   POST /admin/whatsapp/setup/templates     eksik şablonları oluştur (idempotent) + durumlar
 
 import {
@@ -17,6 +19,7 @@ import {
   adminWaSetupStatusSchema,
   adminWaSetupSubscriptionSchema,
   adminWaSetupTestSchema,
+  adminWaSetupWebhookSchema,
   adminWaTemplatesSchema,
 } from '@siparis/core/admin/contracts';
 import type { FastifyRequest } from 'fastify';
@@ -26,7 +29,9 @@ import { createRateLimiter, enforceRateLimit } from '../../lib/rate-limit';
 import { adminActor, adminAudit, requireAdmin } from '../../services/admin/util';
 import {
   listTemplateStatus,
+  readD360Webhook,
   readSubscription,
+  registerD360Webhook,
   registerNumber,
   revealSetup,
   setupStatus,
@@ -53,7 +58,13 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       await adminAudit(app.db, actor, {
         action,
         entityType: 'platform_wa',
-        data: { ...base, ok: false, error: code, ...(details.graphCode ? { graphCode: details.graphCode, graphSubcode: details.graphSubcode ?? null } : {}) },
+        data: {
+          ...base,
+          ok: false,
+          error: code,
+          ...(details.graphCode ? { graphCode: details.graphCode, graphSubcode: details.graphSubcode ?? null } : {}),
+          ...(typeof details.httpStatus === 'number' ? { httpStatus: details.httpStatus } : {}),
+        },
       });
       throw err;
     }
@@ -94,6 +105,18 @@ const routes: FastifyPluginAsyncZod = async (app) => {
 
   app.post('/whatsapp/setup/subscription', { preHandler: guard, schema: { response: { 200: adminWaSetupSubscriptionSchema } } }, async (request) =>
     audited(request, 'admin.wa_setup_subscribe', () => subscribeApp(app.config), (r) => ({ subscribed: r.subscribed, apps: r.apps.length })),
+  );
+
+  app.get('/whatsapp/setup/webhook', { preHandler: guard, schema: { response: { 200: adminWaSetupWebhookSchema } } }, async (request) =>
+    audited(request, 'admin.wa_setup_webhook_view', () => readD360Webhook(app.config), (r) => ({ configured: r.configured, matches: r.matches })),
+  );
+
+  app.post('/whatsapp/setup/webhook', { preHandler: guard, schema: { response: { 200: adminWaSetupWebhookSchema } } }, async (request) =>
+    audited(request, 'admin.wa_setup_webhook_register', () => registerD360Webhook(app.config), (r) => ({
+      configured: r.configured,
+      matches: r.matches,
+      changed: r.changed,
+    })),
   );
 
   app.get('/whatsapp/setup/templates', { preHandler: guard, schema: { response: { 200: adminWaTemplatesSchema } } }, async (request) =>

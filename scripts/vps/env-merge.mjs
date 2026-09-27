@@ -9,7 +9,8 @@
 //     webhook adresi), VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY. Eksikse üretilir; mevcut değer bozuksa KENDİLİĞİNDEN
 //     DEĞİŞTİRİLMEZ, dağıtım anlaşılır bir hatayla durur.
 //   - Sağlayıcı değerleri her dağıtımda GitHub secret'larından yeniden yazılır: alan adı, Cloudflare token'ı (Caddy
-//     DNS-01), WhatsApp (META_* + WA_PHONE → PLATFORM_WA_*; dördü tamsa gerçek "cloud", değilse "mock"), Netgsm
+//     DNS-01), WhatsApp (D360_API_KEY + WA_PHONE → "d360", 360dialog, varsayılan yol; META_* + WA_PHONE → "cloud", Meta
+//     doğrudan; ikisi birlikte → hata; hiçbiri tam değilse "mock"; deploy/cloudflare/src/whatsapp-env.ts ile aynı kural), Netgsm
 //     (üçü tamsa "netgsm", değilse "mock"). Sabitler: DEPLOY_ENV=production, DEV_TOOLS=0, ADMIN_TOTP_REQUIRED=true,
 //     demo vitrin/uyarı kapalı.
 //   - Sonuç apps/api/src/config.ts productionConfigErrors'u sağlamalı (apps/api/test/production-env.test.ts bunu gerçek
@@ -19,7 +20,7 @@
 //
 // Kullanım: node scripts/vps/env-merge.mjs --current <mevcut .env ya da boş dosya> --out <yeni .env>
 // Girdiler ortamdan (GitHub secret'ları): CLOUDFLARE_API_TOKEN (zorunlu; CADDY_CLOUDFLARE_API_TOKEN varsa Caddy onu
-// kullanır), DOMAIN, ACME_EMAIL, META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_WA_WABA_ID, META_APP_SECRET, WA_PHONE,
+// kullanır), DOMAIN, ACME_EMAIL, D360_API_KEY, META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_WA_WABA_ID, META_APP_SECRET, WA_PHONE,
 // NETGSM_USERCODE, NETGSM_PASSWORD, NETGSM_HEADER, SUPPORT_WHATSAPP, BACKUP_REMOTE, BACKUP_PING_URL.
 // GitHub Actions'ta (GITHUB_ACTIONS=true) tüm gizli değerler için ::add-mask:: yazar; değerler hiçbir zaman loga basılmaz.
 
@@ -222,7 +223,7 @@ export const DEFAULT_GENERATORS = {
 /**
  * @param {{ current: Map<string,string> | Record<string,string>, secrets: Record<string,string|undefined>, generators?: object }} input
  * @returns {{ ok: boolean, text: string | null, values: Map<string,string>, errors: string[], warnings: string[],
- *            generated: string[], kept: string[], whatsapp: 'cloud'|'mock', sms: 'netgsm'|'mock', sensitive: string[] }}
+ *            generated: string[], kept: string[], whatsapp: 'd360'|'cloud'|'mock', sms: 'netgsm'|'mock', sensitive: string[] }}
  */
 export function mergeEnv({ current, secrets, generators = DEFAULT_GENERATORS }) {
   const cur = current instanceof Map ? new Map(current) : new Map(Object.entries(current ?? {}));
@@ -305,13 +306,45 @@ export function mergeEnv({ current, secrets, generators = DEFAULT_GENERATORS }) 
   };
   for (const key of ['POSTGRES_PASSWORD', 'SESSION_SECRET', 'TRACKING_SECRET', 'ENCRYPTION_KEY']) takeOrGenerate(key, generators[key]);
 
-  // WhatsApp: dört secret tamsa gerçek Meta Cloud API, değilse mock (deploy/cloudflare/src/whatsapp-env.ts ile aynı kural)
+  // WhatsApp (deploy/cloudflare/src/whatsapp-env.ts ile aynı kural): D360_API_KEY + WA_PHONE → 360dialog (varsayılan);
+  // dört META secret'ı tamsa Meta Cloud API doğrudan; ikisi birlikte → belirsiz, hata; hiçbiri tam değilse mock
   v.set('WA_DEFAULT_PROVIDER', 'd360');
   takeOrGenerate('WA_VERIFY_TOKEN', generators.WA_VERIFY_TOKEN);
   const waRequired = ['META_WA_TOKEN', 'META_WA_PHONE_NUMBER_ID', 'META_APP_SECRET', 'WA_PHONE'];
   const waMissing = waRequired.filter((k) => !filled(s[k]));
+  const setMock = () => {
+    v.set('WA_APP_SECRET', '');
+    v.set('PLATFORM_WA_PROVIDER', 'mock');
+    v.set('PLATFORM_WA_API_KEY', '');
+    v.set('PLATFORM_WA_PHONE_NUMBER_ID', '');
+    v.set('PLATFORM_WA_WABA_ID', '');
+    v.set('PLATFORM_WA_DISPLAY_PHONE', '');
+  };
   let whatsapp = 'mock';
-  if (waMissing.length === 0) {
+  if (filled(s.D360_API_KEY) && waMissing.length === 0) {
+    errors.push(
+      "Hem 360dialog (D360_API_KEY) hem Meta Cloud API (META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_APP_SECRET) secret'ları tanımlı: " +
+        "ortak numaranın hangi yoldan bağlanacağı belirsiz. Kullanmadığınız yolun secret'larını silin (15 §6.2). " + secretHint,
+    );
+    setMock();
+  } else if (filled(s.D360_API_KEY)) {
+    if (!filled(s.WA_PHONE)) {
+      warnings.push("360dialog için WA_PHONE GitHub secret'ı eksik: eklenene kadar ortak numara kapalı (mock) çalışır (15 §6.2).");
+      setMock();
+    } else {
+      const phone = normalizeE164(s.WA_PHONE);
+      if (!phone) errors.push(`WA_PHONE telefon numarası olmalı, ülke koduyla (E.164), ör. +905321234567. ${secretHint}`);
+      if (/\s/.test(clean(s.D360_API_KEY))) errors.push('D360_API_KEY boşluk içeremez (anahtarı yeniden kopyalayın).');
+      whatsapp = 'd360';
+      // 360dialog: numara anahtara bağlıdır; webhook imzası yok (URL'deki gizli belirteç korur)
+      v.set('WA_APP_SECRET', '');
+      v.set('PLATFORM_WA_PROVIDER', 'd360');
+      v.set('PLATFORM_WA_API_KEY', clean(s.D360_API_KEY));
+      v.set('PLATFORM_WA_PHONE_NUMBER_ID', '');
+      v.set('PLATFORM_WA_WABA_ID', '');
+      v.set('PLATFORM_WA_DISPLAY_PHONE', phone ?? '');
+    }
+  } else if (waMissing.length === 0) {
     const phone = normalizeE164(s.WA_PHONE);
     if (!phone) errors.push(`WA_PHONE telefon numarası olmalı, ülke koduyla (E.164), ör. +905321234567. ${secretHint}`);
     if (!isMetaId(s.META_WA_PHONE_NUMBER_ID)) errors.push(`META_WA_PHONE_NUMBER_ID yalnız rakamlardan oluşmalı (Meta > WhatsApp > API Setup; telefon numarası değil). ${secretHint}`);
@@ -325,20 +358,15 @@ export function mergeEnv({ current, secrets, generators = DEFAULT_GENERATORS }) 
     v.set('PLATFORM_WA_WABA_ID', clean(s.META_WA_WABA_ID));
     v.set('PLATFORM_WA_DISPLAY_PHONE', phone ?? '');
     if (!filled(s.META_WA_WABA_ID)) {
-      warnings.push('META_WA_WABA_ID yok: admin > WhatsApp > WhatsApp kurulumu\'ndaki "Webhook aboneliğini aç" ve "Şablonları gönder" adımları çalışmaz (15 §6.2a).');
+      warnings.push('META_WA_WABA_ID yok: admin > WhatsApp > WhatsApp kurulumu\'ndaki "Webhook aboneliğini aç" ve "Şablonları gönder" adımları çalışmaz (15 §6.2b).');
     }
   } else {
     if (waMissing.length < waRequired.length) {
-      warnings.push(`Gerçek WhatsApp için eksik GitHub secret: ${waMissing.join(', ')}. Hepsi eklenene kadar ortak numara kapalı (mock) çalışır (15 §6.2a).`);
+      warnings.push(`Gerçek WhatsApp için eksik GitHub secret: ${waMissing.join(', ')}. Hepsi eklenene kadar ortak numara kapalı (mock) çalışır (15 §6.2b; varsayılan yol 360dialog: D360_API_KEY + WA_PHONE, 15 §6.2).`);
     } else {
-      warnings.push('WhatsApp secret\'ları yok: ortak numara kapalı (mock); vitrin ve QR WhatsApp bağlantısı göstermez, platform uyarıları gitmez (15 §6.2a).');
+      warnings.push('WhatsApp secret\'ları yok: ortak numara kapalı (mock); vitrin ve QR WhatsApp bağlantısı göstermez, platform uyarıları gitmez (15 §6.2).');
     }
-    v.set('WA_APP_SECRET', '');
-    v.set('PLATFORM_WA_PROVIDER', 'mock');
-    v.set('PLATFORM_WA_API_KEY', '');
-    v.set('PLATFORM_WA_PHONE_NUMBER_ID', '');
-    v.set('PLATFORM_WA_WABA_ID', '');
-    v.set('PLATFORM_WA_DISPLAY_PHONE', '');
+    setMock();
   }
   takeOrGenerate('PLATFORM_WA_WEBHOOK_TOKEN', generators.PLATFORM_WA_WEBHOOK_TOKEN);
 
@@ -436,7 +464,7 @@ function main() {
   console.log(`.env hazır: ${currentText.trim() ? 'mevcut dosya birleştirildi' : 'ilk kurulum'}.`);
   console.log(`  Üretilen gizli değerler: ${res.generated.length ? res.generated.join(', ') : 'yok'}`);
   console.log(`  Korunan gizli değerler : ${res.kept.length ? res.kept.join(', ') : 'yok'}`);
-  console.log(`  WhatsApp (ortak numara): ${res.whatsapp === 'cloud' ? 'gerçek Meta Cloud API' : 'kapalı (mock)'}`);
+  console.log(`  WhatsApp (ortak numara): ${res.whatsapp === 'd360' ? 'gerçek 360dialog' : res.whatsapp === 'cloud' ? 'gerçek Meta Cloud API' : 'kapalı (mock)'}`);
   console.log(`  SMS                    : ${res.sms === 'netgsm' ? 'Netgsm' : 'kapalı (mock)'}`);
 }
 

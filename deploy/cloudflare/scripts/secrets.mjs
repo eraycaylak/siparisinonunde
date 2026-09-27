@@ -1,14 +1,16 @@
 // Dağıtımda yüklenecek gizli değerler (wrangler deploy --secrets-file). Worker'da zaten olanlara dokunulmaz
 // (ENCRYPTION_KEY değişirse yedekteki şifreli veriler okunamaz); eksikler rastgele üretilir. DEV_PASSWORD her
 // dağıtımda GitHub secret'ından güncellenir.
-// Gerçek WhatsApp (isteğe bağlı; src/whatsapp-env.ts): META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_WA_WABA_ID,
-// META_APP_SECRET, WA_PHONE ortamda doluysa her dağıtımda yüklenir (boşsa dosyaya yazılmaz; iş akışı Worker'da kalmış
-// eskisini siler). WA_PHONE E.164'e çevrilir; geçersiz telefon ya da rakam olmayan Meta kimliği dağıtımı durdurur.
+// Gerçek WhatsApp (isteğe bağlı; src/whatsapp-env.ts): D360_API_KEY (360dialog, varsayılan yol), META_WA_TOKEN,
+// META_WA_PHONE_NUMBER_ID, META_WA_WABA_ID, META_APP_SECRET (Meta doğrudan) ve WA_PHONE ortamda doluysa her dağıtımda
+// yüklenir (boşsa dosyaya yazılmaz; iş akışı Worker'da kalmış eskisini siler). WA_PHONE E.164'e çevrilir; geçersiz telefon,
+// rakam olmayan Meta kimliği, boşluklu anahtar ya da iki yolun birlikte verilmesi (D360_API_KEY + tam META_* seti) dağıtımı
+// durdurur.
 // Gizli staging (--no-whatsapp): WhatsApp secret'ları hiç yüklenmez; staging canlı numarayı kullanmaz (00 §12a madde 10).
 // Kullanım: node scripts/secrets.mjs <wrangler secret list çıktısı (JSON)> [--no-whatsapp] > secrets.json
 import { createECDH, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { WA_SECRET_NAMES, isMetaId, normalizeE164 } from '../src/whatsapp-env.ts';
+import { WA_SECRET_NAMES, isMetaId, normalizeE164, whatsappSecretsConflict } from '../src/whatsapp-env.ts';
 
 const noWhatsapp = process.argv.includes('--no-whatsapp');
 let existing = new Set();
@@ -63,12 +65,16 @@ for (const name of noWhatsapp ? [] : WA_SECRET_NAMES) {
     else out[name] = phone;
   } else if ((name === 'META_WA_PHONE_NUMBER_ID' || name === 'META_WA_WABA_ID') && !isMetaId(value)) {
     waErrors.push(`${name} yalnız rakamlardan oluşmalı (Meta > WhatsApp > API Setup sayfasındaki kimlik; telefon numarası değil)`);
+  } else if ((name === 'D360_API_KEY' || name === 'META_WA_TOKEN') && /\s/.test(value)) {
+    waErrors.push(`${name} boşluk içeremez (anahtarı yeniden, tek parça hâlinde kopyalayın)`);
   } else {
     out[name] = value;
   }
 }
+const conflict = noWhatsapp ? null : whatsappSecretsConflict(process.env);
+if (conflict) waErrors.push(conflict);
 if (waErrors.length) {
-  for (const e of waErrors) console.error(`HATA: ${e} (GitHub > Settings > Secrets and variables > Actions; docs/15 §6.2a)`);
+  for (const e of waErrors) console.error(`HATA: ${e} (GitHub > Settings > Secrets and variables > Actions; docs/15 §6.2)`);
   process.exit(1);
 }
 console.error(`Yüklenecek gizli değerler: ${Object.keys(out).join(', ')}`);

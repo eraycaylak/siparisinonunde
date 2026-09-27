@@ -1,9 +1,12 @@
 'use client';
 
-// Ortak numara "WhatsApp kurulumu" (yalnız platform sahibi; 15 §6.2a). Proje sahibi Meta'da yalnız tıklama yapar ve beş
-// değeri girer; buradaki düğmeler sırasıyla: bilgileri göster (Meta'ya yapıştır) → bağlantıyı test et → numarayı
-// etkinleştir (PIN) → webhook aboneliğini aç → şablonları gönder. Her aksiyon API'de denetim kaydına yazılır; gizli
-// değerler ekranda yalnız "Göster" ile, token ve App secret hiçbir zaman (yalnız son 4 karakter) görünür.
+// Ortak numara "WhatsApp kurulumu" (yalnız platform sahibi; 15 §6.2a). Sağlayıcıya göre iki akış:
+//   - 360dialog (varsayılan, 15 §6.2; mock iken de bu akış pasif gösterilir): bağlantıyı test et → webhook'u 360dialog'a
+//     kaydet (sunucu yazar; adres ekranda maskeli) → şablonları gönder. Numara kaydı ve abonelik 360dialog'dadır.
+//   - Meta Cloud API doğrudan (15 §6.2b): bilgileri göster (Meta'ya yapıştır) → bağlantıyı test et → numarayı etkinleştir
+//     (PIN) → webhook aboneliğini aç → şablonları gönder.
+// Her aksiyon API'de denetim kaydına yazılır; gizli değerler ekranda yalnız Meta'nın "Göster" adımında, API anahtarı/token
+// ve App secret hiçbir zaman (yalnız son 4 karakter) görünür.
 
 import { useState, type FormEvent, type ReactNode } from 'react';
 import { CircleCheck, CircleX, Copy, Eye, EyeOff, FileText, Info, KeyRound, PlugZap, RefreshCw, Send, TriangleAlert, Webhook } from 'lucide-react';
@@ -15,6 +18,7 @@ import type {
   AdminWaSetupSubscription,
   AdminWaSetupTest,
   AdminWaSetupTone,
+  AdminWaSetupWebhook,
   AdminWaTemplates,
 } from '@siparis/core/admin/contracts';
 import { Alert } from '@/components/ui/alert';
@@ -139,6 +143,13 @@ function FieldState({ set, tail, missingText = 'Eksik' }: { set: boolean; tail: 
 
 const NOT_CLOUD = 'Bu adım yalnız Meta Cloud API bağlıyken çalışır (yukarıdaki sorun satırlarına bakın).';
 
+/** 360dialog adımı neden pasif (mock / anahtar yok / belirteç ya da adres sorunu). */
+function d360Blocked(s: AdminWaSetupStatus): string {
+  if (s.provider === 'mock') return 'Önce gerçek WhatsApp’ı bağlayın: GitHub secret’ları D360_API_KEY ve WA_PHONE, sonra “Canlı ortam (Cloudflare)” iş akışı (docs/15 §6.2).';
+  if (!s.fields.apiKey.set) return '360dialog API anahtarı tanımlı değil (yukarıdaki sorun satırları).';
+  return 'Ön koşul eksik: yukarıdaki sorun satırlarına bakın (webhook belirteci, https adres).';
+}
+
 export function WhatsappSetupSection() {
   const q = useApiQuery<AdminWaSetupStatus>(['admin', 'whatsapp', 'setup'], '/admin/whatsapp/setup');
   const s = q.data;
@@ -150,20 +161,30 @@ export function WhatsappSetupSection() {
           WhatsApp kurulumu
         </h2>
         <p className="text-sm text-fg-muted">
-          Ortak numarayı (Yemek Gelsin) gerçek WhatsApp’a bağlama adımları. Meta’daki tıklamalar ve girilecek değerler kurulum rehberinde (docs/15 §6.2a); geri kalanı
-          buradaki düğmelerle sırayla yapılır. Her işlem denetim kaydına yazılır.
+          {s?.provider === 'cloud'
+            ? 'Ortak numarayı (Yemek Gelsin) Meta Cloud API ile doğrudan bağlama adımları. Meta’daki tıklamalar ve girilecek değerler kurulum rehberinde (docs/15 §6.2b); geri kalanı buradaki düğmelerle sırayla yapılır.'
+            : 'Ortak numarayı (Yemek Gelsin) 360dialog ile bağlama adımları. Numara 360dialog’da bağlanır ve API anahtarı GitHub secret’ı olarak girilir (docs/15 §6.2); geri kalanı buradaki üç düğmeyle sırayla yapılır.'}{' '}
+          Her işlem denetim kaydına yazılır.
         </p>
       </div>
       {q.isError ? <QueryError error={q.error} onRetry={() => void q.refetch()} /> : null}
       {q.isPending ? <Spinner label="Kurulum durumu yükleniyor" /> : null}
-      {s ? (
+      {s && s.provider === 'cloud' ? (
         <>
           <SetupStatusCard s={s} />
           <RevealStep />
-          <TestStep s={s} />
+          <TestStep s={s} step={2} />
           <RegisterStep s={s} />
           <SubscribeStep s={s} />
-          <TemplatesStep s={s} />
+          <TemplatesStep s={s} step={5} />
+        </>
+      ) : null}
+      {s && s.provider !== 'cloud' ? (
+        <>
+          <SetupStatusCard s={s} />
+          <TestStep s={s} step={1} />
+          <D360WebhookStep s={s} />
+          <TemplatesStep s={s} step={3} />
         </>
       ) : null}
     </section>
@@ -193,29 +214,42 @@ function SetupStatusCard({ s }: { s: AdminWaSetupStatus }) {
           <InfoRow label="Sağlayıcı">
             <span className="flex flex-wrap items-center gap-2">
               {s.providerLabel}
-              {s.provider === 'cloud' ? <ToneBadge tone="ok">Gerçek WhatsApp</ToneBadge> : s.provider === 'mock' ? <ToneBadge tone="warn">Simülatör</ToneBadge> : null}
+              {s.provider === 'mock' ? <ToneBadge tone="warn">Simülatör</ToneBadge> : <ToneBadge tone="ok">Gerçek WhatsApp</ToneBadge>}
             </span>
           </InfoRow>
           <InfoRow label="Numara">{s.displayPhoneFormatted ?? <ToneBadge tone="bad">Tanımlı değil</ToneBadge>}</InfoRow>
-          <InfoRow label="Phone number ID">
-            <FieldState {...f.phoneNumberId} />
-          </InfoRow>
-          <InfoRow label="WABA ID">
-            <FieldState {...f.wabaId} />
-          </InfoRow>
-          <InfoRow label="Erişim anahtarı (token)">
-            <FieldState {...f.apiKey} />
-          </InfoRow>
-          <InfoRow label="App secret">
-            <FieldState {...f.appSecret} />
-          </InfoRow>
+          {s.provider === 'cloud' ? (
+            <>
+              <InfoRow label="Phone number ID">
+                <FieldState {...f.phoneNumberId} />
+              </InfoRow>
+              <InfoRow label="WABA ID">
+                <FieldState {...f.wabaId} />
+              </InfoRow>
+              <InfoRow label="Erişim anahtarı (token)">
+                <FieldState {...f.apiKey} />
+              </InfoRow>
+              <InfoRow label="App secret">
+                <FieldState {...f.appSecret} />
+              </InfoRow>
+            </>
+          ) : (
+            <InfoRow label="360dialog API anahtarı">
+              <FieldState {...f.apiKey} />
+            </InfoRow>
+          )}
           <InfoRow label="Webhook belirteci">
             <FieldState {...f.webhookToken} />
           </InfoRow>
-          <InfoRow label="Doğrulama belirteci">
-            <FieldState set={f.verifyToken.set} tail={f.verifyToken.tail} missingText={f.verifyToken.isDefault ? 'Varsayılan değer' : 'Eksik'} />
+          {s.provider === 'cloud' ? (
+            <InfoRow label="Doğrulama belirteci">
+              <FieldState set={f.verifyToken.set} tail={f.verifyToken.tail} missingText={f.verifyToken.isDefault ? 'Varsayılan değer' : 'Eksik'} />
+            </InfoRow>
+          ) : null}
+          <InfoRow label="Webhook adresi">
+            {s.webhookUrlMasked ? <code className="break-all font-mono text-sm">{s.webhookUrlMasked}</code> : <ToneBadge tone="bad">Oluşmadı</ToneBadge>}
           </InfoRow>
-          <InfoRow label="Graph API sürümü">{s.graphApiVersion}</InfoRow>
+          <InfoRow label="API adresi">{s.apiBase}</InfoRow>
         </dl>
       </CardContent>
     </Card>
@@ -278,11 +312,20 @@ function RevealStep() {
   );
 }
 
-function TestStep({ s }: { s: AdminWaSetupStatus }) {
+function TestStep({ s, step }: { s: AdminWaSetupStatus; step: number }) {
   const a = useAction<AdminWaSetupTest>();
   const r = a.data;
+  const cloud = s.provider === 'cloud';
   return (
-    <StepCard step={2} title="Bağlantıyı test et" description="Token ve telefon numarası kimliğiyle Meta’dan numaranın durumunu okur. Mesaj göndermez.">
+    <StepCard
+      step={step}
+      title="Bağlantıyı test et"
+      description={
+        cloud
+          ? 'Token ve telefon numarası kimliğiyle Meta’dan numaranın durumunu okur. Mesaj göndermez.'
+          : 'API anahtarıyla 360dialog’dan numaranın durumunu (görünen ad, kalite, gönderim) ve kayıtlı webhook adresini okur. Mesaj göndermez, hiçbir şeyi değiştirmez.'
+      }
+    >
       <div className="flex flex-wrap gap-2">
         <Button
           disabled={!s.actions.test}
@@ -293,7 +336,7 @@ function TestStep({ s }: { s: AdminWaSetupStatus }) {
           Bağlantıyı test et
         </Button>
       </div>
-      <Blocked show={!s.actions.test}>{NOT_CLOUD}</Blocked>
+      <Blocked show={!s.actions.test}>{cloud ? NOT_CLOUD : d360Blocked(s)}</Blocked>
       <ActionError error={a.error} />
       {r ? (
         <div className="flex flex-col gap-3">
@@ -428,22 +471,82 @@ function SubscribeStep({ s }: { s: AdminWaSetupStatus }) {
   );
 }
 
+/** 360dialog: ortak webhook adresini sunucu 360dialog'a yazar (Meta'daki "Göster → yapıştır" adımının yerine). */
+function D360WebhookStep({ s }: { s: AdminWaSetupStatus }) {
+  const a = useAction<AdminWaSetupWebhook>();
+  const r = a.data;
+  const canRead = s.actions.test;
+  return (
+    <StepCard
+      step={2}
+      title="Webhook’u 360dialog’a kaydet"
+      description="Müşterilerin ortak numaraya yazdığı mesajların bu sisteme gelmesi için sistemin webhook adresini 360dialog’a yazar. Adres zaten doğruysa hiçbir şey değiştirmez; tekrar basmak zararsızdır."
+    >
+      <Alert variant="info" title="Ne zaman yeniden basılır?">
+        360dialog’da yeni API anahtarı ürettiğinizde 360dialog numaranın webhook adresini siler: GitHub’daki D360_API_KEY’i güncelleyip iş akışını çalıştırdıktan sonra
+        bu düğmeye yeniden basın. Adres gizli bir belirteç içerir; ekranda yalnız son 4 karakteri görünür.
+      </Alert>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          disabled={!s.actions.webhook}
+          loading={a.loading}
+          onClick={() => void a.run(() => apiFetch<AdminWaSetupWebhook>('/admin/whatsapp/setup/webhook', { method: 'POST' }))}
+        >
+          <Webhook aria-hidden />
+          Webhook’u 360dialog’a kaydet
+        </Button>
+        <Button variant="secondary" disabled={!canRead || a.loading} onClick={() => void a.run(() => apiFetch<AdminWaSetupWebhook>('/admin/whatsapp/setup/webhook'))}>
+          <Eye aria-hidden />
+          Kayıtlı adresi göster
+        </Button>
+      </div>
+      <Blocked show={!s.actions.webhook}>{d360Blocked(s)}</Blocked>
+      <ActionError error={a.error} />
+      {r ? (
+        <div className="flex flex-col gap-3">
+          <Alert variant={r.matches ? 'success' : 'warning'} title={r.matches ? (r.changed ? 'Webhook kaydedildi' : 'Webhook doğru') : 'Webhook doğru değil'}>
+            {r.message}
+          </Alert>
+          <dl className="grid gap-x-6 divide-y divide-border lg:grid-cols-2 lg:divide-y-0">
+            <InfoRow label="360dialog’daki adres">
+              {r.urlMasked ? <code className="break-all font-mono text-sm">{r.urlMasked}</code> : <ToneBadge tone="bad">Kayıtlı değil</ToneBadge>}
+            </InfoRow>
+            <InfoRow label="Olması gereken">
+              {r.expectedUrlMasked ? <code className="break-all font-mono text-sm">{r.expectedUrlMasked}</code> : <ToneBadge tone="bad">Oluşmadı</ToneBadge>}
+            </InfoRow>
+          </dl>
+        </div>
+      ) : null}
+    </StepCard>
+  );
+}
+
 const AUDIENCE_LABEL = { customer: 'Müşteriye', platform: 'İşletmeye' } as const;
 
-function TemplatesStep({ s }: { s: AdminWaSetupStatus }) {
+function TemplatesStep({ s, step }: { s: AdminWaSetupStatus; step: number }) {
   const a = useAction<AdminWaTemplates>();
   const r = a.data;
-  const blockedText =
-    s.provider !== 'cloud' || !s.fields.apiKey.set
+  const cloud = s.provider === 'cloud';
+  const blockedText = !cloud
+    ? s.provider === 'd360' && s.fields.apiKey.set
+      ? 'APP_BASE_URL https ile başlamalı (şablon butonlarındaki bağlantılar).'
+      : d360Blocked(s)
+    : !s.fields.apiKey.set
       ? NOT_CLOUD
       : !s.fields.wabaId.set
         ? 'WABA ID tanımlı değil (yukarıdaki sorun satırları).'
         : 'APP_BASE_URL https ile başlamalı (şablon butonlarındaki bağlantılar).';
+  // Durum listesi https istemez: cloud'da token + WABA, 360dialog'da anahtar yeter
+  const canRefresh = cloud ? s.actions.subscribe : s.actions.test;
   return (
     <StepCard
-      step={5}
-      title="Mesaj şablonlarını Meta’ya gönder"
-      description="Sistemin kullandığı tüm şablonları (sipariş durumu ve işletme uyarıları) Meta’da yoksa oluşturur; var olanlara dokunmaz, hiçbir şey silmez. Meta genelde dakikalar içinde onaylar."
+      step={step}
+      title={cloud ? 'Mesaj şablonlarını Meta’ya gönder' : 'Mesaj şablonlarını gönder'}
+      description={
+        cloud
+          ? 'Sistemin kullandığı tüm şablonları (sipariş durumu ve işletme uyarıları) Meta’da yoksa oluşturur; var olanlara dokunmaz, hiçbir şey silmez. Meta genelde dakikalar içinde onaylar.'
+          : 'Sistemin kullandığı tüm şablonları (sipariş durumu ve işletme uyarıları) 360dialog üzerinden Meta’ya gönderir; yalnız eksikleri oluşturur, var olanlara dokunmaz, hiçbir şey silmez. Onay Meta’dadır (genelde dakikalar, en çok 1–3 gün).'
+      }
     >
       <div className="flex flex-wrap gap-2">
         <Button
@@ -452,11 +555,11 @@ function TemplatesStep({ s }: { s: AdminWaSetupStatus }) {
           onClick={() => void a.run(() => apiFetch<AdminWaTemplates>('/admin/whatsapp/setup/templates', { method: 'POST' }))}
         >
           <Send aria-hidden />
-          Şablonları Meta’ya gönder
+          {cloud ? 'Şablonları Meta’ya gönder' : 'Şablonları gönder'}
         </Button>
         <Button
           variant="secondary"
-          disabled={!s.actions.subscribe || a.loading}
+          disabled={!canRefresh || a.loading}
           onClick={() => void a.run(() => apiFetch<AdminWaTemplates>('/admin/whatsapp/setup/templates'))}
         >
           <RefreshCw aria-hidden />

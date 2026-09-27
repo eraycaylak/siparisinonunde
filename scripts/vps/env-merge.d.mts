@@ -31,7 +31,7 @@ export interface MergeResult {
   warnings: string[];
   generated: string[];
   kept: string[];
-  whatsapp: 'cloud' | 'mock';
+  whatsapp: 'd360' | 'cloud' | 'mock';
   sms: 'netgsm' | 'mock';
   sensitive: string[];
 }

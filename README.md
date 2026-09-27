@@ -75,7 +75,7 @@ WhatsApp'ta numara başına aracı firma ücreti (360dialog ~49 €/ay) Esnaf pa
 - Müşteri **sonra kodsuz yazarsa**: son 24 saatte konuştuğu dükkan varsa o devam eder. Yoksa "Hangi dükkandan sipariş vermek istersin?" sorulur: son sipariş verdiği en çok 2 dükkan düğme olarak + "Diğer dükkanlar"; hiç dükkanı yoksa dükkan listesi. Dükkan adını ya da kodunu yazmak da yeter; "dükkanlar", "değiştir" komutları seçiciyi açar.
 - Siparişler yine o dükkanın kendi paneline düşer; müşteri, sohbet ve sipariş verisi dükkanlar arasında ayrıdır.
 - İşletme sahibi kodunu, müşteri bağlantısını, QR'ını (PNG/SVG) ve yazdırılabilir masa kartını panelde **Ayarlar > WhatsApp**'ta görür. Kodu ve modu yalnız platform yöneticisi değiştirir (**admin > İşletmeler > WhatsApp**). Kendi numarasını isteyen işletme "kendi numarası" moduna alınır ve numarasını panelden bağlar.
-- Kurulum (tek numara: Meta Cloud API ya da 360dialog): [15 §5](docs/15-kurulum-ve-isletim.md).
+- Kurulum (tek numara; varsayılan yol 360dialog: GitHub secret'ları `D360_API_KEY` + `WA_PHONE`, sonra admin > WhatsApp kurulumu; alternatif Meta Cloud API doğrudan): [15 §6.2](docs/15-kurulum-ve-isletim.md).
 
 ## Geliştirme kuralları
 

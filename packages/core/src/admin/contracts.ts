@@ -250,9 +250,11 @@ export const adminWaListResponseSchema = z.object({
 export type AdminWaListResponse = z.infer<typeof adminWaListResponseSchema>;
 
 // ---------------------------------------------------------------------------
-// Ortak numara "WhatsApp kurulumu" (yalnız platform_owner, izin whatsapp:setup; 15 §6.2a). Gizli değerler (token, App
-// secret, webhook belirteci) hiçbir yanıtta tam dönmez; yalnız son 4 karakter. Webhook adresi ve doğrulama belirteci
-// ayrı, denetlenen "Göster" çağrısıyla (POST /admin/whatsapp/setup/reveal) alınır.
+// Ortak numara "WhatsApp kurulumu" (yalnız platform_owner, izin whatsapp:setup; 15 §6.2a). İki sağlayıcı: 360dialog
+// (d360, varsayılan yol: test → webhook'u 360dialog'a kaydet → şablonlar) ve Meta Cloud API doğrudan (cloud: göster →
+// test → numara kaydı → abonelik → şablonlar). Gizli değerler (API anahtarı/token, App secret, webhook belirteci) hiçbir
+// yanıtta tam dönmez; yalnız son 4 karakter. Meta yolunda webhook adresi ve doğrulama belirteci ayrı, denetlenen "Göster"
+// çağrısıyla (POST /admin/whatsapp/setup/reveal) alınır; 360dialog'da adres sunucudan doğrudan kaydedilir.
 
 const setupFieldSchema = z.object({
   /** Değer tanımlı mı */
@@ -273,6 +275,8 @@ export const adminWaSetupStatusSchema = z.object({
   displayPhone: z.string().nullable(),
   displayPhoneFormatted: z.string().nullable(),
   graphApiVersion: z.string(),
+  /** Yönetim çağrılarının taban adresi (graph.facebook.com/v23.0 ya da waba-v2.360dialog.io) */
+  apiBase: z.string(),
   fields: z.object({
     phoneNumberId: setupFieldSchema,
     wabaId: setupFieldSchema,
@@ -284,8 +288,11 @@ export const adminWaSetupStatusSchema = z.object({
   }),
   /** Webhook adresi, belirteç maskeli (…/shared/••••abcd) */
   webhookUrlMasked: z.string().nullable(),
-  /** Meta adımları çalıştırılabilir mi (cloud + token + ilgili kimlik) */
-  actions: z.object({ test: z.boolean(), register: z.boolean(), subscribe: z.boolean(), templates: z.boolean() }),
+  /**
+   * Adımlar çalıştırılabilir mi. test/templates: cloud (token + kimlik) ya da d360 (anahtar); register/subscribe yalnız cloud;
+   * webhook yalnız d360 (anahtar + webhook belirteci + https APP_BASE_URL).
+   */
+  actions: z.object({ test: z.boolean(), register: z.boolean(), subscribe: z.boolean(), templates: z.boolean(), webhook: z.boolean() }),
   /** Türkçe eksik/uyarı satırları (boşsa kurulum bilgileri tam) */
   problems: z.array(z.string()),
 });
@@ -341,6 +348,22 @@ export const adminWaSetupSubscriptionSchema = z.object({
   message: z.string(),
 });
 export type AdminWaSetupSubscription = z.infer<typeof adminWaSetupSubscriptionSchema>;
+
+/** 360dialog webhook adresi (GET/POST /admin/whatsapp/setup/webhook; yalnız d360). Adresler belirteç maskeli. */
+export const adminWaSetupWebhookSchema = z.object({
+  /** 360dialog'da numaraya bir webhook adresi kayıtlı mı */
+  configured: z.boolean(),
+  /** Kayıtlı adres bu sistemin ortak webhook adresi mi */
+  matches: z.boolean(),
+  /** Bu istekte 360dialog'a yazıldı mı (GET'te ve adres zaten doğruysa false) */
+  changed: z.boolean(),
+  /** 360dialog'daki adres (gizli yol parçaları ve sorgu maskeli) */
+  urlMasked: z.string().nullable(),
+  /** Olması gereken adres (…/webhooks/wa/shared/••••abcd); belirteç yoksa null */
+  expectedUrlMasked: z.string().nullable(),
+  message: z.string(),
+});
+export type AdminWaSetupWebhook = z.infer<typeof adminWaSetupWebhookSchema>;
 
 export const adminWaTemplateStatusSchema = z.object({
   name: z.string(),

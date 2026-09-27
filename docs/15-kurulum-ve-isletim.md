@@ -55,7 +55,7 @@ Kalıcı veriler adlandırılmış Docker birimlerindedir: `pgdata` (veritabanı
 | Docker | Docker Engine 27+ ve Compose v2.24+ (BuildKit açık) | `docker compose version` |
 | Disk | Veritabanı + 14 günlük yedek + görseller için en az 40 GB boş | Yedekler ayrıca ikinci bir Türkiye lokasyonuna kopyalanır (§8). |
 | Ağ | Gelen: 22 (otomatik kurulum parola ile bağlanır, fail2ban korur; sonra anahtara geçiş önerilir), 80, 443. Giden: Let's Encrypt, Cloudflare API, Meta Graph API (`graph.facebook.com`) ya da 360dialog, Netgsm, Web Push servisleri (`fcm.googleapis.com`, `web.push.apple.com`, `*.push.services.mozilla.com`) | 80 portu HTTP-01 doğrulaması ve HTTPS yönlendirmesi için açık kalmalı. |
-| Hesaplar | Cloudflare (DNS), WhatsApp ortak numarası için Meta Business + geliştirici uygulaması ya da 360dialog, Netgsm, ACME e-postası | §3, §6, §7 |
+| Hesaplar | Cloudflare (DNS), WhatsApp ortak numarası için 360dialog (varsayılan; Meta Business portföyü kayıt sihirbazında açılır) ya da Meta Business + geliştirici uygulaması, Netgsm, ACME e-postası | §3, §6, §7 |
 
 Ölçeklenme notu: sipariş hacmi büyüdüğünde önce `postgres` ayrı sunucuya taşınır (00 §10: tek sunucu → app + pg primary + pg standby). "Sipariş kaçmaz" paketi için ikinci ucuz VPS'te webhook alımı ve dış izleme pilot öncesi zorunludur (00 §11).
 
@@ -107,9 +107,9 @@ Alan adı `yemekgelsin.net` Cloudflare'de (Registrar + DNS) yönetilir (00 §10:
 | `ENCRYPTION_KEY` | evet | WhatsApp/SMS API anahtarlarını şifreler (AES-256-GCM, 32 bayt base64). **Kaybolursa kayıtlı anahtarlar çözülemez**, parola yöneticisinde ve ayrı bir yerde saklayın | `openssl rand -base64 32` |
 | `WA_DEFAULT_PROVIDER` | hayır | Yeni hesap varsayılanı: `mock` \| `cloud` \| `d360` (işletme hesabı panelde seçilir) | `d360` |
 | `WA_APP_SECRET` | cloud için | Meta Cloud API webhook imzası (`X-Hub-Signature-256`). `PLATFORM_WA_PROVIDER=cloud` iken **zorunlu** (ortak numara webhook'u imzasız olay kabul etmez; boşsa API açılmaz). 360dialog hesaplarında imza denetlenmez (teyit edilmeli) | Meta uygulama gizli anahtarı |
-| `WA_VERIFY_TOKEN` | cloud için | Webhook GET doğrulaması (`hub.verify_token`; ortak numarada Meta uygulamasının Webhook ayarına da girilir, §6.2 madde 12) | `openssl rand -hex 16` |
-| `PLATFORM_WA_PROVIDER` | evet | Platform numarasının (= **ortak numara**, 00 §12a madde 8) sağlayıcısı: `cloud` (Meta Cloud API, §6.2) \| `d360` (360dialog, §6.3) \| `mock`. İşletmelerin müşteri mesajları ve işletme sahibine giden uyarılar (00 §10 alarm t=2 dk) bu numaradan gider | `cloud` ya da `d360` |
-| `PLATFORM_WA_API_KEY` | d360/cloud için | Platform numarasının API anahtarı: Cloud API'de kalıcı System User token'ı (§6.2 madde 9), 360dialog'da API anahtarı | Meta ya da 360dialog |
+| `WA_VERIFY_TOKEN` | cloud için | Webhook GET doğrulaması (`hub.verify_token`; Meta doğrudan yolda Meta uygulamasının Webhook ayarına da girilir, §6.2c madde 12; üretimde her sağlayıcıda boş/varsayılan olamaz) | `openssl rand -hex 16` |
+| `PLATFORM_WA_PROVIDER` | evet | Platform numarasının (= **ortak numara**, 00 §12a madde 8) sağlayıcısı: `d360` (360dialog, varsayılan yol, §6.2) \| `cloud` (Meta Cloud API doğrudan, §6.2b) \| `mock`. İşletmelerin müşteri mesajları ve işletme sahibine giden uyarılar (00 §10 alarm t=2 dk) bu numaradan gider | `d360` (ya da `cloud`) |
+| `PLATFORM_WA_API_KEY` | d360/cloud için | Platform numarasının API anahtarı: 360dialog'da numaranın API anahtarı (§6.2 A.4), Cloud API'de kalıcı System User token'ı (§6.2c madde 9) | Meta ya da 360dialog |
 | `PLATFORM_WA_PHONE_NUMBER_ID` | cloud için | Platform numarasının Graph `phone_number_id`'si (d360'ta boş) | — |
 | `PLATFORM_WA_DISPLAY_PHONE` | d360/cloud için | **Ortak numara** (00 §12a madde 8): platform numarasının E.164 gösterimi; işletme QR'ları, wa.me bağlantıları ve Akış B bunu kullanır. Açılışta işletmelerin ortak numara satırlarına yazılır | `+908501234567` |
 | `PLATFORM_WA_WEBHOOK_TOKEN` | d360/cloud için | Ortak numara webhook adresindeki gizli belirteç (`/api/v1/webhooks/wa/shared/<belirteç>`); en az 16 karakter | `openssl rand -hex 24` |
@@ -226,18 +226,20 @@ Yedek cron'unu kurmayı unutmayın (§8).
 
 ## 6. WhatsApp bağlama: ortak numara (varsayılan) ve kendi numarası
 
-00 §12a madde 8 gereği **tüm platformda tek WhatsApp numarası** vardır: "Yemek Gelsin" ortak numarası. Bütün işletmeler varsayılan olarak bu numaradan sipariş alır; işletme sahiplerine giden platform uyarıları (yeni sipariş alarmı, bağlantı sorunu …) da aynı numaradan gider. Yapılandırma tek yerdedir: `.env`'deki `PLATFORM_WA_*` değişkenleri. Kod sağlayıcıdan bağımsızdır (`apps/api/src/wa/providers/{mock,cloud,d360}.ts`); yalnız resmi WhatsApp Business Platform (Cloud API) kullanılır.
+00 §12a madde 8 gereği **tüm platformda tek WhatsApp numarası** vardır: "Yemek Gelsin" ortak numarası. Bütün işletmeler varsayılan olarak bu numaradan sipariş alır; işletme sahiplerine giden platform uyarıları (yeni sipariş alarmı, bağlantı sorunu …) da aynı numaradan gider. Yapılandırma tek yerdedir: `PLATFORM_WA_*` değişkenleri (canlı ortamda GitHub secret'larından türetilir, §13). Kod sağlayıcıdan bağımsızdır (`apps/api/src/wa/providers/{mock,cloud,d360}.ts`); yalnız resmi WhatsApp Business Platform (Cloud API) kullanılır.
 
-Numarayı iki yoldan biriyle bağlarsınız; ikisi de aynı sonucu verir, uygulama tarafında yalnız birkaç değişken farklıdır:
+Numara iki yoldan biriyle bağlanır. **Proje sahibinin kararı 360dialog'dur** (27.09.2026, 00 §12a madde 8): Meta tarafındaki uygulama/sistem kullanıcısı/token adımları yerine 360dialog'un kayıt sihirbazı kullanılır. Doğrudan Meta yolu alternatif olarak belgelidir.
 
-| | **Yol A: Meta Cloud API (doğrudan)** — §6.2 | **Yol B: 360dialog (aracı firma)** — §6.3 |
+| | **360dialog (varsayılan)** — §6.2 | **Meta Cloud API doğrudan (alternatif)** — §6.2b |
 |---|---|---|
-| Aylık numara ücreti | Yok (yalnız Meta mesaj ücretleri) | ~49 €/ay (teyit edilmeli) + Meta mesaj ücretleri |
-| Kurulum | Meta Business + geliştirici uygulaması + kalıcı token; daha çok adım | 360dialog kayıt ekranı; daha az adım |
-| Webhook imzası | `X-Hub-Signature-256` (`WA_APP_SECRET`) denetlenir | İmza yok; URL'deki gizli belirteç korur (teyit edilmeli) |
-| `PLATFORM_WA_PROVIDER` | `cloud` | `d360` |
+| Aylık numara ücreti | 360dialog "Regular" planı ~49 €/ay (teyit edilmeli) + Meta mesaj ücretleri | Yok (yalnız Meta mesaj ücretleri) |
+| Meta tarafı | 360dialog'un sihirbazı yürütür (Meta'nın gömülü kayıt penceresi) | Meta Business + geliştirici uygulaması + sistem kullanıcısı + kalıcı token |
+| GitHub secret'ları (canlı ortam) | `D360_API_KEY`, `WA_PHONE` | `META_WA_TOKEN`, `META_WA_PHONE_NUMBER_ID`, `META_WA_WABA_ID`, `META_APP_SECRET`, `WA_PHONE` |
+| Admin "WhatsApp kurulumu" (§6.2a) | Bağlantıyı test et → Webhook'u 360dialog'a kaydet → Şablonları gönder | Göster (Meta'ya yapıştır) → test → numarayı etkinleştir (PIN) → abonelik → şablonlar |
+| Webhook imzası | İmza yok; URL'deki gizli belirteç korur (teyit edilmeli) | `X-Hub-Signature-256` (`WA_APP_SECRET`) denetlenir |
+| `PLATFORM_WA_PROVIDER` | `d360` | `cloud` |
 
-Yol A'da aracı ücreti yoktur ama adım sayısı fazladır; Yol B kurulumu kısaltır ve aracı desteği sağlar (00 §12a madde 8: seçim proje sahibinindir). Platformun kendi tek numarası için doğrudan Cloud API kullanmak Meta Tech Provider sürecini (App Review) gerektirmez; o süreç başka işletmelerin numaralarını bağlamak içindir (teyit edilmeli). İşletmenin **kendi numarası** isteğe bağlıdır (üst paket): §6.8.
+İki yolun secret'ları birlikte girilirse (`D360_API_KEY` + tam `META_*` seti) dağıtım "belirsiz" hatasıyla durur: yalnız birini kullanın. Platformun kendi tek numarası için doğrudan Cloud API kullanmak Meta Tech Provider sürecini (App Review) gerektirmez; o süreç başka işletmelerin numaralarını bağlamak içindir (teyit edilmeli). İşletmenin **kendi numarası** isteğe bağlıdır (üst paket): §6.8.
 
 ### 6.1 Ortak numara nasıl çalışır (operatör özeti)
 
@@ -247,44 +249,76 @@ Yol A'da aracı ücreti yoktur ama adım sayısı fazladır; Yol B kurulumu kıs
 - Dükkan kodunu ve modu (ortak numara / kendi numarası) yalnız platform yöneticisi değiştirir: `Admin > İşletmeler > (işletme) > WhatsApp`. Kod değişirse eski QR'lar çalışmaz; işletmeye yenisini bastırmasını söyleyin.
 - `Admin > WhatsApp` en üstte **ortak numara** kartını gösterir: numara, sağlayıcı, maskeli webhook adresi, son webhook zamanı, ortak numaradaki ve dükkan listesinde görünen işletme sayısı, son 24 saatte dükkan seçici mesajları ve yapılandırma sorunları.
 
-### 6.2 Yol A — Meta Cloud API ile doğrudan (tek numara)
+### 6.2 Gerçek WhatsApp'ı bağlama: 360dialog (varsayılan) — proje sahibi için kısa yol
 
-**Proje sahibi için kısa yol: §6.2a.** Orada Meta'da yalnız tıklama yapılır, beş değer GitHub secret'ı (canlı ortam, Cloudflare) ya da `.env` (isteğe bağlı VPS) olarak girilir; numara kaydı, webhook aboneliği ve şablonlar `Admin > WhatsApp > WhatsApp kurulumu` düğmeleriyle yapılır. Bu bölüm ayrıntılı başvuru ve elle (curl) yoldur.
+Beş bölüm, sırayla. 360dialog ve Meta ekranları değişebilir; menü adları İngilizce arayüze göredir, parantez içinde Türkçesi (teyit edilmeli, Eylül 2026).
 
-Menü adları Meta'nın arayüz diline göre Türkçe ya da İngilizce görünür; ikisi birlikte yazılmıştır. Meta ekranları sık değişir: her adım canlıya çıkmadan önce güncel belgeyle doğrulanır (teyit edilmeli).
+**Hazırlık**
+- WhatsApp'a hiç kayıtlı olmamış **yeni bir hat** (SIM; SMS ya da sesli arama alabilmeli). Hat WhatsApp ya da WhatsApp Business uygulamasında kayıtlıysa önce uygulamadan hesabı silin, yoksa Meta numarayı kabul etmez. Bu hat yalnız platform içindir.
+- Şahıs şirketi bilgileri: vergi levhasındaki unvan, adres, vergi numarası, iş e-postası; şirket kartı (360dialog aboneliği için).
+- Bir Facebook hesabı (Meta'nın kayıt penceresinde giriş için) ve yayında bir `https://yemekgelsin.net` (Meta görünen adı siteyle karşılaştırır).
 
-**Hazırlık:** WhatsApp'ta hiç kullanılmamış (ya da WhatsApp/WhatsApp Business uygulamasındaki hesabı silinmiş) bir telefon numarası: SMS ya da sesli arama alabilen bir cep hattı veya sabit/0850 hat. Şirketin resmi bilgileri (unvan, adres, vergi levhası) ve `yemekgelsin.net` sitesinin yayında olması (görünen ad ve işletme doğrulaması siteye bakar).
+**A. 360dialog'da (bir kez, ~20 dakika)**
 
-1. **İşletme portföyü (Business portfolio):** [business.facebook.com](https://business.facebook.com) → **Hesap oluştur (Create account)** → şirket adı, adınız, iş e-postası. Sonra **Ayarlar (Settings) > İşletme bilgileri (Business info)**: yasal unvan, adres, telefon, web sitesi.
-2. **İşletme doğrulaması (Business verification):** **Ayarlar > Güvenlik Merkezi (Security Center) > Doğrulamayı başlat (Start verification)** → vergi levhası / ticaret sicil belgesi yükleyin. Doğrulanmamış portföyde günlük iletişim sınırı düşüktür (§6.7) ve görünen ad onayı zorlaşır (teyit edilmeli). Birkaç gün sürebilir; hemen başlatın.
-3. **Ödeme yöntemi:** **Ayarlar > Faturalandırma ve ödemeler (Billing & payments)** ya da WhatsApp Manager > **Ödeme yöntemleri (Payment methods)** → şirket kartını ekleyin. Kart yoksa ücretli mesajlar (şablonlar) gönderilmez, hata 131042 döner.
-4. **Geliştirici uygulaması:** [developers.facebook.com](https://developers.facebook.com) → aynı Facebook hesabıyla giriş → **Uygulamalarım (My Apps) > Uygulama oluştur (Create app)** → kullanım amacı olarak **"Müşterilerle WhatsApp üzerinden iletişim kurun" (Connect with customers through WhatsApp)** (eski ekranda: **Diğer (Other) > İşletme (Business)**) → uygulama adı `yemekgelsin`, 1. adımdaki işletme portföyünü seçin → **Oluştur**.
-5. **WhatsApp ürününü ekleyin:** Uygulama panosunda **WhatsApp > Kur (Set up)** → işletme portföyünü seçin. Meta bir WhatsApp Business hesabı (WABA) ve deneme numarası açar. Sol menüde **WhatsApp > API Kurulumu (API Setup)** sayfası görünür.
-6. **Gerçek numarayı ekleyin:** **API Kurulumu > Telefon numarası ekle (Add phone number)** → işletme görünen adı **Yemek Gelsin**, saat dilimi İstanbul, kategori (Yemek ve içecek / Food & beverage), kısa açıklama → numara (ülke kodu +90) → **SMS ya da sesli arama** ile gelen 6 haneli kodu girin.
-7. **Görünen ad onayı:** [business.facebook.com](https://business.facebook.com) > **WhatsApp Manager > Telefon numaraları (Phone numbers)** → numaranın yanında görünen ad durumu "Onaylandı (Approved)" olmalı. Ad, sitede ve belgelerde geçen marka adıyla aynı olmalıdır; onay 1–3 gün sürebilir (teyit edilmeli).
-8. **Numarayı Cloud API'ye kaydedin (register) ve iki adımlı PIN:** en kolayı `Admin > WhatsApp > WhatsApp kurulumu > Numarayı etkinleştir` (6 haneli PIN, §6.2a). Elle: WhatsApp Manager > Telefon numaraları > numara > **İki adımlı doğrulama (Two-step verification)** → 6 haneli PIN belirleyin, parola yöneticisinde saklayın. Numara API Kurulumu'nda "Bağlı değil (Pending)" görünüyorsa bir kez kaydedin (9. adımdaki token ile):
-   ```bash
-   curl -X POST "https://graph.facebook.com/v23.0/<PHONE_NUMBER_ID>/register" \
-     -H "Authorization: Bearer <KALICI_TOKEN>" -H "Content-Type: application/json" \
-     -d '{"messaging_product":"whatsapp","pin":"<6 haneli PIN>"}'
-   ```
-9. **Kalıcı erişim anahtarı (System User token):** business.facebook.com > **Ayarlar > Kullanıcılar > Sistem kullanıcıları (System users) > Ekle (Add)** → ad `yemekgelsin-api`, rol **Yönetici (Admin)** →
-   - **Varlık ata (Assign assets):** **Uygulamalar**'da 4. adımdaki uygulama (Tam kontrol / Full control), **WhatsApp hesapları**'nda WABA (Tam kontrol).
-   - **Yeni token oluştur (Generate new token)** → uygulamayı seçin → süre **Hiçbir zaman (Never)** → izinler: `whatsapp_business_messaging`, `whatsapp_business_management` → **Oluştur**. Token **bir kez** gösterilir; doğrudan parola yöneticisine kopyalayın, e-posta/WhatsApp ile taşımayın. (API Kurulumu sayfasındaki "geçici token" 24 saatte biter; üretimde kullanılmaz.)
-10. **Kimlikler ve uygulama gizli anahtarı:** developers.facebook.com > uygulama > **WhatsApp > API Kurulumu**: **Telefon numarası kimliği (Phone number ID)** ve **WhatsApp Business hesap kimliği (WABA ID)**. **Uygulama ayarları > Temel (App settings > Basic) > Uygulama gizli anahtarı (App secret) > Göster (Show)**. Aynı sayfada **Gizlilik politikası URL'si**: `https://yemekgelsin.net/yasal/gizlilik`.
-11. **`.env`'i doldurun** (§6.4'teki ortak blok + Yol A satırları) ve API/worker'ı yeniden başlatın: `docker compose up -d api worker`. Webhook doğrulaması (12. adım) çalışan API'ye ihtiyaç duyar.
-12. **Webhook:** developers.facebook.com > uygulama > **WhatsApp > Yapılandırma (Configuration) > Webhook > Düzenle (Edit)**:
-    - **Geri çağırma URL'si (Callback URL):** `https://yemekgelsin.net/api/v1/webhooks/wa/shared/<PLATFORM_WA_WEBHOOK_TOKEN>`
-    - **Doğrulama belirteci (Verify token):** `.env`'deki `WA_VERIFY_TOKEN`
-    - **Doğrula ve kaydet (Verify and save)** → API `hub.challenge`'ı geri döndürür. Hata alırsanız: 404 = belirteç yol ile `.env`'dekinden farklı ya da `PLATFORM_WA_WEBHOOK_TOKEN` boş; 403 = `WA_VERIFY_TOKEN` farklı.
-    - Aynı ekranda **Webhook alanları (Webhook fields) > Yönet (Manage)** → **`messages`** alanına abone olun (gelen mesajlar ve teslim/okundu durumları bununla gelir).
-    - Uygulamanın WABA'ya abone olduğunu doğrulayın (teyit edilmeli; panodan kurulumda genelde kendiliğinden olur): `Admin > WhatsApp > WhatsApp kurulumu > Webhook aboneliğini aç` ya da `curl -X POST "https://graph.facebook.com/v23.0/<WABA_ID>/subscribed_apps" -H "Authorization: Bearer <KALICI_TOKEN>"`.
-13. **Uygulamayı canlı moda alın:** uygulama panosunun üstündeki **Uygulama modu (App Mode): Geliştirme → Canlı (Live)**. Geliştirme modunda webhook yalnız test verisi gönderir (teyit edilmeli).
-14. **Şablonlar ve deneme:** §6.5 ve §6.6.
+1. **Hesap:** [hub.360dialog.com](https://hub.360dialog.com) → **Sign up** → e-posta ve parola → e-postadaki doğrulama bağlantısı. Şirket bilgileri: şirket adı (vergi levhasındaki unvan), ülke **Türkiye**, adres, vergi numarası, web sitesi `https://yemekgelsin.net`.
+2. **Plan ve kart:** **Regular** planını seçin (~49 €/ay, numara başına; teyit edilmeli) → ödeme yöntemi olarak şirket kartını ekleyin.
+3. **Numarayı bağlayın:** **Add number** (ya da **Connect number**) → açılan Facebook penceresinde (Meta'nın gömülü kayıt akışı) Facebook hesabınızla giriş → **Continue**:
+   - İşletme portföyü: **Create a business portfolio** → ad **Yemek Gelsin**, iş e-postası, web sitesi, ülke Türkiye (varsa mevcut portföyü seçin).
+   - WhatsApp Business hesabı: **Create a new WhatsApp Business account** → **Yemek Gelsin**.
+   - Profil: görünen ad (display name) **Yemek Gelsin** — sitedeki marka adıyla birebir; kategori **Restaurant** (Yemek ve içecek); saat dilimi İstanbul.
+   - Numara: yeni hat (+90 …) → **Text message (SMS)** ya da **Phone call (Sesli arama)** → gelen 6 haneli kodu girin → izinleri onaylayın → **Finish**.
+   Pencere kapanınca numara Hub'da görünür; "Pending" ise birkaç dakika bekleyin.
+4. **API anahtarı:** Hub'da numaranın satırı → **API key** (**Generate API key**) → anahtar bir kez gösterilir: doğrudan parola yöneticisine kopyalayın, e-posta/WhatsApp ile taşımayın. Yeni anahtar üretmek eskisini geçersiz kılar ve **360dialog numaranın webhook adresini siler** (sonra C.2'yi tekrarlayın).
+5. **İşletme doğrulaması (önerilir):** [business.facebook.com](https://business.facebook.com) → **Settings (Ayarlar) > Security Center (Güvenlik Merkezi) > Start verification** → vergi levhası. Günlük iletişim sınırını yükseltir (§6.7; teyit edilmeli).
 
-### 6.2a Gerçek WhatsApp'ı bağlama (tek numara, Meta doğrudan) — proje sahibi için kısa yol
+**B. GitHub secret'ları ve dağıtım**
 
-Meta'da yalnız tıklama yaparsınız ve **beş değer** kopyalarsınız; gerisini `Admin > WhatsApp > WhatsApp kurulumu`'ndaki düğmeler yapar. Menü adları Meta'nın İngilizce arayüzüne göredir (parantez içinde Türkçesi); Meta ekranları değişebilir (teyit edilmeli, 2026 arayüzü).
+GitHub > depo > **Settings > Secrets and variables > Actions > New repository secret** (ad + değer → **Add secret**):
+
+| Secret | Değer |
+|---|---|
+| `D360_API_KEY` | A.4'teki API anahtarı |
+| `WA_PHONE` | numara, ülke koduyla: `+905321234567` (`0532 123 45 67` de olur; dağıtım E.164'e çevirir) |
+
+Sonra **Actions > "Canlı ortam (Cloudflare)" > Run workflow** (secret eklemek dağıtımı kendiliğinden başlatmaz). İş akışı özetinde "WhatsApp: gerçek numara (360dialog)" yazmalı. `META_*` secret'ları da tamsa dağıtım "belirsiz" hatasıyla durur (360dialog kullanıyorsanız onları silin); `WA_PHONE` eksikse uyarı verir, hatalıysa durur — ikisinde de WhatsApp kapalı (mock) kalır. Container'a `PLATFORM_WA_PROVIDER=d360`, `PLATFORM_WA_API_KEY`, `PLATFORM_WA_DISPLAY_PHONE` gider (`deploy/cloudflare/src/whatsapp-env.ts`). İsteğe bağlı Türkiye VPS'inde (§14) aynı iki secret `.env`'e aynı biçimde yazılır.
+
+**C. Admin'de, sırayla** — `/admin/giris` → platform sahibi (`admin@yemekgelsin.net`) → **WhatsApp** → **WhatsApp kurulumu** (yalnız platform sahibi görür; her işlem denetim kaydına yazılır; ekran §6.2a). "Kurulum durumu" kartında sağlayıcı **360dialog**, numara ve "360dialog API anahtarı: Tanımlı ••••1234" görünmeli.
+
+1. **Bağlantıyı test et** → numara, görünen ad ve onayı, Meta'nın gönderim durumu, kalite, günlük sınır ve 360dialog'daki webhook adresi. İlk seferde "Webhook (360dialog): Kayıtlı değil" normaldir. Hata Türkçe yazar (HTTP 401 → anahtar geçersiz: A.4 ve B'yi tekrarlayın).
+2. **Webhook'u 360dialog'a kaydet** → sistem ortak webhook adresini (`https://yemekgelsin.net/api/v1/webhooks/wa/shared/<gizli belirteç>`) 360dialog'a yazar; "Webhook kaydedildi" ve maskeli adres görünür. Tekrar basmak zararsızdır (adres doğruysa değiştirmez). Meta yolundaki "Göster → yapıştır" adımı burada yoktur.
+3. **Şablonları gönder** → kodun kullandığı tüm şablonlar (sipariş durumu + işletme uyarıları; §6.5) yoksa oluşturulur; var olana dokunulmaz, hiçbir şey silinmez. **Durumu yenile** her şablonu Onaylandı / İncelemede / Reddedildi olarak (ret sebebiyle) gösterir.
+
+**D. Meta onaylarını bekleyin (1–3 gün)**
+- **Görünen ad** "Yemek Gelsin" Meta incelemesinden geçer (genelde 1–3 gün). Onaylanana kadar müşteri ad yerine numarayı görebilir; mesajlaşma çalışır. Durum C.1'de "Görünen ad onayı" satırında. Reddedilirse 360dialog Hub ya da WhatsApp Manager üzerinden adı yeniden gönderin (teyit edilmeli).
+- **Şablonlar** genelde dakikalar içinde, en geç 1–3 günde onaylanır; onaylanmamış şablon 24 saat penceresi dışında gönderilemez (pencere içindeki yanıtlar etkilenmez).
+
+**E. Deneme** — canlı ortamda demo işletme yoktur: kendi deneme işletmenizi açın (`/panel/kayit`), kurulumu bitirin, **Panel > Ayarlar > WhatsApp**'taki QR'ı kendi telefonunuzla okutun (ya da numaraya dükkan kodunu yazın: `#KOD`) → dükkanın adıyla karşılama ve **Menüyü aç** gelmeli; `Admin > WhatsApp` ortak numara kartında "Son webhook" güncellenir. `/dev/whatsapp` canlı ortamda yoktur (404). Ayrıntılı deneme §6.6.
+
+**Maliyet:** 360dialog aylık ücreti (Regular, ~49 €/ay; teyit edilmeli) + Meta mesaj ücretleri: **1 Ekim 2026'dan itibaren** Meta numara başına ayda ilk 1.000 hizmet (service) mesajından sonrasını ve pencere dışı şablon mesajlarını ücretlendirir (00 §6 madde 5, §6.7). Meta ücretlerinin 360dialog faturasına mı yansıdığı yoksa Meta'ya tanımlı karttan mı çekildiği ve 360dialog'un mesaj başına ek ücret alıp almadığı **teyit edilmeli** (360dialog Hub › Billing).
+
+**Gerçek numarayı kapatmak:** GitHub'da `D360_API_KEY` secret'ını silin → Run workflow; iş akışı Worker'daki eski değeri de siler (mock: canlı ortamda WhatsApp tamamen kapanır). 360dialog aboneliği ayrıca Hub'dan iptal edilir.
+
+**Sorun giderme**
+- C.1/C.2 "360dialog API anahtarı geçersiz (HTTP 401)": anahtar yanlış kopyalandı ya da yenisi üretildi → A.4, B, sonra C.2.
+- Müşteri mesajları gelmiyor, "Son webhook" eski: C.1'de webhook satırı "Kayıtlı değil" ya da "farklı adres" → C.2. Yeni API anahtarından sonra her zaman C.2.
+- "360dialog bu uç noktayı bulamadı (HTTP 404)": 360dialog API'si değişmiş olabilir; §6.3'teki curl komutlarıyla deneyip durumu bildirin (uç nokta yolları `apps/api/src/wa/providers/d360.ts`'tedir).
+- "Sistemdeki numara (farklı)": `WA_PHONE` 360dialog'daki numarayla aynı olmalı; QR ve wa.me bağlantıları bu numarayı içerir.
+
+### 6.2a Admin "WhatsApp kurulumu" ekranı (iki yol için)
+
+`Admin > WhatsApp` sayfasındaki "WhatsApp kurulumu" bölümü yalnız platform sahibine görünür (izin `whatsapp:setup`). Her işlem, başarılı ya da başarısız, denetim kaydına yazılır (gizli değer, PIN, webhook adresi/belirteci yazılmaz); gizli değerler ekranda yalnız son 4 karakterle görünür. "Kurulum durumu" kartı hangi değerlerin tanımlı olduğunu ve eksikleri Türkçe gösterir. Adımlar sağlayıcıya göre değişir:
+
+| Sağlayıcı | Adımlar | Sunucunun çağırdığı uçlar |
+|---|---|---|
+| 360dialog (`d360`, varsayılan; §6.2 C) | 1 Bağlantıyı test et · 2 Webhook'u 360dialog'a kaydet (+ Kayıtlı adresi göster) · 3 Şablonları gönder (+ Durumu yenile) | `https://waba-v2.360dialog.io`, başlık `D360-API-KEY`: `GET /health_status`, `GET/POST /v1/configs/webhook`, `GET/POST /message_templates` (teyit edilmeli) |
+| Meta doğrudan (`cloud`; §6.2b C) | 1 Meta'ya girilecek bilgiler (Göster) · 2 Bağlantıyı test et · 3 Numarayı etkinleştir (PIN) · 4 Webhook aboneliğini aç · 5 Şablonları Meta'ya gönder | Graph `v23.0`, `Authorization: Bearer`: `GET /{phone_number_id}`, `POST /{phone_number_id}/register`, `GET/POST /{waba_id}/subscribed_apps`, `GET/POST /{waba_id}/message_templates` |
+| Simülatör (`mock`) | 360dialog adımları pasif; sorun satırı eklenecek secret'ları söyler | — |
+
+360dialog'da numara kaydı (PIN) ve webhook aboneliği gerekmez (360dialog yapar); bu düğmeler görünmez, API'si 409 döner. Webhook kaydı bilinçli olarak **düğmedir**: API ve worker açılışta 360dialog'a kendiliğinden yazmaz, proje sahibi ne olduğunu ekranda görür. Şablon kataloğu iki yolda da aynıdır (§6.5).
+
+### 6.2b Alternatif: Meta Cloud API ile doğrudan — kısa yol
+
+**Varsayılan yol 360dialog'dur (§6.2);** bu yol yalnız 360dialog kullanılmayacaksa izlenir. `D360_API_KEY` secret'ı tanımlıysa silin: iki yolun secret'ları birlikte olursa dağıtım durur. Meta'da yalnız tıklama yaparsınız ve **beş değer** kopyalarsınız; gerisini `Admin > WhatsApp > WhatsApp kurulumu`'ndaki düğmeler yapar (§6.2a). Menü adları Meta'nın İngilizce arayüzüne göredir (parantez içinde Türkçesi); Meta ekranları değişebilir (teyit edilmeli, 2026 arayüzü).
 
 **Hazırlık:** WhatsApp'a hiç kayıtlı olmamış yeni bir hat (SMS ya da sesli arama alabilmeli). Hat WhatsApp ya da WhatsApp Business uygulamasında kayıtlıysa önce uygulamadan hesabı silin, yoksa Meta numarayı kabul etmez. Şirket kartı (ödeme yöntemi). `https://yemekgelsin.net` yayında olmalı.
 
@@ -313,9 +347,9 @@ Canlı ortam (Cloudflare, §13): GitHub > depo > **Settings > Secrets and variab
 | `META_APP_SECRET` | App secret |
 | `WA_PHONE` | numara, ülke koduyla: `+905321234567` |
 
-Sonra **Actions > "Canlı ortam (Cloudflare)" > Run workflow** (secret eklemek dağıtımı kendiliğinden başlatmaz). `META_WA_TOKEN`, `META_WA_PHONE_NUMBER_ID`, `META_APP_SECRET` ve `WA_PHONE` birlikte varsa ortak numara gerçek Meta Cloud API ile açılır; iş akışı özetinde "WhatsApp: gerçek numara" yazar. Biri eksikse uyarı verir ve mock kalır (canlı ortamda çalışan WhatsApp yoktur: vitrinde ve QR'da WhatsApp bağlantısı gösterilmez); telefon ya da kimlik biçimi yanlışsa dağıtım Türkçe hatayla durur. `META_WA_WABA_ID` yalnız aşağıdaki 4. ve 5. düğmeler için gerekir.
+Sonra **Actions > "Canlı ortam (Cloudflare)" > Run workflow** (secret eklemek dağıtımı kendiliğinden başlatmaz). `META_WA_TOKEN`, `META_WA_PHONE_NUMBER_ID`, `META_APP_SECRET` ve `WA_PHONE` birlikte varsa (ve `D360_API_KEY` yoksa) ortak numara gerçek Meta Cloud API ile açılır; iş akışı özetinde "WhatsApp: gerçek numara (Meta Cloud API doğrudan)" yazar. Biri eksikse uyarı verir ve mock kalır (canlı ortamda çalışan WhatsApp yoktur: vitrinde ve QR'da WhatsApp bağlantısı gösterilmez); telefon ya da kimlik biçimi yanlışsa dağıtım Türkçe hatayla durur. `META_WA_WABA_ID` yalnız aşağıdaki 4. ve 5. düğmeler için gerekir.
 
-İsteğe bağlı Türkiye VPS'i (§14): **aynı beş GitHub secret'ı** kullanılır; "Canlı ortam (Türkiye VPS)" iş akışı her dağıtımda bunları `.env`'e yazar (`PLATFORM_WA_PROVIDER=cloud`, `PLATFORM_WA_API_KEY`, `PLATFORM_WA_PHONE_NUMBER_ID`, `PLATFORM_WA_WABA_ID`, `WA_APP_SECRET`, `PLATFORM_WA_DISPLAY_PHONE`; §6.4 Yol A). Secret değişince iş akışını elle çalıştırın. Elle kurulumda aynı değerler `.env`'e yazılıp `docker compose up -d api worker`.
+İsteğe bağlı Türkiye VPS'i (§14): **aynı beş GitHub secret'ı** kullanılır; "Canlı ortam (Türkiye VPS)" iş akışı her dağıtımda bunları `.env`'e yazar (`PLATFORM_WA_PROVIDER=cloud`, `PLATFORM_WA_API_KEY`, `PLATFORM_WA_PHONE_NUMBER_ID`, `PLATFORM_WA_WABA_ID`, `WA_APP_SECRET`, `PLATFORM_WA_DISPLAY_PHONE`; §6.4 Meta doğrudan satırları). Secret değişince iş akışını elle çalıştırın. Elle kurulumda aynı değerler `.env`'e yazılıp `docker compose up -d api worker`.
 
 **C. Admin'de, sırayla** — `/admin/giris` → platform sahibi hesabı → **WhatsApp** → **WhatsApp kurulumu** (yalnız platform sahibi görür; her işlem denetim kaydına yazılır). "Kurulum durumu" kartında beş değer "Tanımlı" görünmeli (gizliler yalnız son 4 karakterle).
 
@@ -325,63 +359,109 @@ Sonra **Actions > "Canlı ortam (Cloudflare)" > Run workflow** (secret eklemek d
 4. **Webhook aboneliğini aç** → "Abonelik açık".
 5. **Şablonları Meta'ya gönder** → kodun kullandığı tüm şablonlar (sipariş durumu + işletme uyarıları; §6.5) Meta'da yoksa oluşturulur; var olana dokunulmaz, hiçbir şey silinmez. **Durumu yenile** her şablonu Onaylandı / İncelemede / Reddedildi olarak (ret sebebiyle) gösterir; utility şablonlar genelde dakikalar içinde onaylanır.
 
-**Deneme:** canlı ortamda (demo işletme yoktur) kendi deneme işletmenizi açın (`/panel/kayit`), kurulumu bitirin ve kendi telefonunuzdan numaraya dükkan kodunu yazın (`#KOD`, panel > Ayarlar > WhatsApp) → dükkanın adıyla karşılama ve **Menüyü aç** gelmeli; `Admin > WhatsApp` ortak numara kartında "Son webhook" güncellenir. `/dev/whatsapp` artık "Gerçek WhatsApp bağlı; simülatör kapalı" gösterir.
+**Deneme:** canlı ortamda (demo işletme yoktur) kendi deneme işletmenizi açın (`/panel/kayit`), kurulumu bitirin ve kendi telefonunuzdan numaraya dükkan kodunu yazın (`#KOD`, panel > Ayarlar > WhatsApp) → dükkanın adıyla karşılama ve **Menüyü aç** gelmeli; `Admin > WhatsApp` ortak numara kartında "Son webhook" güncellenir.
 
 **Görünen ad:** "Yemek Gelsin" adı Meta incelemesinden geçer (genelde 1–3 gün). Onaylanana kadar müşteri ad yerine numarayı görebilir. Reddedilirse WhatsApp Manager > Phone numbers > numara > **Display name > Edit** ile yeniden gönderin; ad sitedeki marka adıyla aynı olmalı. Durum 2. düğmede görünür.
 
-**KVKK:** canlı ortamın verileri Cloudflare'de, yurt dışındadır (§13; 00 §12a madde 10). Gerçek müşterilere açmadan önce Cloudflare standart sözleşmesi ve Kurum bildirimi yapılmış olmalıdır (08 §2.12); Meta aktarımı ayrıca 08 §2.11'deki eylem planına tabidir. **İsteğe bağlı VPS'e taşınırsa C.1'i yeni sunucuda tekrarlayın:** canlı ortamın webhook belirteci (`PLATFORM_WA_WEBHOOK_TOKEN`) ve doğrulama belirteci (`WA_VERIFY_TOKEN`) Cloudflare'dekilerden farklıdır; `https://yemekgelsin.net/admin` > WhatsApp > WhatsApp kurulumu > **Göster** → Meta'da Callback URL ve Verify token'ı yenileyip **Verify and save**. Yapılmazsa gelen mesajlar yeni sunucuya ulaşmaz.
+**KVKK (iki yolda da):** canlı ortamın verileri Cloudflare'de, yurt dışındadır (§13; 00 §12a madde 10). Gerçek müşterilere açmadan önce Cloudflare standart sözleşmesi ve Kurum bildirimi yapılmış olmalıdır (08 §2.12); Meta aktarımı (360dialog yolunda 360dialog da alt işleyendir) 08 §2.11'deki eylem planına tabidir. **İsteğe bağlı VPS'e taşınırsa webhook'u yenileyin** (360dialog: yeni sunucunun admin ekranında "Webhook'u 360dialog'a kaydet"; Meta doğrudan: C.1): canlı ortamın webhook belirteci (`PLATFORM_WA_WEBHOOK_TOKEN`) ve doğrulama belirteci (`WA_VERIFY_TOKEN`) Cloudflare'dekilerden farklıdır; Meta doğrudan yolda `https://yemekgelsin.net/admin` > WhatsApp > WhatsApp kurulumu > **Göster** → Meta'da Callback URL ve Verify token'ı yenileyip **Verify and save**. Yapılmazsa gelen mesajlar yeni sunucuya ulaşmaz.
 
 **Gerçek numarayı kapatmak:** GitHub'da `META_WA_TOKEN` secret'ını (ya da dört zorunlu secret'tan birini) silin → Run workflow; iş akışı Worker'daki eski değerleri de siler. Canlı ortamda bu, WhatsApp'ın tamamen kapanması demektir (mock; simülatör yalnız gizli staging'de).
 
-### 6.3 Yol B — 360dialog ile (tek numara)
+### 6.2c Meta doğrudan — ayrıntılı başvuru ve elle (curl) yol
 
-1. **Hesap:** [hub.360dialog.com](https://hub.360dialog.com) → platform şirketi adına hesap açın; ödeme planı numara başına ~49 €/ay (teyit edilmeli). Meta mesaj ücretleri ayrıca Meta'ya tanımlı karttan çekilir (§6.2 madde 3).
-2. **Numara ekleme:** 360dialog Hub'da **Numara ekle** → Facebook hesabıyla giriş (Embedded Signup) → işletme portföyünü seçin (yoksa oluşturun; §6.2 madde 1–2 burada da geçerlidir) → görünen ad **Yemek Gelsin** → numarayı SMS/arama koduyla doğrulayın. Bu numara yalnız platform içindir; yeni bir hat kullanın.
-3. **API anahtarı:** Hub'da numaranın ayarlarından API anahtarı üretin (bir kez gösterilir — teyit edilmeli) → parola yöneticisine.
-4. **`.env`** (§6.4, Yol B satırları) → `docker compose up -d api worker`.
-5. **Webhook:** platform numarasının webhook adresini API ile tanımlayın (teyit edilmeli: v2 uç noktası `configs/webhook`):
+**Kısa yol: §6.2b.** Orada Meta'da yalnız tıklama yapılır, beş değer GitHub secret'ı (canlı ortam, Cloudflare) ya da `.env` (isteğe bağlı VPS) olarak girilir; numara kaydı, webhook aboneliği ve şablonlar `Admin > WhatsApp > WhatsApp kurulumu` düğmeleriyle yapılır. Bu bölüm ayrıntılı başvuru ve elle (curl) yoldur.
+
+Menü adları Meta'nın arayüz diline göre Türkçe ya da İngilizce görünür; ikisi birlikte yazılmıştır. Meta ekranları sık değişir: her adım canlıya çıkmadan önce güncel belgeyle doğrulanır (teyit edilmeli).
+
+**Hazırlık:** WhatsApp'ta hiç kullanılmamış (ya da WhatsApp/WhatsApp Business uygulamasındaki hesabı silinmiş) bir telefon numarası: SMS ya da sesli arama alabilen bir cep hattı veya sabit/0850 hat. Şirketin resmi bilgileri (unvan, adres, vergi levhası) ve `yemekgelsin.net` sitesinin yayında olması (görünen ad ve işletme doğrulaması siteye bakar).
+
+1. **İşletme portföyü (Business portfolio):** [business.facebook.com](https://business.facebook.com) → **Hesap oluştur (Create account)** → şirket adı, adınız, iş e-postası. Sonra **Ayarlar (Settings) > İşletme bilgileri (Business info)**: yasal unvan, adres, telefon, web sitesi.
+2. **İşletme doğrulaması (Business verification):** **Ayarlar > Güvenlik Merkezi (Security Center) > Doğrulamayı başlat (Start verification)** → vergi levhası / ticaret sicil belgesi yükleyin. Doğrulanmamış portföyde günlük iletişim sınırı düşüktür (§6.7) ve görünen ad onayı zorlaşır (teyit edilmeli). Birkaç gün sürebilir; hemen başlatın.
+3. **Ödeme yöntemi:** **Ayarlar > Faturalandırma ve ödemeler (Billing & payments)** ya da WhatsApp Manager > **Ödeme yöntemleri (Payment methods)** → şirket kartını ekleyin. Kart yoksa ücretli mesajlar (şablonlar) gönderilmez, hata 131042 döner.
+4. **Geliştirici uygulaması:** [developers.facebook.com](https://developers.facebook.com) → aynı Facebook hesabıyla giriş → **Uygulamalarım (My Apps) > Uygulama oluştur (Create app)** → kullanım amacı olarak **"Müşterilerle WhatsApp üzerinden iletişim kurun" (Connect with customers through WhatsApp)** (eski ekranda: **Diğer (Other) > İşletme (Business)**) → uygulama adı `yemekgelsin`, 1. adımdaki işletme portföyünü seçin → **Oluştur**.
+5. **WhatsApp ürününü ekleyin:** Uygulama panosunda **WhatsApp > Kur (Set up)** → işletme portföyünü seçin. Meta bir WhatsApp Business hesabı (WABA) ve deneme numarası açar. Sol menüde **WhatsApp > API Kurulumu (API Setup)** sayfası görünür.
+6. **Gerçek numarayı ekleyin:** **API Kurulumu > Telefon numarası ekle (Add phone number)** → işletme görünen adı **Yemek Gelsin**, saat dilimi İstanbul, kategori (Yemek ve içecek / Food & beverage), kısa açıklama → numara (ülke kodu +90) → **SMS ya da sesli arama** ile gelen 6 haneli kodu girin.
+7. **Görünen ad onayı:** [business.facebook.com](https://business.facebook.com) > **WhatsApp Manager > Telefon numaraları (Phone numbers)** → numaranın yanında görünen ad durumu "Onaylandı (Approved)" olmalı. Ad, sitede ve belgelerde geçen marka adıyla aynı olmalıdır; onay 1–3 gün sürebilir (teyit edilmeli).
+8. **Numarayı Cloud API'ye kaydedin (register) ve iki adımlı PIN:** en kolayı `Admin > WhatsApp > WhatsApp kurulumu > Numarayı etkinleştir` (6 haneli PIN, §6.2b). Elle: WhatsApp Manager > Telefon numaraları > numara > **İki adımlı doğrulama (Two-step verification)** → 6 haneli PIN belirleyin, parola yöneticisinde saklayın. Numara API Kurulumu'nda "Bağlı değil (Pending)" görünüyorsa bir kez kaydedin (9. adımdaki token ile):
    ```bash
-   curl -X POST https://waba-v2.360dialog.io/v1/configs/webhook \
-     -H "D360-API-KEY: <PLATFORM_WA_API_KEY>" -H "Content-Type: application/json" \
-     -d '{"url":"https://yemekgelsin.net/api/v1/webhooks/wa/shared/<PLATFORM_WA_WEBHOOK_TOKEN>"}'
+   curl -X POST "https://graph.facebook.com/v23.0/<PHONE_NUMBER_ID>/register" \
+     -H "Authorization: Bearer <KALICI_TOKEN>" -H "Content-Type: application/json" \
+     -d '{"messaging_product":"whatsapp","pin":"<6 haneli PIN>"}'
    ```
-   360dialog Meta imzasını (`X-Hub-Signature-256`) göndermez; `PLATFORM_WA_PROVIDER=d360` iken imza denetlenmez, URL'deki gizli belirteç korur (teyit edilmeli). Belirteci gizli tutun: loglarda ve ekran görüntülerinde paylaşmayın.
-6. **Şablonlar ve deneme:** §6.5 ve §6.6.
+9. **Kalıcı erişim anahtarı (System User token):** business.facebook.com > **Ayarlar > Kullanıcılar > Sistem kullanıcıları (System users) > Ekle (Add)** → ad `yemekgelsin-api`, rol **Yönetici (Admin)** →
+   - **Varlık ata (Assign assets):** **Uygulamalar**'da 4. adımdaki uygulama (Tam kontrol / Full control), **WhatsApp hesapları**'nda WABA (Tam kontrol).
+   - **Yeni token oluştur (Generate new token)** → uygulamayı seçin → süre **Hiçbir zaman (Never)** → izinler: `whatsapp_business_messaging`, `whatsapp_business_management` → **Oluştur**. Token **bir kez** gösterilir; doğrudan parola yöneticisine kopyalayın, e-posta/WhatsApp ile taşımayın. (API Kurulumu sayfasındaki "geçici token" 24 saatte biter; üretimde kullanılmaz.)
+10. **Kimlikler ve uygulama gizli anahtarı:** developers.facebook.com > uygulama > **WhatsApp > API Kurulumu**: **Telefon numarası kimliği (Phone number ID)** ve **WhatsApp Business hesap kimliği (WABA ID)**. **Uygulama ayarları > Temel (App settings > Basic) > Uygulama gizli anahtarı (App secret) > Göster (Show)**. Aynı sayfada **Gizlilik politikası URL'si**: `https://yemekgelsin.net/yasal/gizlilik`.
+11. **`.env`'i doldurun** (§6.4'teki ortak blok + Meta doğrudan satırları) ve API/worker'ı yeniden başlatın: `docker compose up -d api worker`. Webhook doğrulaması (12. adım) çalışan API'ye ihtiyaç duyar.
+12. **Webhook:** developers.facebook.com > uygulama > **WhatsApp > Yapılandırma (Configuration) > Webhook > Düzenle (Edit)**:
+    - **Geri çağırma URL'si (Callback URL):** `https://yemekgelsin.net/api/v1/webhooks/wa/shared/<PLATFORM_WA_WEBHOOK_TOKEN>`
+    - **Doğrulama belirteci (Verify token):** `.env`'deki `WA_VERIFY_TOKEN`
+    - **Doğrula ve kaydet (Verify and save)** → API `hub.challenge`'ı geri döndürür. Hata alırsanız: 404 = belirteç yol ile `.env`'dekinden farklı ya da `PLATFORM_WA_WEBHOOK_TOKEN` boş; 403 = `WA_VERIFY_TOKEN` farklı.
+    - Aynı ekranda **Webhook alanları (Webhook fields) > Yönet (Manage)** → **`messages`** alanına abone olun (gelen mesajlar ve teslim/okundu durumları bununla gelir).
+    - Uygulamanın WABA'ya abone olduğunu doğrulayın (teyit edilmeli; panodan kurulumda genelde kendiliğinden olur): `Admin > WhatsApp > WhatsApp kurulumu > Webhook aboneliğini aç` ya da `curl -X POST "https://graph.facebook.com/v23.0/<WABA_ID>/subscribed_apps" -H "Authorization: Bearer <KALICI_TOKEN>"`.
+13. **Uygulamayı canlı moda alın:** uygulama panosunun üstündeki **Uygulama modu (App Mode): Geliştirme → Canlı (Live)**. Geliştirme modunda webhook yalnız test verisi gönderir (teyit edilmeli).
+14. **Şablonlar ve deneme:** §6.5 ve §6.6.
+
+### 6.3 360dialog — elle (curl) başvuru
+
+Olağan yol §6.2'dir (hesap, numara ve anahtar 360dialog Hub'da; webhook ve şablonlar admin ekranından). Aşağıdaki komutlar admin ekranının yaptığını elle yapar; ekran bir uç noktada 404 verirse ya da isteğe bağlı VPS'te (§14) denemek için kullanılır. Taban adres `https://waba-v2.360dialog.io`, kimlik yalnız `D360-API-KEY` başlığıdır (numara ve WABA anahtara bağlıdır, yolda kimlik yoktur). Yollar 360dialog'un yayımladığı Messaging API tanımına göredir; teyit edilmeli (kodda `apps/api/src/wa/providers/d360.ts`).
+
+```bash
+KEY='<PLATFORM_WA_API_KEY>'   # kabuk geçmişine düşmemesi için: read -rs KEY
+# Numara ve Meta durumu (zararsız)
+curl -s "https://waba-v2.360dialog.io/health_status?fields=health_status,display_phone_number,verified_name,name_status,quality_rating" \
+  -H "D360-API-KEY: $KEY"
+# Kayıtlı webhook adresi
+curl -s https://waba-v2.360dialog.io/v1/configs/webhook -H "D360-API-KEY: $KEY"
+# Webhook adresini yaz (ortak numara)
+curl -s -X POST https://waba-v2.360dialog.io/v1/configs/webhook \
+  -H "D360-API-KEY: $KEY" -H "Content-Type: application/json" \
+  -d '{"url":"https://yemekgelsin.net/api/v1/webhooks/wa/shared/<PLATFORM_WA_WEBHOOK_TOKEN>"}'
+# Şablon durumları (Graph ile aynı biçim; oluşturma: aynı yola POST, gövde Graph message_templates gövdesi)
+curl -s "https://waba-v2.360dialog.io/message_templates?fields=name,status,category,language,rejected_reason&limit=200" -H "D360-API-KEY: $KEY"
+```
+
+- 360dialog Meta imzasını (`X-Hub-Signature-256`) göndermez; `PLATFORM_WA_PROVIDER=d360` iken ortak webhook imza denetlemez, URL'deki gizli belirteç korur (teyit edilmeli). Belirteci gizli tutun: loglarda ve ekran görüntülerinde paylaşmayın. Webhook adresinin alan adı alt çizgi (`_`) ya da port (`:8443`) içeremez (360dialog kuralı).
+- Yeni API anahtarı üretilince 360dialog numaranın webhook adresini siler: anahtar değişince webhook'u yeniden yazın.
+- Eski şablon ucu `v1/configs/templates` 360dialog'da kullanımdan kalkıyor (deprecated); kod `message_templates` kullanır.
 
 ### 6.4 Ortam değişkenleri
+
+Canlı ortamda (Cloudflare) bu değişkenler elle yazılmaz: iş akışı GitHub secret'larından türetir (360dialog: `D360_API_KEY`, `WA_PHONE`; Meta doğrudan: `META_*`, `WA_PHONE`; §13). Aşağıdakiler isteğe bağlı VPS ve elle kurulum içindir.
 
 Ortak blok (iki yolda da):
 
 ```bash
 PLATFORM_WA_DISPLAY_PHONE=+908501234567            # ortak numara, E.164 (QR, wa.me bağlantıları, Akış B)
 PLATFORM_WA_WEBHOOK_TOKEN=$(openssl rand -hex 24)  # webhook yolundaki gizli belirteç, ≥ 16 karakter
-WA_VERIFY_TOKEN=$(openssl rand -hex 16)            # Meta webhook GET doğrulaması (Yol A)
+WA_VERIFY_TOKEN=$(openssl rand -hex 16)            # Meta webhook GET doğrulaması (Meta doğrudan yol; üretimde her durumda zorunlu)
 WA_DEFAULT_PROVIDER=d360                           # yalnız kendi numarasına geçen işletmelerin varsayılanı (§6.8)
 ```
 
-Yol A (Meta Cloud API):
-
-```bash
-PLATFORM_WA_PROVIDER=cloud
-PLATFORM_WA_API_KEY=<§6.2 madde 9: kalıcı System User token>
-PLATFORM_WA_PHONE_NUMBER_ID=<§6.2 madde 10: Phone number ID>
-PLATFORM_WA_WABA_ID=<§6.2 madde 10: WABA ID>       # isteğe bağlı: admin kurulumu (webhook aboneliği, şablon gönderimi)
-WA_APP_SECRET=<§6.2 madde 10: App secret>          # webhook imzası
-```
-
-Yol B (360dialog):
+360dialog (varsayılan, §6.2):
 
 ```bash
 PLATFORM_WA_PROVIDER=d360
-PLATFORM_WA_API_KEY=<360dialog API anahtarı>
-PLATFORM_WA_PHONE_NUMBER_ID=                       # boş
+PLATFORM_WA_API_KEY=<§6.2 A.4: 360dialog API anahtarı>
+PLATFORM_WA_PHONE_NUMBER_ID=                       # boş (numara anahtara bağlı)
+WA_APP_SECRET=                                     # boş (360dialog imza göndermez)
+```
+
+Meta Cloud API doğrudan (alternatif, §6.2b/§6.2c):
+
+```bash
+PLATFORM_WA_PROVIDER=cloud
+PLATFORM_WA_API_KEY=<§6.2c madde 9: kalıcı System User token>
+PLATFORM_WA_PHONE_NUMBER_ID=<§6.2c madde 10: Phone number ID>
+PLATFORM_WA_WABA_ID=<§6.2c madde 10: WABA ID>      # isteğe bağlı: admin kurulumu (webhook aboneliği, şablon gönderimi)
+WA_APP_SECRET=<§6.2c madde 10: App secret>         # webhook imzası
 ```
 
 `$(openssl …)` ifadeleri `.env`'e kendiliğinden işlenmez: komutu kabukta çalıştırıp çıktısını yazın. API açılışta eksikleri denetler (§4): gerçek sağlayıcıda `PLATFORM_WA_DISPLAY_PHONE` boş/E.164 değilse ya da `PLATFORM_WA_WEBHOOK_TOKEN` boş, 16 karakterden kısa ya da `dev…` ile başlıyorsa süreç açılmaz. Açılışta ortak numara tüm ortak numara işletmelerinin kayıtlarına yazılır (`syncSharedWaAccounts`); numara değişirse yalnız `.env` güncellenip `docker compose up -d api worker` yapılır, ama **basılı QR'lar eski numarayı içerdiğinden numara değiştirmek bütün işletmelerin QR'larını geçersiz kılar**: numarayı bir kez seçin.
 
 ### 6.5 Şablonlar (müşteri ve platform uyarıları)
 
-24 saat penceresi dışındaki durum mesajları ve işletme sahibine giden uyarılar onaylı **utility** şablonlarla gider. Ortak numarada tek WABA olduğu için şablonlar **bir kez**, platform hesabında oluşturulur (işletme başına değil). Yol A: `Admin > WhatsApp > WhatsApp kurulumu > Şablonları Meta'ya gönder` hepsini tek seferde oluşturur (eksikleri; var olana dokunmaz) ve durumlarını (onay, ret sebebi, kategori değişimi) gösterir (§6.2a). Tek kaynak `apps/api/src/services/messaging/template-bodies.ts` (`WA_TEMPLATE_CATALOG`): gövde metni, konumsal değişkenler (`{{1}}`…, sıra `CUSTOMER_TEMPLATES` / `PLATFORM_TEMPLATES`), örnek değerler ve butonlar; gövdelerin 02 §5.2/§5.3 ile aynı olduğu testle denetlenir. Butonlar: takip şablonlarında "Siparişi takip et" / "Değerlendir" dinamik URL (`APP_BASE_URL/t/{{1}}`, değişken takip token'ı), `yanit_bekliyor_v1`'de "Devam et" hızlı yanıt, platform uyarılarında panelin sabit adresi (gönderen kod buton parametresi vermez), `kurye_giris_v1`'de `/kurye/giris?t={{1}}`. Metin değişikliği yeni sürüm adıyla (`_v2`) yapılır. Elle yol: WhatsApp Manager > **Mesaj şablonları (Message templates) > Şablon oluştur**; Yol B: 360dialog Hub ya da API. Dil: Türkçe (`tr`), kategori: Yardımcı program (Utility).
+24 saat penceresi dışındaki durum mesajları ve işletme sahibine giden uyarılar onaylı **utility** şablonlarla gider. Ortak numarada tek WABA olduğu için şablonlar **bir kez**, platform hesabında oluşturulur (işletme başına değil). İki yolda da `Admin > WhatsApp > WhatsApp kurulumu > Şablonları gönder` (Meta doğrudan yolda "Şablonları Meta'ya gönder") hepsini tek seferde oluşturur (eksikleri; var olana dokunmaz) ve durumlarını (onay, ret sebebi, kategori değişimi) gösterir (§6.2a); 360dialog yolunda istekler 360dialog'un `message_templates` ucuna aynı gövdeyle gider, onay yine Meta'dadır. Tek kaynak `apps/api/src/services/messaging/template-bodies.ts` (`WA_TEMPLATE_CATALOG`): gövde metni, konumsal değişkenler (`{{1}}`…, sıra `CUSTOMER_TEMPLATES` / `PLATFORM_TEMPLATES`), örnek değerler ve butonlar; gövdelerin 02 §5.2/§5.3 ile aynı olduğu testle denetlenir. Butonlar: takip şablonlarında "Siparişi takip et" / "Değerlendir" dinamik URL (`APP_BASE_URL/t/{{1}}`, değişken takip token'ı), `yanit_bekliyor_v1`'de "Devam et" hızlı yanıt, platform uyarılarında panelin sabit adresi (gönderen kod buton parametresi vermez), `kurye_giris_v1`'de `/kurye/giris?t={{1}}`. Metin değişikliği yeni sürüm adıyla (`_v2`) yapılır. Elle yol: 360dialog Hub'ın şablon ekranı ya da WhatsApp Manager > **Mesaj şablonları (Message templates) > Şablon oluştur** (gövde koddakiyle birebir olmalı). Dil: Türkçe (`tr`), kategori: Yardımcı program (Utility).
 
 - **Müşteri şablonları:** `siparis_alindi_v1`, `siparis_onaylandi_v1`, `siparis_hazir_v1`, `siparis_yolda_v1`, `siparis_teslim_v1`, `siparis_reddedildi_v1`, `siparis_iptal_v1`, `siparis_iptal_yanitsiz_v1`, `yanit_bekliyor_v1`. Metin ve parametre sırası `packages/core/src/messages/tr.ts` → `CUSTOMER_TEMPLATES`; hepsi işletme adını (`{isletme}`) değişken olarak taşır, müşteri hangi dükkandan mesaj aldığını görür. Şablonlara promosyon ya da indirim kodu eklenmez (İYS, 00 §7).
 - **Platform şablonları** (işletme sahibine): `isletme_yeni_siparis_v1`, `isletme_panel_cevrimdisi_v1`, `kurye_giris_v1`, `isletme_baglanti_sorunu_v1`, `isletme_meta_odeme_v1`, `isletme_kalite_uyari_v1` (V-011). `isletme_yeni_siparis_v1` yeni sipariş alarmıdır (t=2 dk, 00 §10). `isletme_panel_cevrimdisi_v1` "panel çevrimdışı" uyarısıdır (06 §7.7): şube sipariş alırken (çalışma saati içinde, duraklatılmamış, sipariş alma açık, web canlı) sipariş ekranı 5 dakikadır açık değilse ya da şube açılalı 10 dakika olduğu hâlde açılıştan beri hiç açılmadıysa işletme sahibine gider; şube başına saatte en çok bir kez (`cron.panel_presence`, §10). Parametreler: işletme adı (ek şubede "İşletme · Şube") ve dakika. Gerekirse `Admin > Bayraklar > platform_wa_alerts` ile geçici kapatılır.
@@ -391,14 +471,14 @@ PLATFORM_WA_PHONE_NUMBER_ID=                       # boş
 
 1. Kendi telefonunuzla bir işletmenin QR'ını okutun (`Panel > Ayarlar > WhatsApp`, ya da bağlantıyı açın) → mesajı gönderin → o işletmenin adıyla karşılama ve **Menüyü aç** gelmeli; linkten sipariş verin, o işletmenin panelinde sesli uyarıyı görün, onaylayın, "onaylandı" mesajı gelsin.
 2. İkinci bir işletmenin QR'ını okutun → ikinci işletmenin adıyla karşılama gelmeli. Ardından kodsuz "merhaba" yazın: son 24 saatteki dükkan devam eder; "değiştir" yazınca dükkan seçici gelir.
-3. `Admin > WhatsApp` > **Ortak numara** kartı: "Son webhook" yeni olmalı, sorun satırı olmamalı. Aynı sayfadaki **WhatsApp kurulumu** (platform sahibi): "Bağlantıyı test et" hazır, abonelik açık, şablonlar Onaylandı. Paneldeki "Test mesajı gönder" pencere kuralına tabidir: test telefonu son 24 saatte ortak numaraya yazmış olmalıdır.
-4. Webhook dışarıdan: `curl -i "https://DOMAIN/api/v1/webhooks/wa/shared/yanlis-belirtec-0000"` → 404 (yol çalışıyor, belirteç yanlış). Doğru belirteçle imzasız `POST` Yol A'da 401 döner (imza denetleniyor).
+3. `Admin > WhatsApp` > **Ortak numara** kartı: "Son webhook" yeni olmalı, sorun satırı olmamalı. Aynı sayfadaki **WhatsApp kurulumu** (platform sahibi): "Bağlantıyı test et" hazır (360dialog'da webhook satırı "doğru"; Meta doğrudan yolda abonelik açık), şablonlar Onaylandı. Paneldeki "Test mesajı gönder" pencere kuralına tabidir: test telefonu son 24 saatte ortak numaraya yazmış olmalıdır.
+4. Webhook dışarıdan: `curl -i "https://DOMAIN/api/v1/webhooks/wa/shared/yanlis-belirtec-0000"` → 404 (yol çalışıyor, belirteç yanlış). Doğru belirteçle imzasız `POST` Meta doğrudan yolda 401 döner (imza denetleniyor); 360dialog yolunda imza yoktur, belirteç korur.
 
 ### 6.7 Maliyet ve sınırlar
 
-- **Aracı ücreti:** Yol A'da yok; Yol B'de numara başına ~49 €/ay (teyit edilmeli). Tek numara olduğu için bu ücret işletme sayısıyla artmaz.
-- **Meta mesaj ücretleri platform hesabına yansır** (00 §12a madde 8): ücretsiz hizmet (service) mesajı hakkı numara/WABA başınadır ve **tüm dükkanlar tek numarayı paylaştığı için bu hak da paylaşılır**. Proje sahibinin kararında geçen "ayda 1.000 ücretsiz hizmet mesajı" Meta'nın eski (Kasım 2024 öncesi) modelidir; güncel modelde müşterinin başlattığı 24 saat penceresindeki serbest mesajlar ücretsiz, pencere içindeki utility şablonlar da ücretsizdir; ücret pencere dışındaki şablon mesajlarından alınır (teyit edilmeli — V-001 rate card). Ücret, mesaj bazında işletmeye göre izlenir (`messages.tenant_id`); pakete yansıtma açık karar.
-- **Günlük iletişim sınırı (messaging limit):** işletmenin başlattığı sohbetler (pencere dışı şablonlar) için 24 saatte ulaşılabilecek kişi sayısı portföy başınadır ve yeni hesapta düşüktür (ör. 250; işletme doğrulaması ve kaliteyle 1.000 → 10.000 … artar — teyit edilmeli). Tüm dükkanlar bu sınırı paylaşır: işletme doğrulamasını (§6.2 madde 2) canlıdan önce tamamlayın. Müşterinin başlattığı sohbetler sınıra sayılmaz.
+- **Aracı ücreti:** 360dialog yolunda (varsayılan) "Regular" planı numara başına ~49 €/ay (teyit edilmeli); Meta doğrudan yolda yok. Tek numara olduğu için bu ücret işletme sayısıyla artmaz.
+- **Meta mesaj ücretleri platform hesabına yansır** (00 §12a madde 8): ücretsiz hizmet (service) mesajı hakkı numara/WABA başınadır ve **tüm dükkanlar tek numarayı paylaştığı için bu hak da paylaşılır**. Proje sahibinin kararında geçen "ayda 1.000 ücretsiz hizmet mesajı" Meta'nın eski (Kasım 2024 öncesi) modelidir; güncel modelde müşterinin başlattığı 24 saat penceresindeki serbest mesajlar ücretsiz, pencere içindeki utility şablonlar da ücretsizdir; ücret pencere dışındaki şablon mesajlarından alınır. 1 Ekim 2026'dan itibaren hizmet mesajları da numara başına ayda 1.000'i aşınca ücretlidir (00 §6 madde 5) (teyit edilmeli — V-001 rate card). 360dialog yolunda Meta ücretlerinin nasıl faturalandığı (360dialog faturası mı, Meta'ya tanımlı kart mı) teyit edilmeli. Ücret, mesaj bazında işletmeye göre izlenir (`messages.tenant_id`); pakete yansıtma açık karar.
+- **Günlük iletişim sınırı (messaging limit):** işletmenin başlattığı sohbetler (pencere dışı şablonlar) için 24 saatte ulaşılabilecek kişi sayısı portföy başınadır ve yeni hesapta düşüktür (ör. 250; işletme doğrulaması ve kaliteyle 1.000 → 10.000 … artar — teyit edilmeli). Tüm dükkanlar bu sınırı paylaşır: işletme doğrulamasını (§6.2 A.5) canlıdan önce tamamlayın. Müşterinin başlattığı sohbetler sınıra sayılmaz.
 - **Kalite ve engelleme:** müşteriler numarayı engeller ya da şikâyet ederse numaranın kalitesi düşer ve **bütün dükkanlar etkilenir**. Promosyon gönderilmez, mesaj bütçesi (sipariş başına en çok 4 durum mesajı) korunur; `isletme_kalite_uyari_v1` uyarısını ciddiye alın.
 - **Hız:** tüm dükkanların gönderimleri tek numaranın hız sınırını paylaşır (uygulama tek sıra tutar; `wa/throttle.ts`).
 - **Hesap hataları:** ortak numarada token (190) ya da ödeme (131042) hatası işletmenin kaydını kapatmaz ve işletme sahibine uyarı göndermez; loga yazılır. `Admin > WhatsApp` ortak numara kartını ve `docker compose logs worker | grep 'ortak numara'` çıktısını izleyin.
@@ -410,7 +490,7 @@ Kendi numarasıyla çalışmak isteyen işletme (üst paket; 00 §12a madde 8) �
 1. **Hesap ve numara (360dialog, önerilen):** 360dialog Client Hub'da işletme adına hesap → **Numara ekle** (Embedded Signup). Varsayılan yol **Coexistence**'tır: esnaf WhatsApp Business uygulamasındaki numarasını ve telefondan yazmayı korur (00 §6.4; 360dialog'da Coexistence desteği ve kısıtları teyit edilmeli — V-018). Alternatif: yeni numara. Görünen ad (display name) Meta onayından geçer. İşletmenin Meta Business portföyünde geçerli bir ödeme kartı olmalıdır.
 2. **API anahtarı:** Client Hub'da numaranın ayarlarından üretilir (bir kez gösterilir — teyit edilmeli). Anahtarı yalnız güvenli kanaldan alın.
 3. **Panelde (yalnız işletme sahibi):** `Panel > Ayarlar > WhatsApp` (`/panel/ayarlar/whatsapp`): Sağlayıcı **360dialog** (ya da Meta Cloud API: Phone number ID + erişim anahtarı), "WhatsApp numarası", API anahtarı → **Kaydet**. Anahtar `ENCRYPTION_KEY` ile şifrelenip saklanır; ekranda maskeli görünür.
-4. **Webhook adresi:** aynı sayfadaki "Webhook adresi" kartında işletmeye özel adres görünür: `https://DOMAIN/api/v1/webhooks/wa/<gizli-belirteç>`. 360dialog'a API ile tanımlanır (§6.3 madde 5'teki komut, işletmenin anahtarı ve bu adresle); Meta Cloud API'de uygulamanın Webhook ayarına girilir. Adres "Webhook adresini yenile" ile değiştirilebilir (eski adres hemen geçersizleşir).
+4. **Webhook adresi:** aynı sayfadaki "Webhook adresi" kartında işletmeye özel adres görünür: `https://DOMAIN/api/v1/webhooks/wa/<gizli-belirteç>`. 360dialog'a API ile tanımlanır (§6.3'teki webhook yazma komutu, işletmenin anahtarı ve bu adresle); Meta Cloud API'de uygulamanın Webhook ayarına girilir. Adres "Webhook adresini yenile" ile değiştirilebilir (eski adres hemen geçersizleşir).
 5. **Şablonlar:** müşteri şablonları (§6.5) **işletmenin kendi WABA'sında** ayrıca oluşturulup onaylatılır (teyit edilmeli).
 6. **Deneme:** işletme numarasına "merhaba" → karşılama ve **Menüyü aç**; panelde "Test mesajı gönder" (test telefonu son 24 saatte işletme numarasına yazmış olmalı). Sağlık: `Admin > WhatsApp` (son webhook zamanı, son 24 saat hata).
 
@@ -528,7 +608,7 @@ docker compose exec postgres psql -U siparis -c "select b.name, p.last_seen_at, 
 
 **Webhook gelmiyor (müşteri yazıyor, bot yanıt vermiyor)**
 
-1. `Admin > WhatsApp` → **ortak numara** kartında "son webhook" eski mi, sorun satırı var mı? Meta uygulamasının Webhook ayarındaki (Yol A) ya da 360dialog'a tanımlı (Yol B) adres `https://DOMAIN/api/v1/webhooks/wa/shared/<PLATFORM_WA_WEBHOOK_TOKEN>` ile birebir aynı mı (§6.2 madde 12, §6.3 madde 5)? Meta'da `messages` alanına abonelik ve uygulamanın canlı modda olması (§6.2 madde 12–13)? Kendi numaralı işletmede: işletmenin satırında "son webhook" ve sağlayıcıya tanımlı adres paneldeki adresle aynı mı (§6.8)?
+1. `Admin > WhatsApp` → **ortak numara** kartında "son webhook" eski mi, sorun satırı var mı? 360dialog yolunda: `WhatsApp kurulumu > Bağlantıyı test et` webhook satırı "doğru" mu? Değilse "Webhook'u 360dialog'a kaydet" (§6.2 C.2; yeni API anahtarından sonra her zaman). Meta doğrudan yolda: uygulamanın Webhook ayarındaki adres `https://DOMAIN/api/v1/webhooks/wa/shared/<PLATFORM_WA_WEBHOOK_TOKEN>` ile birebir aynı mı, `messages` alanına abonelik ve uygulama canlı modda mı (§6.2c madde 12–13)? Kendi numaralı işletmede: işletmenin satırında "son webhook" ve sağlayıcıya tanımlı adres paneldeki adresle aynı mı (§6.8)?
 2. Ortak numara dışarıdan: `curl -i "https://DOMAIN/api/v1/webhooks/wa/shared/<PLATFORM_WA_WEBHOOK_TOKEN>?hub.mode=subscribe&hub.verify_token=<WA_VERIFY_TOKEN>&hub.challenge=42"` → `42` (404 = belirteç `.env`'dekinden farklı ya da `PLATFORM_WA_WEBHOOK_TOKEN` boş; 403 = `WA_VERIFY_TOKEN` farklı). Kendi numaralı işletme: `curl -i -X POST https://DOMAIN/api/v1/webhooks/wa/<belirteç> -H 'Content-Type: application/json' -d '{}'` → 200 beklenir (400 = gövde geçersiz ama yol çalışıyor; 404 = belirteç yanlış, adres panelden yenilenmiş (Ayarlar > WhatsApp bağlantısı > "Webhook adresini yenile": eski adres hemen geçersizleşir, yenisi sağlayıcı paneline girilmeli) ya da WhatsApp bağlantısı kesilmiş (kesik hesabın adresi olay kabul etmez; kesme işlemi adresi de yeniler, yeniden bağlarken paneldeki yeni adres girilmeli); 401 `invalid_signature` = cloud hesabında `WA_APP_SECRET` uyuşmuyor).
 3. Caddy erişim loglarında istek görünüyor mu? `docker compose logs --since 1h caddy | grep 'webhooks/wa'` (belirteç `***` olarak yazılır; `status` alanı yanıt kodudur). Görünmüyorsa DNS/TLS ya da sağlayıcı tarafı; görünüyorsa API loglarına bakın.
 4. Olay kaydedildi ama işlenmedi: `select count(*) from wa_webhook_events where processed_at is null` → worker'ı ve `wa-inbound` işlerini kontrol edin.
@@ -576,7 +656,7 @@ docker compose exec postgres psql -U siparis -c "select b.name, p.last_seen_at, 
 - [ ] Web Push açık: `VAPID_*` dolu, açılış logunda `Web Push kapalı` uyarısı yok; bir Android tablette ve ana ekrana eklenmiş bir iPhone'da "Siparişleri almaya başla" → izin → `Ayarlar › Bu cihazda bildirimler › Test bildirimi gönder` geldi; panel sekmesi kapalıyken verilen deneme siparişinde "Yeni sipariş #…" bildirimi geldi (§10).
 - [ ] Panel çevrimdışı uyarısı denendi: açık saatte paneli kapatıp 5 dk bekleyince sahibin telefonuna `isletme_panel_cevrimdisi_v1` geldi (`notifications` tablosunda `kind = 'panel_offline'`).
 - [ ] Sunucu: UFW açık (22/80/443), fail2ban sshd jail'i açık (`fail2ban-client status sshd`), otomatik güvenlik güncellemeleri açık, `.env` izni 600. İş akışı parola ile bağlandığından SSH parolası uzun ve rastgele; mümkünse `VPS_HOST_KEY` sabitlendi (§14).
-- [ ] Ortak numara bağlı (§6.2 Meta Cloud API ya da §6.3 360dialog): görünen ad "Yemek Gelsin" onaylı, işletme doğrulaması tamam, ödeme kartı tanımlı, `PLATFORM_WA_DISPLAY_PHONE` ve `PLATFORM_WA_WEBHOOK_TOKEN` dolu, webhook tanımlı (`Admin > WhatsApp` ortak numara kartında sorun satırı yok; Yol A'da **WhatsApp kurulumu**nda "Bağlantıyı test et" hazır, "Aboneliği kontrol et" açık, tüm şablonlar Onaylandı). İki farklı işletmenin QR'ı gerçek telefonla okutuldu: her birinde o işletmenin adıyla karşılama → "Menüyü aç" → sipariş → doğru işletmenin panelinde alarm → onay mesajı; kodsuz yazınca dükkan seçici geldi. Müşteri ve platform şablonları onaylı (V-011).
+- [ ] Ortak numara bağlı (§6.2 360dialog ya da §6.2b Meta doğrudan): görünen ad "Yemek Gelsin" onaylı, işletme doğrulaması tamam, ödeme yöntemi tanımlı, `PLATFORM_WA_DISPLAY_PHONE` ve `PLATFORM_WA_WEBHOOK_TOKEN` dolu, webhook tanımlı (`Admin > WhatsApp` ortak numara kartında sorun satırı yok; **WhatsApp kurulumu**nda "Bağlantıyı test et" hazır — 360dialog'da webhook satırı "doğru", Meta doğrudan yolda "Aboneliği kontrol et" açık —, tüm şablonlar Onaylandı). İki farklı işletmenin QR'ı gerçek telefonla okutuldu: her birinde o işletmenin adıyla karşılama → "Menüyü aç" → sipariş → doğru işletmenin panelinde alarm → onay mesajı; kodsuz yazınca dükkan seçici geldi. Müşteri ve platform şablonları onaylı (V-011).
 - [ ] Netgsm başlığı onaylı, OTP ve "onaylandı" SMS'i gerçek telefona geldi (V-012, V-020, V-023).
 - [ ] `pnpm test` ve `pnpm e2e` yeşil (yayınlanan sürüm etiketinde); "Canlı ortam (Cloudflare)" iş akışının son çalışması yeşil (duman testi gerçek alan adında geçti).
 
@@ -614,7 +694,7 @@ Proje sahibinin kararı (00 §12a madde 10, 27.09.2026): **canlı ortam tamamen 
 | "Demo ortamı" uyarısı | yok (`NEXT_PUBLIC_DEMO_BANNER=0`) | var |
 | Yeni işletme kaydı | **açık** (`signup_open`); platform yöneticisi `/admin/bayraklar`'dan kapatabilir, dağıtımlar bu karara dokunmaz | kapalı |
 | `/demo` lead formu | **açık** (`NEXT_PUBLIC_LEAD_FORM=1`, `PUBLIC_LEADS_ENABLED=1`) | açık (yalnız ekip dener) |
-| WhatsApp | `META_*` secret'ları tamsa gerçek numara; değilse mock = **çalışan WhatsApp yok** (vitrinde, QR'da ve Akış B'de bağlantı gösterilmez; panel "Ortak numara henüz yapılandırılmadı" der; alarm zinciri taklit kanala göndermez, sipariş kartı "Uyarı gönderilemedi" der; hiçbir ekran mesaj gönderildiğini söylemez) | her zaman simülatör (canlı numara kullanılmaz; iş akışı WhatsApp secret'larını yüklemez, Worker'dakileri siler) |
+| WhatsApp | `D360_API_KEY` + `WA_PHONE` (360dialog, varsayılan) ya da `META_*` + `WA_PHONE` (Meta doğrudan) tamsa gerçek numara; değilse mock = **çalışan WhatsApp yok** (vitrinde, QR'da ve Akış B'de bağlantı gösterilmez; panel "Ortak numara henüz yapılandırılmadı" der; alarm zinciri taklit kanala göndermez, sipariş kartı "Uyarı gönderilemedi" der; hiçbir ekran mesaj gönderildiğini söylemez) | her zaman simülatör (canlı numara kullanılmaz; iş akışı WhatsApp secret'larını yüklemez, Worker'dakileri siler) |
 | SMS | mock: SMS gönderilmez, SMS yedeği (`sms_fallback`) kapalı başlar; WhatsApp da yoksa web siparişinin doğrulaması "işletmeyi arayın" der | mock |
 
 Worker her yanıta `x-yg-ortam: cloudflare` başlığını ekler (isteğe bağlı VPS iş akışı DNS geçişinden sonra trafiğin artık Worker'dan gelmediğini bununla anlar).
@@ -632,14 +712,14 @@ Worker her yanıta `x-yg-ortam: cloudflare` başlığını ekler (isteğe bağl�
 **Kurulum (bir kez):**
 1. Cloudflare hesabında **Workers Paid** planını açın (aylık 5 $; Containers bu planla gelir).
 2. Cloudflare > My Profile > API Tokens > **Create Token** > **"Edit Cloudflare Workers"** şablonu. **Özel alan adı için** token'da `yemekgelsin.net` bölgesinde (Zone Resources: Include > Specific zone > `yemekgelsin.net`): **Zone > Workers Routes > Edit** ve **Zone > Zone > Read**. Eksikse iş akışı dağıtımdan önce durur ve eksik izni adıyla yazar. `@` ya da `www` için elle eklenmiş A/AAAA/CNAME kaydı varsa Custom Domain eklenemez; DNS > Records'tan silin.
-3. GitHub > **Settings > Secrets and variables > Actions > New repository secret**: `CLOUDFLARE_API_TOKEN`, `DEV_PASSWORD` (platform yöneticisinin parolası; en az 8, **önerilen en az 12 karakter**, parola yöneticisinde saklayın), gerekirse `CLOUDFLARE_ACCOUNT_ID`; isteğe bağlı `SUPPORT_WHATSAPP` (destek hattı: "Parolamı unuttum" bunu gösterir); isteğe bağlı gerçek WhatsApp için (§6.2a) `META_WA_TOKEN`, `META_WA_PHONE_NUMBER_ID`, `META_WA_WABA_ID`, `META_APP_SECRET`, `WA_PHONE`. **`VPS_HOST` eklemeyin** (§14).
+3. GitHub > **Settings > Secrets and variables > Actions > New repository secret**: `CLOUDFLARE_API_TOKEN`, `DEV_PASSWORD` (platform yöneticisinin parolası; en az 8, **önerilen en az 12 karakter**, parola yöneticisinde saklayın), gerekirse `CLOUDFLARE_ACCOUNT_ID`; isteğe bağlı `SUPPORT_WHATSAPP` (destek hattı: "Parolamı unuttum" bunu gösterir); isteğe bağlı gerçek WhatsApp için `D360_API_KEY` ve `WA_PHONE` (360dialog, varsayılan yol, §6.2) ya da `META_WA_TOKEN`, `META_WA_PHONE_NUMBER_ID`, `META_WA_WABA_ID`, `META_APP_SECRET`, `WA_PHONE` (Meta doğrudan, §6.2b) — ikisi birlikte değil. **`VPS_HOST` eklemeyin** (§14).
 4. **Actions > "Canlı ortam (Cloudflare)" > Run workflow.** Sonraki her push ortamı kendiliğinden günceller.
 
 **İlk dağıtımdan sonra:**
 1. **Yönetici girişi ve iki adımlı doğrulama (zorunlu):** `https://yemekgelsin.net/admin/giris` → `admin@yemekgelsin.net`, parola `DEV_PASSWORD`. İlk girişte yalnız **Yönetim › Güvenlik** (`/admin/guvenlik`) açılır; diğer yönetim uçları 403 `totp_enrollment_required` döner. QR'ı doğrulama uygulamasıyla okutun, 6 haneli kodla açın, **8 kurtarma kodunu** parola yöneticisine kaydedin (00 §12a madde 7). Container'a kabuk erişimi olmadığından kurtarma kodları kritik önemdedir: telefon ve kodlar birlikte kaybolursa sıfırlama yalnız yedeğin elle düzeltilmesiyle (aşağıda "Yedekten geri dönüş" yöntemiyle yeni döneme yükleyip `scripts/create-admin.ts --reset-totp`) yapılabilir.
 2. **KVKK (proje sahibi):** Cloudflare ile standart sözleşme, 5 iş günü içinde Kurum bildirimi, gerekirse VERBİS (08 §2.12). Yasal metinlerdeki aktarım paragrafları taslaktır, avukata gösterin.
 3. **Gizli değerler:** `SESSION_SECRET`, `TRACKING_SECRET`, `ENCRYPTION_KEY`, webhook ve VAPID anahtarları ilk dağıtımda Worker secret'ı olarak üretildi (`scripts/secrets.mjs`) ve Cloudflare'den geri okunamaz. Worker'ı silmeyin: `ENCRYPTION_KEY` olmadan yedekteki şifreli alanlar (TOTP sırları, WhatsApp anahtarları) okunamaz.
-4. İsteğe bağlı: gerçek WhatsApp (§6.2a), dış izleme (`/api/v1/health` ve `/api/v1/health/worker`, 1 dk; bu, container'ı uyanık tutar — müşteri bekleme sayfası görmez, container sürekli çalışır).
+4. İsteğe bağlı: gerçek WhatsApp (§6.2), dış izleme (`/api/v1/health` ve `/api/v1/health/worker`, 1 dk; bu, container'ı uyanık tutar — müşteri bekleme sayfası görmez, container sürekli çalışır).
 
 **İş akışı:**
 1. Kip seçimi: `VPS_HOST` yoksa alan adı kipi (canlı ortam); varsa push'ta bilgi notuyla atlanır, elle çalıştırılınca staging.
@@ -651,7 +731,11 @@ Worker her yanıta `x-yg-ortam: cloudflare` başlığını ekler (isteğe bağl�
 
 **Kullanım:** https://yemekgelsin.net · Admin: `/admin/giris` (`admin@yemekgelsin.net`, parola `DEV_PASSWORD`, iki adımlı doğrulama zorunlu). İşletmeler `/panel/kayit`'tan kaydolur. **Staging** (yalnız VPS yolunda): workers.dev adresi, tarayıcı parola sorar (kullanıcı adı `dev`); demo hesapları README'deki e-postalar, parola `DEV_PASSWORD`; vitrinler `/s/bozok-pide` (`#BOZOK`), `/s/camlik-doner` (`#DONER`); simülatör `/dev/whatsapp`.
 
-**Gerçek WhatsApp (isteğe bağlı, yalnız alan adı kipi):** §6.2a'daki beş GitHub secret'ı eklenip iş akışı çalıştırılır. Worker (`src/whatsapp-env.ts`) dördü birlikte varsa container'a `PLATFORM_WA_PROVIDER=cloud`, `PLATFORM_WA_API_KEY`, `PLATFORM_WA_PHONE_NUMBER_ID`, `PLATFORM_WA_WABA_ID` (varsa), `WA_APP_SECRET`, `PLATFORM_WA_DISPLAY_PHONE` verir; biri eksikse mock (çalışan WhatsApp yok; gösterim numarası da verilmez). Geliştirici araçları her iki durumda da kapalıdır.
+**Gerçek WhatsApp (isteğe bağlı, yalnız alan adı kipi):** GitHub secret'ları eklenip iş akışı çalıştırılır; Worker (`src/whatsapp-env.ts`) ve iş akışının "WhatsApp kipi" adımı aynı kuralı uygular:
+- `D360_API_KEY` + `WA_PHONE` (360dialog, varsayılan, §6.2) → container'a `PLATFORM_WA_PROVIDER=d360`, `PLATFORM_WA_API_KEY` (= `D360_API_KEY`), `PLATFORM_WA_DISPLAY_PHONE` (E.164'e çevrilmiş `WA_PHONE`). `WA_APP_SECRET` verilmez (360dialog imza göndermez); `WA_DEFAULT_PROVIDER` değişmez.
+- `META_WA_TOKEN` + `META_WA_PHONE_NUMBER_ID` + `META_APP_SECRET` + `WA_PHONE` (Meta doğrudan, §6.2b) → `PLATFORM_WA_PROVIDER=cloud`, `PLATFORM_WA_API_KEY`, `PLATFORM_WA_PHONE_NUMBER_ID`, `PLATFORM_WA_WABA_ID` (varsa), `WA_APP_SECRET`, `PLATFORM_WA_DISPLAY_PHONE`.
+- İkisi birlikte (`D360_API_KEY` + tam `META_*` seti) → dağıtım "belirsiz" hatasıyla durur (Worker da bu durumda gerçek numarayı açmaz). Hiçbiri tam değilse mock (çalışan WhatsApp yok; gösterim numarası da verilmez). Boşaltılan WhatsApp secret'ları Worker'dan da silinir.
+Geliştirici araçları her durumda kapalıdır. API açılışta gerçek sağlayıcıda `PLATFORM_WA_API_KEY`, `PLATFORM_WA_DISPLAY_PHONE` ve `PLATFORM_WA_WEBHOOK_TOKEN`'ı (secrets.mjs üretir) zorunlu tutar (§4).
 
 **Yedekten geri dönüş (elle):** container çalışırken `son.dump`'ın üzerine yazmayın (çalışan container 2 dakika içinde kendi yedeğiyle ezer). Bunun yerine yeni bir dönem kullanın: (1) Cloudflare > R2 > `siparisinonunde-dev-yedek` > `e3/db/` altından istenen kopyayı (`son.dump` ya da `gun-<0–6>.dump`; 0 = Pazar, UTC) ve `e3/uploads/son.tar.gz`'yi indirin; (2) aynı kovaya `e4/db/son.dump` ve `e4/uploads/son.tar.gz` olarak yükleyin; (3) `wrangler.jsonc`'de `vars.DATA_EPOCH`'u `"4"` yapıp push edin. Yeni container `e4`'ten açılır; eski dönemin nesneleri R2'de kalır. **Aylık tatbikat:** son dökümü indirip yerelde `createdb siparis_tatbikat && pg_restore --no-owner -d siparis_tatbikat son.dump` ile açın, tablo sayılarına bakın ve silin.
 
@@ -661,7 +745,7 @@ Worker her yanıta `x-yg-ortam: cloudflare` başlığını ekler (isteğe bağl�
 - [ ] Son "Canlı ortam (Cloudflare)" çalışması yeşil (duman testi yukarıdaki maddelerle geçti).
 - [ ] Platform yöneticisi iki adımlı doğrulamayı kurdu, kurtarma kodları parola yöneticisinde; `DEV_PASSWORD` en az 12 karakter.
 - [ ] KVKK: Cloudflare standart sözleşmesi imzalandı ve 5 iş günü içinde Kurum'a bildirildi; VERBİS gerekiyorsa güncellendi; aydınlatma metinleri avukattan geçti (08 §9.1).
-- [ ] WhatsApp: gerçek numara bağlı (§6.2a) ya da bilerek yok (vitrinde WhatsApp bağlantısı görünmez).
+- [ ] WhatsApp: gerçek numara bağlı (§6.2, 360dialog) ya da bilerek yok (vitrinde WhatsApp bağlantısı görünmez).
 - [ ] R2'de `e3/db/son.dump`'ın son değiştirilme zamanı güncel (son değişiklikten en çok birkaç dakika sonra); bir aylık tatbikat yapıldı.
 - [ ] Dış izleme `/api/v1/health` ve `/api/v1/health/worker`'ı izliyor.
 
@@ -702,7 +786,8 @@ Settings > Secrets and variables > Actions > New repository secret:
 | `CLOUDFLARE_API_TOKEN` | evet | `yemekgelsin.net` bölgesinde **Zone > DNS > Edit** ve **Zone > Zone > Read** (Caddy'nin DNS-01 sertifikaları ve DNS geçişi). Geçişte Worker Custom Domain'lerini silmek (gerekirse geri bağlamak) için **Account > Workers Scripts > Edit** ve **Zone > Workers Routes > Edit** (Cloudflare ortamının "Edit Cloudflare Workers" token'ında ve bölge izinlerinde vardır). SSL/TLS modu "Flexible" ise düzeltmek için **Zone > Zone Settings > Edit** (yoksa modu elle "Full (strict)" yapın). |
 | `CADDY_CLOUDFLARE_API_TOKEN` | **önerilir** | Sunucuya (Caddy) yalnız DNS yetkili ayrı bir token (Zone > DNS > Edit + Zone > Zone > Read, yalnız bu bölge). Yoksa Workers yetkili `CLOUDFLARE_API_TOKEN` sunucunun `.env`'ine yazılır ve iş akışı her dağıtımda uyarır. Token her iki durumda da **yalnız caddy konteynerine** verilir; api/worker/migrate ortamında boştur (`docker-compose.yml` x-api-base). |
 | `CLOUDFLARE_ACCOUNT_ID` | hayır | Yoksa bölgenin hesabı kullanılır. |
-| `META_WA_TOKEN`, `META_WA_PHONE_NUMBER_ID`, `META_APP_SECRET`, `WA_PHONE` (+ `META_WA_WABA_ID`) | hayır | Gerçek WhatsApp (ortak numara; §6.2a). Dördü tamsa `PLATFORM_WA_PROVIDER=cloud`; değilse ortak numara kapalı (mock) ve uyarı. |
+| `D360_API_KEY`, `WA_PHONE` | hayır | Gerçek WhatsApp, 360dialog (ortak numara; varsayılan yol, §6.2). İkisi tamsa `PLATFORM_WA_PROVIDER=d360`. |
+| `META_WA_TOKEN`, `META_WA_PHONE_NUMBER_ID`, `META_APP_SECRET`, `WA_PHONE` (+ `META_WA_WABA_ID`) | hayır | Gerçek WhatsApp, Meta doğrudan (§6.2b). Dördü tamsa `PLATFORM_WA_PROVIDER=cloud`. İki yol birlikte verilirse dağıtım durur; hiçbiri tam değilse ortak numara kapalı (mock) ve uyarı. |
 | `NETGSM_USERCODE`, `NETGSM_PASSWORD`, `NETGSM_HEADER` | hayır | SMS (§7). Üçü tamsa `SMS_PROVIDER=netgsm` ve SMS yedeği açık başlar; değilse SMS gitmez, `sms_fallback` kapalı başlar. |
 | `SUPPORT_WHATSAPP` | hayır | Destek hattı (rakamlarla, `905321234567`); "Parolamı unuttum" bunu gösterir. Cloudflare ortamında (§13, alan adı kipi) `/demo`'daki WhatsApp bağlantısı. |
 | `BACKUP_PING_URL` | hayır | Yedek sonrası çağrılan dış izleme adresi (§8). |
@@ -734,7 +819,7 @@ Secret eklemek/değiştirmek dağıtımı başlatmaz: Actions > "Canlı ortam (T
 
 1. **Giriş:** https://yemekgelsin.net/admin/giris → `admin@yemekgelsin.net`, parola `ADMIN_PASSWORD` (yoksa `DEV_PASSWORD`). İlk girişte **iki adımlı doğrulama** kurulur (§5; zorunlu). Kurtarma kodlarını kaydedin.
 2. **Gizli anahtarların yedeği:** sunucudaki `.env`'in `ENCRYPTION_KEY` ve `TRACKING_SECRET` değerlerini bir parola yöneticisine kopyalayın (`ssh root@<VPS> 'grep -E "^(ENCRYPTION_KEY|TRACKING_SECRET)=" /opt/yemekgelsin/app/.env'`); sunucu kaybında gerekir.
-3. **WhatsApp webhook'u yeniden girin** (gerçek WhatsApp açıksa): canlı ortamın webhook ve doğrulama belirteçleri Cloudflare ortamındakilerden **farklıdır**. Admin > WhatsApp > WhatsApp kurulumu > **Göster** → Meta > uygulama > WhatsApp > Configuration > Webhook > Edit: Callback URL ve Verify token'ı yapıştırın → **Verify and save**; **messages** aboneliği açık kalsın (§6.2a C.1). Sonra "Bağlantıyı test et". Yapılmazsa müşteri mesajları yeni sunucuya gelmez.
+3. **WhatsApp webhook'u yeniden girin** (gerçek WhatsApp açıksa): canlı ortamın webhook ve doğrulama belirteçleri Cloudflare ortamındakilerden **farklıdır**. 360dialog: Admin > WhatsApp > WhatsApp kurulumu > **Webhook'u 360dialog'a kaydet** (§6.2 C.2). Meta doğrudan: **Göster** → Meta > uygulama > WhatsApp > Configuration > Webhook > Edit: Callback URL ve Verify token'ı yapıştırın → **Verify and save**; **messages** aboneliği açık kalsın (§6.2b C.1). Sonra "Bağlantıyı test et". Yapılmazsa müşteri mesajları yeni sunucuya gelmez.
 4. `VPS_HOST_KEY` secret'ını özetteki değerle ekleyin (TOFU yerine sabit anahtar).
 5. Kayıt açıktır: işletmeler `https://yemekgelsin.net/panel/kayit`'tan kaydolur ya da yönetici ekler. Cloudflare ortamı artık gizli staging'dir; gerekirse elle çalıştırın (§13).
 6. §12 kontrol listesini tamamlayın; özellikle ikinci Türkiye lokasyonuna yedek (§8) ve dış izleme (§10).

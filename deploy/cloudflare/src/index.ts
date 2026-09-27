@@ -17,14 +17,15 @@
 //     DATA_EPOCH artırılınca yeni container yedek bulamaz, veri sıfırdan kurulur (staging'in dönemi ayrıdır).
 //   - Her yanıta "x-yg-ortam: cloudflare" ekler: isteğe bağlı VPS iş akışı DNS geçişinden sonra trafiğin artık Worker'dan
 //     gelmediğini bununla anlar (.github/workflows/deploy-production.yml).
-// Ortak numara (WhatsApp) alan adı kipinde (src/whatsapp-env.ts): GitHub secret'ları META_WA_TOKEN, META_WA_PHONE_NUMBER_ID,
-// META_APP_SECRET ve WA_PHONE (+ isteğe bağlı META_WA_WABA_ID) tamsa gerçek Meta Cloud API; değilse taklit (mock), yani
-// çalışan WhatsApp yok (vitrinde ve QR'da WhatsApp bağlantısı gösterilmez). SMS her zaman mock.
+// Ortak numara (WhatsApp) alan adı kipinde (src/whatsapp-env.ts): GitHub secret'ları D360_API_KEY ve WA_PHONE tamsa
+// 360dialog (varsayılan yol, 15 §6.2); META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_APP_SECRET ve WA_PHONE (+ isteğe bağlı
+// META_WA_WABA_ID) tamsa Meta Cloud API doğrudan (15 §6.2b); ikisi birlikte verilirse iş akışı durur. Hiçbiri tam değilse
+// taklit (mock), yani çalışan WhatsApp yok (vitrinde ve QR'da WhatsApp bağlantısı gösterilmez). SMS her zaman mock.
 
 import { Container, ContainerProxy, getContainer, switchPort } from '@cloudflare/containers';
 import { isDevToolsPath, isNavigation, normalizeDeployMode, normalizeEpoch, parseBackupPath, redirectFor, requiresAuth } from './access';
 import { containerEnv, modeSettings, type ModeSettings } from './mode';
-import { whatsappContainerEnv } from './whatsapp-env';
+import { WA_SECRET_NAMES, whatsappContainerEnv } from './whatsapp-env';
 
 export { ContainerProxy };
 
@@ -57,8 +58,10 @@ interface Env {
   PLATFORM_WA_WEBHOOK_TOKEN: string;
   VAPID_PUBLIC_KEY: string;
   VAPID_PRIVATE_KEY: string;
-  // Gerçek WhatsApp (isteğe bağlı GitHub secret'ları; iş akışı yalnız doluysa yükler, boşaltılınca siler; 15 §13)
-  /** Meta sistem kullanıcısı token'ı (süresiz) */
+  // Gerçek WhatsApp (isteğe bağlı GitHub secret'ları; iş akışı yalnız doluysa yükler, boşaltılınca siler; 15 §13, §6.2)
+  /** 360dialog API anahtarı (varsayılan yol; numara anahtara bağlıdır) */
+  D360_API_KEY?: string;
+  /** Meta sistem kullanıcısı token'ı (süresiz; Meta doğrudan yolu) */
   META_WA_TOKEN?: string;
   /** Ortak numaranın Phone number ID'si */
   META_WA_PHONE_NUMBER_ID?: string;
@@ -127,14 +130,18 @@ export class AppContainer extends Container<Env> {
     super(ctx, env);
     const mode = normalizeDeployMode(env.DEPLOY_MODE);
     const staging = mode === 'staging';
-    // Ortak numara kipi: META_* + WA_PHONE tamsa gerçek Meta Cloud API, değilse mock. Gizli staging canlı numarayı ASLA
-    // kullanmaz (iş akışı secret'ları da yüklemez).
+    // Ortak numara kipi: D360_API_KEY + WA_PHONE → 360dialog; META_* + WA_PHONE → Meta Cloud API; değilse mock. Gizli
+    // staging canlı numarayı ASLA kullanmaz (iş akışı secret'ları da yüklemez).
     const wa = whatsappContainerEnv(staging ? {} : env);
+    if (wa.conflict) console.error(`WhatsApp: ${wa.conflict}`);
+    const someWaSecret = !staging && WA_SECRET_NAMES.some((k) => (env[k] ?? '').trim() !== '');
     console.log(
       `kip: ${mode} (DEPLOY_ENV=${modeSettings(mode).deployEnv}); ` +
-        (wa.mode === 'cloud'
-          ? 'WhatsApp: gerçek Meta Cloud API'
-          : `WhatsApp: mock (${staging ? 'simülatör' : 'canlı ortamda çalışan WhatsApp yok'})${wa.missing.length < 4 ? `; eksik: ${wa.missing.join(', ')}` : ''}`),
+        (wa.mode === 'd360'
+          ? 'WhatsApp: gerçek numara (360dialog)'
+          : wa.mode === 'cloud'
+            ? 'WhatsApp: gerçek numara (Meta Cloud API)'
+            : `WhatsApp: mock (${staging ? 'simülatör' : 'canlı ortamda çalışan WhatsApp yok'})${someWaSecret && wa.missing.length ? `; eksik: ${wa.missing.join(', ')}` : ''}`),
     );
     // Ortam değişkenleri ve gerekçeleri: src/mode.ts containerEnv (DEPLOY_ENV, DEV_TOOLS, 2FA kipten türetilir)
     this.envVars = containerEnv(mode, { ...env, DATA_EPOCH: safeEpoch(env.DATA_EPOCH) }, wa.env);

@@ -56,8 +56,10 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'admin.wa_setup_register': 'WhatsApp kurulumu: numara etkinleştirme',
   'admin.wa_setup_subscription_view': 'WhatsApp kurulumu: webhook aboneliği kontrolü',
   'admin.wa_setup_subscribe': 'WhatsApp kurulumu: webhook aboneliği açıldı',
+  'admin.wa_setup_webhook_view': "WhatsApp kurulumu: 360dialog webhook adresi kontrolü",
+  'admin.wa_setup_webhook_register': "WhatsApp kurulumu: webhook 360dialog'a kaydedildi",
   'admin.wa_setup_templates_view': 'WhatsApp kurulumu: şablon durumları',
-  'admin.wa_setup_templates_sync': "WhatsApp kurulumu: şablonlar Meta'ya gönderildi",
+  'admin.wa_setup_templates_sync': 'WhatsApp kurulumu: şablonlar gönderildi',
   'tenant.signup': 'İşletme kaydı',
 };
 

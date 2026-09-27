@@ -25,6 +25,8 @@ const META = {
   WA_PHONE: '+90 532 123 45 67',
 };
 const NETGSM = { NETGSM_USERCODE: '8501234567', NETGSM_PASSWORD: "p@ss#word$1", NETGSM_HEADER: 'YEMEKGELSIN' };
+/** 360dialog (varsayılan yol, 15 §6.2): yalnız API anahtarı ve numara */
+const D360 = { D360_API_KEY: 'd360-api-anahtari-0123456789', WA_PHONE: '0532 123 45 67' };
 
 /** docker-compose.yml x-api-base: env_file .env + environment üzerine yazar. */
 function composeApiEnv(envText: string): Record<string, string> {
@@ -119,6 +121,24 @@ describe('canlı ortam, Cloudflare container ortamı → API yapılandırması',
     expect(channelDelivers(config, 'sms')).toBe(false);
   });
 
+  it('gerçek WhatsApp, 360dialog (D360_API_KEY + WA_PHONE): üretimde açılır; imza anahtarı gerekmez, webhook belirteci ve numara var', () => {
+    const config = loadConfig(cloudflareApiEnv('domain', D360));
+    expect(config.DEPLOY_ENV).toBe('production');
+    expect(config.DEV_TOOLS).toBe(false);
+    expect(config.PLATFORM_WA_PROVIDER).toBe('d360');
+    expect(config.PLATFORM_WA_API_KEY).toBe(D360.D360_API_KEY);
+    expect(config.PLATFORM_WA_PHONE_NUMBER_ID).toBeUndefined();
+    expect(config.WA_APP_SECRET).toBeUndefined();
+    expect(config.PLATFORM_WA_WEBHOOK_TOKEN).toBe(CF_SECRETS.PLATFORM_WA_WEBHOOK_TOKEN);
+    expect(platformDisplayPhone(config)).toBe('+905321234567');
+    expect(channelDelivers(config, 'platform_wa')).toBe(true);
+    expect(productionConfigWarnings(config).join(' ')).not.toMatch(/PLATFORM_WA_PROVIDER=mock/);
+    // İki yol birlikte: Worker gerçek numarayı açmaz (iş akışı zaten durdurur)
+    const both = loadConfig(cloudflareApiEnv('domain', { ...META, ...D360 }));
+    expect(both.PLATFORM_WA_PROVIDER).toBe('mock');
+    expect(platformDisplayPhone(both)).toBeNull();
+  });
+
   it('DEV_TOOLS=1 canlı ortamda açılışı durdurur (Worker hiçbir kipte vermemeli)', () => {
     expect(() => loadConfig({ ...cloudflareApiEnv('domain', {}), DEV_TOOLS: '1' })).toThrow(/DEV_TOOLS üretimde 0 olmalı/);
   });
@@ -172,6 +192,7 @@ describe('isteğe bağlı Türkiye VPS\'i: .env → API yapılandırması', () =
   const cases: [string, Record<string, string>, { wa: string; sms: string }][] = [
     ['yalnız Cloudflare (WhatsApp ve SMS mock)', BASE, { wa: 'mock', sms: 'mock' }],
     ['gerçek WhatsApp', { ...BASE, ...META }, { wa: 'cloud', sms: 'mock' }],
+    ['gerçek WhatsApp (360dialog)', { ...BASE, ...D360 }, { wa: 'd360', sms: 'mock' }],
     ['Netgsm', { ...BASE, ...NETGSM }, { wa: 'mock', sms: 'netgsm' }],
     ['gerçek WhatsApp + Netgsm (WABA yok)', { ...BASE, ...META, META_WA_WABA_ID: '', ...NETGSM }, { wa: 'cloud', sms: 'netgsm' }],
   ];
@@ -198,6 +219,10 @@ describe('isteğe bağlı Türkiye VPS\'i: .env → API yapılandırması', () =
       if (expected.wa === 'cloud') {
         expect(platformDisplayPhone(config)).toBe('+905321234567');
         expect(config.WA_APP_SECRET).toBe(META.META_APP_SECRET);
+      } else if (expected.wa === 'd360') {
+        expect(platformDisplayPhone(config)).toBe('+905321234567');
+        expect(config.PLATFORM_WA_API_KEY).toBe(D360.D360_API_KEY);
+        expect(config.WA_APP_SECRET).toBeUndefined();
       } else {
         // Canlı ortamda mock iken geliştirme numarası gösterilmez
         expect(platformDisplayPhone(config)).toBeNull();

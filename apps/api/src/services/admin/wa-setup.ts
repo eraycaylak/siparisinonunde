@@ -1,19 +1,18 @@
-// Ortak numara "WhatsApp kurulumu" (admin, yalnız platform_owner; 15 §6.2a). Proje sahibi Meta'da yalnız tıklama yapar ve
-// beş değeri girer; geri kalan adımlar buradan Graph API ile yapılır:
-//   - durum: hangi değerler tanımlı (gizliler yalnız son 4 karakter), hangi adımlar çalışabilir
-//   - Meta'ya girilecek bilgiler: ortak webhook adresi + doğrulama belirteci (ayrı, denetlenen "Göster" çağrısı)
-//   - bağlantı testi: GET /{phone_number_id}?fields=…
-//   - numarayı etkinleştir: POST /{phone_number_id}/register {messaging_product, pin}
-//   - webhook aboneliği: POST/GET /{waba_id}/subscribed_apps
-//   - şablonlar: kod kataloğundaki (template-bodies.ts) her şablon Meta'da yoksa oluşturulur (POST /{waba_id}/message_templates;
-//     var olana dokunulmaz, hiçbir şey silinmez), sonra durumlar listelenir.
-// Graph hataları Türkçe ve yapılacak işi söyleyen AppError'a çevrilir (190 token, izin, yanlış kimlik, PIN, hız sınırı).
+// Ortak numara "WhatsApp kurulumu" (admin, yalnız platform_owner; 15 §6.2a). İki sağlayıcı:
+//   - 360dialog (d360, VARSAYILAN, 15 §6.2): proje sahibi 360dialog Hub'da numarayı bağlar ve API anahtarını üretir; buradan
+//     bağlantı testi, webhook kaydı ve şablon gönderimi yapılır (wa-setup-d360.ts). Numara kaydı ve abonelik 360dialog'dadır.
+//   - Meta Cloud API doğrudan (cloud, alternatif, 15 §6.2b): Meta'da yalnız tıklama yapılır ve beş değer girilir; gerisi
+//     Graph API ile buradan:
+//       - Meta'ya girilecek bilgiler: ortak webhook adresi + doğrulama belirteci (ayrı, denetlenen "Göster" çağrısı)
+//       - bağlantı testi: GET /{phone_number_id}?fields=…
+//       - numarayı etkinleştir: POST /{phone_number_id}/register {messaging_product, pin}
+//       - webhook aboneliği: POST/GET /{waba_id}/subscribed_apps
+// Ortak: durum (hangi değerler tanımlı; gizliler yalnız son 4 karakter, hangi adımlar çalışabilir) ve şablonlar: kod
+// kataloğundaki (template-bodies.ts) her şablon sağlayıcıda yoksa oluşturulur (Graph: /{waba_id}/message_templates,
+// 360dialog: /message_templates — aynı gövde ve yanıt; var olana dokunulmaz, hiçbir şey silinmez), sonra durumlar listelenir.
+// Sağlayıcı hataları Türkçe ve yapılacak işi söyleyen AppError'a çevrilir (token/anahtar, izin, yanlış kimlik, PIN, hız sınırı).
 
-import {
-  SHARED_WA_DISPLAY_NAME,
-  WA_PROVIDER_LABELS,
-  formatPhone,
-} from '@siparis/core';
+import { SHARED_WA_DISPLAY_NAME, WA_PROVIDER_LABELS, formatPhone } from '@siparis/core';
 import type {
   AdminWaSetupRegister,
   AdminWaSetupReveal,
@@ -24,69 +23,58 @@ import type {
   AdminWaTemplateStatus,
   AdminWaTemplates,
 } from '@siparis/core/admin/contracts';
-import { platformDisplayPhone, type Config } from '../../config';
+import { platformDisplayPhone } from '../../config';
 import { AppError, conflict } from '../../lib/errors';
-import { GraphApiError, graphCall, isGraphApiError } from '../../wa/graph-admin';
-import { GRAPH_API_VERSION } from '../../wa/providers/cloud';
+import { adminApiCall, d360Target, graphCall, graphTarget, isGraphApiError, type AdminApiTarget, type GraphApiError } from '../../wa/graph-admin';
+import { GRAPH_API_VERSION, GRAPH_BASE_URL } from '../../wa/providers/cloud';
+import { D360_BASE_URL, D360_TEMPLATES_PATH } from '../../wa/providers/d360';
 import { WA_TEMPLATE_CATALOG, type TemplateDef } from '../messaging/template-bodies';
+import {
+  NAME_STATUS,
+  QUALITY,
+  RATE_LIMIT_CODES,
+  baseUrl,
+  digits,
+  envName as envNameFor,
+  maskedSharedWebhook,
+  requireHttpsBase,
+  requireRealProvider,
+  tail,
+  toneLabel as label,
+  type ToneMap,
+  type WaSetupConfig,
+} from './wa-setup-common';
+import { d360ErrorToAppError, d360HostProblem, testConnectionD360 } from './wa-setup-d360';
 
-export type WaSetupConfig = Pick<
-  Config,
-  | 'APP_BASE_URL'
-  | 'NODE_ENV'
-  | 'DEPLOY_ENV'
-  | 'PLATFORM_WA_PROVIDER'
-  | 'PLATFORM_WA_API_KEY'
-  | 'PLATFORM_WA_PHONE_NUMBER_ID'
-  | 'PLATFORM_WA_WABA_ID'
-  | 'PLATFORM_WA_DISPLAY_PHONE'
-  | 'PLATFORM_WA_WEBHOOK_TOKEN'
-  | 'WA_APP_SECRET'
-  | 'WA_VERIFY_TOKEN'
->;
+export type { WaSetupConfig } from './wa-setup-common';
+export { readD360Webhook, registerD360Webhook } from './wa-setup-d360';
 
-/** Ortam değişkeni → Cloudflare dev ortamındaki GitHub secret'ı (15 §13). */
-const DEV_SECRET: Record<string, string> = {
-  PLATFORM_WA_API_KEY: 'META_WA_TOKEN',
-  PLATFORM_WA_PHONE_NUMBER_ID: 'META_WA_PHONE_NUMBER_ID',
-  PLATFORM_WA_WABA_ID: 'META_WA_WABA_ID',
-  WA_APP_SECRET: 'META_APP_SECRET',
-  PLATFORM_WA_DISPLAY_PHONE: 'WA_PHONE',
-};
-
-/** "PLATFORM_WA_WABA_ID (Cloudflare dev: GitHub secret META_WA_WABA_ID)" */
-function envName(name: string): string {
-  const s = DEV_SECRET[name];
-  return s ? `${name} (Cloudflare dev: GitHub secret ${s})` : name;
-}
-
-function tail(v: string | undefined | null): string | null {
-  return v ? `••••${v.slice(-4)}` : null;
-}
-
-const baseUrl = (c: Pick<Config, 'APP_BASE_URL'>) => c.APP_BASE_URL.replace(/\/+$/, '');
+/** Meta doğrudan yolun ortam değişkeni adı + canlı ortam secret'ı (graph hata metinleri). */
+const envName = (name: string) => envNameFor(name, 'cloud');
 const numeric = (v: string | undefined) => !v || /^\d{5,30}$/.test(v);
-const digits = (v: string | null | undefined) => (v ?? '').replace(/\D/g, '');
+const hostOf = (u: string) => u.replace(/^https?:\/\//, '');
 
 // ---------------------------------------------------------------------------
 // Durum ve Meta'ya girilecek bilgiler
 
 export function setupStatus(c: WaSetupConfig): AdminWaSetupStatus {
-  const cloud = c.PLATFORM_WA_PROVIDER === 'cloud';
+  const provider = c.PLATFORM_WA_PROVIDER;
+  const cloud = provider === 'cloud';
+  const d360 = provider === 'd360';
   const display = platformDisplayPhone(c);
   const token = c.PLATFORM_WA_WEBHOOK_TOKEN ?? null;
   const verifyDefault = !c.WA_VERIFY_TOKEN.trim() || c.WA_VERIFY_TOKEN === 'dev-verify';
   const https = baseUrl(c).startsWith('https://');
   const problems: string[] = [];
 
-  if (c.PLATFORM_WA_PROVIDER === 'mock') {
+  if (provider === 'mock') {
     problems.push(
-      'Sağlayıcı simülatör (mock): gerçek WhatsApp bağlı değil. Meta bilgilerini girip yeniden başlatın ' +
-        '(Cloudflare dev: GitHub secret\'ları META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_WA_WABA_ID, META_APP_SECRET, WA_PHONE ekleyip iş akışını çalıştırın).',
+      'Sağlayıcı simülatör (mock): gerçek WhatsApp bağlı değil. Varsayılan yol 360dialog: GitHub secret\'ları D360_API_KEY ve WA_PHONE\'u ekleyip ' +
+        'Actions › "Canlı ortam (Cloudflare)" › Run workflow (docs/15 §6.2). Meta doğrudan yol: META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_WA_WABA_ID, ' +
+        'META_APP_SECRET, WA_PHONE (docs/15 §6.2b).',
     );
-  } else if (c.PLATFORM_WA_PROVIDER === 'd360') {
-    problems.push('Sağlayıcı 360dialog: bu ekrandaki Meta adımları (test, kayıt, abonelik, şablon) yalnız Meta Cloud API\'de çalışır; 360dialog Hub\'ı kullanın.');
   }
+  if (d360 && !c.PLATFORM_WA_API_KEY) problems.push(`360dialog API anahtarı tanımlı değil: ${envNameFor('PLATFORM_WA_API_KEY', 'd360')}.`);
   if (cloud) {
     if (!c.PLATFORM_WA_API_KEY) problems.push(`Erişim anahtarı (token) tanımlı değil: ${envName('PLATFORM_WA_API_KEY')}.`);
     if (!c.PLATFORM_WA_PHONE_NUMBER_ID) problems.push(`Telefon numarası kimliği (Phone number ID) tanımlı değil: ${envName('PLATFORM_WA_PHONE_NUMBER_ID')}.`);
@@ -100,21 +88,30 @@ export function setupStatus(c: WaSetupConfig): AdminWaSetupStatus {
       problems.push('Telefon numarası kimliği ile WABA kimliği aynı: ikisi farklı değerlerdir, API Setup sayfasından ayrı ayrı kopyalayın.');
     }
   }
-  if (c.PLATFORM_WA_PROVIDER !== 'mock') {
-    if (!display) problems.push(`Ortak numara tanımlı değil: ${envName('PLATFORM_WA_DISPLAY_PHONE')} (E.164, ör. +905321234567).`);
-    if (!token) problems.push('Ortak webhook belirteci tanımlı değil (PLATFORM_WA_WEBHOOK_TOKEN): Meta\'ya girilecek webhook adresi oluşmaz.');
-    if (verifyDefault) problems.push('Doğrulama belirteci (WA_VERIFY_TOKEN) varsayılan değerde: Meta\'ya girmeden önce rastgele bir değer verin (openssl rand -hex 16).');
-    if (!https) problems.push('APP_BASE_URL https ile başlamıyor: Meta webhook adresi ve şablon butonları https ister.');
+  const hostProblem = d360 ? d360HostProblem(c) : null;
+  if (provider !== 'mock') {
+    if (!display) problems.push(`Ortak numara tanımlı değil: ${envNameFor('PLATFORM_WA_DISPLAY_PHONE', provider)} (E.164, ör. +905321234567).`);
+    if (!token) {
+      problems.push(
+        `Ortak webhook belirteci tanımlı değil (PLATFORM_WA_WEBHOOK_TOKEN): ${d360 ? "360dialog'a kaydedilecek" : "Meta'ya girilecek"} webhook adresi oluşmaz.`,
+      );
+    }
+    // Doğrulama belirteci yalnız Meta'nın webhook GET doğrulamasında kullanılır (360dialog doğrulama isteği göndermez)
+    if (cloud && verifyDefault) problems.push('Doğrulama belirteci (WA_VERIFY_TOKEN) varsayılan değerde: Meta\'ya girmeden önce rastgele bir değer verin (openssl rand -hex 16).');
+    if (!https) problems.push('APP_BASE_URL https ile başlamıyor: webhook adresi ve şablon butonları https ister.');
+    if (hostProblem) problems.push(hostProblem);
   }
 
   const graphReady = cloud && !!c.PLATFORM_WA_API_KEY;
+  const d360Ready = d360 && !!c.PLATFORM_WA_API_KEY;
   return {
-    provider: c.PLATFORM_WA_PROVIDER,
-    providerLabel: WA_PROVIDER_LABELS[c.PLATFORM_WA_PROVIDER],
+    provider,
+    providerLabel: WA_PROVIDER_LABELS[provider],
     displayName: SHARED_WA_DISPLAY_NAME,
     displayPhone: display,
     displayPhoneFormatted: display ? formatPhone(display) : null,
     graphApiVersion: GRAPH_API_VERSION,
+    apiBase: d360 ? hostOf(D360_BASE_URL) : cloud ? `${hostOf(GRAPH_BASE_URL)}/${GRAPH_API_VERSION}` : 'Yok (simülatör)',
     fields: {
       phoneNumberId: { set: !!c.PLATFORM_WA_PHONE_NUMBER_ID, tail: tail(c.PLATFORM_WA_PHONE_NUMBER_ID) },
       wabaId: { set: !!c.PLATFORM_WA_WABA_ID, tail: tail(c.PLATFORM_WA_WABA_ID) },
@@ -123,12 +120,13 @@ export function setupStatus(c: WaSetupConfig): AdminWaSetupStatus {
       webhookToken: { set: !!token, tail: tail(token) },
       verifyToken: { set: !verifyDefault, tail: verifyDefault ? null : tail(c.WA_VERIFY_TOKEN), isDefault: verifyDefault },
     },
-    webhookUrlMasked: token ? `${baseUrl(c)}/api/v1/webhooks/wa/shared/••••${token.slice(-4)}` : null,
+    webhookUrlMasked: maskedSharedWebhook(c),
     actions: {
-      test: graphReady && !!c.PLATFORM_WA_PHONE_NUMBER_ID,
+      test: (graphReady && !!c.PLATFORM_WA_PHONE_NUMBER_ID) || d360Ready,
       register: graphReady && !!c.PLATFORM_WA_PHONE_NUMBER_ID,
       subscribe: graphReady && !!c.PLATFORM_WA_WABA_ID,
-      templates: graphReady && !!c.PLATFORM_WA_WABA_ID && https,
+      templates: ((graphReady && !!c.PLATFORM_WA_WABA_ID) || d360Ready) && https,
+      webhook: d360Ready && !!token && https && !hostProblem,
     },
     problems,
   };
@@ -153,8 +151,11 @@ function requireCloud(c: WaSetupConfig): string {
   if (c.PLATFORM_WA_PROVIDER !== 'cloud') {
     throw conflict(
       'wa_setup_not_cloud',
-      `Bu adım yalnız Meta Cloud API'de çalışır; şu anki sağlayıcı: ${WA_PROVIDER_LABELS[c.PLATFORM_WA_PROVIDER]}. ` +
-        "PLATFORM_WA_PROVIDER=cloud yapın (Cloudflare dev: META_* GitHub secret'larını ekleyip iş akışını çalıştırın).",
+      c.PLATFORM_WA_PROVIDER === 'd360'
+        ? "Bu adım 360dialog'da gerekmez: numara kaydını ve webhook aboneliğini 360dialog yapar. 360dialog adımları: Bağlantıyı test et → " +
+            "Webhook'u 360dialog'a kaydet → Şablonları gönder."
+        : `Bu adım yalnız Meta Cloud API'de çalışır; şu anki sağlayıcı: ${WA_PROVIDER_LABELS[c.PLATFORM_WA_PROVIDER]}. ` +
+            "Meta doğrudan yol için META_* GitHub secret'larını ekleyip iş akışını çalıştırın (docs/15 §6.2b).",
     );
   }
   if (!c.PLATFORM_WA_API_KEY) throw conflict('wa_setup_missing', `Erişim anahtarı (token) tanımlı değil: ${envName('PLATFORM_WA_API_KEY')}.`);
@@ -177,8 +178,6 @@ function requireWabaId(c: WaSetupConfig): string {
   }
   return c.PLATFORM_WA_WABA_ID;
 }
-
-const RATE_LIMIT_CODES = new Set(['4', '17', '32', '613', '80004', '80007', '80008', '130429']);
 
 /** Graph hatası → Türkçe, yapılacak işi söyleyen AppError (502; ön koşul hataları 409). */
 export function graphErrorToAppError(err: GraphApiError, ctx: GraphContext): AppError {
@@ -258,41 +257,21 @@ async function graph<T>(ctx: GraphContext, fn: () => Promise<T>): Promise<T> {
 // ---------------------------------------------------------------------------
 // Bağlantı testi
 
-const NAME_STATUS: Record<string, [string, AdminWaSetupTone]> = {
-  APPROVED: ['Onaylandı', 'ok'],
-  AVAILABLE_WITHOUT_REVIEW: ['İncelemesiz kullanılabilir', 'ok'],
-  PENDING_REVIEW: ['Meta incelemesinde', 'warn'],
-  DECLINED: ['Reddedildi', 'bad'],
-  EXPIRED: ['Süresi doldu', 'bad'],
-  NONE: ['Yok', 'warn'],
-};
-const QUALITY: Record<string, [string, AdminWaSetupTone]> = {
-  GREEN: ['Yüksek (yeşil)', 'ok'],
-  YELLOW: ['Orta (sarı)', 'warn'],
-  RED: ['Düşük (kırmızı)', 'bad'],
-  UNKNOWN: ['Henüz ölçülmedi', 'info'],
-  NA: ['Henüz ölçülmedi', 'info'],
-};
-const CODE_VERIFICATION: Record<string, [string, AdminWaSetupTone]> = {
+const CODE_VERIFICATION: ToneMap = {
   VERIFIED: ['Doğrulandı', 'ok'],
   NOT_VERIFIED: ['Doğrulanmadı', 'bad'],
   EXPIRED: ['Doğrulama kodunun süresi doldu', 'info'],
 };
-const PLATFORM_TYPE: Record<string, [string, AdminWaSetupTone]> = {
+const PLATFORM_TYPE: ToneMap = {
   CLOUD_API: ["Cloud API'ye kayıtlı", 'ok'],
   ON_PREMISE: ["On-Premises API'de (Cloud API'ye taşınmalı)", 'bad'],
   NOT_APPLICABLE: ['Kayıtlı değil', 'bad'],
 };
-const THROUGHPUT: Record<string, [string, AdminWaSetupTone]> = {
+const THROUGHPUT: ToneMap = {
   STANDARD: ['Standart', 'info'],
   HIGH: ['Yüksek', 'ok'],
   NOT_APPLICABLE: ['Yok (numara kayıtlı değil)', 'info'],
 };
-
-function label(map: Record<string, [string, AdminWaSetupTone]>, v: string | null, fallbackTone: AdminWaSetupTone = 'warn'): [string, AdminWaSetupTone] {
-  if (!v) return ['Bilinmiyor', 'info'];
-  return map[v] ?? [v, fallbackTone];
-}
 
 interface GraphPhone {
   id?: string;
@@ -307,7 +286,10 @@ interface GraphPhone {
 
 export const PHONE_FIELDS = 'display_phone_number,verified_name,name_status,quality_rating,code_verification_status,platform_type,throughput';
 
+/** Bağlantı testi: 360dialog'da health_status + webhook (wa-setup-d360.ts), Meta'da telefon numarası düğümü. */
 export async function testConnection(c: WaSetupConfig): Promise<AdminWaSetupTest> {
+  requireRealProvider(c);
+  if (c.PLATFORM_WA_PROVIDER === 'd360') return testConnectionD360(c);
   const token = requireCloud(c);
   const phoneId = requirePhoneId(c);
   const p = await graph('phone', () => graphCall<GraphPhone>(token, 'GET', encodeURIComponent(phoneId), { query: { fields: PHONE_FIELDS } }));
@@ -426,9 +408,11 @@ interface GraphTemplate {
   rejected_reason?: string;
 }
 
-const TEMPLATE_STATUS: Record<string, [string, AdminWaSetupTone]> = {
+/** Durumlar büyük harfe çevrilerek eşlenir (360dialog küçük harf ve eski "submitted" döndürebilir). */
+const TEMPLATE_STATUS: ToneMap = {
   APPROVED: ['Onaylandı', 'ok'],
   PENDING: ['İncelemede', 'warn'],
+  SUBMITTED: ['İncelemede', 'warn'],
   IN_APPEAL: ['İtirazda', 'warn'],
   REJECTED: ['Reddedildi', 'bad'],
   PAUSED: ['Duraklatıldı', 'bad'],
@@ -450,17 +434,50 @@ const REJECTED_REASON: Record<string, string> = {
 
 export const TEMPLATE_FIELDS = 'name,status,category,language,rejected_reason';
 
-/** WABA'daki tüm şablonlar (sayfalı; en çok 10 sayfa × 200). */
-async function fetchAllTemplates(token: string, waba: string): Promise<GraphTemplate[]> {
+/**
+ * Şablon deposu (sağlayıcı arayüzü): Meta Graph'ta /{waba_id}/message_templates (token), 360dialog'da /message_templates
+ * (anahtar; WABA anahtara bağlı). Gövde, yanıt ({data, paging.cursors.after}) ve hata biçimi aynıdır; yalnız hedef, yol ve
+ * hata metinleri farklıdır.
+ */
+interface TemplateStore {
+  target: AdminApiTarget;
+  path: string;
+  /** list: liste/tümden durduran hata; create: tek şablonun hatası */
+  mapError: (err: GraphApiError, ctx: 'list' | 'create') => AppError;
+}
+
+function templateStore(c: WaSetupConfig): TemplateStore {
+  requireRealProvider(c);
+  if (c.PLATFORM_WA_PROVIDER === 'd360') {
+    if (!c.PLATFORM_WA_API_KEY) throw conflict('wa_setup_missing', `360dialog API anahtarı tanımlı değil: ${envNameFor('PLATFORM_WA_API_KEY', 'd360')}.`);
+    return {
+      target: d360Target(c.PLATFORM_WA_API_KEY),
+      path: D360_TEMPLATES_PATH,
+      mapError: (err, ctx) => d360ErrorToAppError(err, ctx === 'create' ? 'template' : 'templates'),
+    };
+  }
+  const token = requireCloud(c);
+  const waba = requireWabaId(c);
+  return {
+    target: graphTarget(token),
+    path: `${encodeURIComponent(waba)}/message_templates`,
+    mapError: (err, ctx) => graphErrorToAppError(err, ctx === 'create' ? 'template' : 'waba'),
+  };
+}
+
+/** Hesaptaki tüm şablonlar (sayfalı; en çok 10 sayfa × 200). */
+async function fetchAllTemplates(store: TemplateStore): Promise<GraphTemplate[]> {
   const out: GraphTemplate[] = [];
   let after: string | undefined;
   for (let page = 0; page < 10; page++) {
-    const res = await graph('waba', () =>
-      graphCall<{ data?: GraphTemplate[]; paging?: { cursors?: { after?: string }; next?: string } }>(token, 'GET', `${encodeURIComponent(waba)}/message_templates`, {
-        query: { fields: TEMPLATE_FIELDS, limit: 200, after },
-      }),
-    );
-    out.push(...(res.data ?? []));
+    let res: { data?: GraphTemplate[]; paging?: { cursors?: { after?: string }; next?: string } };
+    try {
+      res = await adminApiCall(store.target, 'GET', store.path, { query: { fields: TEMPLATE_FIELDS, limit: 200, after } });
+    } catch (err) {
+      if (isGraphApiError(err)) throw store.mapError(err, 'list');
+      throw err;
+    }
+    out.push(...(Array.isArray(res.data) ? res.data : []));
     after = res.paging?.next ? res.paging.cursors?.after : undefined;
     if (!after) break;
   }
@@ -477,7 +494,7 @@ function templateRows(existing: GraphTemplate[]): AdminWaTemplates {
     const status = t?.status ? String(t.status).toUpperCase() : null;
     const [statusLabel, tone] = status ? (TEMPLATE_STATUS[status] ?? [status, 'warn']) : (["Meta'da yok", 'info'] as [string, AdminWaSetupTone]);
     const category = t?.category ? String(t.category).toUpperCase() : null;
-    const reason = t?.rejected_reason && t.rejected_reason !== 'NONE' ? String(t.rejected_reason) : null;
+    const reason = t?.rejected_reason && String(t.rejected_reason).toUpperCase() !== 'NONE' ? String(t.rejected_reason).toUpperCase() : null;
     return {
       name: def.name,
       audience: def.audience,
@@ -497,7 +514,7 @@ function templateRows(existing: GraphTemplate[]): AdminWaTemplates {
     summary: {
       total: templates.length,
       approved: count((t) => t.status === 'APPROVED'),
-      pending: count((t) => t.status === 'PENDING' || t.status === 'IN_APPEAL'),
+      pending: count((t) => t.status === 'PENDING' || t.status === 'SUBMITTED' || t.status === 'IN_APPEAL'),
       rejected: count((t) => t.status != null && t.tone === 'bad'),
       missing: count((t) => t.status == null),
     },
@@ -505,7 +522,8 @@ function templateRows(existing: GraphTemplate[]): AdminWaTemplates {
 }
 
 /**
- * Katalog tanımından Meta şablon oluşturma gövdesi (POST /{waba}/message_templates). Gövde metni koddakiyle birebir;
+ * Katalog tanımından şablon oluşturma gövdesi (Graph POST /{waba}/message_templates; 360dialog POST /message_templates aynı
+ * gövdeyi alır). Gövde metni koddakiyle birebir;
  * değişkenler konumsal ({{1}}..), örnekler params sırasıyla; URL butonu APP_BASE_URL + yol (+ dinamikse {{1}}).
  */
 export function templateCreatePayload(def: TemplateDef, appBaseUrl: string): Record<string, unknown> {
@@ -526,12 +544,17 @@ export function templateCreatePayload(def: TemplateDef, appBaseUrl: string): Rec
   return { name: def.name, language: def.language, category: def.category, components };
 }
 
-/** Oluşturmayı tümden durduran hatalar (token/izin/kimlik/ağ): kalan şablonlar denenmez. */
+/** Oluşturmayı tümden durduran hatalar (token/anahtar, izin, kimlik, uç nokta, hız sınırı, ağ): kalan şablonlar denenmez. */
 function fatalTemplateError(err: GraphApiError): boolean {
   const code = Number(err.code);
+  const status = err.httpStatus;
   return (
     err.code === 'network' ||
     err.code === 'timeout' ||
+    status === 401 ||
+    status === 403 ||
+    status === 404 ||
+    status === 429 ||
     code === 190 ||
     code === 102 ||
     code === 10 ||
@@ -544,27 +567,21 @@ function fatalTemplateError(err: GraphApiError): boolean {
 
 /** "Bu dilde bu adla şablon zaten var" (yarış ya da listede görünmeyen şablon): atlandı sayılır. */
 function alreadyExists(err: GraphApiError): boolean {
-  return err.subcode === '2388024' || /already exists/i.test(err.message) || /already exists/i.test(err.userMessage ?? '');
+  const re = /already exists|duplicate/i;
+  return err.subcode === '2388024' || re.test(err.message) || re.test(err.userMessage ?? '');
 }
 
-function requireHttpsBase(c: WaSetupConfig): void {
-  if (!baseUrl(c).startsWith('https://')) {
-    throw conflict('wa_setup_base_url', `APP_BASE_URL https ile başlamıyor (${baseUrl(c)}): şablon butonlarındaki bağlantılar Meta'da https olmalı.`);
-  }
-}
+const HTTPS_TEMPLATES = 'şablon butonlarındaki bağlantılar https olmalı';
 
 export async function listTemplateStatus(c: WaSetupConfig): Promise<AdminWaTemplates> {
-  const token = requireCloud(c);
-  const waba = requireWabaId(c);
-  return templateRows(await fetchAllTemplates(token, waba));
+  return templateRows(await fetchAllTemplates(templateStore(c)));
 }
 
 /** Eksik şablonları oluşturur (var olanı atlar, hiçbir şeyi silmez), sonra güncel durumları döner. İdempotent. */
 export async function syncTemplates(c: WaSetupConfig): Promise<AdminWaTemplates> {
-  const token = requireCloud(c);
-  const waba = requireWabaId(c);
-  requireHttpsBase(c);
-  const existing = await fetchAllTemplates(token, waba);
+  const store = templateStore(c);
+  requireHttpsBase(c, HTTPS_TEMPLATES);
+  const existing = await fetchAllTemplates(store);
   const have = new Set(existing.filter((t) => t.name && isTr(t)).map((t) => t.name!));
   const created: string[] = [];
   const skipped: string[] = [];
@@ -575,7 +592,7 @@ export async function syncTemplates(c: WaSetupConfig): Promise<AdminWaTemplates>
       continue;
     }
     try {
-      await graphCall(token, 'POST', `${encodeURIComponent(waba)}/message_templates`, { body: templateCreatePayload(def, c.APP_BASE_URL) });
+      await adminApiCall(store.target, 'POST', store.path, { body: templateCreatePayload(def, c.APP_BASE_URL) });
       created.push(def.name);
     } catch (err) {
       if (!isGraphApiError(err)) throw err;
@@ -583,10 +600,10 @@ export async function syncTemplates(c: WaSetupConfig): Promise<AdminWaTemplates>
         skipped.push(def.name);
         continue;
       }
-      if (fatalTemplateError(err)) throw graphErrorToAppError(err, 'waba');
-      failed.push({ name: def.name, message: graphErrorToAppError(err, 'template').message });
+      if (fatalTemplateError(err)) throw store.mapError(err, 'list');
+      failed.push({ name: def.name, message: store.mapError(err, 'create').message });
     }
   }
-  const after = created.length ? await fetchAllTemplates(token, waba) : existing;
+  const after = created.length ? await fetchAllTemplates(store) : existing;
   return { ...templateRows(after), sync: { created, skipped, failed } };
 }

@@ -4,8 +4,9 @@
 #     ve elle çalışır. Üretim kipi (DEPLOY_ENV=production): platform yöneticisi için iki adımlı doğrulama zorunlu (ilk
 #     girişte kurulur), geliştirici araçları ve WhatsApp simülatörü kapalı (/dev/* ve /api/v1/dev/* 404), arama motorlarına
 #     açık. Demo verisi YOK: seed yalnız platform yöneticisini (admin@yemekgelsin.net, parola DEV_PASSWORD) ve üretim
-#     bayraklarını kurar; yeni işletme kaydı ve /demo lead formu AÇIK; "Demo ortamı" uyarısı yok. META_* secret'ları tamsa
-#     ortak numara gerçek WhatsApp'la çalışır; değilse çalışan WhatsApp yoktur (vitrinde ve QR'da bağlantı gösterilmez).
+#     bayraklarını kurar; yeni işletme kaydı ve /demo lead formu AÇIK; "Demo ortamı" uyarısı yok. D360_API_KEY + WA_PHONE
+#     (360dialog) ya da META_* + WA_PHONE (Meta doğrudan) tamsa ortak numara gerçek WhatsApp'la çalışır; değilse çalışan
+#     WhatsApp yoktur (vitrinde ve QR'da bağlantı gösterilmez).
 #     Yedek: 2 dakikada bir (değişiklik varsa) ve her kapanışta R2'ye; beklenmedik çökme en çok ~2 dakikayı kaybettirir.
 #   - VPS_HOST secret'ı VARSA (isteğe bağlı Türkiye VPS'i canlıda; PLANLANMIYOR, 00 §12a madde 10) → GİZLİ STAGING: yalnız
 #     elle çalıştırılır (push'ta atlanır), yalnız workers.dev adresine dağıtır, Custom Domain eklemez (alan adı o zaman
@@ -21,9 +22,11 @@
 #   CLOUDFLARE_ACCOUNT_ID — isteğe bağlı; token birden fazla hesaba erişiyorsa zorunlu
 #   SUPPORT_WHATSAPP      — isteğe bağlı; destek hattı (ülke koduyla, ör. 905321234567): "Parolamı unuttum" ve kayıt
 #                           kapalıyken "Bize ulaşın" bağlantıları bu numaraya WhatsApp'tan yazdırır
-# Gerçek WhatsApp (isteğe bağlı, yalnız alan adı kipi; docs/15 §6.2a). META_WA_TOKEN, META_WA_PHONE_NUMBER_ID,
-# META_APP_SECRET ve WA_PHONE dördü birlikte varsa ortak numara gerçek Meta Cloud API ile çalışır; biri eksikse mock:
-#   META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_WA_WABA_ID (isteğe bağlı), META_APP_SECRET, WA_PHONE (E.164)
+# Gerçek WhatsApp (isteğe bağlı, yalnız alan adı kipi). İki yoldan biri; ikisi birlikte verilirse dağıtım durur:
+#   360dialog (VARSAYILAN, docs/15 §6.2): D360_API_KEY (360dialog'un numaraya verdiği API anahtarı), WA_PHONE (E.164)
+#   Meta doğrudan (alternatif, docs/15 §6.2b): META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_WA_WABA_ID (isteğe bağlı),
+#                                             META_APP_SECRET, WA_PHONE (E.164)
+# Seçilen yolun secret'larından biri eksikse mock (canlı ortamda çalışan WhatsApp yok).
 # Secret eklemek/değiştirmek dağıtımı kendiliğinden başlatmaz: Actions > "Canlı ortam (Cloudflare)" > Run workflow.
 # Dosya adı (deploy-dev-cloudflare.yml) ve Worker adı (siparisinonunde-dev) iç tanımlayıcıdır, değişmez (00 §12a madde 9).
 name: Canlı ortam (Cloudflare)
@@ -181,11 +184,14 @@ jobs:
           echo "$zone erişimi tamam (bölge $zone_id, $zstatus)"
           [ -n "$workers_dev" ] || echo "::warning::workers.dev alt alan adı bulunamadı; yedek adres denetimi atlanacak"
 
-      # Ortak numara kipi: alan adı kipinde dört secret tamsa gerçek Meta Cloud API, değilse mock (canlı ortamda çalışan
-      # WhatsApp yok; Worker aynı kuralı uygular: src/whatsapp-env.ts). Staging her zaman simülatördür. Değerler loga yazılmaz.
+      # Ortak numara kipi (Worker aynı kuralı uygular: src/whatsapp-env.ts): alan adı kipinde D360_API_KEY + WA_PHONE →
+      # 360dialog (d360); META_WA_TOKEN + META_WA_PHONE_NUMBER_ID + META_APP_SECRET + WA_PHONE → Meta Cloud API (cloud);
+      # ikisi birlikte → belirsiz, dağıtım durur; hiçbiri tam değilse mock (canlı ortamda çalışan WhatsApp yok). Staging her
+      # zaman simülatördür. Değerler loga yazılmaz.
       - name: WhatsApp kipi (gerçek numara ya da mock)
         id: wa
         env:
+          D360_API_KEY: ${{ secrets.D360_API_KEY }}
           META_WA_TOKEN: ${{ secrets.META_WA_TOKEN }}
           META_WA_PHONE_NUMBER_ID: ${{ secrets.META_WA_PHONE_NUMBER_ID }}
           META_WA_WABA_ID: ${{ secrets.META_WA_WABA_ID }}
@@ -202,22 +208,41 @@ jobs:
           for n in META_WA_TOKEN META_WA_PHONE_NUMBER_ID META_APP_SECRET WA_PHONE; do
             if filled "$n"; then present=$((present + 1)); else missing+=("$n"); fi
           done
-          if [ ${#missing[@]} -eq 0 ]; then
+          if filled D360_API_KEY; then
+            # 360dialog (varsayılan yol). Tam META_* seti de varsa hangi yolun kullanılacağı belirsizdir: açıkça durdur.
+            if [ ${#missing[@]} -eq 0 ]; then
+              echo "::error::Hem 360dialog (D360_API_KEY) hem Meta Cloud API (META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_APP_SECRET) secret'ları tanımlı: ortak numaranın hangi yoldan bağlanacağı belirsiz. Kullanmadığınız yolun secret'larını silin (360dialog için META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_WA_WABA_ID, META_APP_SECRET; Meta doğrudan için D360_API_KEY) ve iş akışını yeniden çalıştırın (docs/15 §6.2)."
+              exit 1
+            fi
+            if filled WA_PHONE; then
+              echo "mode=d360" >> "$GITHUB_OUTPUT"
+              echo "WhatsApp: gerçek numara, 360dialog (simülatör kapalı)"
+              leftover=()
+              for n in META_WA_TOKEN META_WA_PHONE_NUMBER_ID META_WA_WABA_ID META_APP_SECRET; do filled "$n" && leftover+=("$n"); done
+              [ ${#leftover[@]} -eq 0 ] || echo "::warning::360dialog kullanılıyor; eski Meta secret'ları yok sayıldı: ${leftover[*]}. Karışıklık olmaması için GitHub'dan silin (docs/15 §6.2)."
+            else
+              echo "mode=mock" >> "$GITHUB_OUTPUT"
+              echo "::warning::360dialog için WA_PHONE GitHub secret'ı eksik (ortak numara, ülke koduyla: +905321234567). Eklenene kadar canlı ortamda çalışan WhatsApp yoktur (mock; docs/15 §6.2)."
+            fi
+          elif [ ${#missing[@]} -eq 0 ]; then
             echo "mode=cloud" >> "$GITHUB_OUTPUT"
-            echo "WhatsApp: gerçek Meta Cloud API (simülatör kapalı)"
-            filled META_WA_WABA_ID || echo "::warning::META_WA_WABA_ID secret'ı yok: admin > WhatsApp > WhatsApp kurulumu'ndaki \"Webhook aboneliğini aç\" ve \"Şablonları gönder\" adımları çalışmaz (docs/15 §6.2a)."
+            echo "WhatsApp: gerçek numara, Meta Cloud API doğrudan (simülatör kapalı)"
+            filled META_WA_WABA_ID || echo "::warning::META_WA_WABA_ID secret'ı yok: admin > WhatsApp > WhatsApp kurulumu'ndaki \"Webhook aboneliğini aç\" ve \"Şablonları gönder\" adımları çalışmaz (docs/15 §6.2b)."
           else
             echo "mode=mock" >> "$GITHUB_OUTPUT"
-            if [ "$present" -gt 0 ]; then
-              echo "::warning::Gerçek WhatsApp için eksik GitHub secret: ${missing[*]}. Hepsi eklenene kadar canlı ortamda çalışan WhatsApp yoktur (mock; docs/15 §6.2a)."
+            if [ "$present" -gt 1 ] || { [ "$present" -eq 1 ] && ! filled WA_PHONE; }; then
+              echo "::warning::Meta doğrudan yol için eksik GitHub secret: ${missing[*]}. Hepsi eklenene kadar canlı ortamda çalışan WhatsApp yoktur (mock; docs/15 §6.2b). Varsayılan yol 360dialog'dur: D360_API_KEY + WA_PHONE (docs/15 §6.2)."
+            elif filled WA_PHONE; then
+              echo "::warning::WA_PHONE var ama anahtar yok: 360dialog için D360_API_KEY secret'ını ekleyin (docs/15 §6.2). O zamana kadar canlı ortamda çalışan WhatsApp yoktur (mock)."
             else
-              echo "WhatsApp: mock (META_* secret'ları yok; canlı ortamda çalışan WhatsApp yok)"
+              echo "WhatsApp: mock (D360_API_KEY / META_* secret'ları yok; canlı ortamda çalışan WhatsApp yok). Bağlamak: docs/15 §6.2"
             fi
           fi
 
       - name: Yapılandırma ve gizli değerler
         env:
           SUPPORT_WHATSAPP: ${{ secrets.SUPPORT_WHATSAPP }}
+          D360_API_KEY: ${{ secrets.D360_API_KEY }}
           META_WA_TOKEN: ${{ secrets.META_WA_TOKEN }}
           META_WA_PHONE_NUMBER_ID: ${{ secrets.META_WA_PHONE_NUMBER_ID }}
           META_WA_WABA_ID: ${{ secrets.META_WA_WABA_ID }}
@@ -227,14 +252,14 @@ jobs:
           APP_VERSION="$GITHUB_SHA" node scripts/prepare-config.mjs "$SITE_URL" --mode "$MODE"
           # İlk dağıtımda Worker yoktur: liste boş sayılır, tüm gizli değerler üretilir
           npx wrangler secret list -c wrangler.generated.jsonc --format json > "$RUNNER_TEMP/existing.json" 2>/dev/null || echo '[]' > "$RUNNER_TEMP/existing.json"
-          # Gerçek WhatsApp secret'ları yalnız alan adı kipinde ve doluysa yüklenir (secrets.mjs; geçersiz telefon/kimlik
-          # burada durdurur). Staging'de hiç yüklenmez.
+          # Gerçek WhatsApp secret'ları yalnız alan adı kipinde ve doluysa yüklenir (secrets.mjs; geçersiz telefon/kimlik,
+          # boşluklu anahtar ya da iki yolun birlikte verilmesi burada durdurur). Staging'de hiç yüklenmez.
           wa_flag=()
           [ "$MODE" = "staging" ] && wa_flag=(--no-whatsapp)
           node scripts/secrets.mjs "$RUNNER_TEMP/existing.json" "${wa_flag[@]}" > "$RUNNER_TEMP/secrets.json"
           # GitHub'da boşaltılan (staging'de: tüm) WhatsApp secret'ları Worker'dan da silinir: --secrets-file eksik secret'ı
           # silmez; silinmezse container eski değerle gerçek kipte kalır
-          for name in META_WA_TOKEN META_WA_PHONE_NUMBER_ID META_WA_WABA_ID META_APP_SECRET WA_PHONE; do
+          for name in D360_API_KEY META_WA_TOKEN META_WA_PHONE_NUMBER_ID META_WA_WABA_ID META_APP_SECRET WA_PHONE; do
             empty=0
             [ "$MODE" = "staging" ] && empty=1
             [ -z "$(printf '%s' "${!name}" | tr -d '[:space:]')" ] && empty=1
@@ -412,10 +437,12 @@ jobs:
             echo "- Adres: $SITE_URL — herkese açık, arama motorlarına açık, gerçek veri (üretim kipi). Demo verisi yok. Kişisel veri Cloudflare'de (yurt dışı): KVKK m.9 standart sözleşmesi ve Kurum bildirimi proje sahibinin yapılacaklarıdır (docs/08 §2.11)."
             echo "- Admin: $SITE_URL/admin/giris — admin@yemekgelsin.net, parola: DEV_PASSWORD. İki adımlı doğrulama zorunlu: ilk girişte /admin/guvenlik'te kurun, kurtarma kodlarını saklayın."
             echo "- Yeni işletme kaydı ($SITE_URL/panel/kayit) ve demo talep formu ($SITE_URL/demo) açık. Yönetici kaydı /admin/bayraklar'dan kapatabilir; dağıtımlar bu karara dokunmaz."
-            if [ "$WA_MODE" = "cloud" ]; then
-              echo "- WhatsApp: gerçek numara (Meta Cloud API). Kurulum: $SITE_URL/admin/whatsapp > WhatsApp kurulumu (docs/15 §6.2a)."
+            if [ "$WA_MODE" = "d360" ]; then
+              echo "- WhatsApp: gerçek numara (360dialog). Kurulum: $SITE_URL/admin/whatsapp > WhatsApp kurulumu: Bağlantıyı test et → Webhook'u 360dialog'a kaydet → Şablonları gönder (docs/15 §6.2)."
+            elif [ "$WA_MODE" = "cloud" ]; then
+              echo "- WhatsApp: gerçek numara (Meta Cloud API doğrudan). Kurulum: $SITE_URL/admin/whatsapp > WhatsApp kurulumu (docs/15 §6.2b)."
             else
-              echo "- WhatsApp: çalışan WhatsApp yok (META_* secret'ları eksik; mock). Vitrinde ve QR'da WhatsApp bağlantısı gösterilmez. Bağlamak: docs/15 §6.2a."
+              echo "- WhatsApp: çalışan WhatsApp yok (D360_API_KEY + WA_PHONE ya da META_* secret'ları eksik; mock). Vitrinde ve QR'da WhatsApp bağlantısı gösterilmez. Bağlamak: docs/15 §6.2."
             fi
             echo "- SMS: mock (SMS gönderilmez; SMS yedeği kapalı). Geliştirici araçları ve simülatör kapalı (/dev/* 404)."
             echo "- Yedek: R2'ye 2 dakikada bir (değişiklik varsa) ve her kapanışta/dağıtımda; beklenmedik çökmede en çok ~2 dakika kaybolabilir (docs/15 §13)."

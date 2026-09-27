@@ -75,11 +75,12 @@ export function containerEnv(mode: DeployMode, env: ContainerInputs, waEnv: Reco
     WA_VERIFY_TOKEN: env.WA_VERIFY_TOKEN,
     // İşletmenin kendi numarası: sağlayıcısı henüz yok (kendi numara modunu yönetici açar; 00 §12a madde 8)
     WA_DEFAULT_PROVIDER: 'mock',
-    // Ortak numara (00 §12a madde 8): tüm dükkanların tek numarası. Webhook belirteci Meta'ya girilecek adresin parçasıdır
-    // (/api/v1/webhooks/wa/shared/<belirteç>); tanımsızsa ortak webhook 404 döner.
+    // Ortak numara (00 §12a madde 8): tüm dükkanların tek numarası. Webhook belirteci 360dialog'a (admin "Webhook'u
+    // 360dialog'a kaydet") ya da Meta'ya girilen adresin parçasıdır (/api/v1/webhooks/wa/shared/<belirteç>); tanımsızsa
+    // ortak webhook 404 döner.
     PLATFORM_WA_WEBHOOK_TOKEN: env.PLATFORM_WA_WEBHOOK_TOKEN,
-    // PLATFORM_WA_PROVIDER (+ gerçek kipte PLATFORM_WA_API_KEY, PLATFORM_WA_PHONE_NUMBER_ID, PLATFORM_WA_WABA_ID,
-    // WA_APP_SECRET, PLATFORM_WA_DISPLAY_PHONE)
+    // PLATFORM_WA_PROVIDER (+ 360dialog'da PLATFORM_WA_API_KEY, PLATFORM_WA_DISPLAY_PHONE; Meta doğrudan yolda ayrıca
+    // PLATFORM_WA_PHONE_NUMBER_ID, PLATFORM_WA_WABA_ID, WA_APP_SECRET)
     ...waEnv,
     // Geliştirici araçları (WhatsApp simülatörü, /api/v1/dev/*): canlı ortamda her zaman kapalı
     DEV_TOOLS: settings.devTools,

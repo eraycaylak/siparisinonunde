@@ -18,7 +18,8 @@
 #                           yoksa ilk görülen anahtar kabul edilir (TOFU; özet parmak izini yazar),
 #   CLOUDFLARE_ACCOUNT_ID, CADDY_CLOUDFLARE_API_TOKEN (ÖNERİLİR: sunucuya yalnız DNS yetkili ayrı token; yoksa Workers
 #                           yetkili token sunucuya yazılır ve her dağıtımda uyarı verilir — token yalnız caddy'ye gider),
-#   META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_WA_WABA_ID, META_APP_SECRET, WA_PHONE (gerçek WhatsApp; dördü tamsa),
+#   D360_API_KEY + WA_PHONE (gerçek WhatsApp, 360dialog; varsayılan yol) ya da META_WA_TOKEN, META_WA_PHONE_NUMBER_ID,
+#   META_WA_WABA_ID, META_APP_SECRET, WA_PHONE (Meta doğrudan; dördü tamsa); ikisi birlikte verilirse dağıtım durur,
 #   NETGSM_USERCODE, NETGSM_PASSWORD, NETGSM_HEADER (SMS; üçü tamsa), SUPPORT_WHATSAPP, BACKUP_PING_URL.
 # Akış: secret denetimi → Cloudflare izin denetimi → SSH → .env birleştir (sunucuya dokunmadan doğrular) → sunucu hazırlığı
 # → kod (tam commit) → derle + yapılandırma denetimi + yedek + compose up → bayraklar + ilk yönetici → VPS'te sağlık
@@ -206,6 +207,7 @@ jobs:
           SSHPASS: ${{ secrets.VPS_PASSWORD }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CADDY_CLOUDFLARE_API_TOKEN: ${{ secrets.CADDY_CLOUDFLARE_API_TOKEN }}
+          D360_API_KEY: ${{ secrets.D360_API_KEY }}
           META_WA_TOKEN: ${{ secrets.META_WA_TOKEN }}
           META_WA_PHONE_NUMBER_ID: ${{ secrets.META_WA_PHONE_NUMBER_ID }}
           META_WA_WABA_ID: ${{ secrets.META_WA_WABA_ID }}
@@ -419,8 +421,9 @@ jobs:
             echo "- Adres: $SITE_URL (Cloudflare proxy'si → VPS). Yönetici girişi: $SITE_URL/admin/giris — \`$ADMIN_EMAIL\`, parola: \`ADMIN_PASSWORD\` secret'ı (yoksa \`DEV_PASSWORD\`). İlk girişte iki adımlı doğrulama (TOTP) kurulur."
             echo "- İşletme kaydı açık: $SITE_URL/panel/kayit. Demo verisi yok."
             case "$WA_MODE" in
-              cloud) echo "- WhatsApp: gerçek (Meta Cloud API). **Webhook adresi ve doğrulama belirteci bu sunucuya özeldir:** admin > WhatsApp > WhatsApp kurulumu > \"Göster\" ile Meta'daki Callback URL ve Verify token'ı yeniden girin (docs/15 §6.2a, §14)." ;;
-              mock) echo "- WhatsApp: kapalı (META_* secret'ları eksik); vitrin ve QR WhatsApp bağlantısı göstermez." ;;
+              d360) echo "- WhatsApp: gerçek (360dialog). **Webhook adresi bu sunucuya özeldir:** admin > WhatsApp > WhatsApp kurulumu > \"Webhook'u 360dialog'a kaydet\" düğmesine basın (docs/15 §6.2, §14)." ;;
+              cloud) echo "- WhatsApp: gerçek (Meta Cloud API). **Webhook adresi ve doğrulama belirteci bu sunucuya özeldir:** admin > WhatsApp > WhatsApp kurulumu > \"Göster\" ile Meta'daki Callback URL ve Verify token'ı yeniden girin (docs/15 §6.2b, §14)." ;;
+              mock) echo "- WhatsApp: kapalı (D360_API_KEY + WA_PHONE ya da META_* secret'ları eksik); vitrin ve QR WhatsApp bağlantısı göstermez." ;;
             esac
             case "$SMS_MODE" in
               netgsm) echo "- SMS: Netgsm (SMS yedeği açık)." ;;

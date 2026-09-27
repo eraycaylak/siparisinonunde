@@ -108,6 +108,30 @@ test('sağlayıcı değerleri her dağıtımda GitHub secret\'larından yazılı
   assert.equal(r3.values.get('WA_VERIFY_TOKEN'), v.get('WA_VERIFY_TOKEN'));
 });
 
+test('360dialog (varsayılan yol): D360_API_KEY + WA_PHONE → d360; iki yol birlikte hata; telefon eksikse mock', () => {
+  const r = first({ ...BASE, D360_API_KEY: 'd360-anahtar-XYZ', WA_PHONE: '0532 123 45 67' });
+  assert.equal(r.ok, true, r.errors.join('\n'));
+  assert.equal(r.whatsapp, 'd360');
+  assert.equal(r.values.get('PLATFORM_WA_PROVIDER'), 'd360');
+  assert.equal(r.values.get('PLATFORM_WA_API_KEY'), 'd360-anahtar-XYZ');
+  assert.equal(r.values.get('PLATFORM_WA_DISPLAY_PHONE'), '+905321234567');
+  assert.equal(r.values.get('WA_APP_SECRET'), '');
+  assert.equal(r.values.get('PLATFORM_WA_PHONE_NUMBER_ID'), '');
+  assert.ok(r.sensitive.includes('d360-anahtar-XYZ'));
+
+  const both = first({ ...BASE, ...META, D360_API_KEY: 'd360-anahtar-XYZ' });
+  assert.equal(both.ok, false);
+  assert.match(both.errors.join('\n'), /belirsiz/);
+
+  const noPhone = first({ ...BASE, D360_API_KEY: 'd360-anahtar-XYZ' });
+  assert.equal(noPhone.ok, true);
+  assert.equal(noPhone.whatsapp, 'mock');
+  assert.match(noPhone.warnings.join('\n'), /360dialog için WA_PHONE/);
+
+  const spaced = first({ ...BASE, D360_API_KEY: 'd360 anahtar', WA_PHONE: '+905321234567' });
+  assert.match(spaced.errors.join('\n'), /D360_API_KEY boşluk içeremez/);
+});
+
 test('eksik ya da hatalı secret: anlaşılır Türkçe hata, dosya yazılmaz', () => {
   const noToken = mergeEnv({ current: new Map(), secrets: {} });
   assert.equal(noToken.ok, false);
