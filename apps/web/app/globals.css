@@ -11,10 +11,14 @@
 :root {
   color-scheme: light;
 
-  /* Marka */
-  --ink-900: #14233a;
-  --ink-50: #f3f6fa;
-  --saffron-500: #f5a524;
+  /* Marka (00 §12a madde 9, 12 §3.2): Yemek Gelsin kırmızısı logodan örneklendi */
+  --brand-red: #e3101b;
+  --brand-red-hover: #c40d17;
+  --brand-red-active: #a80b14;
+  --brand-red-deep: #93010d;
+  --brand-red-tint: #fef2f2;
+  --brand-red-on-dark: #ff5a5f;
+  --ink-900: #1b1718;
 
   /* Nötrler */
   --bg: #ffffff;
@@ -26,11 +30,13 @@
   --border-strong: #6b7280;
 
   /* shadcn eşlemesi */
-  --primary: var(--ink-900);
+  --primary: var(--brand-red);
+  --primary-hover: var(--brand-red-hover);
+  --primary-active: var(--brand-red-active);
   --primary-fg: #ffffff;
-  --accent: var(--ink-50);
-  --accent-fg: var(--ink-900);
-  --destructive: #b91c1c;
+  --accent: var(--brand-red-tint);
+  --accent-fg: #111827;
+  --destructive: #991b1b;
   --destructive-fg: #ffffff;
   --success: #15803d;
   --success-fg: #ffffff;
@@ -38,7 +44,9 @@
   --warning-bg: #fff7ed;
   --info: #1d4ed8;
   --info-bg: #dbeafe;
+  /* Odak halkası nötr (mürekkep): kırmızı halka hata çerçevesiyle karışmasın */
   --ring: var(--ink-900);
+  --wordmark: var(--brand-red-deep);
 
   /* Bantlar ve not kutusu (iki temada aynı) */
   --band-alarm: #c81e1e;
@@ -92,9 +100,9 @@
   --fg-muted: #a7b0ba;
   --border: #2c3640;
   --border-strong: #6b7785;
-  --primary: #f3f6fa;
-  --primary-fg: var(--ink-900);
-  --accent: #232b35;
+  --primary: var(--brand-red);
+  --primary-fg: #ffffff;
+  --accent: #2a1f24;
   --accent-fg: #f3f4f6;
   --destructive: #fca5a5;
   --destructive-fg: #111827;
@@ -104,7 +112,8 @@
   --warning-bg: #3a2412;
   --info: #93c5fd;
   --info-bg: #15233f;
-  --ring: var(--saffron-500);
+  --ring: #f3f4f6;
+  --wordmark: var(--fg);
   --status-awaiting_customer-fg: #c4cbd4;
   --status-awaiting_customer-bg: #232b35;
   --status-new-fg: #fca5a5;
@@ -136,9 +145,9 @@
     --fg-muted: #a7b0ba;
     --border: #2c3640;
     --border-strong: #6b7785;
-    --primary: #f3f6fa;
-    --primary-fg: var(--ink-900);
-    --accent: #232b35;
+    --primary: var(--brand-red);
+    --primary-fg: #ffffff;
+    --accent: #2a1f24;
     --accent-fg: #f3f4f6;
     --destructive: #fca5a5;
     --destructive-fg: #111827;
@@ -148,7 +157,8 @@
     --warning-bg: #3a2412;
     --info: #93c5fd;
     --info-bg: #15233f;
-    --ring: var(--saffron-500);
+    --ring: #f3f4f6;
+    --wordmark: var(--fg);
     --status-awaiting_customer-fg: #c4cbd4;
     --status-awaiting_customer-bg: #232b35;
     --status-new-fg: #fca5a5;
@@ -175,8 +185,11 @@
     "Apple Color Emoji", "Noto Color Emoji";
 
   --color-ink: var(--ink-900);
-  --color-ink-50: var(--ink-50);
-  --color-saffron: var(--saffron-500);
+  --color-brand-red: var(--brand-red);
+  --color-brand-red-deep: var(--brand-red-deep);
+  --color-brand-red-tint: var(--brand-red-tint);
+  --color-brand-red-on-dark: var(--brand-red-on-dark);
+  --color-wordmark: var(--wordmark);
 
   --color-bg: var(--bg);
   --color-surface: var(--surface);
@@ -187,6 +200,8 @@
   --color-border-strong: var(--border-strong);
   --color-primary: var(--primary);
   --color-primary-fg: var(--primary-fg);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-active: var(--primary-active);
   --color-accent: var(--accent);
   --color-accent-fg: var(--accent-fg);
   --color-destructive: var(--destructive);
@@ -271,8 +286,8 @@
   }
 
   ::selection {
-    background-color: var(--saffron-500);
-    color: var(--ink-900);
+    background-color: var(--brand-red);
+    color: #ffffff;
   }
 
   /* Form alanları iOS yakınlaştırmasını önlemek için ≥ 16 px */

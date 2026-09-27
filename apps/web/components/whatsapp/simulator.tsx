@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { AudioLines, Hand, Image as ImageIcon, MapPin, MessageCircleQuestion, Play, QrCode, RefreshCw, Send, Smartphone, Sparkles, Store } from 'lucide-react';
 import { toast } from 'sonner';
+import { LogoMark } from '@/components/brand/logo';
 import { MessageBubble } from '@/components/chat/message-bubble';
 import type { ChatMessage } from '@/components/chat/types';
 import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, CardTitle, Field, Input, Select, Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui';
@@ -318,6 +319,12 @@ export function WhatsappSimulator() {
         <TabsContent value="chat">
           <Card className="flex h-[calc(100dvh-12rem)] min-h-[560px] flex-col overflow-hidden">
             <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
+              {isShared ? (
+                // Ortak numaranın WhatsApp profil fotoğrafı: kırmızı daire içinde beyaz işaret
+                <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-red">
+                  <LogoMark simple className="h-4 text-white" />
+                </span>
+              ) : null}
               <div className="min-w-0 flex-1">
                 <p className="truncate font-bold">{isShared ? (shared?.displayName ?? 'Ortak numara') : account ? account.tenantName : 'Numara seçin'}</p>
                 <p className="text-sm text-fg-muted">

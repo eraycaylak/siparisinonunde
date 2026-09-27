@@ -12,7 +12,7 @@ export const badgeVariants = cva(
         success: 'border-transparent bg-status-ready-bg text-status-ready-fg',
         warning: 'border-transparent bg-warning-bg text-warning',
         danger: 'border-transparent bg-status-new-bg text-status-new-fg',
-        brand: 'border-transparent bg-saffron text-ink',
+        brand: 'border-transparent bg-brand-red text-white',
         ink: 'border-transparent bg-primary text-primary-fg',
         outline: 'border-border-strong bg-transparent text-fg',
       },

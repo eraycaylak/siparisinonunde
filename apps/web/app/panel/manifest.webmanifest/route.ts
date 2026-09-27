@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { BRAND_RED } from '@/lib/site';
 
 // İşletme paneli PWA bildirimi (ana ekrana ekle). Kök app/manifest.ts yerine burada: dosya kuralı bağlantıyı HER sayfaya
 // (vitrin, takip, pazarlama) ekliyordu; müşteri "Ana ekrana ekle" deyince panel girişi açılıyordu. Bağlantı yalnız
@@ -14,8 +15,15 @@ const MANIFEST: MetadataRoute.Manifest = {
   scope: '/',
   display: 'standalone',
   background_color: '#ffffff',
-  theme_color: '#14233a',
-  icons: [{ src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' }],
+  theme_color: BRAND_RED,
+  // Kırmızı kare + beyaz YG işareti; işaret maskelenebilir güvenli alanda (public/brand, components/brand/logo.tsx)
+  icons: [
+    { src: '/brand/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+    { src: '/brand/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+    { src: '/brand/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+    { src: '/brand/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+    { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
+  ],
 };
 
 export function GET(): Response {

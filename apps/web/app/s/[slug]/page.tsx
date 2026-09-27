@@ -23,6 +23,8 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   const s = result.store;
   const title = `${s.tenant.name} · Online sipariş`;
   const description = `${s.tenant.name} menüsü ve online sipariş${s.branch.address ? ` · ${s.branch.address}` : ''}.`;
+  // Önizleme görseli işletmenin kapağı, yoksa logosu; platform görseli kullanılmaz (işletme markası önde, 00 §7)
+  const shareImage = s.tenant.coverUrl ?? s.tenant.logoUrl;
   return {
     title: { absolute: title },
     description,
@@ -35,7 +37,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
       siteName: s.tenant.name,
       title,
       description,
-      ...(s.tenant.coverUrl ? { images: [{ url: s.tenant.coverUrl }] } : {}),
+      ...(shareImage ? { images: [{ url: shareImage }] } : {}),
     },
     ...(s.tenant.logoUrl ? { icons: { icon: s.tenant.logoUrl } } : {}),
   };

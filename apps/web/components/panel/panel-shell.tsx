@@ -197,7 +197,7 @@ function PanelChrome({ me, pathname, minimal, children }: { me: Me; pathname: st
         <header className="border-b border-border bg-surface-raised">
           <div className="flex h-16 items-center gap-3 px-3 sm:px-4">
             <Link href="/panel" className="flex min-w-0 items-center gap-2 rounded-md p-1" aria-label="Canlı siparişler">
-              <LogoMark className="size-8" />
+              <LogoMark className="h-6" />
               <span className="flex min-w-0 flex-col leading-tight">
                 <span className="truncate text-base font-bold text-fg">{me.tenant?.name}</span>
                 {role ? <span className="truncate text-xs text-fg-muted">{TENANT_ROLE_LABELS[role]}</span> : null}

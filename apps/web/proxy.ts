@@ -12,7 +12,7 @@ const RESERVED = new Set(['www', 'api', 'hooks', 'status', 'static', 'cdn', 'mai
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
 /** Alt alan adında olduğu gibi bırakılan yollar (takip sayfası, API, statik dosyalar). */
-const PASSTHROUGH = ['/t/', '/s/', '/api/', '/_next/'];
+const PASSTHROUGH = ['/t/', '/s/', '/api/', '/_next/', '/brand/'];
 
 export function resolveSubdomain(host: string, rootDomain: string): string | null {
   if (!rootDomain) return null;
@@ -44,5 +44,5 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   // API, statik dosyalar ve meta dosyalar hariç.
-  matcher: ['/((?!api/|_next/static|_next/image|favicon.ico|icon.svg|robots.txt|sitemap.xml|manifest.webmanifest).*)'],
+  matcher: ['/((?!api/|_next/static|_next/image|brand/|favicon.ico|icon.svg|apple-icon.png|robots.txt|sitemap.xml|manifest.webmanifest).*)'],
 };

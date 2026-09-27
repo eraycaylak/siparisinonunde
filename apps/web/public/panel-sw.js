@@ -46,7 +46,9 @@ self.addEventListener('push', (event) => {
     renotify: true,
     // Sipariş bildirimi dokunulana kadar ekranda kalır (masaüstü Chrome/Edge; mobilde sistem belirler)
     requireInteraction: isOrder,
-    icon: '/icon.svg',
+    icon: '/brand/icon-192.png',
+    // Android durum çubuğu rozeti: yalnız alfa kanalı kullanılır (beyaz işaret, şeffaf zemin)
+    badge: '/brand/badge-96.png',
     lang: 'tr',
     dir: 'ltr',
     vibrate: isOrder ? [300, 120, 300, 120, 300] : [120],

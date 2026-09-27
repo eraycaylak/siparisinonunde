@@ -9,6 +9,19 @@ export const SITE_DOMAIN = 'yemekgelsin.net';
  */
 export const SUPPORT_EMAIL = 'destek@yemekgelsin.net';
 export const SITE_TAGLINE = 'Keşif pazaryerinde, sadakat sende.';
+
+/**
+ * Marka kırmızısı (logodan örneklendi; app/globals.css --brand-red ile aynı, 12 §3.2). CSS token'ı kullanılamayan yerler
+ * için: panel PWA manifesti, harita işaretçisi.
+ */
+export const BRAND_RED = '#E3101B';
+
+/**
+ * Varsayılan bağlantı önizleme görseli (OpenGraph/Twitter): proje sahibinin logosundan 1200×630 (public/brand/og.jpg).
+ * Pazarlama sitesi ve kendi görseli olmayan platform sayfaları kullanır; vitrin ve takip sayfası kullanmaz (işletme markası
+ * önde, 00 §7 ve 12 §5.3).
+ */
+export const OG_IMAGE = { url: '/brand/og.jpg', width: 1200, height: 630, alt: 'Yemek Gelsin' } as const;
 export const SITE_DESCRIPTION =
   'Müşterin QR’ını okutur, WhatsApp’tan menünü açar. Siparişini komisyonsuz al, panelde sesli uyarıyla yönet; müşterine “Onaylandı” ve “Yolda” mesajı kendiliğinden gitsin.';
 

@@ -1,30 +1,36 @@
 import { cn } from '@/lib/cn';
 import { SITE_NAME } from '@/lib/site';
+import { MARK_PATH, MARK_PATH_SIMPLE, MARK_VIEWBOX } from './mark';
 
 /**
- * Yemek Gelsin işareti (00 §12a madde 9): mürekkep yuvarlatılmış kare içinde safran servis kapağı (cloche), beyaz
- * tabak ve hız çizgileri: "yemek yolda". Renkler marka token'larıdır (--ink-900, --saffron-500; 12 §3.2).
- * app/icon.svg ve public/icon.svg (panel PWA simgesi) aynı çizimdir.
+ * Yalnız işaret. Renk `currentColor` (varsayılan marka kırmızısı); boyut yükseklikle verilir, genişlik en/boy oranından gelir.
+ * Kırmızı zemin üstünde `text-white` ile kullanılır.
  */
-export function LogoMark({ className }: { className?: string }) {
+export function LogoMark({ className, simple = false }: { className?: string; simple?: boolean }) {
   return (
-    <svg viewBox="0 0 32 32" aria-hidden className={cn('size-8 shrink-0', className)}>
-      <rect width="32" height="32" rx="8" fill="#14233A" />
-      <path d="M5 13.9h3.6M4 17.4h4.2" fill="none" stroke="#FFFFFF" strokeOpacity=".72" strokeWidth="1.9" strokeLinecap="round" />
-      <path d="M11 19.6a7.5 7.5 0 0 1 15 0z" fill="#F5A524" />
-      <circle cx="18.5" cy="10.6" r="1.6" fill="#F5A524" />
-      <rect x="9.2" y="20.7" width="18.6" height="2.5" rx="1.25" fill="#FFFFFF" />
+    <svg viewBox={MARK_VIEWBOX} aria-hidden focusable="false" className={cn('aspect-[451/302] h-7 w-auto shrink-0 text-brand-red', className)}>
+      <path fill="currentColor" fillRule="evenodd" d={simple ? MARK_PATH_SIMPLE : MARK_PATH} />
     </svg>
   );
 }
 
-/** İşaret + "Yemek Gelsin" yazısı (başlık, altbilgi, giriş ekranları). */
-export function Logo({ className, showText = true, textClassName }: { className?: string; showText?: boolean; textClassName?: string }) {
+/** İşaret + "Yemek Gelsin" yazısı (başlık, altbilgi, giriş ekranları). Yazı rengi `wordmark` token'ı (12 §3.2). */
+export function Logo({
+  className,
+  showText = true,
+  textClassName,
+  markClassName,
+}: {
+  className?: string;
+  showText?: boolean;
+  textClassName?: string;
+  markClassName?: string;
+}) {
   return (
     <span className={cn('inline-flex items-center gap-2', className)}>
-      <LogoMark />
+      <LogoMark className={cn('h-8', markClassName)} />
       {showText ? (
-        <span className={cn('whitespace-nowrap text-lg font-extrabold tracking-tight text-fg', textClassName)}>{SITE_NAME}</span>
+        <span className={cn('whitespace-nowrap text-xl font-extrabold leading-none tracking-tight text-wordmark', textClassName)}>{SITE_NAME}</span>
       ) : null}
       {!showText ? <span className="sr-only">{SITE_NAME}</span> : null}
     </span>

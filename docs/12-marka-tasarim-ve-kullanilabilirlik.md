@@ -114,7 +114,7 @@ Kaynak: WhatsApp Brand Resources ve Meta marka yönergeleri. Güncel sürüm yay
 ### 3.1 Logo brifi (TAS'a verilecek; Gün 1, [09](09-yol-haritasi-ve-sprint-plani.md) §3.5)
 - **Teslim takvimi:** 25 Eyl brif → 28 Eyl 3 yön → 29 Eyl KUR + MV seçimi ve benzerlik ön kontrolü → 1 Eki son vektör → **2 Eki marka başvurusu** (kelime + logo). Takvim sıkıdır. Logo yetişmezse kelime markası 2 Ekim'de, şekil markası 2–3 hafta sonra ayrı başvurulabilir (marka vekiliyle **teyit edilmeli**).
 - **Anlatması gereken:** "yemek geliyor" (servis kapağı, hız çizgisi) ve/veya "zil" (sipariş sesi). Esnaf sıcaklığı (tabela, tente) da düşünülebilir. Mizah yok, teknoloji klişesi (devre, bulut) yok.
-- **Geçici işaret (27.09.2026, uygulamada):** mürekkep (`ink-900`) yuvarlatılmış kare içinde safran (`saffron-500`) servis kapağı, beyaz tabak ve sol tarafta hız çizgileri; yanında "Yemek Gelsin" yazısı (kalın, `fg` rengi). Dosyalar: `apps/web/app/icon.svg`, `apps/web/public/icon.svg` (panel PWA simgesi), `apps/web/components/brand/logo.tsx`. 32 px'te okunur; nihai logo bu brifle tasarımcıdan gelir.
+- **Logo (27.09.2026, proje sahibinden, uygulamada):** kırmızı "YG" monogramı. Y'nin sağ kolu önden geçip G'nin üst kavisine akar; sol kol ve G'nin alt çanağı arkada kalır (düz renkte ince ayrım boşluklarıyla gösterilir). G'nin çapraz çizgisi üç dişli bir çataldır. Kaynak: `apps/web/public/brand/yemekgelsinnet.png` (sunum görseli, sayfalarda kullanılmaz). Vektör işaret görselin maskesine doğru, elips yayı ve köşe yumuşatmasıyla uydurularak kuruldu (sapma < 1 px / 450 px): `apps/web/public/brand/yemekgelsin-mark.svg`, bileşen `apps/web/components/brand/logo.tsx` (yatay kilit: işaret + "Yemek Gelsin", yazı `wordmark` rengi: açık temada logodaki koyu kırmızı `#93010D`, koyu temada `fg`). Simgeler: `app/icon.svg` ve `public/icon.svg` (kırmızı yuvarlatılmış kare + beyaz sade işaret; 16–32 px'te diş ve ayrım boşluğu çizilmez), `app/favicon.ico` (16/32/48), `app/apple-icon.png` (180), `public/brand/icon-192.png` ve `icon-512.png` (PWA, işaret maskelenebilir güvenli alanda), `public/brand/badge-96.png` (bildirim rozeti, tek renk). Bağlantı önizlemesi: `public/brand/og.jpg` (1200×630, pazarlama sitesi ve platform sayfaları; vitrin ve takip sayfası kullanmaz, §5.3).
 - **Kaçınılacaklar:** Konuşma balonu + ahize, WhatsApp yeşili, motor kuryesi ve paket çantası (pazaryeri çağrışımı; kurye filosu işletmiyoruz, [00](00-kararlar-ve-sozluk.md) §1), çatal-bıçak klişesi, pazaryeri logolarına benzeyen renk ve biçimler.
 - **Çıktılar:** (1) yatay kilit (işaret + yazı), (2) dikey kilit, (3) yalnız işaret. İşaret 16 px favicon'da, 192/512 px PWA ikonunda ve maskelenebilir ikonda okunur olmalıdır. (4) Tek renk: siyah, beyaz ve **1 bit raster** (58 mm termal fişte titremeden basılmalı). (5) 640×640 px daire kırpmaya uygun WhatsApp profil fotoğrafı (platform WABA için, boyut **teyit edilmeli**). (6) Marka başvurusu için siyah-beyaz görsel. (7) SVG, PDF ve PNG kaynak dosyaları, kullanım kılavuzu (1 sayfa: boşluk alanı, en küçük boyut, yasaklar).
 - **Kabul kriteri:** İşaret 16 px'te ve 1 bit baskıda tanınır. İsim 24 px yükseklikte, 2 m mesafeden okunur. Renkli sürüm beyaz ve mürekkep zemin üzerinde ≥ 3:1 (WCAG 1.4.11).
@@ -123,8 +123,12 @@ Kaynak: WhatsApp Brand Resources ve Meta marka yönergeleri. Güncel sürüm yay
 
 | Token | Açık tema | Koyu tema | Kullanım | Kontrast (hesaplanan) |
 |---|---|---|---|---|
-| `ink-900` (marka birincil, "mürekkep") | `#14233A` | — | Logo, birincil buton, başlık | Beyazla 15,77:1 |
-| `saffron-500` (marka vurgu, "safran") | `#F5A524` | `#F5A524` | Logo vurgusu, pazarlama sitesi vurgusu, koyu temada odak halkası | Mürekkep metinle 7,73:1; **beyaz zeminde metin olarak kullanılmaz** (2,04:1) |
+| `brand-red` (marka birincil, "Yemek Gelsin kırmızısı") | `#E3101B` | `#E3101B` | Logo, birincil buton, etkin menü, seçili kenar | Beyaz metinle 4,82:1; koyu yüzeyde (`#1E2732`) arayüz öğesi 3,13:1 |
+| `brand-red-hover` / `-active` | `#C40D17` / `#A80B14` | aynı | Birincil buton üzerine gelme / basılı (koyulaşır) | Beyazla 6,15:1 / 7,71:1 |
+| `brand-red-deep` | `#93010D` | — | Logo yazısı ("Yemek Gelsin", `wordmark`) | Beyazla 9,33:1 |
+| `brand-red-tint` (`accent`) | `#FEF2F2` | `#2A1F24` | Seçili çip zemini, üzerine gelme zemini | Üstünde `text` 16,22:1 |
+| `brand-red-on-dark` | `#FF5A5F` | — | Mürekkep bantta vurgu metni | Mürekkep üstünde 5,82:1 |
+| `ink-900` ("mürekkep", logonun koyu zemini) | `#1B1718` | — | Koyu bantlar (CTA), ipucu, bilgi bandı, açık temada odak halkası | Beyazla 17,76:1 |
 | `bg` | `#FFFFFF` | `#0F1419` | Sayfa zemini | — |
 | `surface` | `#F5F6F8` | `#18202A` | Sütun ve alan zemini | — |
 | `surface-raised` | `#FFFFFF` | `#1E2732` | Kart | Koyu: metin 13,71:1 |
@@ -133,7 +137,7 @@ Kaynak: WhatsApp Brand Resources ve Meta marka yönergeleri. Güncel sürüm yay
 | `border` | `#D9DDE3` | `#2C3640` | Dekoratif ayırıcı (bilgi taşımaz) | — |
 | `border-strong` | `#6B7280` | `#6B7785` | Form alanı, seçilebilir öğe kenarı (≥ 3:1) | 4,83:1 / 4,06:1 |
 
-**Neden mürekkep + safran [T]:** Panelde renkler durumlara ayrılmıştır (§3.3). Marka rengi hiçbir durum rengiyle çakışmamalı. Koyu, doygunluğu düşük bir birincil renk güneş alan vitrinde en yüksek okunurluğu verir. Ayrıca pazaryerlerinin kırmızı/pembe, mor/sarı ve turuncu renk alanlarından uzak durur (rakip logoların güncel renkleri **teyit edilmeli**). Nihai değerler TAS ile kesinleşir. Kesinleşen değerler bu kontrast eşiklerini korumalıdır.
+**Kırmızı birincil ve durum renkleri (27.09.2026):** Proje sahibinin logosu kırmızıdır; önceki mürekkep + safran önerisi (durum renklerinden ve pazaryeri kırmızısından uzak durma gerekçesi) bu kararla değişti. Çakışma şöyle yönetilir: (1) durumlar her zaman ikon + kelime taşır (§3.3), renk tek başına anlam taşımaz; (2) `destructive` (yıkıcı işlem, hata) `#991B1B` ile birincilden belirgin koyudur (beyazla 8,31:1); (3) alarm bandı (`#C81E1E`) tam genişlik, ikonlu ve metinlidir; (4) birincil buton üzerine gelince açılmaz, koyulaşır. Rakip logolarla benzerlik ön kontrolü marka başvurusunda yapılır (**teyit edilmeli**).
 
 ### 3.3 Durum renkleri (renk + ikon + kelime)
 Kural: Rozet her zaman **ikon + Türkçe etiket** taşır, renk yalnız pekiştirir (WCAG 1.4.1). Etiketler [04](04-isletme-paneli.md) §14.3 mikro metin sözlüğündendir. İkonlar Lucide setindendir (§3.5, eşleme [04](04-isletme-paneli.md) §14.5; adlar sürümde **teyit edilmeli**, [13](13-varsayim-ve-teyit-kaydi.md) V-089). Açık tema: yazı rengi (fg) açık zemin (bg) üzerinde. Koyu tema: açık tonlu yazı, koyu renkli zemin üzerinde.
@@ -168,7 +172,7 @@ Kural: Rozet her zaman **ikon + Türkçe etiket** taşır, renk yalnız pekişti
 
 ### 3.6 Fotoğraf ve illüstrasyon dili
 - **Fotoğraf:** Gerçek esnaf, gerçek dükkân, gerçek tablet kasada. Yalnız yazılı izinle ([05](05-admin-paneli-ve-pazarlama-sitesi.md) C.8 #4). Stok "gülümseyen şef" fotoğrafı, pazaryeri çantası veya logosu kullanılmaz. **Alkol, tütün ve nargile hiçbir görselde yer almaz** (Commerce Policy, [00](00-kararlar-ve-sozluk.md) §6.10). Kadın ve erkek esnaf dengeli gösterilir. Müşteri yüzü ve ekrandaki kişisel veri bulanıklaştırılır.
-- **İllüstrasyon:** Boş durumlar ve eğitim görselleri için düz çizgi stili, 2 renk (mürekkep + safran), insan figürü sade. Yalnız bilgi taşıyan illüstrasyon kullanılır; süs illüstrasyonu yoktur.
+- **İllüstrasyon:** Boş durumlar ve eğitim görselleri için düz çizgi stili, 2 renk (mürekkep + marka kırmızısı), insan figürü sade. Yalnız bilgi taşıyan illüstrasyon kullanılır; süs illüstrasyonu yoktur.
 - **İşletmenin ürün fotoğrafı rehberi (EG-12):** Gün ışığı, 45° açı, sade tabak, tek ürün, filtresiz. Görsel yoksa storefront kategori ikonunu gösterir (A05 §8.5).
 
 ---
@@ -201,12 +205,12 @@ Kural: Rozet her zaman **ikon + Türkçe etiket** taşır, renk yalnız pekişti
 |---|---|---|---|
 | `--background` / `--foreground` | `bg` / `text` | `bg` / `text` | |
 | `--card`, `--popover` (+ `-foreground`) | `surface-raised` / `text` | `surface-raised` / `text` | |
-| `--primary` / `--primary-foreground` | `ink-900` / `#FFFFFF` | `#F3F6FA` / `ink-900` (14,55:1) | Storefront'ta `--brand` / `--brand-contrast` (§5.1) |
+| `--primary` / `--primary-foreground` | `brand-red` / `#FFFFFF` (4,82:1) | `brand-red` / `#FFFFFF` | Storefront'ta `--brand` / `--brand-contrast` (§5.1) |
 | `--secondary`, `--muted` / `--muted-foreground` | `surface` / `text-muted` | `surface` / `text-muted` | |
-| `--accent` / `--accent-foreground` | `ink-50` `#F3F6FA` / `ink-900` | `#232B35` / `text` | shadcn'deki "accent" hover zeminidir; marka safranı değildir |
-| `--destructive` | `#B91C1C` | `#FCA5A5` | Yalnız geri alınamaz işlem ve hata |
+| `--accent` / `--accent-foreground` | `brand-red-tint` `#FEF2F2` / `text` | `#2A1F24` / `text` | shadcn'deki "accent" hover ve seçili zemindir |
+| `--destructive` | `#991B1B` | `#FCA5A5` | Yalnız geri alınamaz işlem ve hata; birincil kırmızıdan koyu |
 | `--border` / `--input` | `border` / `border-strong` | `border` / `border-strong` | |
-| `--ring` | `ink-900` | `saffron-500` (9,07:1) | Odak halkası 2 px + 2 px boşluk |
+| `--ring` | `ink-900` (beyaz zeminde 17,76:1) | `#F3F4F6` | Odak halkası 2 px + 2 px boşluk; nötrdür, kırmızı hata çerçevesiyle karışmaz |
 | `--radius` | 10 px | 10 px | |
 
 ### 4.4 Bileşen envanteri
@@ -243,7 +247,7 @@ Her bileşenin Storybook'ta **tüm durumları × iki tema × gerçek Türkçe me
 ## 5. Storefront tema kuralı
 
 ### 5.1 İşletme ana rengi ve otomatik kontrast düzeltmesi **[Faz 1]**
-**Girdi:** P-26'da (ve onboarding 2. adımında isteğe bağlı) "Ana renk" alanı bulunur: [04](04-isletme-paneli.md) §7.2 "Marka görünümü" ve §3.3 adım 2; veri [07](07-veri-modeli-ve-api.md) `tenants.brand_color` (türetilmiş palet `brand_palette`; şube geçersiz kılması `branches`, Faz 2) (§13 #3). Seçenekler: 12 hazır renk (her biri önceden doğrulanmış) veya serbest renk seçici. Logo yüklenmişse logodaki baskın renk önerilir [T]. Seçim yapılmazsa hazır paletteki ilk renk kullanılır. Mürekkep kullanılmaz, çünkü storefront bizim markamız gibi görünmemeli.
+**Girdi:** P-26'da (ve onboarding 2. adımında isteğe bağlı) "Ana renk" alanı bulunur: [04](04-isletme-paneli.md) §7.2 "Marka görünümü" ve §3.3 adım 2; veri [07](07-veri-modeli-ve-api.md) `tenants.brand_color` (türetilmiş palet `brand_palette`; şube geçersiz kılması `branches`, Faz 2) (§13 #3). Seçenekler: 12 hazır renk (her biri önceden doğrulanmış) veya serbest renk seçici. Logo yüklenmişse logodaki baskın renk önerilir [T]. Seçim yapılmazsa hazır paletteki ilk renk kullanılır. Platformun kırmızısı (`#E3101B`) ve mürekkep hazır renk olarak sunulmaz, çünkü storefront bizim markamız gibi görünmemeli. Hazır "Kırmızı" (`#C62828`, varsayılan) platform kırmızısına yakındır; varsayılanın değişip değişmeyeceği **teyit edilmeli**.
 
 **Algoritma (`packages/ui/theme/brandPalette()`, saf fonksiyon; OKLCH uzayında ton ve kroma korunur, yalnız açıklık L değişir):**
 1. `--brand` = girdi. Beyaz ve `#111827` (ink metin) ile kontrastı hesaplanır.

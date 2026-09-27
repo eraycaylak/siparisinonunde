@@ -29,7 +29,7 @@ export function Section({ id, eyebrow, title, lead, children, className, tone = 
         {eyebrow || title || lead ? (
           <div className="mb-10 flex max-w-3xl flex-col gap-3">
             {eyebrow ? (
-              <p className={cn('text-sm font-bold uppercase tracking-wider', tone === 'ink' ? 'text-saffron' : 'text-fg-muted')}>
+              <p className={cn('text-sm font-bold uppercase tracking-wider', tone === 'ink' ? 'text-brand-red-on-dark' : 'text-fg-muted')}>
                 {eyebrow}
               </p>
             ) : null}

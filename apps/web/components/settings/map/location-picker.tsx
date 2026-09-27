@@ -5,6 +5,7 @@ import type { Marker } from 'maplibre-gl';
 import { Crosshair, MapPinOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { BRAND_RED } from '@/lib/site';
 import { DEFAULT_CENTER, useMaplibre } from './use-maplibre';
 
 export interface LatLng {
@@ -40,7 +41,7 @@ export function LocationPicker({ value, onChange }: { value: LatLng | null; onCh
       return;
     }
     if (!markerRef.current) {
-      markerRef.current = new lib.Marker({ draggable: true, color: '#14233A' }).setLngLat([value.lng, value.lat]).addTo(map);
+      markerRef.current = new lib.Marker({ draggable: true, color: BRAND_RED }).setLngLat([value.lng, value.lat]).addTo(map);
       markerRef.current.on('dragend', () => {
         const p = markerRef.current!.getLngLat();
         onChangeRef.current({ lat: round(p.lat), lng: round(p.lng) });

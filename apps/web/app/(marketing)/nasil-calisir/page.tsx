@@ -86,7 +86,7 @@ export default function HowItWorksPage() {
           {STEPS.map(({ title, text, Icon }, i) => (
             <li key={title} className="flex flex-col gap-3 rounded-xl border border-border bg-surface-raised p-6">
               <span className="flex items-center gap-3">
-                <span className="flex size-10 items-center justify-center rounded-full bg-ink text-lg font-bold text-white">{i + 1}</span>
+                <span className="flex size-10 items-center justify-center rounded-full bg-brand-red text-lg font-bold text-white">{i + 1}</span>
                 <Icon aria-hidden className="size-6 text-fg-muted" />
               </span>
               <h2 className="text-xl font-bold text-fg">{title}</h2>
@@ -118,7 +118,7 @@ export default function HowItWorksPage() {
         <ol className="relative flex flex-col gap-4 border-s-2 border-border ps-6">
           {ALARM.map((a) => (
             <li key={a.at} className="relative">
-              <span aria-hidden className="absolute -start-[31px] top-1.5 size-3 rounded-full bg-saffron ring-4 ring-bg" />
+              <span aria-hidden className="absolute -start-[31px] top-1.5 size-3 rounded-full bg-brand-red ring-4 ring-bg" />
               <p className="flex flex-wrap items-baseline gap-x-3">
                 <span className="inline-flex items-center gap-1.5 text-base font-bold text-fg">
                   <Clock aria-hidden className="size-4" />

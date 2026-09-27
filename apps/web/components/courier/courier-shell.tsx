@@ -43,7 +43,7 @@ function GuardedCourier({ children }: { children: ReactNode }) {
     <div className="flex min-h-dvh flex-col bg-surface">
       <header className="sticky top-0 z-40 border-b border-border bg-surface-raised">
         <div className="mx-auto flex h-16 max-w-lg items-center gap-3 px-3">
-          <LogoMark className="size-8" />
+          <LogoMark className="h-6" />
           <span className="flex min-w-0 flex-col leading-tight">
             <span className="truncate text-base font-bold text-fg">{me.data.tenant?.name}</span>
             <span className="text-xs text-fg-muted">Kurye</span>

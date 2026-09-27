@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
-import { SITE_NAME } from './site';
+import { OG_IMAGE, SITE_NAME } from './site';
 
-/** Pazarlama sayfası metadata'sı: başlık, açıklama, kanonik adres ve OpenGraph (sayfaya özgü). */
+/** Pazarlama sayfası metadata'sı: başlık, açıklama, kanonik adres, OpenGraph ve Twitter kartı (varsayılan marka görseli). */
 export function pageMetadata({
   title,
   description,
@@ -18,7 +18,7 @@ export function pageMetadata({
     title: absoluteTitle ? { absolute: title } : title,
     description,
     alternates: { canonical: path },
-    openGraph: { type: 'website', locale: 'tr_TR', siteName: SITE_NAME, title: fullTitle, description, url: path },
-    twitter: { card: 'summary', title: fullTitle, description },
+    openGraph: { type: 'website', locale: 'tr_TR', siteName: SITE_NAME, title: fullTitle, description, url: path, images: [OG_IMAGE] },
+    twitter: { card: 'summary_large_image', title: fullTitle, description, images: [OG_IMAGE.url] },
   };
 }

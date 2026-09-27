@@ -19,13 +19,15 @@ export const buttonVariants = cva(
   {
     variants: {
       variant: {
-        primary: 'bg-primary text-primary-fg hover:bg-primary/90 active:bg-primary/80',
+        // Üzerine gelince koyulaşır (açılmaz): beyaz yazı kontrastı ≥ 4,5:1 kalır (12 §3.2)
+        primary: 'bg-primary text-primary-fg hover:bg-primary-hover active:bg-primary-active',
         secondary:
           'border border-border-strong bg-surface-raised text-fg hover:bg-accent active:bg-accent/80',
         ghost: 'bg-transparent text-fg hover:bg-accent active:bg-accent/80',
         danger: 'bg-destructive text-destructive-fg hover:bg-destructive/90 active:bg-destructive/80',
         success: 'bg-success text-success-fg hover:bg-success/90 active:bg-success/80',
-        brand: 'bg-saffron text-ink hover:bg-saffron/90 active:bg-saffron/80',
+        // Koyu (mürekkep) bantlarda marka kırmızısı buton; iki temada da birincil ile aynı renk
+        brand: 'bg-brand-red text-white hover:bg-primary-hover active:bg-primary-active',
         link: 'h-auto min-h-0 px-0 text-fg underline underline-offset-4 hover:no-underline',
       },
       size: {

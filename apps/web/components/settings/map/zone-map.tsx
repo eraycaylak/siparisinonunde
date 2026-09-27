@@ -4,6 +4,7 @@ import { useEffect, useRef } from 'react';
 import type { Marker } from 'maplibre-gl';
 import { MapPinOff } from 'lucide-react';
 import type { ZoneDto } from '@siparis/core/settings/contracts';
+import { BRAND_RED } from '@/lib/site';
 import { DEFAULT_CENTER, circleRing, featureCollection, setGeoJsonSource, useMaplibre } from './use-maplibre';
 
 type LngLat = [number, number];
@@ -70,7 +71,7 @@ export function ZoneMap({
   // Şube işareti
   useEffect(() => {
     if (!map || !lib || !center) return;
-    if (!markerRef.current) markerRef.current = new lib.Marker({ color: '#14233A' }).setLngLat([center.lng, center.lat]).addTo(map);
+    if (!markerRef.current) markerRef.current = new lib.Marker({ color: BRAND_RED }).setLngLat([center.lng, center.lat]).addTo(map);
     else markerRef.current.setLngLat([center.lng, center.lat]);
   }, [map, lib, center]);
 

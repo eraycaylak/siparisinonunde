@@ -90,7 +90,7 @@ export default function HomePage() {
               Pilot: {PILOT_AREA.city} / {PILOT_AREA.district}
             </p>
             <h1 id="hero-baslik" className="text-4xl font-bold leading-[1.1] tracking-tight text-fg sm:text-5xl lg:text-6xl">
-              Keşif pazaryerinde, <span className="underline decoration-saffron decoration-[6px] underline-offset-[10px]">sadakat sende.</span>
+              Keşif pazaryerinde, <span className="underline decoration-brand-red decoration-[6px] underline-offset-[10px]">sadakat sende.</span>
             </h1>
             <p className="max-w-xl text-lg leading-8 text-fg-muted sm:text-xl">{SITE_DESCRIPTION}</p>
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
@@ -128,7 +128,7 @@ export default function HomePage() {
         title="Seni zaten tanıyan müşterin için de her siparişte komisyon ödüyorsun."
         lead="Pazaryeri yeni müşteri getirir; bu değerli. Ama yıllardır senden yemek alan müşterinin siparişinden de kesinti yapılır."
       >
-        <div className="flex flex-col gap-2 rounded-xl border-s-4 border-saffron bg-surface p-6">
+        <div className="flex flex-col gap-2 rounded-xl border-s-4 border-brand-red bg-surface p-6">
           <p className="text-3xl font-bold tabular-nums text-fg sm:text-4xl">%15–40 arası kesinti</p>
           <p className="text-base text-fg-muted">Sözleşmeye ve kurye modeline göre değişir. Komisyon, reklam, kampanya ve teslimat kalemleri birlikte.</p>
         </div>
@@ -140,7 +140,7 @@ export default function HomePage() {
           {STEPS.map(({ title, text, Icon }, i) => (
             <li key={title} className="flex flex-col gap-3 rounded-xl border border-border bg-surface-raised p-6">
               <span className="flex items-center gap-3">
-                <span className="flex size-10 items-center justify-center rounded-full bg-ink text-lg font-bold text-white">{i + 1}</span>
+                <span className="flex size-10 items-center justify-center rounded-full bg-brand-red text-lg font-bold text-white">{i + 1}</span>
                 <Icon aria-hidden className="size-6 text-fg-muted" />
               </span>
               <h3 className="text-xl font-bold text-fg">{title}</h3>
