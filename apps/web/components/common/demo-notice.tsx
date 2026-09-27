@@ -3,7 +3,8 @@ import { DEMO_NOTICE, isDemoDeployment } from '@/lib/site';
 
 /**
  * Herkese açık demo dağıtımında (NEXT_PUBLIC_DEPLOY_ENV=dev; 15 §13) pazarlama, vitrin, takip ve giriş sayfalarının
- * üstünde görünen uyarı: veriler Türkiye dışında tutulur ve sağlayıcılar mock'tur, gerçek kişisel veri girilmemeli.
+ * üstünde görünen uyarı: veriler Türkiye dışında tutulur (SMS mock; WhatsApp mock ya da yalnız proje sahibinin denemesi
+ * için gerçek), gerçek kişisel veri girilmemeli.
  * Üretimde ve yerel geliştirmede hiçbir şey çizmez.
  */
 export function DemoNotice() {

@@ -53,7 +53,7 @@ export function platformAccountRef(config: Config, owner: { id?: string; tenantI
     provider: config.PLATFORM_WA_PROVIDER,
     displayPhone: platformDisplayPhone(config),
     phoneNumberId: config.PLATFORM_WA_PHONE_NUMBER_ID ?? null,
-    wabaId: null,
+    wabaId: config.PLATFORM_WA_WABA_ID ?? null,
     apiKey: config.PLATFORM_WA_API_KEY ?? null,
   };
 }

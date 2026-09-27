@@ -51,6 +51,13 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'admin.job_retry': 'İş yeniden kuyruğa alındı',
   'admin.flag_update': 'Bayrak değiştirildi',
   'admin.lead_update': 'Lead güncellendi',
+  'admin.wa_setup_reveal': 'WhatsApp kurulumu: webhook bilgileri gösterildi',
+  'admin.wa_setup_test': 'WhatsApp kurulumu: bağlantı testi',
+  'admin.wa_setup_register': 'WhatsApp kurulumu: numara etkinleştirme',
+  'admin.wa_setup_subscription_view': 'WhatsApp kurulumu: webhook aboneliği kontrolü',
+  'admin.wa_setup_subscribe': 'WhatsApp kurulumu: webhook aboneliği açıldı',
+  'admin.wa_setup_templates_view': 'WhatsApp kurulumu: şablon durumları',
+  'admin.wa_setup_templates_sync': "WhatsApp kurulumu: şablonlar Meta'ya gönderildi",
   'tenant.signup': 'İşletme kaydı',
 };
 

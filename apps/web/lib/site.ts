@@ -53,10 +53,13 @@ export function isDemoDeployment(value: string | undefined = process.env.NEXT_PU
   return value === 'dev';
 }
 
-/** Demo dağıtımında sayfaların üstündeki uyarı (components/common/demo-notice.tsx). */
+/**
+ * Demo dağıtımında sayfaların üstündeki uyarı (components/common/demo-notice.tsx). Metin derleme anında gömülür ve iki dev
+ * kipinde de doğru kalmalıdır: simülatör (mock) ve gerçek WhatsApp (proje sahibinin kendi telefonlarıyla deneme; 15 §13).
+ */
 export const DEMO_NOTICE = {
   title: 'Demo ortamı.',
-  body: 'Siparişler örnektir, WhatsApp ve SMS gönderilmez. Gerçek adres ve telefon girmeyin.',
+  body: 'Siparişler örnektir ve gerçek bir işletmeye gitmez. Gerçek adres ve telefon girmeyin.',
 } as const;
 
 /** Pilot bölge (00 §12a). */

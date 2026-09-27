@@ -236,6 +236,8 @@ Yol A'da aracı ücreti yoktur ama adım sayısı fazladır; Yol B kurulumu kıs
 
 ### 6.2 Yol A — Meta Cloud API ile doğrudan (tek numara)
 
+**Proje sahibi için kısa yol: §6.2a.** Orada Meta'da yalnız tıklama yapılır, beş değer GitHub secret'ı (Cloudflare dev) ya da `.env` (VPS) olarak girilir; numara kaydı, webhook aboneliği ve şablonlar `Admin > WhatsApp > WhatsApp kurulumu` düğmeleriyle yapılır. Bu bölüm ayrıntılı başvuru ve elle (curl) yoldur.
+
 Menü adları Meta'nın arayüz diline göre Türkçe ya da İngilizce görünür; ikisi birlikte yazılmıştır. Meta ekranları sık değişir: her adım canlıya çıkmadan önce güncel belgeyle doğrulanır (teyit edilmeli).
 
 **Hazırlık:** WhatsApp'ta hiç kullanılmamış (ya da WhatsApp/WhatsApp Business uygulamasındaki hesabı silinmiş) bir telefon numarası: SMS ya da sesli arama alabilen bir cep hattı veya sabit/0850 hat. Şirketin resmi bilgileri (unvan, adres, vergi levhası) ve `yemekgelsin.net` sitesinin yayında olması (görünen ad ve işletme doğrulaması siteye bakar).
@@ -247,7 +249,7 @@ Menü adları Meta'nın arayüz diline göre Türkçe ya da İngilizce görünü
 5. **WhatsApp ürününü ekleyin:** Uygulama panosunda **WhatsApp > Kur (Set up)** → işletme portföyünü seçin. Meta bir WhatsApp Business hesabı (WABA) ve deneme numarası açar. Sol menüde **WhatsApp > API Kurulumu (API Setup)** sayfası görünür.
 6. **Gerçek numarayı ekleyin:** **API Kurulumu > Telefon numarası ekle (Add phone number)** → işletme görünen adı **Yemek Gelsin**, saat dilimi İstanbul, kategori (Yemek ve içecek / Food & beverage), kısa açıklama → numara (ülke kodu +90) → **SMS ya da sesli arama** ile gelen 6 haneli kodu girin.
 7. **Görünen ad onayı:** [business.facebook.com](https://business.facebook.com) > **WhatsApp Manager > Telefon numaraları (Phone numbers)** → numaranın yanında görünen ad durumu "Onaylandı (Approved)" olmalı. Ad, sitede ve belgelerde geçen marka adıyla aynı olmalıdır; onay 1–3 gün sürebilir (teyit edilmeli).
-8. **Numarayı Cloud API'ye kaydedin (register) ve iki adımlı PIN:** WhatsApp Manager > Telefon numaraları > numara > **İki adımlı doğrulama (Two-step verification)** → 6 haneli PIN belirleyin, parola yöneticisinde saklayın. Numara API Kurulumu'nda "Bağlı değil (Pending)" görünüyorsa bir kez kaydedin (9. adımdaki token ile):
+8. **Numarayı Cloud API'ye kaydedin (register) ve iki adımlı PIN:** en kolayı `Admin > WhatsApp > WhatsApp kurulumu > Numarayı etkinleştir` (6 haneli PIN, §6.2a). Elle: WhatsApp Manager > Telefon numaraları > numara > **İki adımlı doğrulama (Two-step verification)** → 6 haneli PIN belirleyin, parola yöneticisinde saklayın. Numara API Kurulumu'nda "Bağlı değil (Pending)" görünüyorsa bir kez kaydedin (9. adımdaki token ile):
    ```bash
    curl -X POST "https://graph.facebook.com/v23.0/<PHONE_NUMBER_ID>/register" \
      -H "Authorization: Bearer <KALICI_TOKEN>" -H "Content-Type: application/json" \
@@ -263,9 +265,60 @@ Menü adları Meta'nın arayüz diline göre Türkçe ya da İngilizce görünü
     - **Doğrulama belirteci (Verify token):** `.env`'deki `WA_VERIFY_TOKEN`
     - **Doğrula ve kaydet (Verify and save)** → API `hub.challenge`'ı geri döndürür. Hata alırsanız: 404 = belirteç yol ile `.env`'dekinden farklı ya da `PLATFORM_WA_WEBHOOK_TOKEN` boş; 403 = `WA_VERIFY_TOKEN` farklı.
     - Aynı ekranda **Webhook alanları (Webhook fields) > Yönet (Manage)** → **`messages`** alanına abone olun (gelen mesajlar ve teslim/okundu durumları bununla gelir).
-    - Uygulamanın WABA'ya abone olduğunu doğrulayın (teyit edilmeli; panodan kurulumda genelde kendiliğinden olur): `curl -X POST "https://graph.facebook.com/v23.0/<WABA_ID>/subscribed_apps" -H "Authorization: Bearer <KALICI_TOKEN>"`.
+    - Uygulamanın WABA'ya abone olduğunu doğrulayın (teyit edilmeli; panodan kurulumda genelde kendiliğinden olur): `Admin > WhatsApp > WhatsApp kurulumu > Webhook aboneliğini aç` ya da `curl -X POST "https://graph.facebook.com/v23.0/<WABA_ID>/subscribed_apps" -H "Authorization: Bearer <KALICI_TOKEN>"`.
 13. **Uygulamayı canlı moda alın:** uygulama panosunun üstündeki **Uygulama modu (App Mode): Geliştirme → Canlı (Live)**. Geliştirme modunda webhook yalnız test verisi gönderir (teyit edilmeli).
 14. **Şablonlar ve deneme:** §6.5 ve §6.6.
+
+### 6.2a Gerçek WhatsApp'ı bağlama (tek numara, Meta doğrudan) — proje sahibi için kısa yol
+
+Meta'da yalnız tıklama yaparsınız ve **beş değer** kopyalarsınız; gerisini `Admin > WhatsApp > WhatsApp kurulumu`'ndaki düğmeler yapar. Menü adları Meta'nın İngilizce arayüzüne göredir (parantez içinde Türkçesi); Meta ekranları değişebilir (teyit edilmeli, 2026 arayüzü).
+
+**Hazırlık:** WhatsApp'a hiç kayıtlı olmamış yeni bir hat (SMS ya da sesli arama alabilmeli). Hat WhatsApp ya da WhatsApp Business uygulamasında kayıtlıysa önce uygulamadan hesabı silin, yoksa Meta numarayı kabul etmez. Şirket kartı (ödeme yöntemi). `https://yemekgelsin.net` yayında olmalı.
+
+**A. Meta'da (bir kez)**
+
+1. **İşletme portföyü:** [business.facebook.com](https://business.facebook.com) → **Create a business portfolio (İşletme portföyü oluştur)** → ad **Yemek Gelsin**, adınız, iş e-postası → **Create**. **Settings (Ayarlar) > Business info (İşletme bilgileri)**: yasal unvan, adres, telefon, web sitesi `https://yemekgelsin.net`. İşletme doğrulamasını da hemen başlatın: **Settings > Security Center > Start verification** (günlük sınırı yükseltir, §6.7).
+2. **Uygulama:** [developers.facebook.com](https://developers.facebook.com) → **My Apps (Uygulamalarım) > Create app (Uygulama oluştur)** → uygulama adı `Yemek Gelsin`, e-posta → **Next** → kullanım amacı **Connect with customers through WhatsApp** (Müşterilerle WhatsApp üzerinden iletişim kurun) → **Next** → işletme portföyü: **Yemek Gelsin** → **Next** → **Create app**. (Eski ekranda uygulama türü **Business**.)
+3. **Numarayı ekleyin:** uygulamada sol menü **WhatsApp > API Setup (API Kurulumu)** → **Add phone number (Telefon numarası ekle)** → görünen ad **Yemek Gelsin**, kategori **Restaurant** / yemek, saat dilimi İstanbul → numara (+90 …) → **Text message (SMS)** ya da **Phone call (Sesli arama)** → gelen 6 haneli kodu girin. Meta'nın verdiği deneme (test) numarasını kullanmayın.
+4. **Kalıcı token (1. değer):** business.facebook.com > **Settings > Users > System users (Sistem kullanıcıları) > Add (Ekle)** → ad `yemekgelsin-api`, rol **Admin** → **Create**. Sonra:
+   - **Assign assets (Varlık ata)** → **Apps**: 2. adımdaki uygulama, **Full control (Tam kontrol)**; **WhatsApp accounts**: Yemek Gelsin hesabı, **Full control** → **Assign**.
+   - **Generate token (Token oluştur)** → uygulamayı seçin → süre **Never (Hiçbir zaman)** → izinler **whatsapp_business_messaging** ve **whatsapp_business_management** → **Generate token**. Token bir kez gösterilir: doğrudan parola yöneticisine kopyalayın. API Setup sayfasındaki "temporary token" 24 saatte biter, kullanmayın.
+5. **Kimlikler (2. ve 3. değer):** developers.facebook.com > uygulama > **WhatsApp > API Setup** → "From" kutusunda gerçek numaranızı seçin → **Phone number ID** (2. değer) ve **WhatsApp Business Account ID** (3. değer). İkisi de yalnız rakamdır ve birbirinden farklıdır; telefon numarasının kendisi değildir.
+6. **App secret (4. değer):** **App settings (Uygulama ayarları) > Basic (Temel) > App secret > Show (Göster)** (Facebook parolası sorulur). Aynı sayfada **Privacy policy URL**: `https://yemekgelsin.net/yasal/gizlilik` → **Save changes**.
+7. **Ödeme yöntemi (zorunlu):** business.facebook.com > **WhatsApp Manager > Payment methods (Ödeme yöntemleri) > Add payment method** → şirket kartı. **1 Ekim 2026'dan itibaren** Meta numara başına ayda 1.000'i aşan hizmet (service) mesajlarını da ücretlendirir ve ödeme yöntemi yoksa mesajları teslim etmez; kart yoksa şablon mesajları da gitmez (hata 131042).
+8. **Uygulamayı yayınlayın:** uygulama panosunun üstünde **App mode: Development → Live** (ya da **Publish**). Geliştirme modunda gerçek mesaj olayları webhook'a gelmez (teyit edilmeli).
+
+**B. Beş değeri girin**
+
+Cloudflare dev ortamı (§13): GitHub > depo > **Settings > Secrets and variables > Actions > New repository secret** (ad + değer → **Add secret**):
+
+| Secret | Değer |
+|---|---|
+| `META_WA_TOKEN` | 4. adımdaki token |
+| `META_WA_PHONE_NUMBER_ID` | Phone number ID |
+| `META_WA_WABA_ID` | WhatsApp Business Account ID |
+| `META_APP_SECRET` | App secret |
+| `WA_PHONE` | numara, ülke koduyla: `+905321234567` |
+
+Sonra **Actions > "Dev ortamı (Cloudflare)" > Run workflow** (secret eklemek dağıtımı kendiliğinden başlatmaz). `META_WA_TOKEN`, `META_WA_PHONE_NUMBER_ID`, `META_APP_SECRET` ve `WA_PHONE` birlikte varsa ortak numara gerçek Meta Cloud API ile açılır ve simülatör kapanır; iş akışı özetinde "WhatsApp: gerçek numara" yazar. Biri eksikse uyarı verir ve simülatörde kalır; telefon ya da kimlik biçimi yanlışsa dağıtım Türkçe hatayla durur. `META_WA_WABA_ID` yalnız aşağıdaki 4. ve 5. düğmeler için gerekir.
+
+Türkiye VPS'i (üretim): aynı değerler `.env`'e (§6.4 Yol A): `PLATFORM_WA_PROVIDER=cloud`, `PLATFORM_WA_API_KEY`, `PLATFORM_WA_PHONE_NUMBER_ID`, `PLATFORM_WA_WABA_ID`, `WA_APP_SECRET`, `PLATFORM_WA_DISPLAY_PHONE` → `docker compose up -d api worker`.
+
+**C. Admin'de, sırayla** — `/admin/giris` → platform sahibi hesabı → **WhatsApp** → **WhatsApp kurulumu** (yalnız platform sahibi görür; her işlem denetim kaydına yazılır). "Kurulum durumu" kartında beş değer "Tanımlı" görünmeli (gizliler yalnız son 4 karakterle).
+
+1. **Göster** → webhook adresi ve doğrulama belirteci. developers.facebook.com > uygulama > **WhatsApp > Configuration (Yapılandırma) > Webhook > Edit**: **Callback URL** = webhook adresi, **Verify token** = doğrulama belirteci (ikisinde de **Kopyala**) → **Verify and save**. Aynı sayfada **Webhook fields > Manage** → **messages** satırında **Subscribe**. Doğrulama hatası: 404 → adres eksik ya da yanlış kopyalandı; 403 → doğrulama belirteci farklı.
+2. **Bağlantıyı test et** → numara, görünen ad ve onayı, Cloud API kaydı, kalite. Yapılacak bir şey varsa altında Türkçe yazar (190 → token geçersiz, izin hatası, yanlış kimlik …).
+3. **Numarayı etkinleştir** → 6 haneli PIN'i iki kez girin. Bu PIN numaranın **WhatsApp iki adımlı doğrulama PIN'idir**: siz seçersiniz, parola yöneticisine kaydedin; numarayı yeniden kaydederken gerekir. Sonra 2. düğme "Cloud API'ye kayıtlı" göstermeli.
+4. **Webhook aboneliğini aç** → "Abonelik açık".
+5. **Şablonları Meta'ya gönder** → kodun kullandığı tüm şablonlar (sipariş durumu + işletme uyarıları; §6.5) Meta'da yoksa oluşturulur; var olana dokunulmaz, hiçbir şey silinmez. **Durumu yenile** her şablonu Onaylandı / İncelemede / Reddedildi olarak (ret sebebiyle) gösterir; utility şablonlar genelde dakikalar içinde onaylanır.
+
+**Deneme:** kendi telefonunuzdan numaraya `#BOZOK` yazın → demo dükkanın adıyla karşılama ve **Menüyü aç** gelmeli; `Admin > WhatsApp` ortak numara kartında "Son webhook" güncellenir. `/dev/whatsapp` artık "Gerçek WhatsApp bağlı; simülatör kapalı" gösterir.
+
+**Görünen ad:** "Yemek Gelsin" adı Meta incelemesinden geçer (genelde 1–3 gün). Onaylanana kadar müşteri ad yerine numarayı görebilir. Reddedilirse WhatsApp Manager > Phone numbers > numara > **Display name > Edit** ile yeniden gönderin; ad sitedeki marka adıyla aynı olmalı. Durum 2. düğmede görünür.
+
+**KVKK:** Cloudflare dev ortamının verileri Türkiye dışındadır (§13). Bu ortamda gerçek WhatsApp **yalnız kendi telefonlarınızla** denenir: QR basılıp dağıtılmaz, gerçek işletme ya da müşteri bu numaraya yönlendirilmez. Gerçek müşteriler sistem Türkiye'deki VPS'e taşındıktan sonra gelir (§1–§12). Taşınınca aynı beş değer `.env`'e yazılır; webhook belirteci ve doğrulama belirteci yeni sunucuda farklıdır: C.1'i yeni sunucuda tekrarlayın.
+
+**Simülatöre dönmek:** GitHub'da `META_WA_TOKEN` secret'ını (ya da dört zorunlu secret'tan birini) silin → Run workflow; iş akışı Worker'daki eski değerleri de siler.
 
 ### 6.3 Yol B — 360dialog ile (tek numara)
 
@@ -299,6 +352,7 @@ Yol A (Meta Cloud API):
 PLATFORM_WA_PROVIDER=cloud
 PLATFORM_WA_API_KEY=<§6.2 madde 9: kalıcı System User token>
 PLATFORM_WA_PHONE_NUMBER_ID=<§6.2 madde 10: Phone number ID>
+PLATFORM_WA_WABA_ID=<§6.2 madde 10: WABA ID>       # isteğe bağlı: admin kurulumu (webhook aboneliği, şablon gönderimi)
 WA_APP_SECRET=<§6.2 madde 10: App secret>          # webhook imzası
 ```
 
@@ -314,7 +368,7 @@ PLATFORM_WA_PHONE_NUMBER_ID=                       # boş
 
 ### 6.5 Şablonlar (müşteri ve platform uyarıları)
 
-24 saat penceresi dışındaki durum mesajları ve işletme sahibine giden uyarılar onaylı **utility** şablonlarla gider. Ortak numarada tek WABA olduğu için şablonlar **bir kez**, platform hesabında oluşturulur (işletme başına değil). Yol A: WhatsApp Manager > **Mesaj şablonları (Message templates) > Şablon oluştur**; Yol B: 360dialog Hub ya da API. Dil: Türkçe (`tr`), kategori: Yardımcı program (Utility).
+24 saat penceresi dışındaki durum mesajları ve işletme sahibine giden uyarılar onaylı **utility** şablonlarla gider. Ortak numarada tek WABA olduğu için şablonlar **bir kez**, platform hesabında oluşturulur (işletme başına değil). Yol A: `Admin > WhatsApp > WhatsApp kurulumu > Şablonları Meta'ya gönder` hepsini tek seferde oluşturur (eksikleri; var olana dokunmaz) ve durumlarını (onay, ret sebebi, kategori değişimi) gösterir (§6.2a). Tek kaynak `apps/api/src/services/messaging/template-bodies.ts` (`WA_TEMPLATE_CATALOG`): gövde metni, konumsal değişkenler (`{{1}}`…, sıra `CUSTOMER_TEMPLATES` / `PLATFORM_TEMPLATES`), örnek değerler ve butonlar; gövdelerin 02 §5.2/§5.3 ile aynı olduğu testle denetlenir. Butonlar: takip şablonlarında "Siparişi takip et" / "Değerlendir" dinamik URL (`APP_BASE_URL/t/{{1}}`, değişken takip token'ı), `yanit_bekliyor_v1`'de "Devam et" hızlı yanıt, platform uyarılarında panelin sabit adresi (gönderen kod buton parametresi vermez), `kurye_giris_v1`'de `/kurye/giris?t={{1}}`. Metin değişikliği yeni sürüm adıyla (`_v2`) yapılır. Elle yol: WhatsApp Manager > **Mesaj şablonları (Message templates) > Şablon oluştur**; Yol B: 360dialog Hub ya da API. Dil: Türkçe (`tr`), kategori: Yardımcı program (Utility).
 
 - **Müşteri şablonları:** `siparis_alindi_v1`, `siparis_onaylandi_v1`, `siparis_hazir_v1`, `siparis_yolda_v1`, `siparis_teslim_v1`, `siparis_reddedildi_v1`, `siparis_iptal_v1`, `siparis_iptal_yanitsiz_v1`, `yanit_bekliyor_v1`. Metin ve parametre sırası `packages/core/src/messages/tr.ts` → `CUSTOMER_TEMPLATES`; hepsi işletme adını (`{isletme}`) değişken olarak taşır, müşteri hangi dükkandan mesaj aldığını görür. Şablonlara promosyon ya da indirim kodu eklenmez (İYS, 00 §7).
 - **Platform şablonları** (işletme sahibine): `isletme_yeni_siparis_v1`, `isletme_panel_cevrimdisi_v1`, `kurye_giris_v1`, `isletme_baglanti_sorunu_v1`, `isletme_meta_odeme_v1`, `isletme_kalite_uyari_v1` (V-011). `isletme_yeni_siparis_v1` yeni sipariş alarmıdır (t=2 dk, 00 §10). `isletme_panel_cevrimdisi_v1` "panel çevrimdışı" uyarısıdır (06 §7.7): şube sipariş alırken (çalışma saati içinde, duraklatılmamış, sipariş alma açık, web canlı) sipariş ekranı 5 dakikadır açık değilse ya da şube açılalı 10 dakika olduğu hâlde açılıştan beri hiç açılmadıysa işletme sahibine gider; şube başına saatte en çok bir kez (`cron.panel_presence`, §10). Parametreler: işletme adı (ek şubede "İşletme · Şube") ve dakika. Gerekirse `Admin > Bayraklar > platform_wa_alerts` ile geçici kapatılır.
@@ -324,7 +378,7 @@ PLATFORM_WA_PHONE_NUMBER_ID=                       # boş
 
 1. Kendi telefonunuzla bir işletmenin QR'ını okutun (`Panel > Ayarlar > WhatsApp`, ya da bağlantıyı açın) → mesajı gönderin → o işletmenin adıyla karşılama ve **Menüyü aç** gelmeli; linkten sipariş verin, o işletmenin panelinde sesli uyarıyı görün, onaylayın, "onaylandı" mesajı gelsin.
 2. İkinci bir işletmenin QR'ını okutun → ikinci işletmenin adıyla karşılama gelmeli. Ardından kodsuz "merhaba" yazın: son 24 saatteki dükkan devam eder; "değiştir" yazınca dükkan seçici gelir.
-3. `Admin > WhatsApp` > **Ortak numara** kartı: "Son webhook" yeni olmalı, sorun satırı olmamalı. Paneldeki "Test mesajı gönder" pencere kuralına tabidir: test telefonu son 24 saatte ortak numaraya yazmış olmalıdır.
+3. `Admin > WhatsApp` > **Ortak numara** kartı: "Son webhook" yeni olmalı, sorun satırı olmamalı. Aynı sayfadaki **WhatsApp kurulumu** (platform sahibi): "Bağlantıyı test et" hazır, abonelik açık, şablonlar Onaylandı. Paneldeki "Test mesajı gönder" pencere kuralına tabidir: test telefonu son 24 saatte ortak numaraya yazmış olmalıdır.
 4. Webhook dışarıdan: `curl -i "https://DOMAIN/api/v1/webhooks/wa/shared/yanlis-belirtec-0000"` → 404 (yol çalışıyor, belirteç yanlış). Doğru belirteçle imzasız `POST` Yol A'da 401 döner (imza denetleniyor).
 
 ### 6.7 Maliyet ve sınırlar
@@ -499,7 +553,7 @@ docker compose exec postgres psql -U siparis -c "select b.name, p.last_seen_at, 
 - [ ] Web Push açık: `VAPID_*` dolu, açılış logunda `Web Push kapalı` uyarısı yok; bir Android tablette ve ana ekrana eklenmiş bir iPhone'da "Siparişleri almaya başla" → izin → `Ayarlar › Bu cihazda bildirimler › Test bildirimi gönder` geldi; panel sekmesi kapalıyken verilen deneme siparişinde "Yeni sipariş #…" bildirimi geldi (§10).
 - [ ] Panel çevrimdışı uyarısı denendi: açık saatte paneli kapatıp 5 dk bekleyince sahibin telefonuna `isletme_panel_cevrimdisi_v1` geldi (`notifications` tablosunda `kind = 'panel_offline'`).
 - [ ] Sunucu: UFW açık (22/80/443), SSH yalnız anahtarla, otomatik güvenlik güncellemeleri açık, `.env` izni 600.
-- [ ] Ortak numara bağlı (§6.2 Meta Cloud API ya da §6.3 360dialog): görünen ad "Yemek Gelsin" onaylı, işletme doğrulaması tamam, ödeme kartı tanımlı, `PLATFORM_WA_DISPLAY_PHONE` ve `PLATFORM_WA_WEBHOOK_TOKEN` dolu, webhook tanımlı (`Admin > WhatsApp` ortak numara kartında sorun satırı yok). İki farklı işletmenin QR'ı gerçek telefonla okutuldu: her birinde o işletmenin adıyla karşılama → "Menüyü aç" → sipariş → doğru işletmenin panelinde alarm → onay mesajı; kodsuz yazınca dükkan seçici geldi. Müşteri ve platform şablonları onaylı (V-011).
+- [ ] Ortak numara bağlı (§6.2 Meta Cloud API ya da §6.3 360dialog): görünen ad "Yemek Gelsin" onaylı, işletme doğrulaması tamam, ödeme kartı tanımlı, `PLATFORM_WA_DISPLAY_PHONE` ve `PLATFORM_WA_WEBHOOK_TOKEN` dolu, webhook tanımlı (`Admin > WhatsApp` ortak numara kartında sorun satırı yok; Yol A'da **WhatsApp kurulumu**nda "Bağlantıyı test et" hazır, "Aboneliği kontrol et" açık, tüm şablonlar Onaylandı). İki farklı işletmenin QR'ı gerçek telefonla okutuldu: her birinde o işletmenin adıyla karşılama → "Menüyü aç" → sipariş → doğru işletmenin panelinde alarm → onay mesajı; kodsuz yazınca dükkan seçici geldi. Müşteri ve platform şablonları onaylı (V-011).
 - [ ] Netgsm başlığı onaylı, OTP ve "onaylandı" SMS'i gerçek telefona geldi (V-012, V-020, V-023).
 - [ ] `pnpm test` ve `pnpm e2e` yeşil (yayınlanan sürüm etiketinde).
 
@@ -519,7 +573,7 @@ docker compose exec postgres psql -U siparis -c "select b.name, p.last_seen_at, 
 ## 13. Cloudflare dev (demo) ortamı
 
 Sistemi gerçek işletme verisi olmadan denemek ve göstermek için ayrı bir ortamdır. Adresi **https://yemekgelsin.net**'tir (00 §12a madde 9). **Üretimin yerine geçmez:** üretim Türkiye'deki VPS'tedir (§1–§12). Dev ortamında:
-- tüm sağlayıcılar `mock` çalışır, gerçek WhatsApp mesajı ya da SMS gitmez;
+- SMS ve işletmelerin kendi numaraları `mock` çalışır; ortak numara varsayılan olarak simülatördür (`mock`, gerçek mesaj gitmez), isteğe bağlı beş GitHub secret'ıyla gerçek Meta Cloud API'ye bağlanır (aşağıda **Gerçek WhatsApp**, §6.2a);
 - site **herkese açıktır**: pazarlama sitesi, vitrinler (`/s/*`), takip (`/t/*`), yasal sayfalar, panel ve admin giriş ekranları, API ve webhook'lar;
 - pazarlama, vitrin, takip ve giriş sayfalarının üstünde **"Demo ortamı"** uyarısı görünür (siparişler örnektir, WhatsApp/SMS gitmez, gerçek adres ve telefon girilmez). Uyarı derleme anında açılır: `deploy/cloudflare/Dockerfile` `NEXT_PUBLIC_DEPLOY_ENV=dev`; üretim imajında yoktur;
 - **yeni işletme kaydı kapalı başlar**: seed `DEPLOY_ENV=dev` iken `signup_open` bayrağını ilk kurulumda kapalı yazar (veriler yurt dışında ve sağlayıcılar mock olduğundan gerçek işletme kaydolmamalı). Kayıt formu "Yeni kayıtlar geçici olarak kapalı" der. Proje sahibi açmak isterse `/admin/bayraklar`'dan açar; sonraki açılışlar ve dağıtımlar bayrağa dokunmaz;
@@ -535,7 +589,7 @@ Sistemi gerçek işletme verisi olmadan denemek ve göstermek için ayrı bir or
 - **Veri dönemi (`DATA_EPOCH`):** R2 anahtarları veri dönemiyle öneklenir: `e2/db/son.dump`, `e2/uploads/son.tar.gz`, `e2/db/gun-<0–6>.dump`. Dönem Worker değişkeni `DATA_EPOCH`'tan container **açılırken** alınır (ortam değişkeni) ve container'ın ömrü boyunca sabittir: `entrypoint.sh` yedek yoluna yazar (`http://yedek.internal/e2/db`), Worker anahtarı bu yoldan kurar (`src/access.ts` `parseBackupPath`), kendi o anki değerinden değil. Böylece yeniden dağıtım sırasında kapanan eski container'ın son yedeği yeni döneme düşmez; yeni dönemin container'ı yedek bulamaz ve boş veritabanı + seed ile (yeni marka ve demo hesaplarıyla) açılır. Dönemsiz yol (`/db`, ilk sürümün entrypoint'i) önekli olmayan eski `db/…` nesnelerine gider. Eski dönemin nesnelerine dokunulmaz. Geçersiz değer (rakam dışı) dağıtımdan önce `scripts/prepare-config.mjs`'te, container'da da açılışta reddedilir.
 - Yedek 10 dakikada bir, kapanışta ve çökmede alınır. Veritabanı ve görsel yedeğinin haftanın her günü için bir kopyası tutulur (7 gün). R2'ye ulaşılamazsa container boş veritabanıyla açılmaz, çıkar; böylece iyi yedeğin üzerine yazılmaz.
 - Son istekten 30 dakika sonra container uyur. Açık bir panel (SSE) uyumayı engeller. Uyanış yaklaşık 30–60 saniye sürer; bu sırada tarayıcıda "Sistem başlatılıyor" sayfası görünür ve kendiliğinden yenilenir.
-- `DEPLOY_ENV=dev`, üretim derlemesinde geliştirici araçlarını yalnız tüm sağlayıcılar `mock` iken açar (`apps/api/src/config.ts`, `devToolsAllowed`). Yönetici 2FA'sı dev ortamında isteğe bağlıdır (`ADMIN_TOTP_REQUIRED=false`); site herkese açık olduğundan proje sahibinin admin hesabında `/admin/guvenlik`'ten iki adımlı doğrulamayı açması önerilir.
+- `DEPLOY_ENV=dev`, üretim derlemesinde geliştirici araçlarını yalnız tüm sağlayıcılar `mock` iken açar (`apps/api/src/config.ts`, `devToolsAllowed`). Gerçek WhatsApp kipinde Worker container'a `DEV_TOOLS=0` verir (aksi halde API açılmaz); web simülatörle derlendiği için `/dev/whatsapp` 200 döner ama simülatör yerine "Gerçek WhatsApp bağlı; simülatör kapalı" bildirimini gösterir, `/api/v1/dev/*` 404 döner. Yönetici 2FA'sı dev ortamında isteğe bağlıdır (`ADMIN_TOTP_REQUIRED=false`); site herkese açık olduğundan proje sahibinin admin hesabında `/admin/guvenlik`'ten iki adımlı doğrulamayı açması önerilir.
 
 **Kurulum (bir kez):**
 1. Cloudflare hesabında **Workers Paid** planını açın (aylık 5 $; Containers bu planla gelir). Container sürekli açık kalırsa kullanım ücreti ayda yaklaşık 7 $ tutar; uyuyan container ücretlendirilmez.
@@ -547,22 +601,25 @@ Sistemi gerçek işletme verisi olmadan denemek ve göstermek için ayrı bir or
    - `CLOUDFLARE_API_TOKEN`: 2. adımdaki token.
    - `DEV_PASSWORD`: geliştirici araçlarının ve demo hesaplarının parolası, en az 8 karakter.
    - `CLOUDFLARE_ACCOUNT_ID`: yalnız token birden fazla hesaba erişiyorsa gerekir.
+   - İsteğe bağlı, gerçek WhatsApp için (§6.2a): `META_WA_TOKEN`, `META_WA_PHONE_NUMBER_ID`, `META_WA_WABA_ID`, `META_APP_SECRET`, `WA_PHONE`.
 4. GitHub > **Actions > "Dev ortamı (Cloudflare)" > Run workflow**. Sonraki her push, `main` ya da çalışma dalına, ortamı kendiliğinden günceller.
 
 **İş akışı** (`.github/workflows/deploy-dev-cloudflare.yml`):
 1. Tür denetimi ve Worker kural testleri (`npm run typecheck`, `npm test`).
 2. Hesabı bulur ve token'ın iş akışındaki `ZONE` (`yemekgelsin.net`) bölgesine erişimini denetler (Zone > Zone > Read ile bölge, Zone > Workers Routes > Edit ile Worker rotaları). workers.dev adresini yalnız yedek adres denetimi için bulur.
 3. Sitenin adresini iş akışındaki `SITE_URL` değerinden (varsayılan `https://yemekgelsin.net`) web derlemesine (`NEXT_PUBLIC_SITE_URL`) ve API'ye (`APP_BASE_URL`) yazar (`scripts/prepare-config.mjs`).
-4. Eksik gizli değerleri bir kez üretir (`scripts/secrets.mjs`): `SESSION_SECRET`, `TRACKING_SECRET`, `ENCRYPTION_KEY`, `WA_VERIFY_TOKEN`, `PLATFORM_WA_WEBHOOK_TOKEN` (ortak numara webhook yolu) ve VAPID çifti. Worker'da zaten olanlara dokunmaz; `ENCRYPTION_KEY` değişirse yedekteki şifreli veriler okunamaz. `DEV_PASSWORD` her dağıtımda GitHub secret'ından güncellenir.
+4. Eksik gizli değerleri bir kez üretir (`scripts/secrets.mjs`): `SESSION_SECRET`, `TRACKING_SECRET`, `ENCRYPTION_KEY`, `WA_VERIFY_TOKEN`, `PLATFORM_WA_WEBHOOK_TOKEN` (ortak numara webhook yolu) ve VAPID çifti. Worker'da zaten olanlara dokunmaz; `ENCRYPTION_KEY` değişirse yedekteki şifreli veriler okunamaz. `DEV_PASSWORD` her dağıtımda GitHub secret'ından güncellenir. WhatsApp secret'ları (`META_*`, `WA_PHONE`) yalnız doluysa yüklenir (`WA_PHONE` E.164'e çevrilir; geçersiz telefon ya da rakam olmayan Meta kimliği dağıtımı durdurur); GitHub'da boşaltılan WhatsApp secret'ı Worker'dan silinir (`wrangler secret delete`), çünkü `--secrets-file` eksik secret'ı silmez. Ayrı bir adım kipi yazar: dört zorunlu secret tamsa "gerçek", değilse "simülatör" (eksikler uyarıyla).
 5. `wrangler deploy` ile Worker'ı, container imajını ve Custom Domain'leri yayınlar. Yalnız wrangler'ın son hata bloğu Custom Domain API'sine (`/workers/domains`) aitse izin hatasında eksik izni, DNS çakışmasında silinecek kaydı Türkçe `::error::` ile yazar; imaj derleme ya da rollout hataları genel "wrangler deploy başarısız" iletisiyle raporlanır.
-6. Duman testi: `https://yemekgelsin.net/api/v1/health` 200 (Custom Domain, sertifika ve ilk açılış için en çok 15 dakika bekler; süreyle sınırlıdır, container açılamazsa da 15 dakikada Türkçe hatayla durur); `/`, `/s/bozok-pide`, `/s/camlik-doner`, `/panel/giris`, `/admin/giris` parolasız 200; ana sayfada ve vitrinde "Demo ortamı" uyarısı; `/dev/whatsapp` ve `/api/v1/dev/*` parolasız 401, `/dev/whatsapp` parolayla 200; ortak numara webhook yolu parolasız API'ye ulaşır (yanlış belirteçle 404); `www` → kök 301 (yalnız `SITE_URL` kök alan adındaysa); workers.dev'de API 200 ve sayfa gezinmesi → `yemekgelsin.net` (302). Sonuç iş akışı özetine yazılır.
+6. Duman testi: `https://yemekgelsin.net/api/v1/health` 200 (Custom Domain, sertifika ve ilk açılış için en çok 15 dakika bekler; süreyle sınırlıdır, container açılamazsa da 15 dakikada Türkçe hatayla durur); `/`, `/s/bozok-pide`, `/s/camlik-doner`, `/panel/giris`, `/admin/giris` parolasız 200; ana sayfada ve vitrinde "Demo ortamı" uyarısı; `/dev/whatsapp` ve `/api/v1/dev/*` parolasız 401, `/dev/whatsapp` parolayla 200; parolayla `/api/v1/dev/*` simülatör kipinde 200, gerçek WhatsApp kipinde 404 ve `/dev/whatsapp` "Gerçek WhatsApp bağlı" bildirimini gösterir; ortak numara webhook yolu parolasız API'ye ulaşır (yanlış belirteçle 404); `www` → kök 301 (yalnız `SITE_URL` kök alan adındaysa); workers.dev'de API 200 ve sayfa gezinmesi → `yemekgelsin.net` (302). Sonuç iş akışı özetine yazılır.
 
 **Kullanım:**
 - Site: https://yemekgelsin.net · Panel: `/panel/giris` · Admin: `/admin/giris`.
 - Demo hesapları README'deki e-postalardır; **parola her hesap için `DEV_PASSWORD`**: `demo@yemekgelsin.net` (Bozok Pide sahibi), `mudur@`, `kasa@`, `mutfak@`, `kurye@yemekgelsin.net`, `doner@yemekgelsin.net` (Çamlık Döner sahibi), platform yöneticisi `admin@yemekgelsin.net`.
 - Demo işletmeler: `/s/bozok-pide` (`#BOZOK`) ve `/s/camlik-doner` (`#DONER`).
-- WhatsApp akışları `/dev/whatsapp` simülatöründen denenir (tarayıcı kullanıcı adı ve parola sorar: kullanıcı adı `dev`, parola `DEV_PASSWORD`): numara "Yemek Gelsin · ortak numara" (`+905550000000`, mock); `#BOZOK` / `#DONER` çipleri dükkanın QR'ını okutmakla aynıdır, kodsuz yazınca dükkan seçici gelir.
+- Simülatör kipinde WhatsApp akışları `/dev/whatsapp` simülatöründen denenir (tarayıcı kullanıcı adı ve parola sorar: kullanıcı adı `dev`, parola `DEV_PASSWORD`): numara "Yemek Gelsin · ortak numara" (`+905550000000`, mock); `#BOZOK` / `#DONER` çipleri dükkanın QR'ını okutmakla aynıdır, kodsuz yazınca dükkan seçici gelir.
 - `DEV_PASSWORD` değişince (GitHub secret'ı güncellenip iş akışı çalışınca) container yeniden başlar ve seed demo hesaplarının parolasını yeni değere eşitler.
+
+**Gerçek WhatsApp (isteğe bağlı):** ortak numarayı gerçek Meta WhatsApp Cloud API'ye bağlamak için §6.2a'daki beş GitHub secret'ı eklenip iş akışı çalıştırılır. Worker (`src/whatsapp-env.ts`) `META_WA_TOKEN`, `META_WA_PHONE_NUMBER_ID`, `META_APP_SECRET` ve `WA_PHONE` birlikte varsa container'a `PLATFORM_WA_PROVIDER=cloud`, `PLATFORM_WA_API_KEY`, `PLATFORM_WA_PHONE_NUMBER_ID`, `PLATFORM_WA_WABA_ID` (varsa), `WA_APP_SECRET` (= `META_APP_SECRET`; ortak ve işletmeye özel webhook imzası), `PLATFORM_WA_DISPLAY_PHONE` (= `WA_PHONE`) ve `DEV_TOOLS=0` verir; biri eksikse eski düzen sürer (`mock`, `DEV_TOOLS=1`, `+905550000000`). Kip container günlüğüne yazılır ("WhatsApp: gerçek Meta Cloud API" / "WhatsApp: simülatör"). SMS ve işletmelerin kendi numaraları her iki kipte `mock`'tur. Kurulumun Meta tarafı ve admin düğmeleri §6.2a'dadır. **Veriler Türkiye dışında olduğundan gerçek kipte yalnız proje sahibinin kendi telefonlarıyla denenir**; gerçek müşteriler Türkiye VPS'ine geçildikten sonra gelir.
 
 **Sıfırlama (demo verisini baştan kurmak):** `deploy/cloudflare/wrangler.jsonc` içindeki `vars.DATA_EPOCH` değerini bir artırın (ör. `"2"` → `"3"`) ve push edin (ya da iş akışını elle çalıştırın). Yeni container yeni dönemde yedek bulamadığından boş veritabanı + seed ile açılır; kapanan eski container'ın son yedeği kendi dönemine (`e2/…`) yazılır. Eski dönemin nesneleri R2'de kalır; yer kaplamasın isterseniz Cloudflare > R2 > `siparisinonunde-dev-yedek` içinden eski önekli nesneleri (`e2/…` ya da öneksiz `db/…`, `uploads/…`) silebilirsiniz. Eski bir döneme dönmek önerilmez: o dönemin verisi geri gelir, `signup_open` bayrağı o dönemdeki haliyle kalır ve ilk (öneksiz) dönemde demo hesapları eski `@siparisinonunde.local` adresleridir (seed parolalarını `DEV_PASSWORD`'e eşitler, yeni `@yemekgelsin.net` hesapları eklenmez).
 

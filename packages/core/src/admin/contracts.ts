@@ -249,6 +249,131 @@ export const adminWaListResponseSchema = z.object({
 });
 export type AdminWaListResponse = z.infer<typeof adminWaListResponseSchema>;
 
+// ---------------------------------------------------------------------------
+// Ortak numara "WhatsApp kurulumu" (yalnız platform_owner, izin whatsapp:setup; 15 §6.2a). Gizli değerler (token, App
+// secret, webhook belirteci) hiçbir yanıtta tam dönmez; yalnız son 4 karakter. Webhook adresi ve doğrulama belirteci
+// ayrı, denetlenen "Göster" çağrısıyla (POST /admin/whatsapp/setup/reveal) alınır.
+
+const setupFieldSchema = z.object({
+  /** Değer tanımlı mı */
+  set: z.boolean(),
+  /** Son 4 karakter (••••1234); tanımsızsa null */
+  tail: z.string().nullable(),
+});
+
+/** Sonuç satırının tonu (arayüz rengi). */
+export const adminWaSetupToneSchema = z.enum(['ok', 'warn', 'bad', 'info']);
+export type AdminWaSetupTone = z.infer<typeof adminWaSetupToneSchema>;
+
+export const adminWaSetupStatusSchema = z.object({
+  provider: z.enum(['mock', 'cloud', 'd360']),
+  providerLabel: z.string(),
+  displayName: z.string(),
+  /** Ortak numara E.164 (platformun numarası) */
+  displayPhone: z.string().nullable(),
+  displayPhoneFormatted: z.string().nullable(),
+  graphApiVersion: z.string(),
+  fields: z.object({
+    phoneNumberId: setupFieldSchema,
+    wabaId: setupFieldSchema,
+    apiKey: setupFieldSchema,
+    appSecret: setupFieldSchema,
+    webhookToken: setupFieldSchema,
+    /** WA_VERIFY_TOKEN; isDefault: geliştirme varsayılanı (dev-verify) */
+    verifyToken: setupFieldSchema.extend({ isDefault: z.boolean() }),
+  }),
+  /** Webhook adresi, belirteç maskeli (…/shared/••••abcd) */
+  webhookUrlMasked: z.string().nullable(),
+  /** Meta adımları çalıştırılabilir mi (cloud + token + ilgili kimlik) */
+  actions: z.object({ test: z.boolean(), register: z.boolean(), subscribe: z.boolean(), templates: z.boolean() }),
+  /** Türkçe eksik/uyarı satırları (boşsa kurulum bilgileri tam) */
+  problems: z.array(z.string()),
+});
+export type AdminWaSetupStatus = z.infer<typeof adminWaSetupStatusSchema>;
+
+export const adminWaSetupRevealSchema = z.object({
+  /** Meta › WhatsApp › Configuration › Callback URL (tam adres); PLATFORM_WA_WEBHOOK_TOKEN yoksa null */
+  webhookUrl: z.string().nullable(),
+  /** Meta › Verify token (WA_VERIFY_TOKEN) */
+  verifyToken: z.string(),
+  /** Abone olunacak webhook alanı */
+  webhookField: z.literal('messages'),
+});
+export type AdminWaSetupReveal = z.infer<typeof adminWaSetupRevealSchema>;
+
+const setupRowSchema = z.object({ label: z.string(), value: z.string(), tone: adminWaSetupToneSchema });
+
+export const adminWaSetupTestSchema = z.object({
+  /** Numara kullanıma hazır mı (Cloud API'ye kayıtlı, doğrulanmış, ad onaylı ya da incelemesiz kullanılabilir) */
+  ready: z.boolean(),
+  phone: z.object({
+    id: z.string(),
+    displayPhoneNumber: z.string().nullable(),
+    verifiedName: z.string().nullable(),
+    nameStatus: z.string().nullable(),
+    qualityRating: z.string().nullable(),
+    codeVerificationStatus: z.string().nullable(),
+    platformType: z.string().nullable(),
+    throughputLevel: z.string().nullable(),
+  }),
+  /** Türkçe sonuç satırları */
+  rows: z.array(setupRowSchema),
+  /** Sonraki adım önerileri */
+  hints: z.array(z.string()),
+});
+export type AdminWaSetupTest = z.infer<typeof adminWaSetupTestSchema>;
+
+export const adminWaSetupRegisterBodySchema = z.object({
+  pin: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, 'PIN 6 haneli bir sayı olmalı.'),
+});
+export type AdminWaSetupRegisterBody = z.infer<typeof adminWaSetupRegisterBodySchema>;
+
+export const adminWaSetupRegisterSchema = z.object({ ok: z.literal(true), message: z.string() });
+export type AdminWaSetupRegister = z.infer<typeof adminWaSetupRegisterSchema>;
+
+export const adminWaSetupSubscriptionSchema = z.object({
+  /** WABA'ya en az bir uygulama abone mi */
+  subscribed: z.boolean(),
+  apps: z.array(z.object({ id: z.string().nullable(), name: z.string().nullable() })),
+  message: z.string(),
+});
+export type AdminWaSetupSubscription = z.infer<typeof adminWaSetupSubscriptionSchema>;
+
+export const adminWaTemplateStatusSchema = z.object({
+  name: z.string(),
+  audience: z.enum(['customer', 'platform']),
+  /** Meta'daki durum (APPROVED, PENDING, REJECTED, PAUSED, DISABLED …); Meta'da yoksa null */
+  status: z.string().nullable(),
+  statusLabel: z.string(),
+  tone: adminWaSetupToneSchema,
+  /** Meta'daki kategori (UTILITY beklenir) */
+  category: z.string().nullable(),
+  /** Meta kategoriyi UTILITY dışına çevirdi: durum bildirimi için kullanılmamalı (02 §5.4) */
+  categoryChanged: z.boolean(),
+  rejectedReason: z.string().nullable(),
+  rejectedReasonLabel: z.string().nullable(),
+  /** Koddaki gövde (Meta'ya gönderilen metin) */
+  body: z.string(),
+});
+export type AdminWaTemplateStatus = z.infer<typeof adminWaTemplateStatusSchema>;
+
+export const adminWaTemplatesSchema = z.object({
+  templates: z.array(adminWaTemplateStatusSchema),
+  summary: z.object({ total: int, approved: int, pending: int, rejected: int, missing: int }),
+  /** Yalnız "Şablonları gönder" yanıtında: oluşturulan, zaten var olduğu için atlanan, oluşturulamayan */
+  sync: z
+    .object({
+      created: z.array(z.string()),
+      skipped: z.array(z.string()),
+      failed: z.array(z.object({ name: z.string(), message: z.string() })),
+    })
+    .optional(),
+});
+export type AdminWaTemplates = z.infer<typeof adminWaTemplatesSchema>;
+
 export const adminNoteSchema = z.object({
   id,
   tenantId: id,

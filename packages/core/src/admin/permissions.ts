@@ -34,6 +34,11 @@ export const ADMIN_PERMISSIONS = {
   'notes:manage_any': ['platform_owner', 'platform_admin'],
   /** A-06 WhatsApp sağlığı görüntüleme (F yok). */
   'whatsapp:read': ['platform_owner', 'platform_admin', 'support_agent', 'sales_rep'],
+  /**
+   * Ortak numara "WhatsApp kurulumu" (webhook bilgilerini gösterme, Meta Graph çağrıları: bağlantı testi, numara kaydı,
+   * webhook aboneliği, şablon gönderimi). Yalnız platform sahibi; her aksiyon denetim kaydına yazılır.
+   */
+  'whatsapp:setup': ['platform_owner'],
   /** A-11 DLQ görüntüleme (SA okuma). */
   'jobs:read': ['platform_owner', 'platform_admin', 'support_agent'],
   /** A-11 yeniden işleme. */

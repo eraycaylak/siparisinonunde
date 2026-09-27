@@ -120,6 +120,7 @@ Gösterim: **✓** tam · **O** okuma · **K** kısıtlı (not sütununda) · **
 | A-05 Onboarding hunisi | ✓ | ✓ | ✓ | O | ✓ | |
 | A-06 WhatsApp sağlığı: görüntüleme / sağlık kontrolünü yeniden çalıştır | ✓ | ✓ | ✓ | — | O | |
 | Tenant gönderimini duraklat/sürdür, şablonları yeniden gönder | ✓ | ✓ | — | — | — | `sending_paused_reason = admin` |
+| A-06 Ortak numara "WhatsApp kurulumu" (webhook bilgilerini göster, Meta bağlantı testi, numara kaydı, webhook aboneliği, şablonları Meta'ya gönder) | ✓ | — | — | — | — | İzin `whatsapp:setup`; her aksiyon audit'e (sır/PIN yazılmaz); [15](15-kurulum-ve-isletim.md) §6.2a |
 | A-07 Maliyet defteri / rate card ve kur düzenleme | ✓ | ✓ | O | O | — | Rate card satırı değişmez, yenisi eklenir |
 | A-08 Plan liste fiyatı tanımı | ✓ | — | — | O | — | Dört göz |
 | Abonelik değişikliği, kurucu üye atama, havale eşleştirme, iade, hesap alacağı | ✓ | — | — | ✓ | K | SR yalnız teklif taslağı hazırlar; eşik üstü iade dört göz |

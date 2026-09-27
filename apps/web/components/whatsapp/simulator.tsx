@@ -10,6 +10,7 @@ import { Alert, Badge, Button, Card, CardContent, CardDescription, CardHeader, C
 import { apiFetch, errorMessage, useApiQuery } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { formatDateTime, formatTime } from '@/lib/format';
+import { SimulatorDisabledNotice } from './simulator-disabled';
 
 interface DevAccount {
   id: string;
@@ -253,6 +254,9 @@ export function WhatsappSimulator() {
     ...ownAccounts.map((a) => ({ value: a.id, label: `${a.tenantName} · ${a.displayPhone ?? a.provider} · kendi numarası` })),
   ];
   const chipClass = 'border border-border';
+
+  // API'nin geliştirici uçları yok (gerçek WhatsApp bağlı, DEV_TOOLS=0; 15 §13): simülatör yerine bilgilendirme
+  if (accounts.error?.status === 404) return <SimulatorDisabledNotice />;
 
   return (
     <div className="grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">

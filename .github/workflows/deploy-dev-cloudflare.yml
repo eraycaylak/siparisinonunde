@@ -7,6 +7,14 @@
 #   DEV_PASSWORD          — geliştirici araçlarının (/dev/*, /api/v1/dev/*) parolası; demo hesaplarının parolası da budur
 #                           (en az 8 karakter)
 #   CLOUDFLARE_ACCOUNT_ID — isteğe bağlı; token birden fazla hesaba erişiyorsa zorunlu
+# Gerçek WhatsApp (isteğe bağlı; docs/15 §6.2a). META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_APP_SECRET ve WA_PHONE
+# dördü birlikte varsa ortak numara gerçek Meta Cloud API ile çalışır ve simülatör kapanır; biri eksikse simülatör (mock):
+#   META_WA_TOKEN           — sistem kullanıcısı token'ı (süresiz; whatsapp_business_messaging + whatsapp_business_management)
+#   META_WA_PHONE_NUMBER_ID — Phone number ID (WhatsApp > API Setup)
+#   META_WA_WABA_ID         — WhatsApp Business Account ID (API Setup); admin kurulumundaki abonelik ve şablon adımları için
+#   META_APP_SECRET         — App secret (App settings > Basic); webhook imzası
+#   WA_PHONE                — ortak numara, ülke koduyla (E.164), ör. +905321234567
+# Secret eklemek/değiştirmek dağıtımı kendiliğinden başlatmaz: Actions > "Dev ortamı (Cloudflare)" > Run workflow.
 name: Dev ortamı (Cloudflare)
 
 on:
@@ -125,12 +133,56 @@ jobs:
             echo "::warning::workers.dev alt alan adı bulunamadı; yedek adres denetimi atlanacak"
           fi
 
+      # Ortak numara kipi: dört secret tamsa gerçek Meta Cloud API, değilse simülatör (Worker aynı kuralı uygular:
+      # src/whatsapp-env.ts). Duman testi beklentileri bu çıktıya göre seçilir. Değerler loga yazılmaz.
+      - name: WhatsApp kipi (gerçek numara ya da simülatör)
+        id: wa
+        env:
+          META_WA_TOKEN: ${{ secrets.META_WA_TOKEN }}
+          META_WA_PHONE_NUMBER_ID: ${{ secrets.META_WA_PHONE_NUMBER_ID }}
+          META_WA_WABA_ID: ${{ secrets.META_WA_WABA_ID }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          WA_PHONE: ${{ secrets.WA_PHONE }}
+        run: |
+          filled() { [ -n "$(printf '%s' "${!1}" | tr -d '[:space:]')" ]; }
+          missing=(); present=0
+          for n in META_WA_TOKEN META_WA_PHONE_NUMBER_ID META_APP_SECRET WA_PHONE; do
+            if filled "$n"; then present=$((present + 1)); else missing+=("$n"); fi
+          done
+          if [ ${#missing[@]} -eq 0 ]; then
+            echo "mode=cloud" >> "$GITHUB_OUTPUT"
+            echo "WhatsApp: gerçek Meta Cloud API (simülatör kapalı)"
+            filled META_WA_WABA_ID || echo "::warning::META_WA_WABA_ID secret'ı yok: admin > WhatsApp > WhatsApp kurulumu'ndaki \"Webhook aboneliğini aç\" ve \"Şablonları gönder\" adımları çalışmaz (docs/15 §6.2a)."
+          else
+            echo "mode=mock" >> "$GITHUB_OUTPUT"
+            if [ "$present" -gt 0 ]; then
+              echo "::warning::Gerçek WhatsApp için eksik GitHub secret: ${missing[*]}. Hepsi eklenene kadar simülatör (mock) çalışır (docs/15 §6.2a)."
+            else
+              echo "WhatsApp: simülatör (mock)"
+            fi
+          fi
+
       - name: Yapılandırma ve gizli değerler
+        env:
+          META_WA_TOKEN: ${{ secrets.META_WA_TOKEN }}
+          META_WA_PHONE_NUMBER_ID: ${{ secrets.META_WA_PHONE_NUMBER_ID }}
+          META_WA_WABA_ID: ${{ secrets.META_WA_WABA_ID }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          WA_PHONE: ${{ secrets.WA_PHONE }}
         run: |
           node scripts/prepare-config.mjs "$SITE_URL"
           # İlk dağıtımda Worker yoktur: liste boş sayılır, tüm gizli değerler üretilir
           npx wrangler secret list -c wrangler.generated.jsonc --format json > "$RUNNER_TEMP/existing.json" 2>/dev/null || echo '[]' > "$RUNNER_TEMP/existing.json"
+          # Gerçek WhatsApp secret'ları yalnız doluysa yüklenir (secrets.mjs; geçersiz telefon/kimlik burada durdurur)
           node scripts/secrets.mjs "$RUNNER_TEMP/existing.json" > "$RUNNER_TEMP/secrets.json"
+          # GitHub'da boşaltılan WhatsApp secret'ı Worker'dan da silinir: --secrets-file eksik secret'ı silmez; silinmezse
+          # container eski değerle gerçek kipte kalır ve duman testi beklentisiyle çelişir
+          for name in META_WA_TOKEN META_WA_PHONE_NUMBER_ID META_WA_WABA_ID META_APP_SECRET WA_PHONE; do
+            if [ -z "$(printf '%s' "${!name}" | tr -d '[:space:]')" ] && jq -e --arg n "$name" 'any(.[]?; .name == $n)' "$RUNNER_TEMP/existing.json" > /dev/null 2>&1; then
+              echo "Worker'daki $name siliniyor (GitHub secret'ı boş)"
+              npx wrangler secret delete "$name" -c wrangler.generated.jsonc
+            fi
+          done
 
       - name: Dağıt (Worker + container imajı + özel alan adı)
         run: |
@@ -162,6 +214,7 @@ jobs:
       - name: Duman testi
         env:
           WORKERS_DEV: ${{ steps.cf.outputs.workers_dev }}
+          WA_MODE: ${{ steps.wa.outputs.mode }}
         run: |
           code_of() { curl -s -o /dev/null -w '%{http_code}' --max-time "${2:-60}" "${@:3}" "$1" || true; }
           fail() { echo "::error::$1"; exit 1; }
@@ -200,6 +253,17 @@ jobs:
           code=$(code_of "$SITE_URL/dev/whatsapp" 60 -u "dev:$DEV_PASSWORD")
           [ "$code" = "200" ] || fail "/dev/whatsapp parolayla 200 dönmedi ($code)"
           echo "/dev/whatsapp → 401 parolasız, 200 parolayla"
+          # Gerçek WhatsApp kipinde simülatör kapalıdır: sayfa bildirimi gösterir, API'nin geliştirici uçları yoktur (404)
+          code=$(code_of "$SITE_URL/api/v1/dev/wa/accounts" 60 -u "dev:$DEV_PASSWORD")
+          if [ "$WA_MODE" = "cloud" ]; then
+            [ "$code" = "404" ] || fail "Gerçek WhatsApp kipinde /api/v1/dev/* parolayla 404 dönmedi ($code): simülatör kapanmamış"
+            page=$(curl -s --max-time 60 -u "dev:$DEV_PASSWORD" "$SITE_URL/dev/whatsapp" || true)
+            grep -q 'Gerçek WhatsApp bağlı' <<< "$page" || fail "/dev/whatsapp \"Gerçek WhatsApp bağlı; simülatör kapalı\" bildirimini göstermiyor"
+            echo "Gerçek WhatsApp: /api/v1/dev/* 404, /dev/whatsapp bildirim gösteriyor"
+          else
+            [ "$code" = "200" ] || fail "/api/v1/dev/* parolayla 200 dönmedi ($code)"
+            echo "Simülatör: /api/v1/dev/* parolayla 200"
+          fi
 
           # Ortak numara webhook'u parolasız API'ye ulaşır (Meta çağırır); yanlış belirteç API'den 404 döner
           code=$(code_of "$SITE_URL/api/v1/webhooks/wa/shared/yanlis-belirtec-0000000000" 60)
@@ -237,6 +301,10 @@ jobs:
             echo "- Adres: $SITE_URL (herkese açık; arama motorlarına kapalı)"
             echo "- Demo işletmeler: $SITE_URL/s/bozok-pide (#BOZOK), $SITE_URL/s/camlik-doner (#DONER)"
             echo "- Panel: $SITE_URL/panel/giris (demo@yemekgelsin.net, parola: DEV_PASSWORD) · Admin: $SITE_URL/admin/giris (admin@yemekgelsin.net)"
-            echo "- WhatsApp simülatörü (ortak numara): $SITE_URL/dev/whatsapp (kullanıcı adı: dev, parola: DEV_PASSWORD)"
+            if [ "$WA_MODE" = "cloud" ]; then
+              echo "- WhatsApp: gerçek numara (Meta Cloud API), simülatör kapalı. Kurulum adımları: $SITE_URL/admin/whatsapp > WhatsApp kurulumu (docs/15 §6.2a). Yalnız kendi telefonlarınızla deneyin (veriler Türkiye dışında)"
+            else
+              echo "- WhatsApp simülatörü (ortak numara): $SITE_URL/dev/whatsapp (kullanıcı adı: dev, parola: DEV_PASSWORD)"
+            fi
             echo "- Yeni işletme kaydı demo ortamında kapalı başlar; açmak için $SITE_URL/admin/bayraklar (docs/15 §13)"
           } >> "$GITHUB_STEP_SUMMARY"

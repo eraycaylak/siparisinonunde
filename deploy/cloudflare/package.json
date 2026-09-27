@@ -5,7 +5,7 @@
   "description": "Cloudflare dev/demo dağıtımı: Worker + tek container (PostgreSQL + API + worker + web). Bkz. docs/15 §13.",
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "test": "node --test scripts/access.test.mjs",
+    "test": "node --test scripts/access.test.mjs scripts/whatsapp-env.test.mjs",
     "deploy": "wrangler deploy"
   },
   "dependencies": {

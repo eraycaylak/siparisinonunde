@@ -12,8 +12,9 @@ import { Spinner } from '@/components/ui/spinner';
 import { Switch } from '@/components/ui/switch';
 import { useApiQuery } from '@/lib/api';
 import { formatDateTime, formatRelative } from '@/lib/format';
-import { HealthBadge, InfoRow, QueryError } from './common';
+import { HealthBadge, InfoRow, QueryError, useAdminAccess } from './common';
 import { WaAccountsTable } from './wa-table';
+import { WhatsappSetupSection } from './whatsapp-setup';
 
 /** A-06 WhatsApp sağlık tablosu: hata kırmızı, sessizlik (açık saatte 2 sa webhook yok) sarı. */
 export function WhatsappHealthScreen() {
@@ -23,6 +24,8 @@ export function WhatsappHealthScreen() {
     refetchInterval: 60_000,
   });
   const s = q.data?.summary;
+  // Ortak numara kurulumu (Meta bağlantısı, şablonlar): yalnız platform sahibi (izin whatsapp:setup; karar API'de)
+  const { can } = useAdminAccess();
 
   return (
     <>
@@ -49,6 +52,7 @@ export function WhatsappHealthScreen() {
         <Switch className="ms-auto" checked={problems} onCheckedChange={setProblems} label="Yalnız sorunlular" showStateText={false} />
       </div>
       {q.data?.sharedNumber ? <SharedNumberSummary s={q.data.sharedNumber} /> : null}
+      {can('whatsapp:setup') ? <WhatsappSetupSection /> : null}
       {q.isError ? <QueryError error={q.error} onRetry={() => void q.refetch()} /> : null}
       {q.isPending ? <Spinner label="Hesaplar yükleniyor" /> : null}
       {q.data && q.data.items.length === 0 ? (

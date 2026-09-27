@@ -44,6 +44,11 @@ export const configSchema = z.object({
   /** cloud: platform numarasının Graph phone_number_id'si (d360'ta gerekmez) */
   PLATFORM_WA_PHONE_NUMBER_ID: optionalString,
   /**
+   * cloud, isteğe bağlı: platform numarasının WhatsApp Business hesap kimliği (WABA ID). Yalnız admin "WhatsApp kurulumu"
+   * adımları kullanır (webhook aboneliği, şablonları Meta'ya gönderme); gönderim için gerekmez.
+   */
+  PLATFORM_WA_WABA_ID: optionalString,
+  /**
    * Ortak numara (00 §12a madde 8): platform numarasının E.164 gösterimi (wa.me bağlantıları, QR, Akış B). Uyarılar ve
    * müşteri siparişleri aynı platform numarasını kullanır. Boşsa mock'ta +905550000000; üretimde (mock dışı) zorunlu.
    */

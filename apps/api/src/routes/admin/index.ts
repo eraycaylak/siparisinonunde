@@ -12,6 +12,7 @@ import noteRoutes from './notes';
 import overviewRoutes from './overview';
 import tenantRoutes from './tenants';
 import whatsappRoutes from './whatsapp';
+import whatsappSetupRoutes from './whatsapp-setup';
 
 const routes: FastifyPluginAsyncZod = async (app) => {
   // Zorunlu TOTP kurulmadan hiçbir admin ucu çalışmaz (impersonation başlatma dahil; 00 §12a madde 7)
@@ -26,6 +27,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
   await app.register(impersonationRoutes);
   await app.register(noteRoutes);
   await app.register(whatsappRoutes);
+  await app.register(whatsappSetupRoutes);
   await app.register(jobRoutes);
   await app.register(flagRoutes);
   await app.register(leadRoutes);

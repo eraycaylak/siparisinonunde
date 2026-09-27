@@ -10,10 +10,14 @@
 //   - Container'ın "yedek.internal" adresine yaptığı istekleri R2'ye yazar/okur (veritabanı ve görsel yedeği);
 //     anahtarlar veri dönemi önekiyle (ör. e2/db/son.dump). Container dönemini açılışta alır ve yola yazar (/e2/db);
 //     DATA_EPOCH artırılınca yeni container yedek bulamaz, demo sıfırdan kurulur.
-// Gerçek işletme verisi bu ortama girmez: tüm sağlayıcılar mock, kişisel veri Türkiye dışında tutulamaz (00 §12a).
+// Ortak numara (WhatsApp) iki kipte çalışır (src/whatsapp-env.ts): varsayılan simülatör (mock); GitHub secret'ları
+// META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_APP_SECRET ve WA_PHONE (+ isteğe bağlı META_WA_WABA_ID) verilince gerçek Meta
+// Cloud API (simülatör kapanır). SMS her zaman mock. Gerçek işletme ve müşteri verisi bu ortama girmez: kişisel veri
+// Türkiye dışında tutulamaz (00 §12a); gerçek WhatsApp yalnız proje sahibinin kendi telefonlarıyla denemesi içindir.
 
 import { Container, ContainerProxy, getContainer, switchPort } from '@cloudflare/containers';
 import { isNavigation, isProtectedPath, normalizeEpoch, parseBackupPath, redirectFor } from './access';
+import { whatsappContainerEnv } from './whatsapp-env';
 
 export { ContainerProxy };
 
@@ -36,6 +40,17 @@ interface Env {
   PLATFORM_WA_WEBHOOK_TOKEN: string;
   VAPID_PUBLIC_KEY: string;
   VAPID_PRIVATE_KEY: string;
+  // Gerçek WhatsApp (isteğe bağlı GitHub secret'ları; iş akışı yalnız doluysa yükler, boşaltılınca siler; 15 §13)
+  /** Meta sistem kullanıcısı token'ı (süresiz) */
+  META_WA_TOKEN?: string;
+  /** Ortak numaranın Phone number ID'si */
+  META_WA_PHONE_NUMBER_ID?: string;
+  /** WhatsApp Business Account ID (admin kurulumundaki abonelik ve şablon adımları) */
+  META_WA_WABA_ID?: string;
+  /** Meta uygulamasının App secret'ı (webhook imzası) */
+  META_APP_SECRET?: string;
+  /** Ortak numara, E.164 */
+  WA_PHONE?: string;
 }
 
 const API_PORT = 4000;
@@ -93,10 +108,12 @@ export class AppContainer extends Container<Env> {
 
   constructor(ctx: DurableObjectState<{}>, env: Env) {
     super(ctx, env);
+    // Ortak numara kipi: META_* + WA_PHONE tamsa gerçek Meta Cloud API (DEV_TOOLS=0), değilse simülatör (DEV_TOOLS=1)
+    const wa = whatsappContainerEnv(env);
+    console.log(wa.mode === 'cloud' ? 'WhatsApp: gerçek Meta Cloud API (simülatör kapalı)' : `WhatsApp: simülatör (mock)${wa.missing.length < 4 ? `; eksik: ${wa.missing.join(', ')}` : ''}`);
     this.envVars = {
       NODE_ENV: 'production',
       DEPLOY_ENV: env.DEPLOY_ENV || 'dev',
-      DEV_TOOLS: '1',
       TZ: 'UTC',
       APP_BASE_URL: env.APP_BASE_URL,
       // Veri dönemi container'ın ömrü boyunca sabittir: entrypoint.sh yedek yoluna yazar (/e2/db). Geçersizse
@@ -106,13 +123,14 @@ export class AppContainer extends Container<Env> {
       TRACKING_SECRET: env.TRACKING_SECRET,
       ENCRYPTION_KEY: env.ENCRYPTION_KEY,
       WA_VERIFY_TOKEN: env.WA_VERIFY_TOKEN,
-      // Dev ortamında hiçbir gerçek mesaj gönderilmez (DEPLOY_ENV=dev yalnız bu koşulda DEV_TOOLS'a izin verir)
+      // İşletmenin kendi numarası dev'de hep simülatör (ortak numara kipinden bağımsız)
       WA_DEFAULT_PROVIDER: 'mock',
-      PLATFORM_WA_PROVIDER: 'mock',
-      // Ortak numara (00 §12a madde 8): tüm dükkanların tek numarası (mock; simülatörde "Yemek Gelsin · ortak
-      // numara"). Webhook belirteci tanımsızsa ortak webhook 404 döner; dev'de de gerçek yol denenebilsin diye verilir.
-      PLATFORM_WA_DISPLAY_PHONE: '+905550000000',
+      // Ortak numara (00 §12a madde 8): tüm dükkanların tek numarası. Webhook belirteci Meta'ya girilecek adresin
+      // parçasıdır (/api/v1/webhooks/wa/shared/<belirteç>); tanımsızsa ortak webhook 404 döner.
       PLATFORM_WA_WEBHOOK_TOKEN: env.PLATFORM_WA_WEBHOOK_TOKEN,
+      // DEV_TOOLS, PLATFORM_WA_PROVIDER, PLATFORM_WA_DISPLAY_PHONE (+ gerçek kipte PLATFORM_WA_API_KEY,
+      // PLATFORM_WA_PHONE_NUMBER_ID, PLATFORM_WA_WABA_ID, WA_APP_SECRET)
+      ...wa.env,
       SMS_PROVIDER: 'mock',
       // Yönetici 2FA'sı dev ortamında isteğe bağlı; sahibi /admin/guvenlik'ten açabilir
       ADMIN_TOTP_REQUIRED: 'false',
