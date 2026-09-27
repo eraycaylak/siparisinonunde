@@ -11,6 +11,8 @@ const healthResponse = z.object({
   db: z.enum(['up', 'down']),
   time: z.string(),
   uptimeSec: z.number(),
+  /** Çalışan sürüm (dağıtımın commit'i, APP_VERSION); dağıtım iş akışı yeni sürüm gelene kadar bekler. */
+  version: z.string().nullable(),
 });
 
 const workerHealthResponse = z.object({
@@ -35,7 +37,13 @@ const healthRoutes: FastifyPluginAsyncZod = async (app) => {
     } catch {
       db = 'down';
     }
-    const body = { ok: db === 'up', db, time: new Date().toISOString(), uptimeSec: Math.round(process.uptime()) };
+    const body = {
+      ok: db === 'up',
+      db,
+      time: new Date().toISOString(),
+      uptimeSec: Math.round(process.uptime()),
+      version: process.env.APP_VERSION || null,
+    };
     return reply.status(db === 'up' ? 200 : 503).send(body);
   });
 

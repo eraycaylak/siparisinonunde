@@ -221,7 +221,7 @@ jobs:
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           WA_PHONE: ${{ secrets.WA_PHONE }}
         run: |
-          node scripts/prepare-config.mjs "$SITE_URL" --mode "$MODE"
+          APP_VERSION="$GITHUB_SHA" node scripts/prepare-config.mjs "$SITE_URL" --mode "$MODE"
           # İlk dağıtımda Worker yoktur: liste boş sayılır, tüm gizli değerler üretilir
           npx wrangler secret list -c wrangler.generated.jsonc --format json > "$RUNNER_TEMP/existing.json" 2>/dev/null || echo '[]' > "$RUNNER_TEMP/existing.json"
           # Gerçek WhatsApp secret'ları yalnız alan adı kipinde ve doluysa yüklenir (secrets.mjs; geçersiz telefon/kimlik
@@ -281,18 +281,23 @@ jobs:
 
           # İlk dağıtımda özel alan adının DNS kaydı ve sertifikası birkaç dakika sürer; container ilk açılışta seed ile
           # kurulur. Süreyle sınırlı (15 dk): container açılamazsa her istek ~150 sn bekleyip 503 döner.
-          code=000; i=0
-          deadline=$((SECONDS + 900))
+          # Eski container, yenisi devralana kadar yanıt vermeye devam eder: sürüm (APP_VERSION = bu commit) eşleşene
+          # kadar beklenir, yoksa eski sürümü (ör. eski demo verisini) test etmiş oluruz.
+          code=000; ver=""; i=0
+          deadline=$((SECONDS + 1200))
           while [ "$SECONDS" -lt "$deadline" ]; do
             i=$((i + 1))
             left=$((deadline - SECONDS)); [ "$left" -gt 170 ] && left=170; [ "$left" -lt 10 ] && left=10
-            code=$(code_of "$SITE_URL/api/v1/health" "$left")
-            echo "sağlık denemesi $i: HTTP $code"
-            [ "$code" = "200" ] && break
+            body=$(curl -s --max-time "$left" -w '\n%{http_code}' "$SITE_URL/api/v1/health" || true)
+            code=$(printf '%s' "$body" | tail -n1)
+            ver=$(printf '%s' "$body" | sed '$d' | jq -r '.version // empty' 2>/dev/null || true)
+            echo "sağlık denemesi $i: HTTP $code, sürüm ${ver:-?}"
+            [ "$code" = "200" ] && [ "$ver" = "$GITHUB_SHA" ] && break
             [ $((deadline - SECONDS)) -gt 15 ] || break
             sleep 15
           done
           [ "$code" = "200" ] || fail "$SITE_URL/api/v1/health 200 dönmedi (son: $code). Özel alan adı, sertifika ya da container hazır değil (docs/15 §13 Sorun giderme)."
+          [ "$ver" = "$GITHUB_SHA" ] || fail "Yeni sürüm 20 dk içinde devreye girmedi (yanıt veren: ${ver:-bilinmiyor}, beklenen: $GITHUB_SHA)."
 
           if [ "$MODE" = "staging" ]; then
             # Gizli: parolasız 401 (sağlık uçları açık), parolayla demo verili site

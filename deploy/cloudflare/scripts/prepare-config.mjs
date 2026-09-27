@@ -26,6 +26,9 @@ try {
   console.error(err instanceof Error ? err.message : String(err));
   process.exit(1);
 }
+// Dağıtılan commit (iş akışı APP_VERSION=github.sha verir): container'a geçer, /api/v1/health'te görünür; duman testi
+// eski container yerine yeni sürüm yanıt verene kadar bekler.
+config.vars = { ...config.vars, APP_VERSION: process.env.APP_VERSION ?? '' };
 writeFileSync(join(root, 'wrangler.generated.jsonc'), `// scripts/prepare-config.mjs üretir; elle düzenlemeyin.\n${JSON.stringify(config, null, 2)}\n`);
 const v = config.vars;
 const iv = config.containers?.[0]?.image_vars ?? {};

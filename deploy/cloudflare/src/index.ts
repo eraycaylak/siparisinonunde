@@ -34,6 +34,8 @@ interface Env {
   DEPLOY_ENV: string;
   /** Veri dönemi: container'a açılışta verilir, R2 anahtarlarının öneki e<DATA_EPOCH>/; artırılınca veri sıfırdan kurulur (15 §13) */
   DATA_EPOCH: string;
+  /** Dağıtılan commit (prepare-config yazar); container'da APP_VERSION, sağlık ucunda görünür */
+  APP_VERSION?: string;
   /** domain (yemekgelsin.net, demo verisi yok) | staging (gizli, workers.dev, demo verili); 00 §12a madde 10 */
   DEPLOY_MODE?: string;
   /** Container'daki seed: admin (yalnız platform yöneticisi + bayraklar) | demo (demo işletmeler) */
@@ -124,6 +126,7 @@ export class AppContainer extends Container<Env> {
     console.log(wa.mode === 'cloud' ? 'WhatsApp: gerçek Meta Cloud API (simülatör kapalı)' : `WhatsApp: simülatör (mock)${wa.missing.length < 4 ? `; eksik: ${wa.missing.join(', ')}` : ''}`);
     this.envVars = {
       NODE_ENV: 'production',
+      APP_VERSION: env.APP_VERSION ?? '',
       DEPLOY_ENV: env.DEPLOY_ENV || 'dev',
       TZ: 'UTC',
       APP_BASE_URL: env.APP_BASE_URL,
