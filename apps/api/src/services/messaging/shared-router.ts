@@ -412,7 +412,7 @@ async function unavailableShopReply(db: Database, t: NonNullable<Awaited<ReturnT
 
 export type SharedDecision =
   /** keepCurrent: güncel dükkan değişmez (ör. başka dükkanın mesajına "DUR") */
-  | { kind: 'tenant'; account: WaAccountRow; selected: boolean; rule: string; keepCurrent?: boolean }
+  | { kind: 'tenant'; account: WaAccountRow; selected: boolean; rule: string; keepCurrent?: boolean; repeatCode?: boolean }
   | { kind: 'platform'; replies: PlatformReply[]; rule: string; auto?: boolean }
   | { kind: 'silent'; rule: string };
 
@@ -490,7 +490,8 @@ async function decide(db: Database, route: SharedRouteRow, ev: InboundEvent, now
         const [s] = await selectableSharedShops(db, { tenantIds: [t.id] });
         const acc = s ? await accountById(db, s.accountId) : null;
         // Etkin güncel dükkanın kodu (takip sayfası, fiş, vitrin bağlantısı hep #KOD taşır) yeni seçim değildir
-        if (acc && active?.tenantId === acc.tenantId) return toTenant(acc, false, 'shop_code_current');
+        // Yine de müşteri kodu AÇIKÇA gönderdi (QR'ı yeniden okuttu): uzun soğuma yerine yanıt verilir (repeatCode)
+        if (acc && active?.tenantId === acc.tenantId) return { kind: 'tenant', account: acc, selected: false, rule: 'shop_code_current', repeatCode: true };
         if (acc) return toTenant(acc, true, 'shop_code');
       }
       return { kind: 'platform', replies: [await unavailableShopReply(db, t)], rule: 'shop_code_unavailable' };
@@ -607,7 +608,7 @@ export async function routeSharedMessage(deps: EngineDeps, ev: InboundEvent, now
     deps.log.info({ rule: d.rule }, 'ortak numara: platform yanıtı');
     return { status: 'processed', decision: d.kind, rule: d.rule };
   }
-  const r = await handleInboundMessage(deps, d.account, ev, now, { selected: d.selected });
+  const r = await handleInboundMessage(deps, d.account, ev, now, { selected: d.selected, repeatCode: d.repeatCode === true });
   return {
     status: r.status,
     decision: 'tenant',

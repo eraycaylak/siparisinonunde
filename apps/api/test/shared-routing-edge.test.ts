@@ -156,16 +156,21 @@ describe('#KOD ve dükkan seçimi', () => {
     expect((await getConversation(ctx.db, conv.id)).mode).toBe('human');
   });
 
-  it('aynı dükkanın QR\'ını tekrar okutmak soğumalara uyar (30 dk içinde sessiz, sonra kısa karşılama)', async () => {
+  it('aynı dükkanın QR\'ını tekrar okutmak yanıtsız kalmaz: 60 sn çift gönderim koruması, sonra kısa karşılama (14 §9.x)', async () => {
     const phone = nextPhone();
     const t0 = new Date();
     const qr = text(sharedPrefillText('Bozok Pide Salonu', 'BOZOK'));
     await sharedInbound(ctx, { phone }, qr, { now: t0 });
     const conv = (await convOf(A, phone))!;
-    await sharedInbound(ctx, { phone }, qr, { now: plus(t0, 5 * MIN) });
+    await sharedInbound(ctx, { phone }, qr, { now: plus(t0, 20_000) });
     expect(await outCodes(ctx.db, conv.id)).toEqual(['M01']);
-    await sharedInbound(ctx, { phone }, qr, { now: plus(t0, 2 * HOUR) });
+    await sharedInbound(ctx, { phone }, qr, { now: plus(t0, 5 * MIN) });
     expect(await outCodes(ctx.db, conv.id)).toEqual(['M01', 'M01K']);
+    await sharedInbound(ctx, { phone }, qr, { now: plus(t0, 2 * HOUR) });
+    expect(await outCodes(ctx.db, conv.id)).toEqual(['M01', 'M01K', 'M01K']);
+    // Kodla birlikte SSS sorusu: olağan sıra (SSS yanıtı), kısa karşılama değil
+    await sharedInbound(ctx, { phone }, text('#BOZOK minimum sepet ne kadar'), { now: plus(t0, 3 * HOUR) });
+    expect((await outCodes(ctx.db, conv.id)).at(-1)).toBe('M28c');
   });
 
   it('dükkan seçen mesajda da (24 saat sonra #KOD) "yetkili" devreder, iptal isteği iptal akışına gider', async () => {

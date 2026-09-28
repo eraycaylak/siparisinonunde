@@ -123,6 +123,8 @@ export const COOLDOWNS = {
   codeFailWindow: 10 * MIN,
 } as const;
 export const CODE_FAIL_LIMIT = 5;
+/** Aynı dükkanın kodu yeniden gönderilince: son otomatik yanıttan bu kadar süre geçmediyse sessiz (çift dokunma). */
+export const REPEAT_CODE_GAP_MS = 60 * 1000;
 
 type BotStateRow = typeof conversationBotState.$inferSelect;
 
@@ -145,11 +147,19 @@ interface Ctx {
    * Soğuma süreleri beklenmeden durum kartı / kapalı bilgisi / karşılama (menü linki) gider.
    */
   selected?: boolean;
+  /**
+   * Ortak numara: müşteri ZATEN etkin olan dükkanın kodunu yeniden gönderdi (QR'ı yeniden okuttu, "#KOD" yazdı). Yeni
+   * seçim değildir ama açık istektir: kapalı bilgisinin 6 saatlik, karşılamanın 30 dakikalık soğuması yerine yalnız
+   * çift gönderim koruması (REPEAT_CODE_GAP_MS) uygulanır.
+   */
+  repeatCode?: boolean;
 }
 
 export interface InboundOptions {
   /** Ortak numara yönlendiricisi: dükkan bu mesajla seçildi (Ctx.selected) */
   selected?: boolean;
+  /** Ortak numara yönlendiricisi: etkin dükkanın kodu yeniden gönderildi (Ctx.repeatCode) */
+  repeatCode?: boolean;
 }
 
 export interface InboundResult {
@@ -394,7 +404,7 @@ export async function handleInboundMessage(
     await tx.update(customers).set({ lastInboundAt: inboundAt }).where(eq(customers.id, customer.id));
 
     const bot = await ensureBotState(tx, tenant.id, conv!.id);
-    const ctx: Ctx = { tx, deps, now, account, tenant, branch, customer, conv: conv!, bot, msg: ev.message, seq: 0, selected: opts.selected === true };
+    const ctx: Ctx = { tx, deps, now, account, tenant, branch, customer, conv: conv!, bot, msg: ev.message, seq: 0, selected: opts.selected === true, repeatCode: opts.repeatCode === true };
     await respond(ctx);
     // Gelen mesajın şube olayı en sonda: yanıt sırasında sipariş satırı (iptal, kod eşleşmesi) şube olay kilidinden
     // ÖNCE kilitlenir — panel işlemleriyle aynı kilit sırası (satır → şube), kilitlenme (40P01) olmaz.
@@ -454,6 +464,18 @@ async function respond(ctx: Ctx): Promise<void> {
 
   // 5b) Ortak numara: dükkan bu mesajla seçildi → soğuma beklemeden durum kartı / kapalı bilgisi / karşılama
   if (ctx.selected) return shopSelected(ctx, silent);
+  // 5c) Ortak numara: etkin dükkanın kodu yeniden geldi (QR'ı yeniden okuttu) → soğuma yerine çift gönderim koruması.
+  // Kodla birlikte SSS sorusu varsa ("#KOD saat kaça kadar açıksınız") olağan sıra işler (SSS yanıtı).
+  const faqIntent = m.kind === 'text' ? detectIntent(text) : null;
+  const isFaq = faqIntent === 'hours' || faqIntent === 'address' || faqIntent === 'zones' || faqIntent === 'payment';
+  if (ctx.repeatCode && !silent && !isFaq) {
+    const lastAuto = [ctx.conv.lastWelcomeAt, ctx.conv.lastNudgeAt, ctx.conv.lastStatusCardAt, lastSent(ctx, 'closed'), lastSent(ctx, 'paused')].reduce<Date | null>(
+      (a, b) => laterOf(a, b),
+      null,
+    );
+    if (since(ctx, lastAuto) < REPEAT_CODE_GAP_MS) return;
+    return shopSelected(ctx, silent, { repeat: true });
+  }
 
   // 6) İnsan modu / opt-out / bot kapalı → otomatik yanıt yok
   if (silent) return;
@@ -511,7 +533,7 @@ async function respond(ctx: Ctx): Promise<void> {
  * durum kartı (mesaj iptal isteğiyse iptal akışı) → şube kapalı / duraklatılmış → tam karşılama (menü linki; Akış A).
  * "yetkili" isteği bundan önce işlenir (respond 5).
  */
-async function shopSelected(ctx: Ctx, silent: boolean): Promise<void> {
+async function shopSelected(ctx: Ctx, silent: boolean, opts: { repeat?: boolean } = {}): Promise<void> {
   if (silent) return;
   const active = await findActiveOrder(ctx.tx, ctx.tenant.id, ctx.customer.id);
   if (active) {
@@ -529,6 +551,12 @@ async function shopSelected(ctx: Ctx, silent: boolean): Promise<void> {
   if (sched.state === 'paused') {
     await send(ctx, m04Paused({ devamSaati: sched.pausedUntil ? formatClockTR(sched.pausedUntil) : null, menuUrl: await menuLink(ctx) }));
     await markSent(ctx, 'paused');
+    return;
+  }
+  // Kod yeniden geldi ve tam karşılama yakın zamanda gitti: aydınlatmalı uzun metni tekrarlamadan kısa menü bağlantısı
+  if (opts.repeat && since(ctx, ctx.conv.lastWelcomeAt) < COOLDOWNS.fullWelcome) {
+    await send(ctx, m01kShortWelcome({ menuUrl: await menuLink(ctx) }));
+    await markSent(ctx, 'short');
     return;
   }
   return welcome(ctx, { force: true });

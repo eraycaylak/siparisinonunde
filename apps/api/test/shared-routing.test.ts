@@ -146,6 +146,23 @@ describe('dükkan seçimi (QR / #KOD)', () => {
     expect(await findSharedRoute(ctx.db, { phone })).toMatchObject({ currentTenantId: A.tenantId, recentTenantIds: [A.tenantId, B.tenantId] });
   });
 
+  it('etkin dükkanın kodunu (QR) yeniden gönderen yanıtsız kalmaz: kısa menü bağlantısı (M01K); 60 sn içinde ikinci kez sessiz', async () => {
+    const p2 = nextPhone();
+    const t1 = new Date();
+    await sharedInbound(ctx, { phone: p2, name: 'Eray' }, text(sharedPrefillText('Yozgat Pide Evi', 'PIDEEVI')), { now: t1 });
+    const conv = await convOf(E, p2);
+    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01']);
+    // 5 dk sonra aynı kod: eskiden 30 dk karşılama soğumasına takılıp sessiz kalıyordu
+    await sharedInbound(ctx, { phone: p2 }, text('#PIDEEVI'), { now: plus(t1, 5 * MIN) });
+    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01', 'M01K']);
+    // Çift dokunma: 30 sn sonra yine aynı kod → yanıt yok
+    await sharedInbound(ctx, { phone: p2 }, text('#PIDEEVI'), { now: plus(t1, 5 * MIN + 30_000) });
+    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01', 'M01K']);
+    // Kodsuz mesaj eski kurala tabi (soğuma içinde sessiz)
+    await sharedInbound(ctx, { phone: p2 }, text('merhaba'), { now: plus(t1, 7 * MIN) });
+    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01', 'M01K']);
+  });
+
   it('24 saatten eski yönlendirme: son 2 dükkan + "Diğer dükkanlar" butonu (P01); dükkan sohbetlerine girmez', async () => {
     const [ba, bb] = [await countMessages(A), await countMessages(B)];
     await sharedInbound(ctx, { phone }, text('merhaba'), { now: plus(t0, 25 * HOUR) });
