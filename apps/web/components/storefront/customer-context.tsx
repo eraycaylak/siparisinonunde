@@ -23,8 +23,10 @@ export function CustomerGreeting({ session, onForget, forgetting }: { session: S
   if (!session.customer) return null;
   const { name, phoneMasked } = session.customer;
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-border bg-[var(--brand-subtle)] px-3 py-2">
-      <UserRound aria-hidden className="size-5 shrink-0 text-fg" />
+    <div className="flex items-center gap-3 rounded-xl border border-border bg-surface-raised px-3 py-2.5 shadow-sm">
+      <span aria-hidden className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--brand-subtle)] text-[var(--brand-strong)]">
+        {name ? <span className="text-base font-bold">{name.trim()[0]?.toLocaleUpperCase('tr-TR')}</span> : <UserRound className="size-5" />}
+      </span>
       <p className="min-w-0 flex-1 text-base text-fg">
         <span className="font-semibold">Merhaba{name ? ` ${name}` : ''}</span>
         {phoneMasked ? <span className="block text-sm text-fg-muted">WhatsApp · {phoneMasked}</span> : null}
@@ -33,7 +35,7 @@ export function CustomerGreeting({ session, onForget, forgetting }: { session: S
         type="button"
         onClick={onForget}
         disabled={forgetting}
-        className="min-h-hit-sf shrink-0 rounded-md px-2 text-sm font-semibold text-fg underline underline-offset-4 disabled:opacity-50"
+        className="min-h-hit-sf shrink-0 rounded-full border border-border px-3 text-sm font-semibold text-fg hover:bg-accent disabled:opacity-50"
       >
         Ben değilim
       </button>

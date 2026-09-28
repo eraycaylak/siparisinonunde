@@ -15,7 +15,7 @@ export function StorefrontShell({ children, footer }: { children: ReactNode; foo
         <main id="icerik" className="flex-1 px-4 py-4">
           {children}
         </main>
-        <footer className="flex flex-col items-center gap-2 border-t border-border px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-4 text-center print:hidden">
+        <footer className="mt-6 flex flex-col items-center gap-3 border-t border-border px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-6 text-center print:hidden">
           {footer}
           <PlatformSignature />
         </footer>

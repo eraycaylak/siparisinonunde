@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { StorefrontView } from '@siparis/core/menu/contracts';
-import { clockLocative, deliverySummary, nextOpenText, orderingStatus } from './format';
+import { clockLocative, deliverySummary, nextOpenText, orderingStatus, storeInitials } from './format';
 import { planReorder, selectionErrors, unitPriceKurus } from './menu-logic';
 
 const P1 = '00000000-0000-4000-8000-000000000001';
@@ -58,6 +58,17 @@ function store(overrides: Partial<StorefrontView['branch']> = {}): StorefrontVie
     legal: { legalName: null, taxNo: null, taxOffice: null, address: null, phone: null, email: null },
   };
 }
+
+describe('storeInitials (logo yokken amblem)', () => {
+  it('ilk iki sözcüğün baş harfi, Türkçe büyük harf', () => {
+    expect(storeInitials('Bozok Pide Salonu')).toBe('BP');
+    expect(storeInitials('Deneme İşletmesi')).toBe('Dİ');
+    expect(storeInitials('çamlık döner')).toBe('ÇD');
+    expect(storeInitials('"Usta" Kebap & Pide')).toBe('UK');
+    expect(storeInitials('Tek')).toBe('T');
+    expect(storeInitials('  ')).toBe('•');
+  });
+});
 
 describe('clockLocative', () => {
   it('Türkçe ünlü uyumu ve sertleşme', () => {

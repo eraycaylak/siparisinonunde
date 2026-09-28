@@ -153,7 +153,7 @@ function MenuView({ slug, store }: { slug: string; store: StorefrontView }) {
             <label htmlFor="menu-ara" className="sr-only">
               Menüde ara
             </label>
-            <Search aria-hidden className="pointer-events-none absolute start-3 top-1/2 size-5 -translate-y-1/2 text-fg-muted" />
+            <Search aria-hidden className="pointer-events-none absolute start-4 top-1/2 size-5 -translate-y-1/2 text-fg-muted" />
             <input
               id="menu-ara"
               type="search"
@@ -161,7 +161,7 @@ function MenuView({ slug, store }: { slug: string; store: StorefrontView }) {
               onChange={(e) => setQ(e.target.value)}
               placeholder="Menüde ara…"
               autoComplete="off"
-              className="min-h-hit w-full rounded-md border border-border-strong bg-surface-raised ps-10 pe-12 text-base text-fg placeholder:text-fg-muted/80 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+              className="min-h-hit w-full rounded-full border border-border bg-surface ps-11 pe-12 text-base text-fg placeholder:text-fg-muted focus-visible:border-transparent focus-visible:bg-surface-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
             />
             {q ? (
               <button
@@ -280,8 +280,8 @@ function CategorySections({ categories, canOrder, onOpen, onQuickAdd }: Category
 
   return (
     <>
-      <nav aria-label="Kategoriler" className="sticky top-0 z-10 -mx-4 border-b border-border bg-bg/95 backdrop-blur supports-[backdrop-filter]:bg-bg/85">
-        <div ref={tabsRef} className="flex gap-2 overflow-x-auto px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <nav aria-label="Kategoriler" className="sticky top-0 z-10 -mx-4 border-b border-border bg-bg/95 shadow-[0_1px_0_0_var(--border)] backdrop-blur supports-[backdrop-filter]:bg-bg/85">
+        <div ref={tabsRef} className="flex gap-1 overflow-x-auto px-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {categories.map((c) => {
             const isActive = c.id === active;
             return (
@@ -295,11 +295,10 @@ function CategorySections({ categories, canOrder, onOpen, onQuickAdd }: Category
                   select(c.id);
                 }}
                 className={cn(
-                  'inline-flex min-h-hit-sf shrink-0 items-center rounded-full border px-4 text-sm font-semibold whitespace-nowrap transition-colors',
-                  'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
-                  isActive
-                    ? 'border-transparent bg-[var(--brand)] text-[var(--brand-contrast)]'
-                    : 'border-border-strong bg-surface-raised text-fg hover:bg-accent',
+                  'relative inline-flex min-h-hit shrink-0 items-center px-3 text-[15px] whitespace-nowrap transition-colors',
+                  'focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring',
+                  "after:absolute after:inset-x-3 after:bottom-0 after:h-[3px] after:rounded-t-full after:content-['']",
+                  isActive ? 'font-bold text-fg after:bg-[var(--brand-ui)]' : 'font-medium text-fg-muted hover:text-fg after:bg-transparent',
                 )}
               >
                 {c.name}
@@ -310,10 +309,11 @@ function CategorySections({ categories, canOrder, onOpen, onQuickAdd }: Category
       </nav>
       {categories.map((c) => (
         <section key={c.id} id={`k-${c.id}`} data-cat-section={c.id} aria-labelledby={`kh-${c.id}`} className="scroll-mt-16">
-          <h2 id={`kh-${c.id}`} className="mb-2 text-xl font-bold text-fg">
+          <h2 id={`kh-${c.id}`} className="mb-2 flex items-baseline gap-2 text-xl font-extrabold tracking-tight text-fg">
             {c.name}
+            <span className="text-sm font-medium text-fg-muted">{c.products.length}</span>
           </h2>
-          <ul className="flex flex-col gap-3">
+          <ul className="flex flex-col divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface-raised">
             {c.products.map((p) => (
               <ProductCard key={p.id} product={p} canOrder={canOrder} onOpen={() => onOpen(p)} onQuickAdd={() => onQuickAdd(p)} />
             ))}
@@ -327,19 +327,32 @@ function CategorySections({ categories, canOrder, onOpen, onQuickAdd }: Category
 function ProductCard({ product: p, canOrder, onOpen, onQuickAdd }: { product: StoreProduct; canOrder: boolean; onOpen: () => void; onQuickAdd: () => void }) {
   const hasOptions = p.optionGroups.length > 0;
   const canAdd = canOrder && !p.soldOut;
+  const addButton = canAdd ? (
+    <button
+      type="button"
+      onClick={hasOptions ? onOpen : onQuickAdd}
+      aria-label={hasOptions ? `${p.name}: seçenekleri gör` : `${p.name} sepete ekle`}
+      className="group inline-flex size-hit-sf items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+    >
+      <span className="inline-flex size-9 items-center justify-center rounded-full border border-border bg-surface-raised text-[var(--brand-strong)] shadow-md transition-transform group-hover:scale-105 group-active:scale-95">
+        <Plus aria-hidden className="size-5" strokeWidth={2.75} />
+      </span>
+    </button>
+  ) : null;
   return (
-    <li className={cn('flex items-stretch gap-2 rounded-lg border border-border bg-surface-raised p-3 shadow-sm', p.soldOut && 'bg-surface')}>
+    <li className={cn('relative', p.soldOut && 'bg-surface')}>
       <button
         type="button"
         onClick={onOpen}
-        className="flex min-w-0 flex-1 items-start gap-3 rounded-md text-start focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+        className="flex w-full min-w-0 items-start gap-3 px-4 py-4 text-start transition-colors hover:bg-accent/40 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
         aria-haspopup="dialog"
       >
-        <span className="flex min-w-0 flex-1 flex-col gap-1">
-          <span className={cn('break-words text-base font-semibold', p.soldOut ? 'text-fg-muted' : 'text-fg')}>{p.name}</span>
-          {p.description ? <span className="line-clamp-2 break-words text-sm text-fg-muted">{p.description}</span> : null}
-          <span className="mt-auto flex flex-wrap items-center gap-2">
-            <span className={cn('text-base font-bold tabular-nums', p.soldOut ? 'text-fg-muted' : 'text-[var(--brand-strong)]')}>{formatMoney(p.priceKurus)}</span>
+        <span className={cn('flex min-w-0 flex-1 flex-col gap-1', !p.imageUrl && canAdd && 'pe-12')}>
+          <span className={cn('break-words text-base font-semibold leading-snug', p.soldOut ? 'text-fg-muted' : 'text-fg')}>{p.name}</span>
+          {p.description ? <span className="line-clamp-2 break-words text-sm leading-snug text-fg-muted">{p.description}</span> : null}
+          <span className="mt-1.5 flex flex-wrap items-center gap-2">
+            <span className={cn('text-base font-bold tabular-nums', p.soldOut ? 'text-fg-muted' : 'text-fg')}>{formatMoney(p.priceKurus)}</span>
+            {hasOptions && !p.soldOut ? <span className="text-xs font-medium text-fg-muted">Seçenekli</span> : null}
             {p.soldOut ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-status-cancelled-bg px-2 py-0.5 text-xs font-semibold text-status-cancelled-fg">
                 <Ban aria-hidden className="size-3.5" />
@@ -354,21 +367,15 @@ function ProductCard({ product: p, canOrder, onOpen, onQuickAdd }: { product: St
             src={p.imageUrl}
             alt=""
             loading="lazy"
-            width={80}
-            height={80}
-            className={cn('size-20 shrink-0 rounded-md bg-surface object-cover', p.soldOut && 'opacity-50 grayscale')}
+            width={104}
+            height={104}
+            className={cn('size-26 shrink-0 rounded-lg bg-surface object-cover', p.soldOut && 'opacity-50 grayscale')}
           />
         ) : null}
       </button>
-      {canAdd ? (
-        <button
-          type="button"
-          onClick={hasOptions ? onOpen : onQuickAdd}
-          aria-label={hasOptions ? `${p.name}: seçenekleri gör` : `${p.name} sepete ekle`}
-          className="inline-flex size-hit shrink-0 items-center justify-center self-end rounded-full bg-[var(--brand)] text-[var(--brand-contrast)] shadow-sm hover:opacity-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          <Plus aria-hidden className="size-6" />
-        </button>
+      {addButton ? (
+        // Görselde: görselin sağ alt köşesinde; görselsiz: satırın sağında ortada
+        <div className={cn('absolute', p.imageUrl ? 'bottom-1 end-1' : 'end-2 top-1/2 -translate-y-1/2')}>{addButton}</div>
       ) : null}
     </li>
   );

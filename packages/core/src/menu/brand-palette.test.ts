@@ -29,8 +29,8 @@ describe('brandPalette (12 §5.1)', () => {
   });
 
   it('geçersiz/boş renk varsayılan palete düşer', () => {
-    expect(brandPalette(null).input).toBe(brandPalette('#C2410C').input);
-    expect(brandPalette('kırmızı').input).toBe('#C2410C');
+    expect(brandPalette(null).input).toBe(brandPalette('#C62828').input);
+    expect(brandPalette('kırmızı').input).toBe('#C62828');
     expect(normalizeHex('#abc')).toBe('#AABBCC');
   });
 

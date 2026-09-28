@@ -177,3 +177,13 @@ export function formatDelta(kurus: number): string {
   if (kurus === 0) return '';
   return `${kurus > 0 ? '+' : '−'}${formatMoney(Math.abs(kurus))}`;
 }
+
+/** Logo yokken amblem: adın ilk iki sözcüğünün baş harfleri ("Deneme İşletmesi" → "Dİ", "Bozok Pide Salonu" → "BP"). */
+export function storeInitials(name: string): string {
+  const words = name
+    .split(/\s+/)
+    .map((w) => w.replace(/[^\p{L}\p{N}]/gu, ''))
+    .filter(Boolean);
+  const letters = words.slice(0, 2).map((w) => w[0]!.toLocaleUpperCase('tr-TR'));
+  return letters.join('') || '•';
+}

@@ -9,6 +9,7 @@ import { Field } from '@/components/ui/field';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { errorMessage } from '@/lib/api';
+import { logoBrandColor } from '@/lib/dominant-color';
 import { currentRole, useMe } from '@/lib/auth';
 import { cn } from '@/lib/cn';
 import { useTenantSettings, useUpdateTenant } from './api';
@@ -147,7 +148,17 @@ export function BusinessForm({ embedded = false, onSaved }: { embedded?: boolean
             label="Logo"
             hint="Önerilen 1024×1024 px kare; PNG, JPEG ya da WebP, en çok 5 MB."
             value={form.logoUrl}
-            onChange={(v) => set('logoUrl', v)}
+            onChange={(v) => {
+              set('logoUrl', v);
+              // Renk henüz seçilmediyse logonun baskın rengi önerilir (12 §5.1); işletme değiştirebilir
+              if (v && !form.brandColor) {
+                void logoBrandColor(v).then((c) => {
+                  if (!c) return;
+                  setForm((f) => (f && !f.brandColor ? { ...f, brandColor: c } : f));
+                  toast.info('Marka rengi logonuzdan seçildi; dilerseniz aşağıdan değiştirebilirsiniz.');
+                });
+              }
+            }}
             minWidth={256}
             minHeight={256}
             error={errors.logoUrl}

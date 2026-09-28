@@ -2,8 +2,11 @@
 // OKLCH uzayında ton (h) ve kroma (C) korunur, yalnız açıklık (L) 0,02 adımlarla değişir.
 // Saf fonksiyon: sunucuda (SSR) hesaplanır, <style> olarak satır içine yazılır.
 
-/** Marka rengi seçilmemişse kullanılan renk (hazır paletin ilk rengi). */
-export const DEFAULT_BRAND_COLOR = '#C2410C';
+/**
+ * Marka rengi seçilmemişse kullanılan renk: paneldeki hazır paletin ilk rengi (settings/brand.ts BRAND_PRESETS[0]).
+ * Önceden turuncuydu (#C2410C): panel kırmızı önizlerken vitrin turuncu açılıyordu.
+ */
+export const DEFAULT_BRAND_COLOR = '#C62828';
 /** Gövde metni (ink) — 12 §3.2. */
 export const INK_TEXT = '#111827';
 export const WHITE = '#FFFFFF';

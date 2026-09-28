@@ -260,9 +260,11 @@ Her bileşenin Storybook'ta **tüm durumları × iki tema × gerçek Türkçe me
 8. **WhatsApp CTA** (S-06B "WhatsApp'ta onayla") işletme renginden bağımsızdır. WhatsApp yeşili `#25D366` zemin + `#111827` metin (8,94:1) + resmi glif kullanılır (§2.6). Beyaz metin bu yeşilde 1,98:1 kalır ve kullanılamaz.
 
 **Uygulama:** Palet P-26 kaydında sunucuda hesaplanır ve `brand_palette` alanında saklanır ([07](07-veri-modeli-ve-api.md) `tenants`). SSR sırasında `<style>:root{…}</style>` olarak satır içine yazılır; istemci JS'i gerekmez, performans bütçesi korunur ([06](06-teknik-mimari.md) §12). Koyulaştırma yapıldıysa panelde önizleme ve not gösterilir: "Renginiz okunabilirlik için hafif koyulaştırıldı." Aynı fonksiyon P-36 baskı üreticisinde de kullanılır.
+**Uygulama notu (28.09.2026):** Vitrinin varsayılanı panelle aynı hazır "Kırmızı"dır (`#C62828`; önceden vitrin `#C2410C` turuncuyla açılıyor, panel kırmızı önizliyordu). Logo yüklenince renk henüz seçilmemişse logonun baskın canlı rengi otomatik atanır (`apps/web/lib/dominant-color.ts`: şeffaf, gri, çok koyu ve çok açık pikseller sayılmaz; siyah-beyaz logoda varsayılan kalır) ve işletmeye "Marka rengi logonuzdan seçildi" bilgisi gösterilir.
 **Kabul kriterleri:** (1) 200 rastgele renkle özellik tabanlı test: tüm çıktılar 2–6. adımlardaki eşikleri sağlar. (2) Storefront'ta axe kontrast ihlali 0. (3) Renk değişikliği storefront'a 10 sn içinde yansır ([06](06-teknik-mimari.md) §12 kabul kriteri).
 
 ### 5.2 Logo, kapak görseli ve ürün görseli
+**Görsel yokken vitrin (28.09.2026):** Kapak yoksa düz renk bandı yerine marka renginden koyu tonuna geçişli, hafif desenli bir kapak alanı; logo yoksa adın ilk iki sözcüğünün baş harfleriyle marka renginde yuvarlatılmış kare amblem ("Bozok Pide Salonu" → "BP") gösterilir. Ürünler kategori başına tek kartta ayraçlı liste olarak durur; fotoğraf varsa sağda (104 px), "+" düğmesi fotoğrafın köşesinde, fotoğraf yoksa satırın sağında.
 
 | Varlık | Önerilen | En az | Biçim [T] | Kullanıldığı yer ve güvenli alan |
 |---|---|---|---|---|

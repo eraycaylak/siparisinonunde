@@ -33,13 +33,14 @@ export function CartBar({ count, subtotalKurus, onOpen }: { count: number; subto
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20" data-print-hide>
       <div className="pointer-events-auto mx-auto w-full max-w-2xl px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-        <button type="button" onClick={onOpen} className={cn(brandButtonClass, 'min-h-hit-primary w-full justify-between text-base shadow-lg')}>
-          <span className="flex items-center gap-2">
+        <button type="button" onClick={onOpen} className={cn(brandButtonClass, 'min-h-hit-primary w-full justify-between rounded-xl px-4 text-base shadow-xl')}>
+          <span className="flex items-center gap-2 font-bold">
             <ShoppingBag aria-hidden className="size-5" />
             Sepeti gör
           </span>
-          <span className="tabular-nums">
-            {count} ürün · {formatMoney(subtotalKurus)}
+          <span className="flex items-center gap-2 tabular-nums">
+            <span className="rounded-full bg-black/15 px-2 py-0.5 text-sm font-semibold">{count} ürün</span>
+            <span className="font-bold">{formatMoney(subtotalKurus)}</span>
           </span>
         </button>
       </div>
