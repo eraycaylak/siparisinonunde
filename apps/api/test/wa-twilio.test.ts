@@ -324,6 +324,14 @@ describe('Twilio webhook ayrıştırıcı (16 §2.5)', () => {
     expect(ev!.type === 'message' && ev!.message).toEqual({ kind: 'text', text: '#BOZOK' });
   });
 
+  it('gerçek gelen mesaj yükündeki SmsStatus=received durum sayılmaz: mesaj olayı üretir', () => {
+    const [ev] = parseTwilioWebhook({ ...base, SmsSid: 'SM1', SmsMessageSid: 'SM1', SmsStatus: 'received', Body: 'Selam', NumMedia: '0', MessageType: 'text' });
+    expect(ev).toMatchObject({ type: 'message', wamid: 'SM1' });
+    expect(ev!.type === 'message' && ev!.message).toEqual({ kind: 'text', text: 'Selam' });
+    // Giden mesajın durumu hâlâ durum olayıdır
+    expect(parseTwilioWebhook({ ...base, SmsStatus: 'delivered', MessageStatus: 'delivered' })[0]).toMatchObject({ type: 'status', status: 'delivered' });
+  });
+
   it('buton ve liste yanıtı kimlikleriyle gelir', () => {
     const [btn] = parseTwilioWebhook({ ...base, Body: 'Evet', ButtonText: 'Evet', ButtonPayload: 'order:42' });
     expect(btn!.type === 'message' && btn!.message).toEqual({ kind: 'button_reply', id: 'order:42', title: 'Evet' });

@@ -49,6 +49,12 @@ export function twilioStatus(v: string | undefined): 'sent' | 'delivered' | 'rea
   }
 }
 
+/** Gelen mesajın durum alanı ('received', 'receiving'): durum geri bildirimi değil, müşterinin mesajıdır. */
+export function isInboundStatus(v: string | undefined): boolean {
+  const s = (v ?? '').toLowerCase();
+  return s === 'received' || s === 'receiving';
+}
+
 /** MIME türü → NormalizedWaMessage medya türü. */
 export function mediaKindOf(contentType: string | undefined): 'image' | 'audio' | 'video' | 'document' | 'sticker' {
   const t = (contentType ?? '').toLowerCase();
@@ -105,9 +111,11 @@ export function parseTwilioWebhook(body: unknown): NormalizedWaEvent[] {
   if (!sid) return [];
   const accountSid = f(b, 'AccountSid') ?? null;
 
-  // Durum geri bildirimi: MessageStatus/SmsStatus var, gelen mesajda yok
+  // Durum geri bildirimi: giden mesajın MessageStatus/SmsStatus'u. DİKKAT: Twilio GELEN mesaj webhook'unda da
+  // SmsStatus=received gönderir; 'received'/'receiving' durum değil gelen mesajdır (canlıda bu yüzden müşteri
+  // mesajları olay üretmeden düşüyordu).
   const statusRaw = f(b, 'MessageStatus') ?? f(b, 'SmsStatus');
-  if (statusRaw) {
+  if (statusRaw && !isInboundStatus(statusRaw)) {
     const status = twilioStatus(statusRaw);
     if (!status) return [];
     const to: WaRecipient = {};
