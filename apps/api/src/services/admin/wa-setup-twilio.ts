@@ -142,7 +142,8 @@ export async function listWhatsappSenders(t: TwilioTarget): Promise<TwilioSender
 
 /** Ortak numaranın gönderen kaydı (sender_id = whatsapp:<E.164>); yoksa null. */
 export function findSender(senders: TwilioSender[], displayPhone: string | null): TwilioSender | null {
-  if (!displayPhone) return senders[0] ?? null;
+  // Numara tanımlı değilse "ilk gönderen" seçilmez: hesaptaki başka bir ürünün göndereninin webhook'u ezilebilirdi
+  if (!displayPhone) return null;
   const want = digits(displayPhone);
   return senders.find((s) => digits(str(s.sender_id) ?? '') === want) ?? null;
 }
@@ -210,7 +211,7 @@ async function requireSender(c: WaSetupConfig, t: TwilioTarget): Promise<TwilioS
       'twilio_sender_missing',
       phone
         ? `Twilio hesabında ${formatPhone(phone)} numarasına ait WhatsApp gönderen kaydı yok. console.twilio.com › Messaging › Senders › WhatsApp senders bölümünden numarayı ekleyin (doğrulama yöntemi: sesli arama).`
-        : "Twilio hesabında hiç WhatsApp gönderen kaydı yok. console.twilio.com › Messaging › Senders › WhatsApp senders bölümünden numarayı ekleyin.",
+        : 'Ortak numara tanımlı değil (GitHub secret WA_PHONE, ülke koduyla: +18509099295). Hangi Twilio göndereninin kullanılacağı bilinmeden webhook kaydedilmez.',
     );
   }
   return sender;
@@ -473,8 +474,9 @@ export function approvalToTemplateStatus(v: string | null | undefined): string |
     case 'disabled':
       return 'DISABLED';
     case 'unsubmitted':
-      // Kaynak var ama WhatsApp onayına gönderilmemiş: pencere içi mesajlarda çalışır, şablon olarak çalışmaz
-      return 'SUBMITTED';
+      // Kaynak var ama WhatsApp onayına gönderilmemiş (ör. onay isteği yarıda kaldı): şablon olarak çalışmaz;
+      // "Şablonları gönder" onu eksik sayıp yalnız onay isteğini yeniden gönderir
+      return 'UNSUBMITTED';
     default:
       return v ? v.toUpperCase() : null;
   }
@@ -496,6 +498,8 @@ export async function listTwilioTemplates(t: TwilioTarget): Promise<ContentAndAp
 }
 
 export interface TwilioTemplateRow {
+  /** Twilio ContentSid (HX…): onay isteği yarıda kalmışsa yeniden göndermek için */
+  id?: string;
   name?: string;
   status?: string;
   category?: string;
@@ -508,8 +512,10 @@ export function toTemplateRows(contents: ContentAndApproval[]): TwilioTemplateRo
   return contents.map((c) => {
     const ap = c.approval_requests ?? c.whatsapp ?? null;
     return {
+      id: c.sid,
       name: c.friendly_name,
-      status: approvalToTemplateStatus(ap?.status) ?? undefined,
+      // Onay kaydı hiç yoksa da onaya gönderilmemiş sayılır
+      status: approvalToTemplateStatus(ap?.status ?? 'unsubmitted') ?? undefined,
       category: ap?.category ? String(ap.category).toUpperCase() : undefined,
       language: c.language,
       rejected_reason: ap?.rejection_reason || undefined,
@@ -517,14 +523,21 @@ export function toTemplateRows(contents: ContentAndApproval[]): TwilioTemplateRo
   });
 }
 
-/** Şablonu Twilio'da oluşturur ve WhatsApp onayına gönderir. */
-export async function createTwilioTemplate(t: TwilioTarget, def: TemplateDef, appBaseUrl: string): Promise<void> {
-  const created = await twilioCall<{ sid?: string }>(t, 'POST', `${TWILIO_CONTENT_BASE}/Content`, {
-    json: twilioContentPayload(def, appBaseUrl),
-  });
-  if (!created.sid) throw new AppError(502, 'twilio_error', `Twilio "${def.name}" için içerik kimliği dönmedi.`);
-  cacheContentSid(def.name, created.sid);
-  await twilioCall(t, 'POST', `${TWILIO_CONTENT_BASE}/Content/${encodeURIComponent(created.sid)}/ApprovalRequests/whatsapp`, {
+/**
+ * Şablonu Twilio'da oluşturur ve WhatsApp onayına gönderir. `existingSid` verilirse (içerik var, onay isteği yarıda
+ * kalmış: UNSUBMITTED) içerik yeniden üretilmez, yalnız onay isteği gönderilir.
+ */
+export async function createTwilioTemplate(t: TwilioTarget, def: TemplateDef, appBaseUrl: string, existingSid?: string | null): Promise<void> {
+  let sid = existingSid ?? null;
+  if (!sid) {
+    const created = await twilioCall<{ sid?: string }>(t, 'POST', `${TWILIO_CONTENT_BASE}/Content`, {
+      json: twilioContentPayload(def, appBaseUrl),
+    });
+    if (!created.sid) throw new AppError(502, 'twilio_error', `Twilio "${def.name}" için içerik kimliği dönmedi.`);
+    sid = created.sid;
+  }
+  cacheContentSid(def.name, sid);
+  await twilioCall(t, 'POST', `${TWILIO_CONTENT_BASE}/Content/${encodeURIComponent(sid)}/ApprovalRequests/whatsapp`, {
     json: { name: def.name, category: def.category },
   });
 }

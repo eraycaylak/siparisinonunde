@@ -27,7 +27,7 @@ import type { FastifyInstance } from 'fastify';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import QRCode from 'qrcode';
 import { z } from 'zod';
-import { TWILIO_ACCOUNT_SID_RE, platformDisplayPhone } from '../../config';
+import { platformDisplayPhone } from '../../config';
 import { audit, auditActor } from '../../lib/audit';
 import { AppError, badRequest, conflict, notFound } from '../../lib/errors';
 import { isFlagEnabled } from '../../lib/flags';
@@ -190,7 +190,7 @@ async function buildResponse(app: FastifyInstance, tenantId: string, acc: WaAcco
       lastInboundAt: lastInboundAt?.toISOString() ?? null,
     },
     smsFallback: { tenantEnabled: t.smsFallbackEnabled, platformEnabled, active: smsActive },
-    providers: (['mock', 'd360', 'twilio', 'cloud'] as const satisfies readonly (typeof WA_OWN_PROVIDERS)[number][]).map((value) => ({ value, label: WA_PROVIDER_LABELS[value] })),
+    providers: (['mock', 'd360', 'cloud'] as const satisfies readonly (typeof WA_OWN_PROVIDERS)[number][]).map((value) => ({ value, label: WA_PROVIDER_LABELS[value] })),
   };
 }
 
@@ -258,15 +258,6 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     }
     if (b.provider === 'd360' && !hasKey) {
       throw badRequest('360dialog için API anahtarı gerekli.', { issues: [{ path: '/apiKey', message: 'API anahtarı gerekli.' }] });
-    }
-    // Twilio (16 §3.1): phone_number_id sütunu Account SID'i taşır; Auth Token api anahtarıdır
-    if (b.provider === 'twilio') {
-      if (!TWILIO_ACCOUNT_SID_RE.test(phoneNumberId ?? '')) {
-        throw badRequest('Twilio için hesap kimliği (Account SID) gerekli: "AC" ile başlayan 34 karakter.', {
-          issues: [{ path: '/phoneNumberId', message: 'Account SID "AC" ile başlayan 34 karakter olmalı.' }],
-        });
-      }
-      if (!hasKey) throw badRequest('Twilio için Auth Token gerekli.', { issues: [{ path: '/apiKey', message: 'Auth Token gerekli.' }] });
     }
     const values = {
       provider: b.provider,

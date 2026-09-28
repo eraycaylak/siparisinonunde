@@ -3,8 +3,9 @@
 //   - durum geri bildirimi adresi: her gönderime StatusCallback olarak eklenir; ortak webhook'un kendisidir, yani
 //     gelen mesajlarla aynı yol ve aynı imza doğrulaması (16 §2.5). Belirteç yoksa adres verilmez; Twilio o zaman
 //     Console'daki numara ayarını kullanır.
-// Sağlayıcı Twilio değilse de takılır: zararsızdır (Twilio sağlayıcısı kullanılmadıkça çağrılmaz) ve işletmenin
-// kendi numarası twilio ise (WA_DEFAULT_PROVIDER) aynı depo gerekir.
+// Sağlayıcı Twilio değilse de takılır: zararsızdır (Twilio sağlayıcısı kullanılmadıkça çağrılmaz). Twilio yalnız
+// platformun ortak numarasıdır (docs/16 §1): işletmenin kendi numarası Twilio olamaz, bu yüzden tek hesap ve tek
+// geri bildirim adresi yeterlidir.
 
 import type { Database } from '@siparis/db';
 import type { Config } from '../config';

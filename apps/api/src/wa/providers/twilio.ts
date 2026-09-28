@@ -9,7 +9,7 @@
 
 import { WaSendError } from '../errors';
 import { TWILIO_API_BASE, twilioCall, type TwilioTarget } from '../twilio-api';
-import { CONTENT_LANGUAGE, contentSidForSend, interactiveFallbackText, lookupContentSid, planInteractive } from '../twilio-content';
+import { CONTENT_LANGUAGE, contentSidForSend, forgetContentSid, interactiveFallbackText, lookupContentSid, planInteractive } from '../twilio-content';
 import { parseTwilioWebhook } from '../twilio-parse';
 import type { WaAccountRef, WaRecipient, WhatsAppProvider } from '../types';
 import { isGraphApiError } from '../graph-admin';
@@ -94,6 +94,22 @@ async function postMessage(acc: WaAccountRef, form: TwilioMessageForm): Promise<
   return { wamid: res.sid };
 }
 
+/**
+ * Twilio içerik kaynağını bulamadı / geçersiz saydı: 21655 (ContentSid geçersiz), 20404 (kaynak yok) ve şablon
+ * hataları (63005, 63021, 63036 → 132000). Kaynak Console'dan silinip aynı adla yeniden üretilmiş olabilir.
+ */
+const STALE_CONTENT_CODES = new Set(['21655', '20404', '132000']);
+
+/** İçerikli gönderim: kaynak bulunamazsa bayat kimlik unutulur, sonraki gönderim adı Twilio'da yeniden arar. */
+async function postContentMessage(acc: WaAccountRef, form: TwilioMessageForm, friendlyName: string): Promise<{ wamid: string }> {
+  try {
+    return await postMessage(acc, form);
+  } catch (err) {
+    if (err instanceof WaSendError && STALE_CONTENT_CODES.has(err.code)) await forgetContentSid(friendlyName).catch(() => undefined);
+    throw err;
+  }
+}
+
 export function createTwilioProvider(): WhatsAppProvider {
   return {
     name: 'twilio',
@@ -104,7 +120,7 @@ export function createTwilioProvider(): WhatsAppProvider {
       const plan = planInteractive(msg);
       if (!plan) return postMessage(acc, twilioMessageForm(acc, to, { body: interactiveFallbackText(msg) }));
       const contentSid = await contentSidForSend(twilioTargetOf(acc), plan.definition);
-      return postMessage(acc, twilioMessageForm(acc, to, { contentSid, contentVariables: plan.variables }));
+      return postContentMessage(acc, twilioMessageForm(acc, to, { contentSid, contentVariables: plan.variables }), plan.definition.friendlyName);
     },
 
     sendTemplate: async (acc, to, name, lang, params, buttons) => {
@@ -130,7 +146,7 @@ export function createTwilioProvider(): WhatsAppProvider {
       for (const b of buttons ?? []) {
         if (b.type === 'url') variables[String(next++)] = String(b.param);
       }
-      return postMessage(acc, twilioMessageForm(acc, to, { contentSid, contentVariables: variables }));
+      return postContentMessage(acc, twilioMessageForm(acc, to, { contentSid, contentVariables: variables }), name);
     },
 
     parseWebhook: (body) => parseTwilioWebhook(body),

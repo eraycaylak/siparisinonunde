@@ -136,10 +136,11 @@ export function whatsappContainerEnv(s: WhatsAppSecrets): WhatsAppContainerEnv {
   }
 
   // Twilio: Account SID + Auth Token + numara. Webhook imzası Auth Token'ladır (X-Twilio-Signature), Meta imza
-  // anahtarı (WA_APP_SECRET) yoktur; Account SID gönderim adresindeki kimliktir.
+  // anahtarı (WA_APP_SECRET) yoktur; Account SID gönderim adresindeki kimliktir. Yarım Twilio takımı (ör. eski bir
+  // TWILIO_ACCOUNT_SID) tam bir Meta takımını engellemez: iş akışı gibi yalnız tam anahtar takımı yol seçer.
   const twilioSid = clean(s.TWILIO_ACCOUNT_SID);
   const twilioToken = clean(s.TWILIO_AUTH_TOKEN);
-  if (twilioSid || twilioToken) {
+  if (twilioComplete(s) || ((twilioSid || twilioToken) && !metaComplete(s))) {
     const missingTwilio: string[] = [];
     if (!twilioSid) missingTwilio.push('TWILIO_ACCOUNT_SID');
     else if (!isTwilioAccountSid(twilioSid)) missingTwilio.push('TWILIO_ACCOUNT_SID (AC ile başlayan 34 karakter değil)');

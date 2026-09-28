@@ -236,6 +236,14 @@ test('üç yoldan ikisi birlikte verilirse belirsiz: hiçbiri seçilmez', () => 
   assert.equal(whatsappSecretsConflict({ ...D360, TWILIO_ACCOUNT_SID: FAKE_SID }), null);
 });
 
+test('yarım Twilio artığı tam Meta takımını engellemez (iş akışıyla aynı kural)', () => {
+  const r = whatsappContainerEnv({ ...FULL, TWILIO_ACCOUNT_SID: FAKE_SID });
+  assert.equal(r.mode, 'cloud');
+  assert.equal(r.env.PLATFORM_WA_PROVIDER, 'cloud');
+  const r2 = whatsappContainerEnv({ ...FULL, TWILIO_AUTH_TOKEN: 'eski' });
+  assert.equal(r2.mode, 'cloud');
+});
+
 test('secrets.mjs: Twilio secret\'ları yüklenir, biçimsiz Account SID dağıtımı durdurur', () => {
   const dir = mkdtempSync(join(tmpdir(), 'wa-twilio-'));
   const existing = join(dir, 'existing.json');

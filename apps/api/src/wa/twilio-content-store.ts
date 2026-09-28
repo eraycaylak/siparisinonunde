@@ -26,5 +26,11 @@ export function createDbTwilioContentStore(db: Database): TwilioContentStore {
         .where(and(eq(waContentTemplates.provider, PROVIDER), eq(waContentTemplates.friendlyName, friendlyName)));
       return row?.contentSid ?? contentSid;
     },
+
+    async forget(friendlyName: string): Promise<void> {
+      await db
+        .delete(waContentTemplates)
+        .where(and(eq(waContentTemplates.provider, PROVIDER), eq(waContentTemplates.friendlyName, friendlyName)));
+    },
   };
 }

@@ -66,7 +66,7 @@ export default function PrivacyPage() {
               <p>
                 Yurt dışına aktarım, 6698 sayılı KVKK’nın 9. maddesi uyarınca Kişisel Verileri Koruma Kurulu’nun ilan ettiği standart sözleşmeye
                 dayanılarak yapılır; standart sözleşme imzalandıktan sonra 5 iş günü içinde Kurum’a bildirilir. WhatsApp mesajlarının iletimi
-                için Meta Platforms ve aracı hizmet sağlayıcıları (yurt dışı), SMS gönderimi için yurt içi SMS sağlayıcısı kullanılır. Güncel alt
+                için Meta Platforms ve WhatsApp iş çözümü sağlayıcıları Twilio Inc. (ABD) ile 360dialog GmbH (Almanya) (yurt dışı), SMS gönderimi için yurt içi SMS sağlayıcısı kullanılır. Güncel alt
                 işleyen listesi yayımlanacaktır.
               </p>
             </>

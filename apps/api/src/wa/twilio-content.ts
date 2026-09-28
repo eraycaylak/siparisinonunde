@@ -28,6 +28,8 @@ export interface TwilioContentStore {
   get(friendlyName: string): Promise<string | null>;
   /** Kaydeder; başka bir süreç aynı adı önce yazdıysa GEÇERLİ olan (mevcut) kimliği döner. */
   put(friendlyName: string, contentSid: string, kind: ContentKind): Promise<string>;
+  /** Kaydı siler (Twilio kaynağı silinip aynı adla yeniden üretildiyse eski kimlik bayatlar). */
+  forget(friendlyName: string): Promise<void>;
 }
 
 /** Depo yokken (test, simülatör) yalnız bellek: süreç yeniden başlayınca Twilio listesinden sahiplenilir. */
@@ -41,24 +43,35 @@ function memoryStore(): TwilioContentStore {
       map.set(name, sid);
       return sid;
     },
+    forget: async (name) => {
+      map.delete(name);
+    },
   };
 }
 
 let store: TwilioContentStore = memoryStore();
 const sidCache = new Map<string, string>();
 const inFlight = new Map<string, Promise<string>>();
+/**
+ * Bulunamayan şablon adları → yeniden aranabileceği an (ms). Şablon yokken her gönderim Twilio listesini baştan
+ * sayfalamasın diye kısa süre hatırlanır; admin "Şablonları gönder" (cacheContentSid) kaydı hemen siler.
+ */
+const missingUntil = new Map<string, number>();
+export const MISSING_CONTENT_TTL_MS = 5 * 60_000;
 
 /** Uygulama açılışında çağrılır (app.ts, worker.ts): kalıcı depo. */
 export function setTwilioContentStore(s: TwilioContentStore | null): void {
   store = s ?? memoryStore();
   sidCache.clear();
   inFlight.clear();
+  missingUntil.clear();
 }
 
 /** Test yardımcısı: bellek önbelleğini boşaltır. */
 export function resetTwilioContentCache(): void {
   sidCache.clear();
   inFlight.clear();
+  missingUntil.clear();
 }
 
 // ---------------------------------------------------------------------------
@@ -221,6 +234,7 @@ async function resolveContentSid(
   const name = friendlyName;
   const cached = sidCache.get(name);
   if (cached) return cached;
+  if (!def && (missingUntil.get(name) ?? 0) > Date.now()) return null;
   // Aynı anda gelen ikinci çağrı aynı isteği bekler; bulunamadıysa boş dizge yerine null döner
   const running = inFlight.get(name);
   if (running) return running.then((v) => v || null);
@@ -235,7 +249,12 @@ async function resolveContentSid(
     return store.put(name, created, kind);
   })()
     .then((sid) => {
-      if (sid) sidCache.set(name, sid);
+      if (sid) {
+        sidCache.set(name, sid);
+        missingUntil.delete(name);
+      } else {
+        missingUntil.set(name, Date.now() + MISSING_CONTENT_TTL_MS);
+      }
       return sid;
     })
     .finally(() => {
@@ -274,4 +293,14 @@ export async function contentSidForSend(t: TwilioTarget, def: ContentDefinition)
 /** Test ve admin: bir kaynağı önbelleğe elle koyar (üretimden sonra). */
 export function cacheContentSid(friendlyName: string, sid: string): void {
   sidCache.set(friendlyName, sid);
+  missingUntil.delete(friendlyName);
+}
+
+/**
+ * Bayat kimliği unutur (bellek + kalıcı depo): Twilio kaynağı bulamadığında çağrılır. Sonraki gönderim adı Twilio
+ * listesinde yeniden arar; kaynak silinip aynı adla yeniden üretildiyse yeni kimliği bulur.
+ */
+export async function forgetContentSid(friendlyName: string): Promise<void> {
+  sidCache.delete(friendlyName);
+  await store.forget(friendlyName);
 }

@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { API_PREFIX } from '../src/app';
 import { API_WA_WEBHOOK_PATH, formToObject, twilioWebhookUrl } from '../src/routes/webhooks/wa';
-import { registerNumber, setupStatus } from '../src/services/admin/wa-setup';
+import { registerNumber, setupStatus, syncTemplates } from '../src/services/admin/wa-setup';
 import {
   approvalToTemplateStatus,
   findSender,
@@ -270,6 +270,26 @@ describe('Twilio sağlayıcı çağrıları', () => {
     expect(JSON.parse(f.ContentVariables!)).toEqual({ '1': 'Bozok Pide', '2': '#1042', '3': 'tok-1' });
   });
 
+  it('şablon yokken Twilio listesi her gönderimde yeniden sayfalanmaz (kısa süre hatırlanır)', async () => {
+    const calls = fakeFetch([{ body: { contents: [], meta: {} } }]);
+    await fail(getWaProvider('twilio').sendTemplate(acc, to, 'siparis_alindi_v1', 'tr', ['Ayşe']));
+    await fail(getWaProvider('twilio').sendTemplate(acc, to, 'siparis_alindi_v1', 'tr', ['Ayşe']));
+    expect(calls).toHaveLength(1);
+  });
+
+  it('bayat içerik kimliği: Twilio kaynağı bulamazsa unutulur, sonraki gönderim adı yeniden arar', async () => {
+    const calls = fakeFetch([
+      { body: { contents: [{ sid: 'HXeski', friendly_name: 'siparis_alindi_v1' }], meta: {} } },
+      { status: 400, body: { code: 21655, message: 'The ContentSid is Invalid', status: 400 } },
+      { body: { contents: [{ sid: 'HXyeni', friendly_name: 'siparis_alindi_v1' }], meta: {} } },
+      { body: { sid: 'SM8' } },
+    ]);
+    await fail(getWaProvider('twilio').sendTemplate(acc, to, 'siparis_alindi_v1', 'tr', ['Ayşe']));
+    const r = await getWaProvider('twilio').sendTemplate(acc, to, 'siparis_alindi_v1', 'tr', ['Ayşe']);
+    expect(r.wamid).toBe('SM8');
+    expect(form(calls[3]!).ContentSid).toBe('HXyeni');
+  });
+
   it('hata kodları Meta karşılığına çevrilir: 63016 → pencere kapalı, 20003 → token', async () => {
     fakeFetch([{ status: 400, body: { code: 63016, message: 'outside session', status: 400 } }]);
     const closed = await fail<WaSendError>(getWaProvider('twilio').sendText(acc, to, 'x'));
@@ -398,6 +418,26 @@ describe('Twilio kurulum durumu (16 §4)', () => {
     expect(JSON.stringify(s)).not.toContain(AUTH_TOKEN);
   });
 
+  it('şablon senkronu: içerik var ama onay isteği yarıda kalmışsa yalnız onay isteği yeniden gönderilir', async () => {
+    const [half, ...rest] = WA_TEMPLATE_CATALOG;
+    const listed = (halfStatus: string) => ({
+      contents: [
+        { sid: 'HXyarim', friendly_name: half!.name, language: 'tr', approval_requests: { status: halfStatus } },
+        ...rest.map((d, i) => ({ sid: `HX${i}`, friendly_name: d.name, language: 'tr', approval_requests: { status: 'approved' } })),
+      ],
+      meta: {},
+    });
+    const calls = fakeFetch([{ body: listed('unsubmitted') }, { body: {} }, { body: listed('pending') }]);
+    const r = await syncTemplates(base as never);
+    expect(r.sync).toEqual({ created: [half!.name], skipped: rest.map((d) => d.name), failed: [] });
+    expect(calls.map((c) => `${c.method} ${c.url.split('?')[0]}`)).toEqual([
+      'GET https://content.twilio.com/v1/ContentAndApprovals',
+      'POST https://content.twilio.com/v1/Content/HXyarim/ApprovalRequests/whatsapp',
+      'GET https://content.twilio.com/v1/ContentAndApprovals',
+    ]);
+    expect(r.templates.find((t) => t.name === half!.name)?.status).toBe('PENDING');
+  });
+
   it('eksik Account SID / Auth Token ve biçimsiz SID sorun satırı üretir, adımları kapatır', () => {
     const noSid = setupStatus({ ...base, PLATFORM_WA_PHONE_NUMBER_ID: undefined });
     expect(noSid.problems.join(' ')).toMatch(/Account SID tanımlı değil/);
@@ -431,6 +471,8 @@ describe('Twilio admin kurulumu (16 §4)', () => {
     expect(findSender(senders, '+1 850 909 9295')?.sid).toBe('XE2');
     expect(findSender(senders, '+905321234567')).toBeNull();
     expect(findSender([], '+18509099295')).toBeNull();
+    // Numara tanımlı değilse hesaptaki ilk gönderen seçilmez (başka ürünün webhook'u ezilmesin)
+    expect(findSender(senders, null)).toBeNull();
   });
 
   it('webhook adresi maskelenir: ortak adresimizde yalnız son 4 karakter', () => {
@@ -444,7 +486,7 @@ describe('Twilio admin kurulumu (16 §4)', () => {
     expect(approvalToTemplateStatus('approved')).toBe('APPROVED');
     expect(approvalToTemplateStatus('pending')).toBe('PENDING');
     expect(approvalToTemplateStatus('rejected')).toBe('REJECTED');
-    expect(approvalToTemplateStatus('unsubmitted')).toBe('SUBMITTED');
+    expect(approvalToTemplateStatus('unsubmitted')).toBe('UNSUBMITTED');
     expect(approvalToTemplateStatus(null)).toBeNull();
   });
 

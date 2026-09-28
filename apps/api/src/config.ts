@@ -36,7 +36,8 @@ export const configSchema = z.object({
       return false;
     }
   }, 'ENCRYPTION_KEY 32 bayt base64 olmalı'),
-  WA_DEFAULT_PROVIDER: z.enum(['mock', 'cloud', 'd360', 'twilio']).default('mock'),
+  /** İşletmenin kendi numarasının varsayılan sağlayıcısı; twilio yalnız ortak numarada (PLATFORM_WA_PROVIDER) kullanılır (docs/16 §1) */
+  WA_DEFAULT_PROVIDER: z.enum(['mock', 'cloud', 'd360']).default('mock'),
   WA_APP_SECRET: optionalString,
   WA_VERIFY_TOKEN: z.string().default('dev-verify'),
   PLATFORM_WA_PROVIDER: z.enum(['mock', 'cloud', 'd360', 'twilio']).default('mock'),

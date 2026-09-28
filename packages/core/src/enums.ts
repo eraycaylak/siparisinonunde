@@ -419,8 +419,8 @@ export const LEGAL_DOCUMENT_LABELS: Record<LegalDocument, string> = {
   mesafeli_satis: 'Mesafeli satış sözleşmesi',
   on_bilgilendirme: 'Ön bilgilendirme formu',
 };
-/** Taslak yasal metin sürümü (hukuki inceleme bekliyor). 27.09.2026: barındırma Cloudflare, yurt dışına aktarım KVKK m.9 (00 §12a madde 10). */
-export const LEGAL_DOCUMENT_VERSION = '2026-09-27-taslak';
+/** Taslak yasal metin sürümü (hukuki inceleme bekliyor). 27.09.2026: barındırma Cloudflare, yurt dışına aktarım KVKK m.9 (00 §12a madde 10). 28.09.2026: WhatsApp iş çözümü sağlayıcıları (Twilio, 360dialog) adıyla yazıldı. */
+export const LEGAL_DOCUMENT_VERSION = '2026-09-28-taslak';
 
 // WhatsApp (14 §4, §8)
 /**
@@ -437,10 +437,17 @@ export const WA_PROVIDER_LABELS: Record<WaProvider, string> = {
   twilio: 'Twilio',
   shared: 'Ortak numara',
 };
-/** İşletmenin kendi numarası için seçilebilen sağlayıcılar (panel "WhatsApp bağlantısı"). */
-export const WA_OWN_PROVIDERS = ['mock', 'cloud', 'd360', 'twilio'] as const;
+/**
+ * İşletmenin kendi numarası için seçilebilen sağlayıcılar (panel "WhatsApp bağlantısı"). Twilio burada YOKTUR: Twilio
+ * yalnız platformun ortak numarası içindir (docs/16 §1); içerik kaynakları, durum geri bildirimi ve webhook imzası
+ * platform hesabına bağlıdır.
+ */
+export const WA_OWN_PROVIDERS = ['mock', 'cloud', 'd360'] as const;
 export type WaOwnProvider = (typeof WA_OWN_PROVIDERS)[number];
 export const waOwnProviderSchema = zEnum(WA_OWN_PROVIDERS);
+/** Platform numarasının (ortak numara, PLATFORM_WA_PROVIDER) sağlayıcıları: kendi numara sağlayıcıları + twilio. */
+export const WA_PLATFORM_PROVIDERS = ['mock', 'cloud', 'd360', 'twilio'] as const;
+export type WaPlatformProvider = (typeof WA_PLATFORM_PROVIDERS)[number];
 
 /** İşletmenin WhatsApp modu (00 §12a madde 8): ortak platform numarası (varsayılan) ya da kendi numarası. */
 export const WA_MODES = ['shared', 'own'] as const;

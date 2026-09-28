@@ -469,6 +469,8 @@ const TEMPLATE_STATUS: ToneMap = {
   APPROVED: ['Onaylandı', 'ok'],
   PENDING: ['İncelemede', 'warn'],
   SUBMITTED: ['İncelemede', 'warn'],
+  // Twilio: içerik var ama onaya gönderilmemiş; "Şablonları gönder" onay isteğini yeniden gönderir
+  UNSUBMITTED: ['Onaya gönderilmedi', 'bad'],
   IN_APPEAL: ['İtirazda', 'warn'],
   REJECTED: ['Reddedildi', 'bad'],
   PAUSED: ['Duraklatıldı', 'bad'],
@@ -498,8 +500,8 @@ export const TEMPLATE_FIELDS = 'name,status,category,language,rejected_reason';
 interface TemplateStore {
   /** Sağlayıcıdaki tüm şablonlar (Graph biçiminde; Twilio kendi yanıtını bu biçime çevirir) */
   list: () => Promise<GraphTemplate[]>;
-  /** Tek şablonu oluşturur (Twilio'da ayrıca WhatsApp onayına gönderir) */
-  create: (def: TemplateDef) => Promise<void>;
+  /** Tek şablonu oluşturur (Twilio'da ayrıca WhatsApp onayına gönderir; `existing` onaya gönderilmemiş kayıt) */
+  create: (def: TemplateDef, existing?: GraphTemplate) => Promise<void>;
   /** list: liste/tümden durduran hata; create: tek şablonun hatası */
   mapError: (err: GraphApiError, ctx: 'list' | 'create') => AppError;
   /** "Bu adla şablon zaten var": atlandı sayılır */
@@ -543,7 +545,7 @@ function templateStore(c: WaSetupConfig): TemplateStore {
       mapError: (err, ctx) => twilioErrorToAppError(err, ctx === 'create' ? 'template' : 'templates'),
       exists: twilioAlreadyExists,
       list: async () => toTemplateRows(await listTwilioTemplates(t)),
-      create: (def) => createTwilioTemplate(t, def, c.APP_BASE_URL),
+      create: (def, existing) => createTwilioTemplate(t, def, c.APP_BASE_URL, existing?.id),
     };
   }
   if (c.PLATFORM_WA_PROVIDER === 'd360') {
@@ -667,7 +669,9 @@ export async function syncTemplates(c: WaSetupConfig): Promise<AdminWaTemplates>
   const store = templateStore(c);
   requireHttpsBase(c, HTTPS_TEMPLATES);
   const existing = await fetchAllTemplates(store);
-  const have = new Set(existing.filter((t) => t.name && isTr(t)).map((t) => t.name!));
+  // Onaya gönderilmemiş kayıt (Twilio: UNSUBMITTED) var sayılmaz: onay isteği yeniden gönderilir
+  const unsubmitted = new Map(existing.filter((t) => t.name && isTr(t) && String(t.status ?? '').toUpperCase() === 'UNSUBMITTED').map((t) => [t.name!, t]));
+  const have = new Set(existing.filter((t) => t.name && isTr(t) && !unsubmitted.has(t.name)).map((t) => t.name!));
   const created: string[] = [];
   const skipped: string[] = [];
   const failed: { name: string; message: string }[] = [];
@@ -677,7 +681,7 @@ export async function syncTemplates(c: WaSetupConfig): Promise<AdminWaTemplates>
       continue;
     }
     try {
-      await store.create(def);
+      await store.create(def, unsubmitted.get(def.name));
       created.push(def.name);
     } catch (err) {
       if (!isGraphApiError(err)) throw err;

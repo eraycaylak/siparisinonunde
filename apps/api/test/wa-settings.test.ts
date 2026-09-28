@@ -46,6 +46,15 @@ describe('GET/PUT /panel/whatsapp', () => {
     expectError(await ctx.request({ method: 'PUT', url: '/api/v1/panel/whatsapp', cookie: a.ownerCookie, body: { provider: 'cloud', displayPhone: '05321234567', apiKey: 'x' } }), 400, 'bad_request');
     expectError(await ctx.request({ method: 'PUT', url: '/api/v1/panel/whatsapp', cookie: a.ownerCookie, body: { provider: 'd360', displayPhone: '05321234567' } }), 400, 'bad_request');
     expectError(await ctx.request({ method: 'PUT', url: '/api/v1/panel/whatsapp', cookie: a.ownerCookie, body: { provider: 'mock', displayPhone: 'abc' } }), 400, 'bad_request');
+    // Twilio yalnız ortak numaradır (docs/16 §1): işletmenin kendi numarası için seçilemez
+    const twilio = await ctx.request({
+      method: 'PUT',
+      url: '/api/v1/panel/whatsapp',
+      cookie: a.ownerCookie,
+      body: { provider: 'twilio', displayPhone: '05321234567', phoneNumberId: `AC${'0'.repeat(32)}`, apiKey: 'tok' },
+    });
+    expect(twilio.statusCode, twilio.body).toBe(400);
+    expect(await ctx.db.select().from(waAccounts).where(eq(waAccounts.tenantId, a.tenantId))).toHaveLength(0);
   });
 
   it('360dialog kaydı: anahtar şifreli saklanır, maskeli döner, webhook adresi', async () => {

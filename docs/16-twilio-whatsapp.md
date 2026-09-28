@@ -21,6 +21,13 @@ Ortak numara (00 §12a madde 8) bugüne kadar iki yoldan bağlanabiliyordu: **36
 Karar (28.09.2026): düşük hacimde (ayda 10.000 mesajın altı) Twilio, yüksek hacimde 360dialog. Kod her iki
 yolu da taşır; seçim **yalnız GitHub secret'larıyla** yapılır, kod değişmez.
 
+**Yalnız ortak numara:** Twilio yalnız platformun ortak numarasının (`PLATFORM_WA_PROVIDER`) yoludur. İşletmenin
+kendi numarası (panel "WhatsApp bağlantısı", `WA_OWN_PROVIDERS`, `WA_DEFAULT_PROVIDER`) Twilio seçemez: içerik
+kaynakları (`wa_content_templates`), durum geri bildirimi adresi ve webhook imzası tek platform hesabına bağlıdır.
+
+**KVKK:** Twilio Inc. (ABD) yurt dışı alt işleyendir; 08 §2.11 envanterinde ve aydınlatma metinlerinde adıyla yazılıdır
+(değişmez kural 7). Kurul standart sözleşmesi ve 5 iş günü içinde Kurum bildirimi proje sahibinin yapılacaklarıdır.
+
 **Değişmez kural 1 korunur:** Twilio, Meta'nın resmî BSP'sidir (Business Solution Provider). Resmî olmayan
 kütüphane (Baileys, whatsapp-web.js, Evolution API) hiçbir koşulda eklenmez.
 
@@ -95,6 +102,12 @@ kaynak kimliği olarak saklanır.
    (`approved` / `pending` / `rejected` / `unsubmitted`).
 
 Gönderimde şablon adı → `ContentSid`, parametreler → `ContentVariables`.
+
+- **Yarıda kalan onay:** içerik oluşup onay isteği başarısız olduysa durum `unsubmitted` (ekranda "Onaya gönderilmedi")
+  görünür; "Şablonları gönder" içeriği yeniden üretmez, yalnız onay isteğini tekrar gönderir.
+- **Bayat kimlik:** Twilio `ContentSid`'i bulamazsa (21655, 20404 ya da şablon hatası; ör. kaynak Console'dan silinip
+  aynı adla yeniden üretildi) kimlik bellekten ve `wa_content_templates`'ten silinir; sonraki gönderim adı Twilio'da
+  yeniden arar. Bulunamayan şablon adı 5 dakika hatırlanır (her gönderim listeyi baştan sayfalamaz).
 
 ### 2.5 Webhook
 
@@ -183,8 +196,9 @@ Twilio'da **yoktur**; ekranda gizlenir ve çağrılırsa 409 `wa_setup_not_cloud
 
 1. **BSUID yok:** Twilio yalnız telefon numarasıyla çalışır; WhatsApp'ın kimliksiz (username) akışı bu yolda desteklenmez.
 2. **Coexistence echo yok:** Twilio `smb_message_echoes` benzeri bir olay yayınlamaz; işletme telefonundan yazılan mesajlar panele düşmez.
-3. **Numara Console'da bağlanır:** WhatsApp gönderen kaydı (numara doğrulaması, görünen ad, profil) Twilio Console'da yapılır; buradan yalnız okunur ve webhook'u yazılır. SMS alamayan numaralarda doğrulama yöntemi olarak "Phone call" seçilir.
-4. **Şablon değişkenleri tek sayaçtır:** Twilio içeriğinde gövde ve URL butonu aynı `{{n}}` uzayını paylaşır; dinamik URL butonunun parametresi gövde değişkenlerinden sonra numaralanır (`twilioContentPayload` ve sağlayıcının `sendTemplate`'i aynı sırayı üretir).
-5. **Deneme (trial) hesabı:** yalnız doğrulanmış numaralara mesaj gider ve mesajın başına Twilio uyarısı eklenir; bağlantı testi bunu ayrı satırda uyarır.
-6. **`messages.payload.request` Cloud API biçimindedir:** giden mesajın teşhis kaydı sağlayıcıdan bağımsız kanonik gövdeyi saklar (`specRequestBody`), Twilio'ya giden form gövdesini değil.
-7. **Fiyat:** Twilio'nun 0,005 $/mesaj payı Meta ücretinin üstüne biner; hacim büyüdüğünde 360dialog'a geçiş `PLATFORM_WA_PROVIDER` değişikliğidir, veri göçü gerekmez.
+3. **Pencere kapalı hatası geç gelebilir:** `63016` gönderim yanıtında gelirse şablona düşülür; Twilio mesajı kabul edip hatayı yalnız durum geri bildiriminde bildirirse mesaj `failed` olarak işaretlenir, şablona düşülmez (Meta Cloud API yolundaki `131047` ile aynı sınır). Pencere, son gelen mesaj zamanından takip edilir.
+4. **Numara Console'da bağlanır:** WhatsApp gönderen kaydı (numara doğrulaması, görünen ad, profil) Twilio Console'da yapılır; buradan yalnız okunur ve webhook'u yazılır. SMS alamayan numaralarda doğrulama yöntemi olarak "Phone call" seçilir.
+5. **Şablon değişkenleri tek sayaçtır:** Twilio içeriğinde gövde ve URL butonu aynı `{{n}}` uzayını paylaşır; dinamik URL butonunun parametresi gövde değişkenlerinden sonra numaralanır (`twilioContentPayload` ve sağlayıcının `sendTemplate`'i aynı sırayı üretir).
+6. **Deneme (trial) hesabı:** yalnız doğrulanmış numaralara mesaj gider ve mesajın başına Twilio uyarısı eklenir; bağlantı testi bunu ayrı satırda uyarır.
+7. **`messages.payload.request` Cloud API biçimindedir:** giden mesajın teşhis kaydı sağlayıcıdan bağımsız kanonik gövdeyi saklar (`specRequestBody`), Twilio'ya giden form gövdesini değil.
+8. **Fiyat:** Twilio'nun 0,005 $/mesaj payı Meta ücretinin üstüne biner; hacim büyüdüğünde 360dialog'a geçiş `PLATFORM_WA_PROVIDER` değişikliğidir, veri göçü gerekmez.
