@@ -2,6 +2,8 @@
 // Kullanım: (1) gösterim (panel sohbeti, simülatör, platform uyarı kaydı: renderTemplateBody); (2) admin "WhatsApp kurulumu"
 // şablonları Meta'ya bu tanımlardan gönderir (services/admin/wa-setup.ts). Gönderimde yalnız ad + parametreler gider;
 // Meta'daki gövde buradaki metnin aynısıdır. Metin değişirse yeni sürüm açılır (_v2); eski ad Meta'da onaylı kalır.
+// Meta kuralı: gövde değişkenle BAŞLAYAMAZ ve BİTEMEZ (sondaki nokta sayılmaz; 2388299). v1'de onaylandı/hazır/yolda
+// "Sipariş no: {{3}}." gibi değişkenle bittiği için reddedildi, v2'de kapanış cümlesi var (testle denetlenir).
 //
 // Değişken sırası core'daki CUSTOMER_TEMPLATES / PLATFORM_TEMPLATES `params` dizisidir (gönderen kod da onu kullanır:
 // order-notify.ts templateParams, platform-alert.ts). Butonlar gönderen kodla uyumludur:
@@ -14,9 +16,11 @@ import { CUSTOMER_TEMPLATES, PLATFORM_TEMPLATES, type CustomerTemplateName, type
 
 const CUSTOMER_TEMPLATE_BODIES: Record<CustomerTemplateName, string> = {
   siparis_alindi_v1: 'Merhaba {{1}}, {{2}} siparişinizi aldı. Sipariş no: {{3}}, tutar: {{4}}. İşletme onayladığında size buradan haber vereceğiz.',
-  siparis_onaylandi_v1: 'Siparişiniz onaylandı. {{1}} siparişinizi hazırlamaya başladı, tahmini süre {{2}} dakika. Sipariş no: {{3}}.',
-  siparis_hazir_v1: 'Siparişiniz hazır. {{1}} sizi bekliyor. Sipariş no: {{2}}. Adres: {{3}}.',
-  siparis_yolda_v1: 'Siparişiniz yola çıktı. {{1}} kuryesi yaklaşık {{2}} dakika içinde adresinizde olacak. Sipariş no: {{3}}. Ödeme: {{4}}.',
+  siparis_onaylandi_v2:
+    'Siparişiniz onaylandı. {{1}} siparişinizi hazırlamaya başladı, tahmini süre {{2}} dakika. Sipariş no: {{3}}. Durum değiştiğinde size buradan haber vereceğiz.',
+  siparis_hazir_v2: 'Siparişiniz hazır. {{1}} sizi bekliyor. Sipariş no: {{2}}. Adres: {{3}}. Teslim alırken sipariş numaranızı söylemeniz yeterli.',
+  siparis_yolda_v2:
+    'Siparişiniz yola çıktı. {{1}} kuryesi yaklaşık {{2}} dakika içinde adresinizde olacak. Sipariş no: {{3}}. Ödeme: {{4}}. Afiyet olsun!',
   siparis_teslim_v1:
     'Siparişiniz teslim edildi, afiyet olsun! {{1}} olarak bizi tercih ettiğiniz için teşekkür ederiz. Sipariş no: {{2}}. Deneyiminizi aşağıdaki bağlantıdan paylaşabilirsiniz.',
   siparis_reddedildi_v1: 'Üzgünüz, {{1}} siparişinizi şu anda alamıyor. Sebep: {{2}}. Sipariş no: {{3}}. Anlayışınız için teşekkür ederiz.',

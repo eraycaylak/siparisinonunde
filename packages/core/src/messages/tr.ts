@@ -732,9 +732,9 @@ export function sms03bCancelled(v: { isletme: string; no: string; sebep: string;
 
 export const CUSTOMER_TEMPLATES = {
   siparis_alindi_v1: { params: ['musteriAdi', 'isletme', 'no', 'tutar'], button: 'track' },
-  siparis_onaylandi_v1: { params: ['isletme', 'dk', 'no'], button: 'track' },
-  siparis_hazir_v1: { params: ['isletme', 'no', 'subeAdres'], button: 'track' },
-  siparis_yolda_v1: { params: ['isletme', 'dk', 'no', 'odeme'], button: 'track' },
+  siparis_onaylandi_v2: { params: ['isletme', 'dk', 'no'], button: 'track' },
+  siparis_hazir_v2: { params: ['isletme', 'no', 'subeAdres'], button: 'track' },
+  siparis_yolda_v2: { params: ['isletme', 'dk', 'no', 'odeme'], button: 'track' },
   siparis_teslim_v1: { params: ['isletme', 'no'], button: 'review' },
   siparis_reddedildi_v1: { params: ['isletme', 'sebep', 'no'], button: null },
   siparis_iptal_v1: { params: ['no', 'sebep', 'isletme'], button: null },
@@ -809,11 +809,11 @@ export function templateForStatus(status: OrderStatus, ctx: { cancelReason?: Can
     case 'new':
       return 'siparis_alindi_v1';
     case 'accepted':
-      return 'siparis_onaylandi_v1';
+      return 'siparis_onaylandi_v2';
     case 'ready':
-      return 'siparis_hazir_v1';
+      return 'siparis_hazir_v2';
     case 'on_the_way':
-      return 'siparis_yolda_v1';
+      return 'siparis_yolda_v2';
     case 'delivered':
       return 'siparis_teslim_v1';
     case 'rejected':

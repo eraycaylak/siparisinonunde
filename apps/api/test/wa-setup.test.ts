@@ -385,9 +385,9 @@ describe('Mesaj şablonları', () => {
   it('GET: sayfalı liste (after imleci), durum/ret sebebi/kategori değişimi Türkçe; eksikler "Meta\'da yok"', async () => {
     templateStore([
       { name: 'siparis_alindi_v1', status: 'APPROVED' },
-      { name: 'siparis_onaylandi_v1', status: 'REJECTED', rejected_reason: 'INVALID_FORMAT' },
-      { name: 'siparis_hazir_v1', status: 'APPROVED', category: 'MARKETING' },
-      { name: 'siparis_yolda_v1', status: 'PENDING' },
+      { name: 'siparis_onaylandi_v2', status: 'REJECTED', rejected_reason: 'INVALID_FORMAT' },
+      { name: 'siparis_hazir_v2', status: 'APPROVED', category: 'MARKETING' },
+      { name: 'siparis_yolda_v2', status: 'PENDING' },
       { name: 'baska_sablon', status: 'APPROVED' },
       { name: 'siparis_teslim_v1', status: 'APPROVED', language: 'en_US' },
       { name: 'isletme_yeni_siparis_v1', status: 'PAUSED' },
@@ -403,9 +403,9 @@ describe('Mesaj şablonları', () => {
     const by = Object.fromEntries((body.templates as { name: string }[]).map((t) => [t.name, t])) as Record<string, Record<string, unknown>>;
     expect(body.templates).toHaveLength(WA_TEMPLATE_CATALOG.length);
     expect(by.siparis_alindi_v1).toMatchObject({ status: 'APPROVED', statusLabel: 'Onaylandı', tone: 'ok', categoryChanged: false });
-    expect(by.siparis_onaylandi_v1).toMatchObject({ status: 'REJECTED', statusLabel: 'Reddedildi', tone: 'bad', rejectedReason: 'INVALID_FORMAT', rejectedReasonLabel: expect.stringMatching(/Geçersiz biçim/) });
-    expect(by.siparis_hazir_v1).toMatchObject({ categoryChanged: true, category: 'MARKETING' });
-    expect(by.siparis_yolda_v1).toMatchObject({ statusLabel: 'İncelemede', tone: 'warn' });
+    expect(by.siparis_onaylandi_v2).toMatchObject({ status: 'REJECTED', statusLabel: 'Reddedildi', tone: 'bad', rejectedReason: 'INVALID_FORMAT', rejectedReasonLabel: expect.stringMatching(/Geçersiz biçim/) });
+    expect(by.siparis_hazir_v2).toMatchObject({ categoryChanged: true, category: 'MARKETING' });
+    expect(by.siparis_yolda_v2).toMatchObject({ statusLabel: 'İncelemede', tone: 'warn' });
     // Yalnız başka dilde olan şablon Türkçe için yok sayılır
     expect(by.siparis_teslim_v1).toMatchObject({ status: null, statusLabel: "Meta'da yok" });
     expect(by.isletme_yeni_siparis_v1).toMatchObject({ status: 'PAUSED', tone: 'bad' });
@@ -417,13 +417,13 @@ describe('Mesaj şablonları', () => {
   it('POST: yalnız eksikler oluşturulur (gövde kodla birebir, konumsal değişken + örnek, butonlar); ikinci çalıştırma hiçbir şey oluşturmaz', async () => {
     const store = templateStore([
       { name: 'siparis_alindi_v1', status: 'APPROVED' },
-      { name: 'siparis_onaylandi_v1', status: 'REJECTED', rejected_reason: 'PROMOTIONAL' },
+      { name: 'siparis_onaylandi_v2', status: 'REJECTED', rejected_reason: 'PROMOTIONAL' },
     ]);
     const res = await post('/templates', owner());
     expect(res.statusCode, res.body).toBe(200);
     const body = res.json();
-    const expectedCreated = WA_TEMPLATE_CATALOG.map((d) => d.name).filter((n) => n !== 'siparis_alindi_v1' && n !== 'siparis_onaylandi_v1');
-    expect(body.sync).toEqual({ created: expectedCreated, skipped: ['siparis_alindi_v1', 'siparis_onaylandi_v1'], failed: [] });
+    const expectedCreated = WA_TEMPLATE_CATALOG.map((d) => d.name).filter((n) => n !== 'siparis_alindi_v1' && n !== 'siparis_onaylandi_v2');
+    expect(body.sync).toEqual({ created: expectedCreated, skipped: ['siparis_alindi_v1', 'siparis_onaylandi_v2'], failed: [] });
     const creates = calls.filter((c) => c.method === 'POST');
     expect(creates).toHaveLength(expectedCreated.length);
     for (const c of creates) {
@@ -437,7 +437,7 @@ describe('Mesaj şablonları', () => {
       expect(bodyComp.example.body_text[0]).toHaveLength(templateVariableCount(def.body));
     }
     const byName = (n: string) => creates.find((c) => (c.body as { name: string }).name === n)!.body as { components: { type: string; buttons?: unknown[] }[] };
-    expect(byName('siparis_hazir_v1').components[1]).toEqual({
+    expect(byName('siparis_hazir_v2').components[1]).toEqual({
       type: 'BUTTONS',
       buttons: [{ type: 'URL', text: 'Siparişi takip et', url: `${BASE}/t/{{1}}`, example: [expect.stringMatching(new RegExp(`^${BASE}/t/.+`))] }],
     });
@@ -464,12 +464,12 @@ describe('Mesaj şablonları', () => {
     templateStore([], {
       failFor: {
         siparis_alindi_v1: graphError(400, 100, { error_subcode: 2388024, message: 'Content in this language already exists' }),
-        siparis_hazir_v1: graphError(400, 100, { error_subcode: 2388043, message: 'Invalid parameter', error_user_msg: 'Değişkenler için örnek gerekli.' }),
+        siparis_hazir_v2: graphError(400, 100, { error_subcode: 2388043, message: 'Invalid parameter', error_user_msg: 'Değişkenler için örnek gerekli.' }),
       },
     });
     const body = (await post('/templates', owner())).json();
     expect(body.sync.skipped).toEqual(['siparis_alindi_v1']);
-    expect(body.sync.failed).toEqual([{ name: 'siparis_hazir_v1', message: expect.stringMatching(/Değişkenler için örnek gerekli/) }]);
+    expect(body.sync.failed).toEqual([{ name: 'siparis_hazir_v2', message: expect.stringMatching(/Değişkenler için örnek gerekli/) }]);
     expect(body.sync.created).toHaveLength(WA_TEMPLATE_CATALOG.length - 2);
   });
 
@@ -770,8 +770,8 @@ describe('360dialog (d360)', () => {
     const state = mockD360({
       templates: [
         { name: 'siparis_alindi_v1', status: 'approved', category: 'utility' },
-        { name: 'siparis_onaylandi_v1', status: 'submitted' },
-        { name: 'siparis_hazir_v1', status: 'rejected', rejected_reason: 'invalid_format' },
+        { name: 'siparis_onaylandi_v2', status: 'submitted' },
+        { name: 'siparis_hazir_v2', status: 'rejected', rejected_reason: 'invalid_format' },
       ],
     });
     const list = await d('GET', '/templates');
@@ -782,8 +782,8 @@ describe('360dialog (d360)', () => {
     expectD360Headers();
     const by = Object.fromEntries((list.json().templates as { name: string }[]).map((t) => [t.name, t])) as Record<string, Record<string, unknown>>;
     expect(by.siparis_alindi_v1).toMatchObject({ status: 'APPROVED', tone: 'ok', categoryChanged: false });
-    expect(by.siparis_onaylandi_v1).toMatchObject({ status: 'SUBMITTED', statusLabel: 'İncelemede', tone: 'warn' });
-    expect(by.siparis_hazir_v1).toMatchObject({ status: 'REJECTED', rejectedReason: 'INVALID_FORMAT', rejectedReasonLabel: expect.stringMatching(/Geçersiz biçim/) });
+    expect(by.siparis_onaylandi_v2).toMatchObject({ status: 'SUBMITTED', statusLabel: 'İncelemede', tone: 'warn' });
+    expect(by.siparis_hazir_v2).toMatchObject({ status: 'REJECTED', rejectedReason: 'INVALID_FORMAT', rejectedReasonLabel: expect.stringMatching(/Geçersiz biçim/) });
     expect(list.json().summary).toMatchObject({ approved: 1, pending: 1, rejected: 1, missing: WA_TEMPLATE_CATALOG.length - 3 });
 
     calls = [];
@@ -798,7 +798,7 @@ describe('360dialog (d360)', () => {
       expect(c.body).toEqual(templateCreatePayload(def, BASE));
     }
     expectD360Headers();
-    expect(sync.json().sync).toMatchObject({ skipped: ['siparis_alindi_v1', 'siparis_onaylandi_v1', 'siparis_hazir_v1'], failed: [] });
+    expect(sync.json().sync).toMatchObject({ skipped: ['siparis_alindi_v1', 'siparis_onaylandi_v2', 'siparis_hazir_v2'], failed: [] });
     expect((await lastAudit('admin.wa_setup_templates_sync'))!.data).toMatchObject({ ok: true, provider: 'd360', skipped: 3 });
 
     const before = state.templates.length;
@@ -813,12 +813,12 @@ describe('360dialog (d360)', () => {
     mockD360({
       failFor: {
         siparis_alindi_v1: { status: 400, json: { error: 'Template with this name and language already exists' } },
-        siparis_hazir_v1: graphError(400, 100, { error_subcode: 2388043, message: 'Invalid parameter', error_user_msg: 'Değişkenler için örnek gerekli.' }),
+        siparis_hazir_v2: graphError(400, 100, { error_subcode: 2388043, message: 'Invalid parameter', error_user_msg: 'Değişkenler için örnek gerekli.' }),
       },
     });
     const body = (await d('POST', '/templates')).json();
     expect(body.sync.skipped).toEqual(['siparis_alindi_v1']);
-    expect(body.sync.failed).toEqual([{ name: 'siparis_hazir_v1', message: expect.stringMatching(/360dialog isteği reddetti.*Değişkenler için örnek gerekli/) }]);
+    expect(body.sync.failed).toEqual([{ name: 'siparis_hazir_v2', message: expect.stringMatching(/360dialog isteği reddetti.*Değişkenler için örnek gerekli/) }]);
     expect(body.sync.created).toHaveLength(WA_TEMPLATE_CATALOG.length - 2);
 
     mockD360({ failFor: Object.fromEntries(WA_TEMPLATE_CATALOG.map((x) => [x.name, { status: 401, json: { error: 'Invalid API key' } } as Reply])) });
@@ -873,6 +873,14 @@ describe('şablon kataloğu: tek kaynak ve gönderen kodla uyum', () => {
       const m = doc.match(re);
       expect(m, def.name).not.toBeNull();
       expect(m![1]!.replace(/\\"/g, '"'), def.name).toBe(def.body);
+    }
+  });
+
+  it('gövde değişkenle başlamaz ve bitmez (Meta 2388299; sondaki noktalama sayılmaz)', () => {
+    for (const def of WA_TEMPLATE_CATALOG) {
+      const body = def.body.trim();
+      expect(/^\{\{\d+\}\}/.test(body), `${def.name} değişkenle başlıyor`).toBe(false);
+      expect(/\{\{\d+\}\}[\s.,;:!?…)"']*$/.test(body), `${def.name} değişkenle bitiyor`).toBe(false);
     }
   });
 

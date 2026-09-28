@@ -129,7 +129,7 @@ describe('bütçe, pencere, supersede', () => {
     await accept(order.id);
     await flushNotify(ctx);
     const m = await lastOut(ctx.db, conv.id);
-    expect(m).toMatchObject({ kind: 'template', templateName: 'siparis_onaylandi_v1', status: 'sent' });
+    expect(m).toMatchObject({ kind: 'template', templateName: 'siparis_onaylandi_v2', status: 'sent' });
     const spec = (m!.payload as unknown as OutboundPayload).spec;
     expect(spec.type === 'template' && spec.params).toEqual(['Bildirim Kebap', '30', `#${order.number}`]);
     expect(spec.type === 'template' && spec.buttons?.[0]?.type).toBe('url');
@@ -344,7 +344,7 @@ describe('wa.send hata eşlemesi', () => {
     mockFailNext('131047', 'Re-engagement message');
     await flushOutbound(ctx);
     const m = await lastOut(ctx.db, conv.id);
-    expect(m).toMatchObject({ kind: 'template', templateName: 'siparis_onaylandi_v1', status: 'sent' });
+    expect(m).toMatchObject({ kind: 'template', templateName: 'siparis_onaylandi_v2', status: 'sent' });
   });
 
   it('190 → hesap error, platform uyarısı işi, mesaj failed + kritik durum SMS yedeği', async () => {

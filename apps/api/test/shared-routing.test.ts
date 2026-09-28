@@ -385,7 +385,7 @@ describe('marka: bildirimler, elle yanıt, kendi numara', () => {
     await flushNotify(ctx);
     const tpl = await lastOut(ctx.db, conv!.id);
     const spec = (tpl!.payload as unknown as OutboundPayload).spec;
-    expect(spec).toMatchObject({ type: 'template', name: 'siparis_yolda_v1' });
+    expect(spec).toMatchObject({ type: 'template', name: 'siparis_yolda_v2' });
     expect(spec.type === 'template' && spec.params[0]).toBe('Çamlık Döner');
     expect(tpl!.body!.startsWith('Siparişiniz yola çıktı. Çamlık Döner kuryesi')).toBe(true);
   });

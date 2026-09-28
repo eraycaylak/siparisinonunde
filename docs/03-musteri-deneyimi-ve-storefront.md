@@ -284,8 +284,8 @@ sequenceDiagram
     K->>K: "Müşteri WhatsApp bildirimine onay verdi" kutusu
     K->>B: Kaydet (genelde doğrudan accepted + süre)
     alt Onay kutusu işaretli ve pencere kapalı
-        B->>WA: siparis_onaylandi_v1 (utility) + "Siparişi takip et"
-        B->>WA: siparis_yolda_v1, siparis_teslim_v1
+        B->>WA: siparis_onaylandi_v2 (utility) + "Siparişi takip et"
+        B->>WA: siparis_yolda_v2, siparis_teslim_v1
     else Müşteri sohbete yazdıysa (pencere açık)
         B->>WA: Aynı içerik service mesajı olarak (M06, M09, M10)
     end
@@ -840,12 +840,12 @@ Her başlıkta tetik, tür, butonlar ve faz yazılıdır. `⏎` satır sonudur; 
 > Toplam: {toplam} · Ödeme: {odeme}
 > {isletme} siparişinizi onayladığında buradan haber vereceğiz.
 
-**M06 · Onaylandı** — tetik: `accepted` · service, CTA URL (pencere dışı `siparis_onaylandi_v1`) · buton: *Siparişi takip et* · [Faz 1]
+**M06 · Onaylandı** — tetik: `accepted` · service, CTA URL (pencere dışı `siparis_onaylandi_v2`) · buton: *Siparişi takip et* · [Faz 1]
 - **a) Paket:** "👨‍🍳 Siparişiniz onaylandı! ⏎ Tahmini teslim saati: {saat} (yaklaşık {dk} dk) ⏎ Sipariş no: {no}"
 - **b) Gel-al:** "👨‍🍳 Siparişiniz onaylandı! Tahminen {saat} civarında hazır olacak. ⏎ Adresimiz: {sube_adres_kisa} ⏎ Sipariş no: {no}"
 - **c) Birleşik** (**yalnız Akış A**; alındıktan sonraki 60 sn içinde onaylandıysa, M05'in yerine): "✅ Siparişiniz alındı ve onaylandı! Sipariş no: {no} ⏎ {kalemler} ⏎ Toplam: {toplam} · Ödeme: {odeme} ⏎ Tahmini teslim saati: {saat} (yaklaşık {dk} dk)". Gel-alda son satır "Tahminen {saat} civarında hazır olacak." olur.
 
-**M09 · Yolda** — tetik: `on_the_way` · service, CTA URL (pencere dışı `siparis_yolda_v1`) · buton: *Siparişi takip et* · [Faz 1]
+**M09 · Yolda** — tetik: `on_the_way` · service, CTA URL (pencere dışı `siparis_yolda_v2`) · buton: *Siparişi takip et* · [Faz 1]
 > 🛵 Siparişiniz yola çıktı! Kuryemiz {kurye} yaklaşık {dk} dk içinde kapınızda olacak.
 > Ödeme: {odeme_detay}
 > Sipariş no: {no}
@@ -912,7 +912,7 @@ Kapsam: [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5'teki `cancel_re
 | M03 | `closed` (6 saatte 1) · CTA URL · F1 | Merhaba 👋 {isletme} şu an kapalı. {acilis} itibarıyla yeniden sipariş alacağız. ⏎ Bu arada menümüze göz atabilirsiniz. | Menüye göz at (F2, planlı sipariş açıksa: Ön sipariş ver) |
 | M04 | `paused` (12 saatte 1) · CTA URL · F1 | Merhaba 👋 Yoğunluk nedeniyle kısa bir süre yeni sipariş alamıyoruz 🙏 ⏎ {devam_satiri} ⏎ Anlayışınız için teşekkür ederiz. — `{devam_satiri}`: "Tahminen {devam_saati} itibarıyla yeniden sipariş alacağız." ya da "Biraz sonra tekrar deneyebilirsiniz." | Menüye göz at |
 | M07 | `preparing` (varsayılan kapalı) · metin · F1 | 🔥 Siparişiniz hazırlanıyor. Sipariş no: {no} | — |
-| M08 | `ready`, gel-al · metin (pencere dışı `siparis_hazir_v1`) · F1 | 🛍️ Siparişiniz hazır! Kasada sipariş numaranızı ({no}) söylemeniz yeterli. ⏎ Ödeme: {odeme} ⏎ Adresimiz: {sube_adres_kisa} | — |
+| M08 | `ready`, gel-al · metin (pencere dışı `siparis_hazir_v2`) · F1 | 🛍️ Siparişiniz hazır! Kasada sipariş numaranızı ({no}) söylemeniz yeterli. ⏎ Ödeme: {odeme} ⏎ Adresimiz: {sube_adres_kisa} | — |
 | M10a | "Harika" · metin · F1 | Çok sevindik, teşekkür ederiz! 🙏 — [F2] İzin yoksa ve son 90 günde "Hayır" denmemişse M22 aynı mesaja eklenir. | (F2: M22 butonları) |
 | M10d | "İdare eder" · metin · F1 | Teşekkür ederiz! Bir dahaki siparişinizde daha iyisini yapmak için çalışacağız 🙏 | — |
 | M10b | "Beğenmedim" · list · F1 | Üzgünüz 😔 Ne ters gitti? Bildiriminiz doğrudan işletme sahibine iletilecek. — Satırlar: Geç geldi · Soğuk geldi · Eksik/yanlış ürün · Lezzet · Kurye · Diğer | Sorunu seç |
@@ -947,9 +947,9 @@ Kapsam: [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5'teki `cancel_re
 
 ### 9.4 Pencere dışı: utility şablonları
 
-Pencere kapalıyken aynı içerik [D02 §5.2](02-whatsapp-entegrasyonu.md)'deki utility şablonlarıyla gider; **gövdeler orada kanoniktir.** Eşleme: M05 → `siparis_alindi_v1`, M06 → `siparis_onaylandi_v1`, M08 → `siparis_hazir_v1`, M09 → `siparis_yolda_v1`, M10 → `siparis_teslim_v1` ("Değerlendir" URL butonu `/t/{token}#degerlendir`'e açılır), M11 → `siparis_reddedildi_v1`, M12a–c, e–g → `siparis_iptal_v1`, M12d (`tenant_no_response`) → `siparis_iptal_yanitsiz_v1`. Panelden 24 saatten eski sohbete yanıt için `yanit_bekliyor_v1`, kampanya için [Faz 2] `kampanya_genel_v1` kullanılır. Şablon adları D02 §5.2 kataloğuyla birebir aynıdır; M23 (sepeti terk, [Faz 2]) marketing şablonu `sepet_hatirlatma_v1` ile gider (yalnız opt-in'li müşteriye, İYS sorgusu ve maliyet önizlemesi şartıyla).
+Pencere kapalıyken aynı içerik [D02 §5.2](02-whatsapp-entegrasyonu.md)'deki utility şablonlarıyla gider; **gövdeler orada kanoniktir.** Eşleme: M05 → `siparis_alindi_v1`, M06 → `siparis_onaylandi_v2`, M08 → `siparis_hazir_v2`, M09 → `siparis_yolda_v2`, M10 → `siparis_teslim_v1` ("Değerlendir" URL butonu `/t/{token}#degerlendir`'e açılır), M11 → `siparis_reddedildi_v1`, M12a–c, e–g → `siparis_iptal_v1`, M12d (`tenant_no_response`) → `siparis_iptal_yanitsiz_v1`. Panelden 24 saatten eski sohbete yanıt için `yanit_bekliyor_v1`, kampanya için [Faz 2] `kampanya_genel_v1` kullanılır. Şablon adları D02 §5.2 kataloğuyla birebir aynıdır; M23 (sepeti terk, [Faz 2]) marketing şablonu `sepet_hatirlatma_v1` ile gider (yalnız opt-in'li müşteriye, İYS sorgusu ve maliyet önizlemesi şartıyla).
 - Müşteri adı bilinmiyorsa `{{1}}` = "değerli müşterimiz". M10a–d, M13, M17, M26–M32 ve M34 pencere dışında **hiç** gönderilmez (şablonları yoktur); M34 gidemezse panel "müşteriyi arayın" önerir.
-- Zamana duyarlı şablonlara kısa TTL verilmesi önerilir (örn. `siparis_yolda_v1` 30 dk), böylece geç teslim edilmezler (A05 §7.4; izin verilen aralık teyit edilmeli).
+- Zamana duyarlı şablonlara kısa TTL verilmesi önerilir (örn. `siparis_yolda_v2` 30 dk), böylece geç teslim edilmezler (A05 §7.4; izin verilen aralık teyit edilmeli).
 
 ### 9.5 SMS metinleri (WhatsApp'sız mod) [Faz 1]
 
@@ -990,7 +990,7 @@ Pencere kapalıyken aynı içerik [D02 §5.2](02-whatsapp-entegrasyonu.md)'deki 
 | 4 | A, "hazırlanıyor" açık, hızlı onay | M01 → M06c → M07 → M09 → M10 | 4 | 5 | service |
 | 5 | B, paket (pencereyi müşterinin kod mesajı açar; debounce yok) | M05 (anında) → M06a → M09 → M10 | 4 | 4 | service |
 | 6 | B, WhatsApp'sız mod | SMS-01 → SMS-02 | — | 0 WhatsApp + 2 SMS | SMS |
-| 7 | E, telefon, doğrudan onaylı, pencere kapalı | `siparis_onaylandi_v1` → `siparis_yolda_v1` → `siparis_teslim_v1` | 3 | 3 | utility |
+| 7 | E, telefon, doğrudan onaylı, pencere kapalı | `siparis_onaylandi_v2` → `siparis_yolda_v2` → `siparis_teslim_v1` | 3 | 3 | utility |
 | 8 | A, ret | M01 → M05 → M11 | 2 | 3 | service |
 | 9 | A, işletme yanıt vermedi | M01 → M05 → M13 (t=10) → M12d (t=15) | 1 (+2 bütçe dışı: M13, M12d) | 4 | service |
 

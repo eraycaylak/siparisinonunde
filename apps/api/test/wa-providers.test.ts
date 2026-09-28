@@ -110,10 +110,10 @@ describe('Cloud gövde üretici', () => {
     const loc = interactiveBody({ phone: '+905321234567' }, { kind: 'location_request', body: 'Konum?' }) as unknown as { interactive: { type: string; action: { name: string } } };
     expect(loc.interactive).toMatchObject({ type: 'location_request_message', action: { name: 'send_location' } });
 
-    const tpl = templateBody({ phone: '+905321234567' }, 'siparis_onaylandi_v1', 'tr', ['Bozok', '30', '#1001'], [{ type: 'url', index: 0, param: 'tok' }]) as unknown as {
+    const tpl = templateBody({ phone: '+905321234567' }, 'siparis_onaylandi_v2', 'tr', ['Bozok', '30', '#1001'], [{ type: 'url', index: 0, param: 'tok' }]) as unknown as {
       template: { name: string; language: { code: string }; components: { type: string; parameters: { text?: string }[] }[] };
     };
-    expect(tpl.template.name).toBe('siparis_onaylandi_v1');
+    expect(tpl.template.name).toBe('siparis_onaylandi_v2');
     expect(tpl.template.language.code).toBe('tr');
     expect(tpl.template.components[0]!.parameters.map((p) => p.text)).toEqual(['Bozok', '30', '#1001']);
     expect(tpl.template.components[1]).toMatchObject({ type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: 'tok' }] });

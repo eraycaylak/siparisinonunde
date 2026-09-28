@@ -407,9 +407,9 @@ Bu şablonlar **yalnız pencere dışında** kullanılır (§4.4). Pencere için
 | Ad | Kategori | Değişkenler | Butonlar | Kullanım |
 |---|---|---|---|---|
 | `siparis_alindi_v1` | Utility | 1 müşteri adı, 2 işletme adı, 3 sipariş no, 4 tutar | URL "Siparişi takip et" → `/t/{{1}}` | `new` (Akış E, planlı sipariş) |
-| `siparis_onaylandi_v1` | Utility | 1 işletme adı, 2 tahmini dakika, 3 sipariş no | URL "Siparişi takip et" | `accepted` |
-| `siparis_hazir_v1` | Utility | 1 işletme adı, 2 sipariş no, 3 şube adresi | URL "Siparişi takip et" | `ready` (gel-al) |
-| `siparis_yolda_v1` | Utility | 1 işletme adı, 2 tahmini dakika, 3 sipariş no, 4 ödeme yöntemi | URL "Siparişi takip et" | `on_the_way` |
+| `siparis_onaylandi_v2` | Utility | 1 işletme adı, 2 tahmini dakika, 3 sipariş no | URL "Siparişi takip et" | `accepted` |
+| `siparis_hazir_v2` | Utility | 1 işletme adı, 2 sipariş no, 3 şube adresi | URL "Siparişi takip et" | `ready` (gel-al) |
+| `siparis_yolda_v2` | Utility | 1 işletme adı, 2 tahmini dakika, 3 sipariş no, 4 ödeme yöntemi | URL "Siparişi takip et" | `on_the_way` |
 | `siparis_teslim_v1` | Utility | 1 işletme adı, 2 sipariş no | URL "Değerlendir" → `/t/{{1}}#degerlendir` | `delivered` |
 | `siparis_reddedildi_v1` | Utility | 1 işletme adı, 2 sebep, 3 sipariş no | — | `rejected` |
 | `siparis_iptal_v1` | Utility | 1 sipariş no, 2 sebep, 3 işletme adı | — | `cancelled` (`tenant_no_response` hariç) |
@@ -420,9 +420,9 @@ Bu şablonlar **yalnız pencere dışında** kullanılır (§4.4). Pencere için
 
 **Metinler (Meta'ya gönderilecek resmi gövdeler):**
 - **`siparis_alindi_v1`** — "Merhaba {{1}}, {{2}} siparişinizi aldı. Sipariş no: {{3}}, tutar: {{4}}. İşletme onayladığında size buradan haber vereceğiz."
-- **`siparis_onaylandi_v1`** — "Siparişiniz onaylandı. {{1}} siparişinizi hazırlamaya başladı, tahmini süre {{2}} dakika. Sipariş no: {{3}}."
-- **`siparis_hazir_v1`** — "Siparişiniz hazır. {{1}} sizi bekliyor. Sipariş no: {{2}}. Adres: {{3}}."
-- **`siparis_yolda_v1`** — "Siparişiniz yola çıktı. {{1}} kuryesi yaklaşık {{2}} dakika içinde adresinizde olacak. Sipariş no: {{3}}. Ödeme: {{4}}."
+- **`siparis_onaylandi_v2`** — "Siparişiniz onaylandı. {{1}} siparişinizi hazırlamaya başladı, tahmini süre {{2}} dakika. Sipariş no: {{3}}. Durum değiştiğinde size buradan haber vereceğiz."
+- **`siparis_hazir_v2`** — "Siparişiniz hazır. {{1}} sizi bekliyor. Sipariş no: {{2}}. Adres: {{3}}. Teslim alırken sipariş numaranızı söylemeniz yeterli."
+- **`siparis_yolda_v2`** — "Siparişiniz yola çıktı. {{1}} kuryesi yaklaşık {{2}} dakika içinde adresinizde olacak. Sipariş no: {{3}}. Ödeme: {{4}}. Afiyet olsun!"
 - **`siparis_teslim_v1`** — "Siparişiniz teslim edildi, afiyet olsun! {{1}} olarak bizi tercih ettiğiniz için teşekkür ederiz. Sipariş no: {{2}}. Deneyiminizi aşağıdaki bağlantıdan paylaşabilirsiniz."
 - **`siparis_reddedildi_v1`** — "Üzgünüz, {{1}} siparişinizi şu anda alamıyor. Sebep: {{2}}. Sipariş no: {{3}}. Anlayışınız için teşekkür ederiz."
 - **`siparis_iptal_v1`** — "Siparişiniz iptal edildi. Sipariş no: {{1}}. Sebep: {{2}}. Sorunuz varsa bu mesajı yanıtlayarak {{3}} ile görüşebilirsiniz."
@@ -463,7 +463,7 @@ Bu şablonlar **yalnız pencere dışında** kullanılır (§4.4). Pencere için
 |---|---|---|---|---|
 | `isletme_yeni_siparis_v1` | Utility | 1 işletme adı, 2 sipariş no, 3 bekleme dk, 4 tutar | URL "Siparişi aç" → `panel.yemekgelsin.net/o/{{1}}` | `new` 2 dk onaylanmadı (§10.3 basamak 3); bekleyen ret varsa gitmez; `onboarding_test` siparişinde `{{2}}` = "TEST #1001" (aşağıdaki notlar) |
 | `isletme_panel_cevrimdisi_v1` | Utility | 1 şube adı, 2 dakika | URL "Paneli aç" → `panel.yemekgelsin.net` | Panel çevrimdışı dedektörü: şube açıkken sesi açık ve nabız gönderen hiç cihaz yok ([06](06-teknik-mimari.md) §7.7); 30 dk'da en fazla 1, SMS ile birlikte |
-| `kurye_giris_v1` | Utility (risk: Meta authentication sayabilir, teyit edilmeli) | 1 işletme adı | URL "Kurye ekranını aç" → `panel.yemekgelsin.net/kurye/giris?t={{1}}` (tek kullanımlık token) | `owner`/`manager` panelde kurye için "Giriş linki gönder" ([04](04-isletme-paneli.md) P-24); kurye oturumu 12 saat (vardiya, [00](00-kararlar-ve-sozluk.md) §4) |
+| `kurye_giris_v1` | Utility (28.09.2026: Meta **MARKETING**'e çevirdi. Kod bu şablonu henüz göndermiyor, maliyeti yok; "Giriş linki gönder" eklenirken daha işlemsel bir metinle `_v2` açılır ya da SMS kullanılır) | 1 işletme adı | URL "Kurye ekranını aç" → `panel.yemekgelsin.net/kurye/giris?t={{1}}` (tek kullanımlık token) | `owner`/`manager` panelde kurye için "Giriş linki gönder" ([04](04-isletme-paneli.md) P-24); kurye oturumu 12 saat (vardiya, [00](00-kararlar-ve-sozluk.md) §4) |
 | `isletme_baglanti_sorunu_v1` | Utility | 1 işletme adı, 2 sorun özeti | URL "Yeniden bağlan" | Token 190, Coexistence kopması, abonelik iptali |
 | `isletme_meta_odeme_v1` | Utility | 1 işletme adı | URL "Rehberi aç" | 131042 |
 | `isletme_kalite_uyari_v1` | Utility | 1 işletme adı, 2 kalite durumu | URL "Ayrıntılar" | Kalite `YELLOW`/`RED` |

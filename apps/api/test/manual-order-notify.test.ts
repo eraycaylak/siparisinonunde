@@ -72,7 +72,7 @@ describe('telefon siparişi + WhatsApp bildirimi (uçtan uca)', () => {
     const out = await outFor(o.id);
     // 04 §4.13 adım 7: ayrı "alındı" gitmez, tek "onaylandı" (pencere yok → şablon); bütçeden 1 mesaj
     expect(out).toHaveLength(1);
-    expect(out[0]).toMatchObject({ kind: 'template', templateName: 'siparis_onaylandi_v1' });
+    expect(out[0]).toMatchObject({ kind: 'template', templateName: 'siparis_onaylandi_v2' });
     const [fresh] = await ctx.db.select().from(orders).where(eq(orders.id, o.id));
     expect(fresh!.waStatusMsgCount).toBe(1);
     const [conv] = await ctx.db.select().from(conversations).where(eq(conversations.id, out[0]!.conversationId));
