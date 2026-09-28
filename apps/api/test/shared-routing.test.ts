@@ -11,6 +11,7 @@ import { buildStatusPayload } from '../src/services/messaging/dev-payload';
 import { processWebhookEvent } from '../src/services/messaging/ingest';
 import { upsertConversation } from '../src/services/messaging/customers';
 import { queueOutbound, type OutboundPayload } from '../src/services/messaging/outbound';
+import { findMenuLinkSlug } from '../src/services/storefront/session';
 import { findSharedRoute, ingestSharedWebhookPayload } from '../src/services/messaging/shared-router';
 import { transitionOrder } from '../src/services/orders/transition';
 import { clearMockSent, mockSentMessages } from '../src/wa/providers/mock';
@@ -101,7 +102,10 @@ describe('dükkan seçimi (QR / #KOD)', () => {
     expect(out!.body!.startsWith('*Bozok Pide Salonu*\nMerhaba Ayşe, Bozok Pide Salonu WhatsApp sipariş hattına hoş geldiniz!')).toBe(true);
     expect(payload.brand).toBe('Bozok Pide Salonu');
     expect(payload.spec).toMatchObject({ type: 'interactive', interactive: { kind: 'cta_url', header: 'Bozok Pide Salonu' } });
-    expect((payload.spec as ListSpec & { interactive: { url: { href: string } } }).interactive.url.href).toContain(`/s/${A.slug}?l=`);
+    const menuHref = (payload.spec as ListSpec & { interactive: { url: { href: string } } }).interactive.url.href;
+    expect(menuHref).toMatch(/\/m\/[A-Za-z0-9_-]{12}$/);
+    // Kısa bağlantı A'nın vitrinine çözülür
+    expect(await findMenuLinkSlug(ctx.db, menuHref.split('/m/')[1]!, new Date())).toBe(A.slug);
     const inRows = (await threadRows(ctx.db, conv!.id)).filter((m) => m.direction === 'in');
     expect(inRows).toHaveLength(1);
     const route = await findSharedRoute(ctx.db, { phone });

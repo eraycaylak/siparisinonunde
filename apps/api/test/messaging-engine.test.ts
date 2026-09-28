@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { enqueueJob } from '../src/lib/jobs';
 import { sha256Hex } from '../src/lib/tokens';
 import type { OutboundPayload } from '../src/services/messaging/outbound';
-import { createTestContext, type TestContext } from './helpers';
+import { createTestContext, expectError, type TestContext } from './helpers';
 import {
   HOUR,
   MIN,
@@ -63,11 +63,21 @@ describe('karşılama ve sıklık (12 sa / 30 dk)', () => {
     expect(payload.spec.interactive.kind).toBe('cta_url');
     const href = payload.spec.interactive.url!.href;
     expect(payload.spec.interactive.url!.label).toBe('Menüyü aç');
-    const m = new RegExp(`^http://localhost:3000/s/${t.slug}\\?l=([A-Za-z0-9_-]{43})$`).exec(href);
+    // Kısa bağlantı (Twilio'da düz metinde görünür): /m/<12 karakter>; web /s/<slug>?l=<token>'a yönlendirir
+    const m = /^http:\/\/localhost:3000\/m\/([A-Za-z0-9_-]{12})$/.exec(href);
     expect(m).toBeTruthy();
     const [tok] = await ctx.db.select().from(storefrontLinkTokens).where(eq(storefrontLinkTokens.tokenHash, sha256Hex(m![1]!)));
     expect(tok).toMatchObject({ tenantId: t.tenantId, conversationId: conv!.id, customerId: conv!.customerId, branchId: t.branchId });
     expect(tok!.expiresAt.getTime() - now.getTime()).toBe(2 * HOUR);
+    // Kısa bağlantı çözümü (web /m/<token>): yalnız dükkan adresi döner, token tüketilmez
+    const resolved = await ctx.request({ method: 'GET', url: `/api/v1/public/menu-link/${m![1]}` });
+    expect(resolved.statusCode, resolved.body).toBe(200);
+    expect(resolved.json()).toEqual({ slug: t.slug });
+    const [still] = await ctx.db.select().from(storefrontLinkTokens).where(eq(storefrontLinkTokens.id, tok!.id));
+    expect(still!.exchangedAt).toBeNull();
+    expectError(await ctx.request({ method: 'GET', url: '/api/v1/public/menu-link/bilinmeyen-bag-0000' }), 404, 'not_found');
+    await ctx.db.insert(storefrontLinkTokens).values({ tenantId: t.tenantId, tokenHash: sha256Hex('suresi-dolmus-0001'), expiresAt: new Date(now.getTime() - 1000) });
+    expectError(await ctx.request({ method: 'GET', url: '/api/v1/public/menu-link/suresi-dolmus-0001' }), 404, 'not_found');
     const [cust] = await ctx.db.select().from(customers).where(eq(customers.id, conv!.customerId));
     expect(cust!.name).toBe('Ayşe Yılmaz');
     // SSE: gelen + giden mesaj olayları

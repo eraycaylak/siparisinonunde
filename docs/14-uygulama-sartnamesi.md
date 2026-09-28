@@ -267,7 +267,7 @@ interface WhatsAppProvider {
 - `d360`: `POST https://waba-v2.360dialog.io/messages`, başlık `D360-API-KEY: <apiKey>`; gövde Cloud API ile aynı. (teyit edilmeli) Ortak numaranın varsayılan sağlayıcısıdır (00 §12a madde 8, 27.09.2026); yönetim uçları (`health_status`, `v1/configs/webhook`, `message_templates`) yalnız admin "WhatsApp kurulumu"nda kullanılır. Webhook yükü Cloud API biçimindedir (`parseCloudWebhook`), imza yoktur.
 - Buton başlıkları ≤ 20 karakter; kimlikler `order:{id}:confirm|edit|cancel`, `menu`, `human`, `review:{orderId}:good|ok|bad`, `wait:{orderId}`, `cancel:{orderId}`; ortak numara seçicisi `shop:{tenantId}`, `shops:list`, `shops:page:{n}`.
 - **Konuşma motoru sırası** (00 §7): opt-out/insan modu → kara liste/askı → sipariş kodu (Akış B) → "yetkili" → açık sipariş durum kartı (15 dk'da 1) → şube kapalı (6 sa'te 1)/duraklatılmış (12 sa'te 1) → tam karşılama (12 sa'te 1, `request_welcome` dahil) / kısa yanıt (30 dk'da 1). İşletme telefonundan gelen echo → `mode='human'`, `human_until=now()+30dk`.
-- Karşılama mesajı: işletme adı + "Menüyü aç" CTA URL (storefront linki + `?l=<linkToken>`), [Yetkiliyle görüş] butonu. Metinler `packages/core/src/messages/tr.ts` (03 §9).
+- Karşılama mesajı: işletme adı + "Menüyü aç" CTA URL (kısa bağlantı `APP_BASE_URL/m/<linkToken>`: 12 karakterlik token, 2 saat; web sayfası `GET /api/v1/public/menu-link/:token` ile dükkanı bulur ve `/s/<slug>?l=<linkToken>`'a yönlendirir, token orada oturuma çevrilir; Twilio yolunda bağlantı düz metinde görünür), [Yetkiliyle görüş] butonu. Metinler `packages/core/src/messages/tr.ts` (03 §9).
 - Pencere: `last_inbound_at` 24 sa içindeyse serbest mesaj; değilse şablon (mock'ta `kind='template'`).
 
 ### 8.1 Ortak numara (00 §12a madde 8)

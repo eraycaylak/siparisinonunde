@@ -12,7 +12,7 @@ const RESERVED = new Set(['www', 'api', 'hooks', 'status', 'static', 'cdn', 'mai
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
 /** Alt alan adında olduğu gibi bırakılan yollar (takip sayfası, API, statik dosyalar). */
-const PASSTHROUGH = ['/t/', '/s/', '/api/', '/_next/', '/brand/'];
+const PASSTHROUGH = ['/t/', '/s/', '/m/', '/api/', '/_next/', '/brand/'];
 
 export function resolveSubdomain(host: string, rootDomain: string): string | null {
   if (!rootDomain) return null;

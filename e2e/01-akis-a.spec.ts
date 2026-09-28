@@ -20,7 +20,8 @@ test('Akış A: sohbetten menü linki, seçenekli ürün, panelde onay ve WhatsA
   // Ortak numarada her mesaj dükkan adıyla (kalın ilk satır) başlar
   await expect(page.locator('strong', { hasText: DEMO.tenantName })).toBeVisible();
   const menuUrl = await menuLink.getAttribute('href');
-  expect(menuUrl).toMatch(new RegExp(`/s/${DEMO.slug}\\?l=`));
+  // Kısa bağlantı: /m/<token> → /s/<slug>?l=<token>'a yönlenir
+  expect(menuUrl).toMatch(/\/m\/[A-Za-z0-9_-]{12}$/);
 
   // 2) Linki müşteri telefonunda açar: token çereze çevrilir ve adres çubuğundan silinir
   const shop = await page.context().newPage();

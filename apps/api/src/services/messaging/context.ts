@@ -129,16 +129,20 @@ export async function zoneSummary(db: Database, branch: BranchRow): Promise<Zone
   };
 }
 
+/** Menü bağlantısı token'ı: 9 bayt → 12 karakter base64url (2 saat geçerli; 72 bit tahmin edilemez). */
+export const MENU_LINK_TOKEN_BYTES = 9;
+
 /**
- * Akış A "Menüyü aç" linki: 32 bayt rastgele base64url token, storefront_link_tokens'a sha256 hash +
- * konuşma + müşteri + 2 sa. URL: ${APP_BASE_URL}/s/<slug>?l=<token>
+ * Akış A "Menüyü aç" linki: 9 bayt (72 bit) rastgele base64url token (12 karakter), storefront_link_tokens'a sha256
+ * hash + konuşma + müşteri + 2 sa. Mesajda KISA adres gider: ${APP_BASE_URL}/m/<token>; web sayfası token'ı
+ * /s/<slug>?l=<token>'a yönlendirir (Twilio'da bağlantı düz metinde görünür, uzun adres okunmuyordu).
  */
 export async function createMenuLink(
   tx: Database,
   config: Config,
   input: { tenantId: string; slug: string; branchId: string; conversationId: string; customerId: string; now: Date },
 ): Promise<string> {
-  const token = randomToken(32);
+  const token = randomToken(MENU_LINK_TOKEN_BYTES);
   await tx.insert(storefrontLinkTokens).values({
     tenantId: input.tenantId,
     branchId: input.branchId,
@@ -148,7 +152,7 @@ export async function createMenuLink(
     expiresAt: new Date(input.now.getTime() + MENU_LINK_TTL_MS),
     createdAt: input.now,
   });
-  return `${config.APP_BASE_URL.replace(/\/$/, '')}/s/${encodeURIComponent(input.slug)}?l=${token}`;
+  return `${config.APP_BASE_URL.replace(/\/$/, '')}/m/${token}`;
 }
 
 /** Token'sız storefront adresi (ret/iptal mesajlarındaki "Menüyü aç"). */

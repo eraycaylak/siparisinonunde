@@ -21,6 +21,7 @@ import { randomUUID } from 'node:crypto';
 import { and, eq } from 'drizzle-orm';
 import { processDueJobs, registerJobHandler, type JobPayload } from '../src/lib/jobs';
 import { randomToken, sha256Hex } from '../src/lib/tokens';
+import { MENU_LINK_TOKEN_BYTES } from '../src/services/messaging/context';
 import { insertOrderWithItems } from '../src/services/orders/create-order';
 import { quoteForBranch } from '../src/services/orders/pricing-context';
 import type { OrderRow } from '../src/services/orders/summary';
@@ -186,7 +187,8 @@ export async function createLinkToken(ctx: TestContext, s: StoreFixture): Promis
     .insert(conversations)
     .values({ tenantId: s.tenantId, branchId: s.branchId, waAccountId: s.waAccountId!, customerId: c!.id })
     .returning();
-  const raw = randomToken(32);
+  // Gerçek menü bağlantısıyla aynı uzunluk (12 karakter; context.ts createMenuLink): kısa token siparişte de tanınmalı
+  const raw = randomToken(MENU_LINK_TOKEN_BYTES);
   const [tok] = await ctx.db
     .insert(storefrontLinkTokens)
     .values({

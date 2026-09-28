@@ -1,6 +1,7 @@
 // Herkese açık uç noktalar (14 §6.5) — dilim 5.
 // GET /public/signup-status: yeni işletme kaydı açık mı (signup_open; 00 §12a madde 10). Kayıt sayfası sunucu tarafında
 // sorar; kapalıysa form yerine "Kayıtlar çok yakında açılıyor" bilgisini gösterir. Kişisel veri içermez.
+// GET /public/menu-link/:token: WhatsApp'taki kısa menü bağlantısının (/m/<token>) dükkan adresi; token tüketilmez.
 // POST /public/leads: demo formu + hesaplayıcı lead'i (05 C.5.1, C.4.5). PUBLIC_LEADS_ENABLED=0 iken (operatörün formu
 // geçici olarak kapattığı ortam; canlı ortamda açık, 00 §12a madde 10) hiçbir şey saklanmaz: 403 leads_closed. Bal küpü
 // doluysa 204 (sessiz);
@@ -16,6 +17,7 @@ import { z } from 'zod';
 import { AppError } from '../../lib/errors';
 import { isFlagEnabled } from '../../lib/flags';
 import { clientIp, createRateLimiter, enforceRateLimit } from '../../lib/rate-limit';
+import { findMenuLinkSlug } from '../../services/storefront/session';
 
 /** 5 istek / saat / IP (görev tanımı). */
 export const PUBLIC_LEAD_RATE_LIMIT = { limit: 5, windowMs: 60 * 60_000 } as const;
@@ -32,6 +34,20 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     reply.header('cache-control', 'no-store');
     return { open: await isFlagEnabled(app.db, 'signup_open') };
   });
+
+  // Kısa menü bağlantısı: IP başına dakikada 60 çözümleme (token tahmini zaten olanaksız: 72 bit)
+  const menuLinkLimiter = createRateLimiter({ limit: 60, windowMs: 60_000 });
+  app.get(
+    '/menu-link/:token',
+    { schema: { params: z.object({ token: z.string().min(8).max(400) }), response: { 200: z.object({ slug: z.string() }) } } },
+    async (request, reply) => {
+      enforceRateLimit(menuLinkLimiter, `menu_link:${clientIp(request)}`);
+      reply.header('cache-control', 'no-store');
+      const slug = await findMenuLinkSlug(app.db, request.params.token, new Date());
+      if (!slug) throw new AppError(404, 'not_found', 'Bağlantının süresi dolmuş ya da bağlantı geçersiz.');
+      return { slug };
+    },
+  );
 
   app.post(
     '/leads',

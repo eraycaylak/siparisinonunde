@@ -2,12 +2,27 @@
 
 import { maskPhone } from '@siparis/core';
 import type { StoreSessionView } from '@siparis/core/menu/contracts';
-import { customerAddresses, customers, options, orderItemOptions, orderItems, orders, products, storefrontLinkTokens, type Database } from '@siparis/db';
+import { customerAddresses, customers, options, orderItemOptions, orderItems, orders, products, storefrontLinkTokens, tenants, type Database } from '@siparis/db';
 import { and, asc, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { sha256Hex } from '../../lib/tokens';
 
 export type LinkTokenRow = typeof storefrontLinkTokens.$inferSelect;
 export type CustomerRow = typeof customers.$inferSelect;
+
+/**
+ * Kısa menü bağlantısı (/m/<token>): süresi geçmemiş token'ın dükkan adresi (slug); yoksa null. Yalnız herkese açık slug
+ * döner, token TÜKETİLMEZ (vitrin oturumu POST /store/:slug/session ile değiştirir).
+ */
+export async function findMenuLinkSlug(db: Database, rawToken: string, now: Date): Promise<string | null> {
+  if (!rawToken || rawToken.length < 8 || rawToken.length > 400) return null;
+  const [row] = await db
+    .select({ slug: tenants.slug })
+    .from(storefrontLinkTokens)
+    .innerJoin(tenants, eq(tenants.id, storefrontLinkTokens.tenantId))
+    .where(and(eq(storefrontLinkTokens.tokenHash, sha256Hex(rawToken)), gt(storefrontLinkTokens.expiresAt, now)))
+    .limit(1);
+  return row?.slug ?? null;
+}
 
 /** Ham token → aynı tenant'ta süresi geçmemiş kayıt (yoksa null). */
 export async function findValidLinkToken(db: Database, tenantId: string, rawToken: string, now: Date): Promise<LinkTokenRow | null> {

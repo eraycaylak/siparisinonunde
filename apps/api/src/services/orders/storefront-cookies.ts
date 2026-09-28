@@ -44,7 +44,7 @@ export type LinkTokenRow = typeof storefrontLinkTokens.$inferSelect;
 /** sf_link_<slug> çerezindeki token geçerliyse (tenant eşleşir, süresi dolmamış) kaydı döner. */
 export async function readLinkToken(db: Database, request: FastifyRequest, slug: string, tenantId: string, now = new Date()): Promise<LinkTokenRow | null> {
   const raw = request.cookies?.[linkCookieName(slug)];
-  if (!raw || raw.length < 16 || raw.length > 400) return null;
+  if (!raw || raw.length < 8 || raw.length > 400) return null;
   const [row] = await db
     .select()
     .from(storefrontLinkTokens)

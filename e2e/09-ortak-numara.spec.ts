@@ -23,11 +23,12 @@ test('Ortak numara: QR ile dükkan seçimi, dükkana özel sipariş, kodsuz dön
   await expect(page.getByText(`${DEMO.tenantName} WhatsApp sipariş hattına hoş geldiniz`, { exact: false })).toBeVisible();
   await expect(page.getByText(`Etkin dükkan: ${DEMO.tenantName}`)).toBeVisible();
   const bozokMenu = await page.getByRole('link', { name: 'Menüyü aç' }).last().getAttribute('href');
-  expect(bozokMenu).toMatch(new RegExp(`/s/${DEMO.slug}\\?l=`));
+  expect(bozokMenu).toMatch(/\/m\/[A-Za-z0-9_-]{12}$/);
 
   // 2) Menüden gel-al siparişi → Bozok'a düşer
   const shop = await page.context().newPage();
   await shop.goto(bozokMenu!);
+  await expect(shop).toHaveURL(new RegExp(`/s/${DEMO.slug}`));
   await expect(shop.getByRole('button', { name: 'Ben değilim' })).toBeVisible();
   await shop.getByRole('button', { name: 'Mercimek Çorbası sepete ekle' }).click();
   await goToCheckout(shop);
@@ -60,7 +61,9 @@ test('Ortak numara: QR ile dükkan seçimi, dükkana özel sipariş, kodsuz dön
   await expect(page.getByText(`${DONER.tenantName} WhatsApp sipariş hattına hoş geldiniz`, { exact: false })).toBeVisible();
   await expect(page.getByText(`Etkin dükkan: ${DONER.tenantName}`)).toBeVisible();
   await expect(page.locator('strong', { hasText: DONER.tenantName })).toBeVisible();
-  expect(await page.getByRole('link', { name: 'Menüyü aç' }).last().getAttribute('href')).toMatch(new RegExp(`/s/${DONER.slug}\\?l=`));
+  const donerMenu = await page.getByRole('link', { name: 'Menüyü aç' }).last().getAttribute('href');
+  expect(donerMenu).toMatch(/\/m\/[A-Za-z0-9_-]{12}$/);
+  expect(donerMenu).not.toBe(bozokMenu);
   const afterDoner = await sharedThread(request, customer.phone);
   expect(afterDoner.route?.currentTenantName).toBe(DONER.tenantName);
   // Döner'in karşılaması Döner'in konuşmasında, Bozok'unki Bozok'ta (mesajlar dükkanlara ayrı yazılır)

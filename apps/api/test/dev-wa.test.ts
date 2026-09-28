@@ -48,7 +48,7 @@ describe('dev WhatsApp simülatörü', () => {
     const welcome = body.messages[1]!;
     expect(welcome.status).toBe('sent');
     expect(welcome.cta?.label).toBe('Menüyü aç');
-    expect(welcome.cta?.url).toMatch(new RegExp(`/s/${t.slug}\\?l=`));
+    expect(welcome.cta?.url).toMatch(/\/m\/[A-Za-z0-9_-]{12}$/);
   });
 
   it('"yetkili" → insan modu; buton yanıtı; echo → business_phone', async () => {
