@@ -508,7 +508,7 @@ function BspWebhookStep({ s }: { s: AdminWaSetupStatus }) {
     <StepCard
       step={2}
       title={`Webhook’u ${twilio ? 'Twilio’ya' : '360dialog’a'} kaydet`}
-      description={`Müşterilerin ortak numaraya yazdığı mesajların bu sisteme gelmesi için sistemin webhook adresini ${name}’${twilio ? 'a' : 'a'} yazar.${
+      description={`Müşterilerin ortak numaraya yazdığı mesajların bu sisteme gelmesi için sistemin webhook adresini ${name}’${twilio ? 'ya' : 'a'} yazar.${
         twilio ? ' Durum bildirimi (teslim edildi / okundu) adresi de aynı yere yazılır.' : ''
       } Adres zaten doğruysa hiçbir şey değiştirmez; tekrar basmak zararsızdır.`}
     >
