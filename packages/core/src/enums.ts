@@ -427,17 +427,18 @@ export const LEGAL_DOCUMENT_VERSION = '2026-09-27-taslak';
  * `shared`: işletme ortak platform numarasını kullanır (00 §12a madde 8). Bu satırın kendi kimlik bilgisi yoktur;
  * gönderim platform numarasının sağlayıcısıyla (PLATFORM_WA_*) yapılır.
  */
-export const WA_PROVIDERS = ['mock', 'cloud', 'd360', 'shared'] as const;
+export const WA_PROVIDERS = ['mock', 'cloud', 'd360', 'twilio', 'shared'] as const;
 export type WaProvider = (typeof WA_PROVIDERS)[number];
 export const waProviderSchema = zEnum(WA_PROVIDERS);
 export const WA_PROVIDER_LABELS: Record<WaProvider, string> = {
   mock: 'Simülatör',
   cloud: 'Meta Cloud API',
   d360: '360dialog',
+  twilio: 'Twilio',
   shared: 'Ortak numara',
 };
 /** İşletmenin kendi numarası için seçilebilen sağlayıcılar (panel "WhatsApp bağlantısı"). */
-export const WA_OWN_PROVIDERS = ['mock', 'cloud', 'd360'] as const;
+export const WA_OWN_PROVIDERS = ['mock', 'cloud', 'd360', 'twilio'] as const;
 export type WaOwnProvider = (typeof WA_OWN_PROVIDERS)[number];
 export const waOwnProviderSchema = zEnum(WA_OWN_PROVIDERS);
 

@@ -226,20 +226,22 @@ Yedek cron'unu kurmayı unutmayın (§8).
 
 ## 6. WhatsApp bağlama: ortak numara (varsayılan) ve kendi numarası
 
-00 §12a madde 8 gereği **tüm platformda tek WhatsApp numarası** vardır: "Yemek Gelsin" ortak numarası. Bütün işletmeler varsayılan olarak bu numaradan sipariş alır; işletme sahiplerine giden platform uyarıları (yeni sipariş alarmı, bağlantı sorunu …) da aynı numaradan gider. Yapılandırma tek yerdedir: `PLATFORM_WA_*` değişkenleri (canlı ortamda GitHub secret'larından türetilir, §13). Kod sağlayıcıdan bağımsızdır (`apps/api/src/wa/providers/{mock,cloud,d360}.ts`); yalnız resmi WhatsApp Business Platform (Cloud API) kullanılır.
+00 §12a madde 8 gereği **tüm platformda tek WhatsApp numarası** vardır: "Yemek Gelsin" ortak numarası. Bütün işletmeler varsayılan olarak bu numaradan sipariş alır; işletme sahiplerine giden platform uyarıları (yeni sipariş alarmı, bağlantı sorunu …) da aynı numaradan gider. Yapılandırma tek yerdedir: `PLATFORM_WA_*` değişkenleri (canlı ortamda GitHub secret'larından türetilir, §13). Kod sağlayıcıdan bağımsızdır (`apps/api/src/wa/providers/{mock,cloud,d360,twilio}.ts`); yalnız resmi WhatsApp Business Platform (Cloud API ve resmi BSP'ler) kullanılır.
 
-Numara iki yoldan biriyle bağlanır. **Proje sahibinin kararı 360dialog'dur** (27.09.2026, 00 §12a madde 8): Meta tarafındaki uygulama/sistem kullanıcısı/token adımları yerine 360dialog'un kayıt sihirbazı kullanılır. Doğrudan Meta yolu alternatif olarak belgelidir.
+Numara üç yoldan biriyle bağlanır. **Proje sahibinin kararı 360dialog'du** (27.09.2026, 00 §12a madde 8); 28.09.2026'da düşük hacim için **Twilio** üçüncü yol olarak eklendi (docs/16). Doğrudan Meta yolu alternatif olarak belgelidir.
 
-| | **360dialog (varsayılan)** — §6.2 | **Meta Cloud API doğrudan (alternatif)** — §6.2b |
-|---|---|---|
-| Aylık numara ücreti | 360dialog "Regular" planı ~49 €/ay (teyit edilmeli) + Meta mesaj ücretleri | Yok (yalnız Meta mesaj ücretleri) |
-| Meta tarafı | 360dialog'un sihirbazı yürütür (Meta'nın gömülü kayıt penceresi) | Meta Business + geliştirici uygulaması + sistem kullanıcısı + kalıcı token |
-| GitHub secret'ları (canlı ortam) | `D360_API_KEY`, `WA_PHONE` | `META_WA_TOKEN`, `META_WA_PHONE_NUMBER_ID`, `META_WA_WABA_ID`, `META_APP_SECRET`, `WA_PHONE` |
-| Admin "WhatsApp kurulumu" (§6.2a) | Bağlantıyı test et → Webhook'u 360dialog'a kaydet → Şablonları gönder | Göster (Meta'ya yapıştır) → test → numarayı etkinleştir (PIN) → abonelik → şablonlar |
-| Webhook imzası | İmza yok; URL'deki gizli belirteç korur (teyit edilmeli) | `X-Hub-Signature-256` (`WA_APP_SECRET`) denetlenir |
-| `PLATFORM_WA_PROVIDER` | `d360` | `cloud` |
+| | **360dialog** — §6.2 | **Twilio** — §6.2d | **Meta Cloud API doğrudan** — §6.2b |
+|---|---|---|---|
+| Aylık numara ücreti | "Regular" planı ~49 €/ay (teyit edilmeli) + Meta mesaj ücretleri | Yok; mesaj başına 0,005 $ + Meta mesaj ücretleri | Yok (yalnız Meta mesaj ücretleri) |
+| Ne zaman | Aylık ~10.000 mesajın üstünde | Aylık ~10.000 mesajın altında | Meta süreçlerini kendiniz yürütmek isterseniz |
+| Meta tarafı | 360dialog'un sihirbazı yürütür | Twilio Console'daki WhatsApp gönderen sihirbazı yürütür | Meta Business + geliştirici uygulaması + sistem kullanıcısı + kalıcı token |
+| GitHub secret'ları (canlı ortam) | `D360_API_KEY`, `WA_PHONE` | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `WA_PHONE` | `META_WA_TOKEN`, `META_WA_PHONE_NUMBER_ID`, `META_WA_WABA_ID`, `META_APP_SECRET`, `WA_PHONE` |
+| Admin "WhatsApp kurulumu" (§6.2a) | Test → Webhook'u 360dialog'a kaydet → Şablonlar | Test → Webhook'u Twilio'ya kaydet → Şablonlar | Göster (Meta'ya yapıştır) → test → numarayı etkinleştir (PIN) → abonelik → şablonlar |
+| Webhook imzası | İmza yok; URL'deki gizli belirteç korur (teyit edilmeli) | `X-Twilio-Signature` (Auth Token) denetlenir | `X-Hub-Signature-256` (`WA_APP_SECRET`) denetlenir |
+| Etkileşimli mesaj | Cloud API gövdesi | Content API kaynağı (buton/liste); CTA ve konum isteği düz metne iner (16 §2.3) | Cloud API gövdesi |
+| `PLATFORM_WA_PROVIDER` | `d360` | `twilio` | `cloud` |
 
-İki yolun secret'ları birlikte girilirse (`D360_API_KEY` + tam `META_*` seti) dağıtım "belirsiz" hatasıyla durur: yalnız birini kullanın. Platformun kendi tek numarası için doğrudan Cloud API kullanmak Meta Tech Provider sürecini (App Review) gerektirmez; o süreç başka işletmelerin numaralarını bağlamak içindir (teyit edilmeli). İşletmenin **kendi numarası** isteğe bağlıdır (üst paket): §6.8.
+Birden çok yolun secret'ları birlikte girilirse dağıtım "belirsiz" hatasıyla durur: yalnız birini kullanın. Platformun kendi tek numarası için doğrudan Cloud API kullanmak Meta Tech Provider sürecini (App Review) gerektirmez; o süreç başka işletmelerin numaralarını bağlamak içindir (teyit edilmeli). İşletmenin **kendi numarası** isteğe bağlıdır (üst paket): §6.8.
 
 ### 6.1 Ortak numara nasıl çalışır (operatör özeti)
 
@@ -402,6 +404,46 @@ Menü adları Meta'nın arayüz diline göre Türkçe ya da İngilizce görünü
 13. **Uygulamayı canlı moda alın:** uygulama panosunun üstündeki **Uygulama modu (App Mode): Geliştirme → Canlı (Live)**. Geliştirme modunda webhook yalnız test verisi gönderir (teyit edilmeli).
 14. **Şablonlar ve deneme:** §6.5 ve §6.6.
 
+### 6.2d Alternatif: Twilio — kısa yol
+
+Ayrıntılı sözleşme, sınırlar ve hata eşlemesi **docs/16**'dadır. Operatör adımları:
+
+1. **Twilio hesabı:** [console.twilio.com](https://console.twilio.com) → hesap aç, ödeme yöntemi ekle (deneme hesabında yalnız doğrulanmış numaralara mesaj gider ve mesajların başına Twilio uyarısı eklenir).
+2. **Numara:** ortak numara Twilio'dan alınabilir (Phone Numbers > Buy a number) ya da var olan hat kullanılır. Numara WhatsApp'a kayıtlı olmamalıdır.
+3. **WhatsApp gönderen:** **Messaging > Senders > WhatsApp senders > New sender** → işletme portföyü ve WhatsApp Business hesabı, görünen ad **Yemek Gelsin**, kategori Restaurant, saat dilimi İstanbul. Doğrulama yöntemi: SMS alamayan numaralarda **Phone call** seçin (kod sesli aramayla okunur).
+4. **Kimlik bilgileri:** Console ana sayfasında **Account Info** → **Account SID** (`AC…`, 34 karakter) ve **Auth Token**.
+5. **GitHub secret'ları:** `Settings > Secrets and variables > Actions` → `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `WA_PHONE` (E.164). Kullanmadığınız yolların secret'larını (`D360_API_KEY`, `META_*`) silin, yoksa dağıtım "belirsiz" diye durur.
+6. **Dağıtım:** `Actions > "Canlı ortam (Cloudflare)" > Run workflow`. Özette **"WhatsApp: gerçek numara, Twilio"** yazmalı.
+7. **Admin kurulumu:** `https://yemekgelsin.net/admin/whatsapp > WhatsApp kurulumu` → **Bağlantıyı test et** → **Webhook'u Twilio'ya kaydet** → **Şablonları gönder**. İkinci düğme gönderenin hem gelen mesaj hem durum bildirimi adresini sistemin ortak webhook'una yazar; Console'da elle bir şey girmenize gerek yoktur.
+8. **Deneme:** §6.6.
+
+### 6.3b Twilio — elle (curl) başvuru
+
+Olağan yol §6.2d'dir. Aşağıdakiler admin ekranının yaptığını elle yapar (kimlik Basic; kabuk geçmişine düşmesin diye `read -rs`):
+
+```bash
+SID='<TWILIO_ACCOUNT_SID>'; read -rs TOK   # Auth Token
+
+# Hesap durumu
+curl -s -u "$SID:$TOK" "https://api.twilio.com/2010-04-01/Accounts/$SID.json"
+
+# WhatsApp gönderenleri (durum, kalite, kayıtlı webhook)
+curl -s -u "$SID:$TOK" 'https://messaging.twilio.com/v2/Channels/Senders?Channel=whatsapp'
+
+# Webhook adresini yaz (XE… gönderen kimliği yukarıdaki listeden)
+curl -s -u "$SID:$TOK" -X POST 'https://messaging.twilio.com/v2/Channels/Senders/<XE…>' \
+  -H 'Content-Type: application/json' \
+  -d '{"webhook":{"callback_url":"https://yemekgelsin.net/api/v1/webhooks/wa/shared/<BELIRTEC>","callback_method":"POST","status_callback_url":"https://yemekgelsin.net/api/v1/webhooks/wa/shared/<BELIRTEC>","status_callback_method":"POST"}}'
+
+# Şablon (içerik) durumları
+curl -s -u "$SID:$TOK" 'https://content.twilio.com/v1/ContentAndApprovals?PageSize=100'
+
+# Deneme mesajı (yalnız 24 saatlik oturum içindeyken serbest metin gider)
+curl -s -u "$SID:$TOK" -X POST "https://api.twilio.com/2010-04-01/Accounts/$SID/Messages.json" \
+  --data-urlencode 'From=whatsapp:<ORTAK_NUMARA>' --data-urlencode 'To=whatsapp:<KENDI_NUMARANIZ>' \
+  --data-urlencode 'Body=deneme'
+```
+
 ### 6.3 360dialog — elle (curl) başvuru
 
 Olağan yol §6.2'dir (hesap, numara ve anahtar 360dialog Hub'da; webhook ve şablonlar admin ekranından). Aşağıdaki komutlar admin ekranının yaptığını elle yapar; ekran bir uç noktada 404 verirse ya da isteğe bağlı VPS'te (§14) denemek için kullanılır. Taban adres `https://waba-v2.360dialog.io`, kimlik yalnız `D360-API-KEY` başlığıdır (numara ve WABA anahtara bağlıdır, yolda kimlik yoktur). Yollar 360dialog'un yayımladığı Messaging API tanımına göredir; teyit edilmeli (kodda `apps/api/src/wa/providers/d360.ts`).
@@ -427,7 +469,7 @@ curl -s "https://waba-v2.360dialog.io/message_templates?fields=name,status,categ
 
 ### 6.4 Ortam değişkenleri
 
-Canlı ortamda (Cloudflare) bu değişkenler elle yazılmaz: iş akışı GitHub secret'larından türetir (360dialog: `D360_API_KEY`, `WA_PHONE`; Meta doğrudan: `META_*`, `WA_PHONE`; §13). Aşağıdakiler isteğe bağlı VPS ve elle kurulum içindir.
+Canlı ortamda (Cloudflare) bu değişkenler elle yazılmaz: iş akışı GitHub secret'larından türetir (360dialog: `D360_API_KEY`, `WA_PHONE`; Twilio: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `WA_PHONE`; Meta doğrudan: `META_*`, `WA_PHONE`; §13). Aşağıdakiler isteğe bağlı VPS ve elle kurulum içindir.
 
 Ortak blok (iki yolda da):
 
@@ -445,6 +487,15 @@ PLATFORM_WA_PROVIDER=d360
 PLATFORM_WA_API_KEY=<§6.2 A.4: 360dialog API anahtarı>
 PLATFORM_WA_PHONE_NUMBER_ID=                       # boş (numara anahtara bağlı)
 WA_APP_SECRET=                                     # boş (360dialog imza göndermez)
+```
+
+Twilio (alternatif, §6.2d; docs/16 §3.1):
+
+```bash
+PLATFORM_WA_PROVIDER=twilio
+PLATFORM_WA_API_KEY=<Twilio Auth Token>            # gönderim + webhook imzası (X-Twilio-Signature)
+PLATFORM_WA_PHONE_NUMBER_ID=<Twilio Account SID>   # AC + 32 onaltılık karakter
+WA_APP_SECRET=                                     # boş (Meta imzası yoktur)
 ```
 
 Meta Cloud API doğrudan (alternatif, §6.2b/§6.2c):

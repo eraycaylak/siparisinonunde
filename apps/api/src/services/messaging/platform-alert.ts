@@ -1,5 +1,5 @@
 // `platform.alert` işi: platform WhatsApp numarasından işletme sahibine uyarı şablonu (02 §5.3, §10.3 basamak 3).
-// PLATFORM_WA_PROVIDER=mock → gönderim notifications tablosuna ('platform_wa') + log. cloud/d360 → platform hesabı
+// PLATFORM_WA_PROVIDER=mock → gönderim notifications tablosuna ('platform_wa') + log. cloud/d360/twilio → platform hesabı
 // (config: PLATFORM_WA_API_KEY + PLATFORM_WA_PHONE_NUMBER_ID). Ortak numara (00 §12a madde 8) aynı platform numarasıdır. onboarding_test'te sipariş no "TEST #<no>".
 // ops bayrağı platform_wa_alerts kapalıysa gönderilmez (Meta kesintisi, 10 §6.6).
 // panel_offline (cron.panel_presence, 06 §7.7): şablon isletme_panel_cevrimdisi_v1 [işletme(· şube), dakika]; kayıt metni

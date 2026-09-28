@@ -13,7 +13,7 @@ Marka ve alan adı kararı: [00 §12a madde 9](docs/00-kararlar-ve-sozluk.md). D
 
 **Canlı ortam:** https://yemekgelsin.net, tamamen **Cloudflare**'de (Worker + tek container: PostgreSQL + API + worker + web; yedekler R2'de) gerçek verilerle çalışır; demo verisi yoktur ([00 §12a madde 10](docs/00-kararlar-ve-sozluk.md)). Kurulum ve her güncelleme GitHub Actions ile yapılır ("Canlı ortam (Cloudflare)", [15 §13](docs/15-kurulum-ve-isletim.md)). Üretim kipindedir: yeni işletme kaydı ve `/demo` başvuru formu açık, platform yöneticisi için iki adımlı doğrulama zorunlu, geliştirici araçları kapalı, arama motorlarına açık. Kişisel veri yurt dışında (Cloudflare) tutulur; aktarım KVKK m.9 standart sözleşmesi ve Kurum bildirimiyle yapılır ([08 §2.12](docs/08-mevzuat-kvkk-odeme-fatura.md)). Türkiye VPS'i yalnız isteğe bağlı alternatiftir, planlanmıyor ([15 §14](docs/15-kurulum-ve-isletim.md)).
 
-> **Durum:** Faz 1 çalışır durumda: pazarlama sitesi, işletme vitrini ve sipariş akışları (A, B, E), işletme paneli, admin paneli, kurye ekranı, WhatsApp (ortak numara ya da işletmenin kendi numarası; 360dialog / Cloud API / geliştirme simülatörü), SMS yedeği, Docker ile kurulum. Canlıya çıkıştan önce kalanlar: [15 §12 kontrol listesi](docs/15-kurulum-ve-isletim.md) ve hukuki metinlerin incelemesi. Pilot: Yozgat / Merkez.
+> **Durum:** Faz 1 çalışır durumda: pazarlama sitesi, işletme vitrini ve sipariş akışları (A, B, E), işletme paneli, admin paneli, kurye ekranı, WhatsApp (ortak numara ya da işletmenin kendi numarası; 360dialog / Twilio / Cloud API / geliştirme simülatörü), SMS yedeği, Docker ile kurulum. Canlıya çıkıştan önce kalanlar: [15 §12 kontrol listesi](docs/15-kurulum-ve-isletim.md) ve hukuki metinlerin incelemesi. Pilot: Yozgat / Merkez.
 
 ## Nereden başlamalı?
 
@@ -68,14 +68,14 @@ Ham araştırma raporları ve kaynak bağlantıları: [docs/arastirma/](docs/ara
 
 ## Ortak numara
 
-WhatsApp'ta numara başına aracı firma ücreti (360dialog ~49 €/ay) Esnaf paketinden (990 TL) pahalı olduğu için varsayılan model **tek numaradır** ([00 §12a madde 8](docs/00-kararlar-ve-sozluk.md)):
+WhatsApp'ta numara başına aracı firma ücreti (360dialog ~49 €/ay; Twilio'da sabit ücret yok, mesaj başına ödenir) Esnaf paketinden (990 TL) pahalı olabildiği için varsayılan model **tek numaradır** ([00 §12a madde 8](docs/00-kararlar-ve-sozluk.md)):
 
 - Tüm dükkanlar platformun tek WhatsApp numarasını ("Yemek Gelsin") kullanır. Her dükkanın kısa bir **dükkan kodu** (ör. `BOZOK`) ve bu kodla açılan QR'ı/bağlantısı vardır: `wa.me/<ortak numara>?text=Merhaba, Bozok Pide Salonu için sipariş vermek istiyorum. #BOZOK`.
 - Müşteri A dükkanının QR'ını okutursa bot A dükkanı adına yanıt verir (her mesajın ilk satırı kalın dükkan adıdır); B'nin QR'ını okutursa B adına.
 - Müşteri **sonra kodsuz yazarsa**: son 24 saatte konuştuğu dükkan varsa o devam eder. Yoksa "Hangi dükkandan sipariş vermek istersin?" sorulur: son sipariş verdiği en çok 2 dükkan düğme olarak + "Diğer dükkanlar"; hiç dükkanı yoksa dükkan listesi. Dükkan adını ya da kodunu yazmak da yeter; "dükkanlar", "değiştir" komutları seçiciyi açar.
 - Siparişler yine o dükkanın kendi paneline düşer; müşteri, sohbet ve sipariş verisi dükkanlar arasında ayrıdır.
 - İşletme sahibi kodunu, müşteri bağlantısını, QR'ını (PNG/SVG) ve yazdırılabilir masa kartını panelde **Ayarlar > WhatsApp**'ta görür. Kodu ve modu yalnız platform yöneticisi değiştirir (**admin > İşletmeler > WhatsApp**). Kendi numarasını isteyen işletme "kendi numarası" moduna alınır ve numarasını panelden bağlar.
-- Kurulum (tek numara; varsayılan yol 360dialog: GitHub secret'ları `D360_API_KEY` + `WA_PHONE`, sonra admin > WhatsApp kurulumu; alternatif Meta Cloud API doğrudan): [15 §6.2](docs/15-kurulum-ve-isletim.md).
+- Kurulum (tek numara; üç yol): 360dialog — GitHub secret'ları `D360_API_KEY` + `WA_PHONE` ([15 §6.2](docs/15-kurulum-ve-isletim.md)); **Twilio** — `TWILIO_ACCOUNT_SID` + `TWILIO_AUTH_TOKEN` + `WA_PHONE`, aylık sabit ücret yok, mesaj başına 0,005 $ ([15 §6.2d](docs/15-kurulum-ve-isletim.md), [16](docs/16-twilio-whatsapp.md)); Meta Cloud API doğrudan ([15 §6.2b](docs/15-kurulum-ve-isletim.md)). Sonrası admin > WhatsApp kurulumu.
 
 ## Geliştirme kuralları
 

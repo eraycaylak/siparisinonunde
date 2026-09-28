@@ -33,7 +33,7 @@ export interface WaSetup extends TestTenant {
 }
 
 /** Tenant + sahip (telefonlu) + mock WhatsApp hesabı (connected) + bir teslimat bölgesi. */
-export async function setupWaTenant(ctx: TestContext, opts: { name?: string; ownerPhone?: string; provider?: 'mock' | 'cloud' | 'd360' } = {}): Promise<WaSetup> {
+export async function setupWaTenant(ctx: TestContext, opts: { name?: string; ownerPhone?: string; provider?: 'mock' | 'cloud' | 'd360' | 'twilio' } = {}): Promise<WaSetup> {
   const t = await ctx.createTenantWithOwner({ name: opts.name });
   await ctx.db.update(users).set({ phone: opts.ownerPhone ?? `+90555${Math.floor(1000000 + Math.random() * 8999999)}` }).where(eq(users.id, t.owner.id));
   const [account] = await ctx.db

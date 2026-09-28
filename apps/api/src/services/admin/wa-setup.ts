@@ -1,4 +1,4 @@
-// Ortak numara "WhatsApp kurulumu" (admin, yalnız platform_owner; 15 §6.2a). İki sağlayıcı:
+// Ortak numara "WhatsApp kurulumu" (admin, yalnız platform_owner; 15 §6.2a). Üç sağlayıcı:
 //   - 360dialog (d360, VARSAYILAN, 15 §6.2): proje sahibi 360dialog Hub'da numarayı bağlar ve API anahtarını üretir; buradan
 //     bağlantı testi, webhook kaydı ve şablon gönderimi yapılır (wa-setup-d360.ts). Numara kaydı ve abonelik 360dialog'dadır.
 //   - Meta Cloud API doğrudan (cloud, alternatif, 15 §6.2b): Meta'da yalnız tıklama yapılır ve beş değer girilir; gerisi
@@ -7,6 +7,8 @@
 //       - bağlantı testi: GET /{phone_number_id}?fields=…
 //       - numarayı etkinleştir: POST /{phone_number_id}/register {messaging_product, pin}
 //       - webhook aboneliği: POST/GET /{waba_id}/subscribed_apps
+//   - Twilio (twilio, alternatif, 15 §6.2d; 16): numara Twilio Console'da WhatsApp gönderen olarak bağlanır; bağlantı
+//     testi, webhook kaydı (Messaging v2 Senders) ve şablonlar (Content API + WhatsApp onayı) wa-setup-twilio.ts'te.
 // Ortak: durum (hangi değerler tanımlı; gizliler yalnız son 4 karakter, hangi adımlar çalışabilir) ve şablonlar: kod
 // kataloğundaki (template-bodies.ts) her şablon sağlayıcıda yoksa oluşturulur (Graph: /{waba_id}/message_templates,
 // 360dialog: /message_templates — aynı gövde ve yanıt; var olana dokunulmaz, hiçbir şey silinmez), sonra durumlar listelenir.
@@ -20,6 +22,7 @@ import type {
   AdminWaSetupSubscription,
   AdminWaSetupTest,
   AdminWaSetupTone,
+  AdminWaSetupWebhook,
   AdminWaTemplateStatus,
   AdminWaTemplates,
 } from '@siparis/core/admin/contracts';
@@ -44,10 +47,38 @@ import {
   type ToneMap,
   type WaSetupConfig,
 } from './wa-setup-common';
-import { d360ErrorToAppError, d360HostProblem, testConnectionD360 } from './wa-setup-d360';
+import { d360ErrorToAppError, d360HostProblem, readD360Webhook, registerD360Webhook, testConnectionD360 } from './wa-setup-d360';
+import {
+  createTwilioTemplate,
+  listTwilioTemplates,
+  readTwilioWebhook,
+  registerTwilioWebhook,
+  requireTwilio,
+  testConnectionTwilio,
+  toTemplateRows,
+  twilioAlreadyExists,
+  twilioErrorToAppError,
+} from './wa-setup-twilio';
+import { TWILIO_API_BASE } from '../../wa/twilio-api';
 
 export type { WaSetupConfig } from './wa-setup-common';
 export { readD360Webhook, registerD360Webhook } from './wa-setup-d360';
+export { readTwilioWebhook, registerTwilioWebhook } from './wa-setup-twilio';
+
+/**
+ * "Kayıtlı adresi göster": webhook adresini sağlayıcıdan okur (d360: /v1/configs/webhook, twilio: WhatsApp gönderen
+ * kaydı). Meta doğrudan yolda adres Meta'ya elle girilir; orası 409 döner.
+ */
+export async function readWebhook(c: WaSetupConfig): Promise<AdminWaSetupWebhook> {
+  if (c.PLATFORM_WA_PROVIDER === 'twilio') return readTwilioWebhook(c);
+  return readD360Webhook(c);
+}
+
+/** "Webhook'u kaydet": ortak webhook adresini sağlayıcıya yazar (idempotent). */
+export async function registerWebhook(c: WaSetupConfig): Promise<AdminWaSetupWebhook> {
+  if (c.PLATFORM_WA_PROVIDER === 'twilio') return registerTwilioWebhook(c);
+  return registerD360Webhook(c);
+}
 
 /** Meta doğrudan yolun ortam değişkeni adı + canlı ortam secret'ı (graph hata metinleri). */
 const envName = (name: string) => envNameFor(name, 'cloud');
@@ -61,6 +92,7 @@ export function setupStatus(c: WaSetupConfig): AdminWaSetupStatus {
   const provider = c.PLATFORM_WA_PROVIDER;
   const cloud = provider === 'cloud';
   const d360 = provider === 'd360';
+  const twilio = provider === 'twilio';
   const display = platformDisplayPhone(c);
   const token = c.PLATFORM_WA_WEBHOOK_TOKEN ?? null;
   const verifyDefault = !c.WA_VERIFY_TOKEN.trim() || c.WA_VERIFY_TOKEN === 'dev-verify';
@@ -70,11 +102,19 @@ export function setupStatus(c: WaSetupConfig): AdminWaSetupStatus {
   if (provider === 'mock') {
     problems.push(
       'Sağlayıcı simülatör (mock): gerçek WhatsApp bağlı değil. Varsayılan yol 360dialog: GitHub secret\'ları D360_API_KEY ve WA_PHONE\'u ekleyip ' +
-        'Actions › "Canlı ortam (Cloudflare)" › Run workflow (docs/15 §6.2). Meta doğrudan yol: META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_WA_WABA_ID, ' +
-        'META_APP_SECRET, WA_PHONE (docs/15 §6.2b).',
+        'Actions › "Canlı ortam (Cloudflare)" › Run workflow (docs/15 §6.2). Twilio yolu: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, WA_PHONE (docs/15 §6.2d). ' +
+        'Meta doğrudan yol: META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_WA_WABA_ID, META_APP_SECRET, WA_PHONE (docs/15 §6.2b).',
     );
   }
   if (d360 && !c.PLATFORM_WA_API_KEY) problems.push(`360dialog API anahtarı tanımlı değil: ${envNameFor('PLATFORM_WA_API_KEY', 'd360')}.`);
+  if (twilio) {
+    if (!c.PLATFORM_WA_API_KEY) problems.push(`Twilio Auth Token tanımlı değil: ${envNameFor('PLATFORM_WA_API_KEY', 'twilio')}.`);
+    if (!c.PLATFORM_WA_PHONE_NUMBER_ID) {
+      problems.push(`Twilio Account SID tanımlı değil: ${envNameFor('PLATFORM_WA_PHONE_NUMBER_ID', 'twilio')}.`);
+    } else if (!/^AC[0-9a-fA-F]{32}$/.test(c.PLATFORM_WA_PHONE_NUMBER_ID)) {
+      problems.push('Twilio Account SID "AC" ile başlayan 34 karakter olmalı (console.twilio.com › Account Info). Telefon numarası ya da API Key SID değildir.');
+    }
+  }
   if (cloud) {
     if (!c.PLATFORM_WA_API_KEY) problems.push(`Erişim anahtarı (token) tanımlı değil: ${envName('PLATFORM_WA_API_KEY')}.`);
     if (!c.PLATFORM_WA_PHONE_NUMBER_ID) problems.push(`Telefon numarası kimliği (Phone number ID) tanımlı değil: ${envName('PLATFORM_WA_PHONE_NUMBER_ID')}.`);
@@ -88,13 +128,13 @@ export function setupStatus(c: WaSetupConfig): AdminWaSetupStatus {
       problems.push('Telefon numarası kimliği ile WABA kimliği aynı: ikisi farklı değerlerdir, API Setup sayfasından ayrı ayrı kopyalayın.');
     }
   }
+  // Alt çizgili alan adı / port kuralı 360dialog'a özeldir; Twilio böyle bir kısıt koymaz
   const hostProblem = d360 ? d360HostProblem(c) : null;
   if (provider !== 'mock') {
     if (!display) problems.push(`Ortak numara tanımlı değil: ${envNameFor('PLATFORM_WA_DISPLAY_PHONE', provider)} (E.164, ör. +905321234567).`);
     if (!token) {
-      problems.push(
-        `Ortak webhook belirteci tanımlı değil (PLATFORM_WA_WEBHOOK_TOKEN): ${d360 ? "360dialog'a kaydedilecek" : "Meta'ya girilecek"} webhook adresi oluşmaz.`,
-      );
+      const where = d360 ? "360dialog'a kaydedilecek" : twilio ? "Twilio'ya kaydedilecek" : "Meta'ya girilecek";
+      problems.push(`Ortak webhook belirteci tanımlı değil (PLATFORM_WA_WEBHOOK_TOKEN): ${where} webhook adresi oluşmaz.`);
     }
     // Doğrulama belirteci yalnız Meta'nın webhook GET doğrulamasında kullanılır (360dialog doğrulama isteği göndermez)
     if (cloud && verifyDefault) problems.push('Doğrulama belirteci (WA_VERIFY_TOKEN) varsayılan değerde: Meta\'ya girmeden önce rastgele bir değer verin (openssl rand -hex 16).');
@@ -104,6 +144,7 @@ export function setupStatus(c: WaSetupConfig): AdminWaSetupStatus {
 
   const graphReady = cloud && !!c.PLATFORM_WA_API_KEY;
   const d360Ready = d360 && !!c.PLATFORM_WA_API_KEY;
+  const twilioReady = twilio && !!c.PLATFORM_WA_API_KEY && !!c.PLATFORM_WA_PHONE_NUMBER_ID;
   return {
     provider,
     providerLabel: WA_PROVIDER_LABELS[provider],
@@ -111,7 +152,13 @@ export function setupStatus(c: WaSetupConfig): AdminWaSetupStatus {
     displayPhone: display,
     displayPhoneFormatted: display ? formatPhone(display) : null,
     graphApiVersion: GRAPH_API_VERSION,
-    apiBase: d360 ? hostOf(D360_BASE_URL) : cloud ? `${hostOf(GRAPH_BASE_URL)}/${GRAPH_API_VERSION}` : 'Yok (simülatör)',
+    apiBase: d360
+      ? hostOf(D360_BASE_URL)
+      : twilio
+        ? hostOf(TWILIO_API_BASE)
+        : cloud
+          ? `${hostOf(GRAPH_BASE_URL)}/${GRAPH_API_VERSION}`
+          : 'Yok (simülatör)',
     fields: {
       phoneNumberId: { set: !!c.PLATFORM_WA_PHONE_NUMBER_ID, tail: tail(c.PLATFORM_WA_PHONE_NUMBER_ID) },
       wabaId: { set: !!c.PLATFORM_WA_WABA_ID, tail: tail(c.PLATFORM_WA_WABA_ID) },
@@ -122,11 +169,13 @@ export function setupStatus(c: WaSetupConfig): AdminWaSetupStatus {
     },
     webhookUrlMasked: maskedSharedWebhook(c),
     actions: {
-      test: (graphReady && !!c.PLATFORM_WA_PHONE_NUMBER_ID) || d360Ready,
+      test: (graphReady && !!c.PLATFORM_WA_PHONE_NUMBER_ID) || d360Ready || twilioReady,
+      // Numarayı etkinleştir / webhook aboneliği yalnız Meta doğrudan yolda vardır
       register: graphReady && !!c.PLATFORM_WA_PHONE_NUMBER_ID,
       subscribe: graphReady && !!c.PLATFORM_WA_WABA_ID,
-      templates: ((graphReady && !!c.PLATFORM_WA_WABA_ID) || d360Ready) && https,
-      webhook: d360Ready && !!token && https && !hostProblem,
+      templates: ((graphReady && !!c.PLATFORM_WA_WABA_ID) || d360Ready || twilioReady) && https,
+      // Webhook'u sağlayıcıya yazma: 360dialog ve Twilio (Meta'da adres elle girilir)
+      webhook: (d360Ready || twilioReady) && !!token && https && !hostProblem,
     },
     problems,
   };
@@ -154,7 +203,10 @@ function requireCloud(c: WaSetupConfig): string {
       c.PLATFORM_WA_PROVIDER === 'd360'
         ? "Bu adım 360dialog'da gerekmez: numara kaydını ve webhook aboneliğini 360dialog yapar. 360dialog adımları: Bağlantıyı test et → " +
             "Webhook'u 360dialog'a kaydet → Şablonları gönder."
-        : `Bu adım yalnız Meta Cloud API'de çalışır; şu anki sağlayıcı: ${WA_PROVIDER_LABELS[c.PLATFORM_WA_PROVIDER]}. ` +
+        : c.PLATFORM_WA_PROVIDER === 'twilio'
+          ? "Bu adım Twilio'da gerekmez: numara kaydını ve webhook aboneliğini Twilio yapar. Twilio adımları: Bağlantıyı test et → " +
+            "Webhook'u Twilio'ya kaydet → Şablonları gönder."
+          : `Bu adım yalnız Meta Cloud API'de çalışır; şu anki sağlayıcı: ${WA_PROVIDER_LABELS[c.PLATFORM_WA_PROVIDER]}. ` +
             "Meta doğrudan yol için META_* GitHub secret'larını ekleyip iş akışını çalıştırın (docs/15 §6.2b).",
     );
   }
@@ -286,10 +338,14 @@ interface GraphPhone {
 
 export const PHONE_FIELDS = 'display_phone_number,verified_name,name_status,quality_rating,code_verification_status,platform_type,throughput';
 
-/** Bağlantı testi: 360dialog'da health_status + webhook (wa-setup-d360.ts), Meta'da telefon numarası düğümü. */
+/**
+ * Bağlantı testi: 360dialog'da health_status + webhook (wa-setup-d360.ts), Twilio'da hesap + WhatsApp gönderen
+ * (wa-setup-twilio.ts), Meta'da telefon numarası düğümü.
+ */
 export async function testConnection(c: WaSetupConfig): Promise<AdminWaSetupTest> {
   requireRealProvider(c);
   if (c.PLATFORM_WA_PROVIDER === 'd360') return testConnectionD360(c);
+  if (c.PLATFORM_WA_PROVIDER === 'twilio') return testConnectionTwilio(c);
   const token = requireCloud(c);
   const phoneId = requirePhoneId(c);
   const p = await graph('phone', () => graphCall<GraphPhone>(token, 'GET', encodeURIComponent(phoneId), { query: { fields: PHONE_FIELDS } }));
@@ -440,48 +496,77 @@ export const TEMPLATE_FIELDS = 'name,status,category,language,rejected_reason';
  * hata metinleri farklıdır.
  */
 interface TemplateStore {
-  target: AdminApiTarget;
-  path: string;
+  /** Sağlayıcıdaki tüm şablonlar (Graph biçiminde; Twilio kendi yanıtını bu biçime çevirir) */
+  list: () => Promise<GraphTemplate[]>;
+  /** Tek şablonu oluşturur (Twilio'da ayrıca WhatsApp onayına gönderir) */
+  create: (def: TemplateDef) => Promise<void>;
   /** list: liste/tümden durduran hata; create: tek şablonun hatası */
   mapError: (err: GraphApiError, ctx: 'list' | 'create') => AppError;
+  /** "Bu adla şablon zaten var": atlandı sayılır */
+  exists: (err: GraphApiError) => boolean;
+}
+
+/** Graph uyumlu depo (cloud ve d360: aynı gövde, yanıt ve sayfalama). */
+function graphTemplateStore(
+  target: AdminApiTarget,
+  path: string,
+  appBaseUrl: string,
+  mapError: TemplateStore['mapError'],
+): TemplateStore {
+  return {
+    mapError,
+    exists: alreadyExists,
+    list: async () => {
+      const out: GraphTemplate[] = [];
+      let after: string | undefined;
+      for (let page = 0; page < 10; page++) {
+        const res: { data?: GraphTemplate[]; paging?: { cursors?: { after?: string }; next?: string } } = await adminApiCall(target, 'GET', path, {
+          query: { fields: TEMPLATE_FIELDS, limit: 200, after },
+        });
+        out.push(...(Array.isArray(res.data) ? res.data : []));
+        after = res.paging?.next ? res.paging.cursors?.after : undefined;
+        if (!after) break;
+      }
+      return out;
+    },
+    create: async (def) => {
+      await adminApiCall(target, 'POST', path, { body: templateCreatePayload(def, appBaseUrl) });
+    },
+  };
 }
 
 function templateStore(c: WaSetupConfig): TemplateStore {
   requireRealProvider(c);
+  if (c.PLATFORM_WA_PROVIDER === 'twilio') {
+    const t = requireTwilio(c);
+    return {
+      mapError: (err, ctx) => twilioErrorToAppError(err, ctx === 'create' ? 'template' : 'templates'),
+      exists: twilioAlreadyExists,
+      list: async () => toTemplateRows(await listTwilioTemplates(t)),
+      create: (def) => createTwilioTemplate(t, def, c.APP_BASE_URL),
+    };
+  }
   if (c.PLATFORM_WA_PROVIDER === 'd360') {
     if (!c.PLATFORM_WA_API_KEY) throw conflict('wa_setup_missing', `360dialog API anahtarı tanımlı değil: ${envNameFor('PLATFORM_WA_API_KEY', 'd360')}.`);
-    return {
-      target: d360Target(c.PLATFORM_WA_API_KEY),
-      path: D360_TEMPLATES_PATH,
-      mapError: (err, ctx) => d360ErrorToAppError(err, ctx === 'create' ? 'template' : 'templates'),
-    };
+    return graphTemplateStore(d360Target(c.PLATFORM_WA_API_KEY), D360_TEMPLATES_PATH, c.APP_BASE_URL, (err, ctx) =>
+      d360ErrorToAppError(err, ctx === 'create' ? 'template' : 'templates'),
+    );
   }
   const token = requireCloud(c);
   const waba = requireWabaId(c);
-  return {
-    target: graphTarget(token),
-    path: `${encodeURIComponent(waba)}/message_templates`,
-    mapError: (err, ctx) => graphErrorToAppError(err, ctx === 'create' ? 'template' : 'waba'),
-  };
+  return graphTemplateStore(graphTarget(token), `${encodeURIComponent(waba)}/message_templates`, c.APP_BASE_URL, (err, ctx) =>
+    graphErrorToAppError(err, ctx === 'create' ? 'template' : 'waba'),
+  );
 }
 
-/** Hesaptaki tüm şablonlar (sayfalı; en çok 10 sayfa × 200). */
+/** Hesaptaki tüm şablonlar; liste hatası Türkçeye çevrilir. */
 async function fetchAllTemplates(store: TemplateStore): Promise<GraphTemplate[]> {
-  const out: GraphTemplate[] = [];
-  let after: string | undefined;
-  for (let page = 0; page < 10; page++) {
-    let res: { data?: GraphTemplate[]; paging?: { cursors?: { after?: string }; next?: string } };
-    try {
-      res = await adminApiCall(store.target, 'GET', store.path, { query: { fields: TEMPLATE_FIELDS, limit: 200, after } });
-    } catch (err) {
-      if (isGraphApiError(err)) throw store.mapError(err, 'list');
-      throw err;
-    }
-    out.push(...(Array.isArray(res.data) ? res.data : []));
-    after = res.paging?.next ? res.paging.cursors?.after : undefined;
-    if (!after) break;
+  try {
+    return await store.list();
+  } catch (err) {
+    if (isGraphApiError(err)) throw store.mapError(err, 'list');
+    throw err;
   }
-  return out;
 }
 
 const isTr = (t: GraphTemplate) => (t.language ?? '').toLowerCase() === 'tr';
@@ -592,11 +677,11 @@ export async function syncTemplates(c: WaSetupConfig): Promise<AdminWaTemplates>
       continue;
     }
     try {
-      await adminApiCall(store.target, 'POST', store.path, { body: templateCreatePayload(def, c.APP_BASE_URL) });
+      await store.create(def);
       created.push(def.name);
     } catch (err) {
       if (!isGraphApiError(err)) throw err;
-      if (alreadyExists(err)) {
+      if (store.exists(err)) {
         skipped.push(def.name);
         continue;
       }

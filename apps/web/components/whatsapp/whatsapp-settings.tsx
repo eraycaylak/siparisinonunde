@@ -45,7 +45,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { CustomerLinkField, QrDownloadLinks, svgDataUri, TableCardPrinter } from './shop-qr';
 
 /** Kendi numara için sağlayıcılar (ortak numara satırı 'shared' bu formda seçilmez). */
-type Provider = 'mock' | 'cloud' | 'd360';
+type Provider = 'mock' | 'cloud' | 'd360' | 'twilio';
 
 /** GET /panel/whatsapp yanıtı (core contracts/whatsapp.ts panelWhatsappResponseSchema). */
 type WhatsappSettings = PanelWhatsappResponse;
@@ -64,12 +64,20 @@ function isDisconnected(acc: WhatsappSettings['account']): boolean {
 
 /** Webhook adresinin girileceği yer (sağlayıcıya göre). */
 function webhookPlace(provider: Provider): string {
-  return provider === 'd360' ? '360dialog panelinde (ya da API ile)' : provider === 'cloud' ? 'Meta uygulamanızda WhatsApp > Yapılandırma bölümünde' : 'sağlayıcı panelinde';
+  if (provider === 'd360') return '360dialog panelinde (ya da API ile)';
+  if (provider === 'twilio') return 'Twilio Console > Messaging > Senders > WhatsApp senders bölümünde';
+  if (provider === 'cloud') return 'Meta uygulamanızda WhatsApp > Yapılandırma bölümünde';
+  return 'sağlayıcı panelinde';
 }
 
 const PROVIDER_OPTIONS: { value: Provider; label: string; description: string }[] = [
   { value: 'd360', label: '360dialog', description: 'Önerilen aracı firma (BSP). Numaranızı 360dialog panelinden bağlar, aldığınız API anahtarını buraya girersiniz.' },
   { value: 'cloud', label: 'Meta Cloud API', description: 'Doğrudan Meta. Telefon numarası kimliği (Phone number ID) ve erişim anahtarı gerekir.' },
+  {
+    value: 'twilio',
+    label: 'Twilio',
+    description: 'Aylık sabit ücret yok, mesaj başına ödenir. Hesap kimliği (Account SID, AC…) ve Auth Token gerekir; numara Twilio Console’da WhatsApp gönderen olarak bağlanır.',
+  },
   { value: 'mock', label: 'Geliştirme / Simülatör', description: 'Gerçek mesaj gitmez; mesajlar geliştirici simülatöründe görünür. Yalnız deneme için.' },
 ];
 
@@ -192,17 +200,32 @@ function ConnectionForm({ data }: { data: WhatsappSettings }) {
           {provider !== 'mock' ? (
             <>
               <Field
-                label="Telefon numarası kimliği (Phone number ID)"
-                required={provider === 'cloud'}
-                hint={provider === 'd360' ? '360dialog için isteğe bağlı (kayıt ve eşleştirme için).' : 'Meta Business Suite > WhatsApp Manager > Telefon numaraları.'}
+                label={provider === 'twilio' ? 'Twilio hesap kimliği (Account SID)' : 'Telefon numarası kimliği (Phone number ID)'}
+                required={provider === 'cloud' || provider === 'twilio'}
+                hint={
+                  provider === 'd360'
+                    ? '360dialog için isteğe bağlı (kayıt ve eşleştirme için).'
+                    : provider === 'twilio'
+                      ? 'console.twilio.com > Account Info; "AC" ile başlayan 34 karakter.'
+                      : 'Meta Business Suite > WhatsApp Manager > Telefon numaraları.'
+                }
                 error={errors.phoneNumberId}
               >
                 <Input value={phoneNumberId} onChange={(e) => setPhoneNumberId(e.target.value)} autoComplete="off" />
               </Field>
-              <Field label="WhatsApp Business hesap kimliği (WABA ID)" hint="İsteğe bağlı." error={errors.wabaId}>
+              <Field
+                label="WhatsApp Business hesap kimliği (WABA ID)"
+                hint={provider === 'twilio' ? 'Twilio’da kullanılmaz; boş bırakabilirsiniz.' : 'İsteğe bağlı.'}
+                error={errors.wabaId}
+              >
                 <Input value={wabaId} onChange={(e) => setWabaId(e.target.value)} autoComplete="off" />
               </Field>
-              <Field label={provider === 'd360' ? '360dialog API anahtarı' : 'Erişim anahtarı (access token)'} required={!acc?.hasApiKey} hint={keyHint} error={errors.apiKey}>
+              <Field
+                label={provider === 'd360' ? '360dialog API anahtarı' : provider === 'twilio' ? 'Twilio Auth Token' : 'Erişim anahtarı (access token)'}
+                required={!acc?.hasApiKey}
+                hint={keyHint}
+                error={errors.apiKey}
+              >
                 <PasswordInput value={apiKey} onChange={(e) => setApiKey(e.target.value)} autoComplete="new-password" placeholder={acc?.hasApiKey ? (acc.apiKeyMasked ?? '••••') : ''} />
               </Field>
             </>
@@ -255,9 +278,11 @@ function WebhookCard({ url, provider }: { url: string; provider: Provider }) {
         <CardDescription>
           {provider === 'd360'
             ? '360dialog panelinde (ya da API ile) bu adresi webhook olarak tanımlayın. Gelen mesajlar buraya düşer.'
-            : provider === 'cloud'
-              ? 'Meta uygulamanızda WhatsApp > Yapılandırma bölümünde geri çağırma adresi olarak girin.'
-              : 'Simülatörde gerekmez; gerçek sağlayıcıya geçince kullanılır.'}
+            : provider === 'twilio'
+              ? 'Twilio Console > Messaging > Senders > WhatsApp senders > (numaranız) bölümünde bu adresi hem gelen mesaj (callback) hem durum bildirimi (status callback) adresi olarak girin.'
+              : provider === 'cloud'
+                ? 'Meta uygulamanızda WhatsApp > Yapılandırma bölümünde geri çağırma adresi olarak girin.'
+                : 'Simülatörde gerekmez; gerçek sağlayıcıya geçince kullanılır.'}
         </CardDescription>
       </CardHeader>
       <CardContent>

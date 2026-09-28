@@ -1,8 +1,9 @@
 'use client';
 
 // Ortak numara "WhatsApp kurulumu" (yalnız platform sahibi; 15 §6.2a). Sağlayıcıya göre iki akış:
-//   - 360dialog (varsayılan, 15 §6.2; mock iken de bu akış pasif gösterilir): bağlantıyı test et → webhook'u 360dialog'a
-//     kaydet (sunucu yazar; adres ekranda maskeli) → şablonları gönder. Numara kaydı ve abonelik 360dialog'dadır.
+//   - BSP yolu — 360dialog (varsayılan, 15 §6.2) ve Twilio (15 §6.2d, docs/16); mock iken de bu akış pasif gösterilir:
+//     bağlantıyı test et → webhook'u sağlayıcıya kaydet (sunucu yazar; adres ekranda maskeli) → şablonları gönder.
+//     Numara kaydı ve Meta abonelikleri sağlayıcıdadır.
 //   - Meta Cloud API doğrudan (15 §6.2b): bilgileri göster (Meta'ya yapıştır) → bağlantıyı test et → numarayı etkinleştir
 //     (PIN) → webhook aboneliğini aç → şablonları gönder.
 // Her aksiyon API'de denetim kaydına yazılır; gizli değerler ekranda yalnız Meta'nın "Göster" adımında, API anahtarı/token
@@ -143,10 +144,22 @@ function FieldState({ set, tail, missingText = 'Eksik' }: { set: boolean; tail: 
 
 const NOT_CLOUD = 'Bu adım yalnız Meta Cloud API bağlıyken çalışır (yukarıdaki sorun satırlarına bakın).';
 
-/** 360dialog adımı neden pasif (mock / anahtar yok / belirteç ya da adres sorunu). */
-function d360Blocked(s: AdminWaSetupStatus): string {
-  if (s.provider === 'mock') return 'Önce gerçek WhatsApp’ı bağlayın: GitHub secret’ları D360_API_KEY ve WA_PHONE, sonra “Canlı ortam (Cloudflare)” iş akışı (docs/15 §6.2).';
-  if (!s.fields.apiKey.set) return '360dialog API anahtarı tanımlı değil (yukarıdaki sorun satırları).';
+/** Twilio mu (BSP yolunun ikinci sağlayıcısı). */
+const isTwilio = (s: AdminWaSetupStatus) => s.provider === 'twilio';
+/** BSP yolunda sağlayıcı adı: "360dialog" ya da "Twilio" (mock'ta varsayılan yol adı). */
+const bspName = (s: AdminWaSetupStatus) => (isTwilio(s) ? 'Twilio' : '360dialog');
+
+/** BSP adımı neden pasif (mock / anahtar yok / belirteç ya da adres sorunu). */
+function bspBlocked(s: AdminWaSetupStatus): string {
+  if (s.provider === 'mock') {
+    return 'Önce gerçek WhatsApp’ı bağlayın: GitHub secret’ları D360_API_KEY + WA_PHONE (360dialog, docs/15 §6.2) ya da TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN + WA_PHONE (Twilio, docs/15 §6.2d), sonra “Canlı ortam (Cloudflare)” iş akışı.';
+  }
+  if (isTwilio(s)) {
+    if (!s.fields.apiKey.set) return 'Twilio Auth Token tanımlı değil (yukarıdaki sorun satırları).';
+    if (!s.fields.phoneNumberId.set) return 'Twilio Account SID tanımlı değil (yukarıdaki sorun satırları).';
+  } else if (!s.fields.apiKey.set) {
+    return '360dialog API anahtarı tanımlı değil (yukarıdaki sorun satırları).';
+  }
   return 'Ön koşul eksik: yukarıdaki sorun satırlarına bakın (webhook belirteci, https adres).';
 }
 
@@ -163,7 +176,9 @@ export function WhatsappSetupSection() {
         <p className="text-sm text-fg-muted">
           {s?.provider === 'cloud'
             ? 'Ortak numarayı (Yemek Gelsin) Meta Cloud API ile doğrudan bağlama adımları. Meta’daki tıklamalar ve girilecek değerler kurulum rehberinde (docs/15 §6.2b); geri kalanı buradaki düğmelerle sırayla yapılır.'
-            : 'Ortak numarayı (Yemek Gelsin) 360dialog ile bağlama adımları. Numara 360dialog’da bağlanır ve API anahtarı GitHub secret’ı olarak girilir (docs/15 §6.2); geri kalanı buradaki üç düğmeyle sırayla yapılır.'}{' '}
+            : s?.provider === 'twilio'
+              ? 'Ortak numarayı (Yemek Gelsin) Twilio ile bağlama adımları. Numara Twilio Console’da WhatsApp gönderen olarak bağlanır; Account SID ve Auth Token GitHub secret’ı olarak girilir (docs/15 §6.2d); geri kalanı buradaki üç düğmeyle sırayla yapılır.'
+              : 'Ortak numarayı (Yemek Gelsin) 360dialog ile bağlama adımları. Numara 360dialog’da bağlanır ve API anahtarı GitHub secret’ı olarak girilir (docs/15 §6.2); geri kalanı buradaki üç düğmeyle sırayla yapılır.'}{' '}
           Her işlem denetim kaydına yazılır.
         </p>
       </div>
@@ -183,7 +198,7 @@ export function WhatsappSetupSection() {
         <>
           <SetupStatusCard s={s} />
           <TestStep s={s} step={1} />
-          <D360WebhookStep s={s} />
+          <BspWebhookStep s={s} />
           <TemplatesStep s={s} step={3} />
         </>
       ) : null}
@@ -231,6 +246,15 @@ function SetupStatusCard({ s }: { s: AdminWaSetupStatus }) {
               </InfoRow>
               <InfoRow label="App secret">
                 <FieldState {...f.appSecret} />
+              </InfoRow>
+            </>
+          ) : s.provider === 'twilio' ? (
+            <>
+              <InfoRow label="Twilio Account SID">
+                <FieldState {...f.phoneNumberId} />
+              </InfoRow>
+              <InfoRow label="Twilio Auth Token">
+                <FieldState {...f.apiKey} />
               </InfoRow>
             </>
           ) : (
@@ -323,7 +347,9 @@ function TestStep({ s, step }: { s: AdminWaSetupStatus; step: number }) {
       description={
         cloud
           ? 'Token ve telefon numarası kimliğiyle Meta’dan numaranın durumunu okur. Mesaj göndermez.'
-          : 'API anahtarıyla 360dialog’dan numaranın durumunu (görünen ad, kalite, gönderim) ve kayıtlı webhook adresini okur. Mesaj göndermez, hiçbir şeyi değiştirmez.'
+          : s.provider === 'twilio'
+            ? 'Twilio hesabını ve WhatsApp gönderenini okur: gönderen durumu, görünen ad, kalite, günlük sınır ve kayıtlı webhook adresi. Mesaj göndermez, hiçbir şeyi değiştirmez.'
+            : 'API anahtarıyla 360dialog’dan numaranın durumunu (görünen ad, kalite, gönderim) ve kayıtlı webhook adresini okur. Mesaj göndermez, hiçbir şeyi değiştirmez.'
       }
     >
       <div className="flex flex-wrap gap-2">
@@ -336,7 +362,7 @@ function TestStep({ s, step }: { s: AdminWaSetupStatus; step: number }) {
           Bağlantıyı test et
         </Button>
       </div>
-      <Blocked show={!s.actions.test}>{cloud ? NOT_CLOUD : d360Blocked(s)}</Blocked>
+      <Blocked show={!s.actions.test}>{cloud ? NOT_CLOUD : bspBlocked(s)}</Blocked>
       <ActionError error={a.error} />
       {r ? (
         <div className="flex flex-col gap-3">
@@ -471,20 +497,25 @@ function SubscribeStep({ s }: { s: AdminWaSetupStatus }) {
   );
 }
 
-/** 360dialog: ortak webhook adresini sunucu 360dialog'a yazar (Meta'daki "Göster → yapıştır" adımının yerine). */
-function D360WebhookStep({ s }: { s: AdminWaSetupStatus }) {
+/** BSP yolu: ortak webhook adresini sunucu sağlayıcıya yazar (Meta'daki "Göster → yapıştır" adımının yerine). */
+function BspWebhookStep({ s }: { s: AdminWaSetupStatus }) {
   const a = useAction<AdminWaSetupWebhook>();
   const r = a.data;
   const canRead = s.actions.test;
+  const name = bspName(s);
+  const twilio = isTwilio(s);
   return (
     <StepCard
       step={2}
-      title="Webhook’u 360dialog’a kaydet"
-      description="Müşterilerin ortak numaraya yazdığı mesajların bu sisteme gelmesi için sistemin webhook adresini 360dialog’a yazar. Adres zaten doğruysa hiçbir şey değiştirmez; tekrar basmak zararsızdır."
+      title={`Webhook’u ${twilio ? 'Twilio’ya' : '360dialog’a'} kaydet`}
+      description={`Müşterilerin ortak numaraya yazdığı mesajların bu sisteme gelmesi için sistemin webhook adresini ${name}’${twilio ? 'a' : 'a'} yazar.${
+        twilio ? ' Durum bildirimi (teslim edildi / okundu) adresi de aynı yere yazılır.' : ''
+      } Adres zaten doğruysa hiçbir şey değiştirmez; tekrar basmak zararsızdır.`}
     >
       <Alert variant="info" title="Ne zaman yeniden basılır?">
-        360dialog’da yeni API anahtarı ürettiğinizde 360dialog numaranın webhook adresini siler: GitHub’daki D360_API_KEY’i güncelleyip iş akışını çalıştırdıktan sonra
-        bu düğmeye yeniden basın. Adres gizli bir belirteç içerir; ekranda yalnız son 4 karakteri görünür.
+        {twilio
+          ? 'Twilio Console’da gönderen ayarlarını değiştirdiğinizde ya da alan adı (APP_BASE_URL) değiştiğinde bu düğmeye yeniden basın. Adres gizli bir belirteç içerir; ekranda yalnız son 4 karakteri görünür.'
+          : '360dialog’da yeni API anahtarı ürettiğinizde 360dialog numaranın webhook adresini siler: GitHub’daki D360_API_KEY’i güncelleyip iş akışını çalıştırdıktan sonra bu düğmeye yeniden basın. Adres gizli bir belirteç içerir; ekranda yalnız son 4 karakteri görünür.'}
       </Alert>
       <div className="flex flex-wrap gap-2">
         <Button
@@ -493,14 +524,14 @@ function D360WebhookStep({ s }: { s: AdminWaSetupStatus }) {
           onClick={() => void a.run(() => apiFetch<AdminWaSetupWebhook>('/admin/whatsapp/setup/webhook', { method: 'POST' }))}
         >
           <Webhook aria-hidden />
-          Webhook’u 360dialog’a kaydet
+          {twilio ? 'Webhook’u Twilio’ya kaydet' : 'Webhook’u 360dialog’a kaydet'}
         </Button>
         <Button variant="secondary" disabled={!canRead || a.loading} onClick={() => void a.run(() => apiFetch<AdminWaSetupWebhook>('/admin/whatsapp/setup/webhook'))}>
           <Eye aria-hidden />
           Kayıtlı adresi göster
         </Button>
       </div>
-      <Blocked show={!s.actions.webhook}>{d360Blocked(s)}</Blocked>
+      <Blocked show={!s.actions.webhook}>{bspBlocked(s)}</Blocked>
       <ActionError error={a.error} />
       {r ? (
         <div className="flex flex-col gap-3">
@@ -508,7 +539,7 @@ function D360WebhookStep({ s }: { s: AdminWaSetupStatus }) {
             {r.message}
           </Alert>
           <dl className="grid gap-x-6 divide-y divide-border lg:grid-cols-2 lg:divide-y-0">
-            <InfoRow label="360dialog’daki adres">
+            <InfoRow label={`${name}’daki adres`}>
               {r.urlMasked ? <code className="break-all font-mono text-sm">{r.urlMasked}</code> : <ToneBadge tone="bad">Kayıtlı değil</ToneBadge>}
             </InfoRow>
             <InfoRow label="Olması gereken">
@@ -528,15 +559,15 @@ function TemplatesStep({ s, step }: { s: AdminWaSetupStatus; step: number }) {
   const r = a.data;
   const cloud = s.provider === 'cloud';
   const blockedText = !cloud
-    ? s.provider === 'd360' && s.fields.apiKey.set
+    ? (s.provider === 'd360' || s.provider === 'twilio') && s.fields.apiKey.set
       ? 'APP_BASE_URL https ile başlamalı (şablon butonlarındaki bağlantılar).'
-      : d360Blocked(s)
+      : bspBlocked(s)
     : !s.fields.apiKey.set
       ? NOT_CLOUD
       : !s.fields.wabaId.set
         ? 'WABA ID tanımlı değil (yukarıdaki sorun satırları).'
         : 'APP_BASE_URL https ile başlamalı (şablon butonlarındaki bağlantılar).';
-  // Durum listesi https istemez: cloud'da token + WABA, 360dialog'da anahtar yeter
+  // Durum listesi https istemez: cloud'da token + WABA, 360dialog'da anahtar, Twilio'da Account SID + Auth Token yeter
   const canRefresh = cloud ? s.actions.subscribe : s.actions.test;
   return (
     <StepCard
@@ -545,7 +576,9 @@ function TemplatesStep({ s, step }: { s: AdminWaSetupStatus; step: number }) {
       description={
         cloud
           ? 'Sistemin kullandığı tüm şablonları (sipariş durumu ve işletme uyarıları) Meta’da yoksa oluşturur; var olanlara dokunmaz, hiçbir şey silmez. Meta genelde dakikalar içinde onaylar.'
-          : 'Sistemin kullandığı tüm şablonları (sipariş durumu ve işletme uyarıları) 360dialog üzerinden Meta’ya gönderir; yalnız eksikleri oluşturur, var olanlara dokunmaz, hiçbir şey silmez. Onay Meta’dadır (genelde dakikalar, en çok 1–3 gün).'
+          : s.provider === 'twilio'
+            ? 'Sistemin kullandığı tüm şablonları (sipariş durumu ve işletme uyarıları) Twilio’da içerik kaynağı olarak oluşturur ve WhatsApp onayına gönderir; yalnız eksikleri oluşturur, var olanlara dokunmaz, hiçbir şey silmez. Onay Meta’dadır (genelde dakikalar, en çok 1–3 gün).'
+            : 'Sistemin kullandığı tüm şablonları (sipariş durumu ve işletme uyarıları) 360dialog üzerinden Meta’ya gönderir; yalnız eksikleri oluşturur, var olanlara dokunmaz, hiçbir şey silmez. Onay Meta’dadır (genelde dakikalar, en çok 1–3 gün).'
       }
     >
       <div className="flex flex-wrap gap-2">

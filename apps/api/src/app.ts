@@ -35,6 +35,7 @@ import publicRoutes from './routes/public/index';
 import storeOrderRoutes from './routes/store/orders';
 import storefrontRoutes from './routes/store/storefront';
 import webhookWaRoutes from './routes/webhooks/wa';
+import { configureTwilioRuntime } from './wa/twilio-runtime';
 
 export interface BuildAppOptions {
   config: Config;
@@ -97,6 +98,9 @@ export async function buildApp(opts: BuildAppOptions): Promise<FastifyInstance> 
 
   // İş işleyicileri ve sipariş olayı abonelikleri (API sürecinde de gerekli: transitionOrder kancaları)
   registerAllJobs();
+
+  // Twilio yolu (16 §2.3, §2.5): içerik kaynağı deposu ve her mesaja eklenen durum geri bildirimi adresi
+  configureTwilioRuntime(config, handle.db);
 
   await app.register(healthRoutes, { prefix: API_PREFIX });
   await app.register(authRoutes, { prefix: `${API_PREFIX}/auth` });

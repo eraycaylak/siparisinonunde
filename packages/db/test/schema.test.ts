@@ -23,6 +23,8 @@ const PLATFORM_TABLES = new Set([
   // hareketsizlikte silinir) ve hiçbir dükkanın sohbetine girmeyen platform mesajları (dükkan seçici; 30 gün)
   'shared_wa_routes',
   'shared_wa_messages',
+  // Twilio içerik kaynakları (16 §2.3): platformun Twilio hesabına aittir, işletmeye değil; kişisel veri içermez
+  'wa_content_templates',
 ]);
 
 describe('şema', () => {

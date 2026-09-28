@@ -5,7 +5,15 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { REQUIRED_WA_SECRETS, WA_SECRET_NAMES, isMetaId, normalizeE164, whatsappContainerEnv, whatsappSecretsConflict } from '../src/whatsapp-env.ts';
+import {
+  REQUIRED_WA_SECRETS,
+  WA_SECRET_NAMES,
+  isMetaId,
+  isTwilioAccountSid,
+  normalizeE164,
+  whatsappContainerEnv,
+  whatsappSecretsConflict,
+} from '../src/whatsapp-env.ts';
 
 const FULL = {
   META_WA_TOKEN: ' EAAG-token ',
@@ -159,4 +167,104 @@ test('secrets.mjs: WhatsApp secret\'ları yalnız doluysa yüklenir, telefon çe
   assert.equal(stagingRun.status, 0, stagingRun.stderr);
   const outS = JSON.parse(stagingRun.stdout);
   assert.equal(Object.keys(outS).some((k) => k.startsWith('META_') || k === 'WA_PHONE' || k === 'D360_API_KEY'), false);
+});
+
+// Sahte Account SID parçadan üretilir: 34 karakterlik düz dizge GitHub gizli tarayıcısına takılıyor
+const HEX16 = '0123456789abcdef';
+const FAKE_SID = `AC${HEX16}${HEX16}`;
+const TWILIO = {
+  TWILIO_ACCOUNT_SID: ` ${FAKE_SID} `,
+  TWILIO_AUTH_TOKEN: ' twilio-gizli-token ',
+  WA_PHONE: '+1 850 909 9295',
+};
+
+test('Twilio yolu: Account SID + Auth Token + WA_PHONE → twilio; Meta imza anahtarı verilmez (docs/16 §3.1)', () => {
+  const r = whatsappContainerEnv(TWILIO);
+  assert.equal(r.mode, 'twilio');
+  assert.deepEqual(r.missing, []);
+  assert.deepEqual(r.env, {
+    PLATFORM_WA_PROVIDER: 'twilio',
+    PLATFORM_WA_API_KEY: 'twilio-gizli-token',
+    PLATFORM_WA_PHONE_NUMBER_ID: FAKE_SID,
+    PLATFORM_WA_DISPLAY_PHONE: '+18509099295',
+  });
+  assert.equal('WA_APP_SECRET' in r.env, false);
+  assert.equal(WA_SECRET_NAMES.includes('TWILIO_ACCOUNT_SID'), true);
+  assert.equal(WA_SECRET_NAMES.includes('TWILIO_AUTH_TOKEN'), true);
+});
+
+test('Twilio: eksik ya da biçimsiz değerde mock; gizli değer container\'a gitmez', () => {
+  const mockEnv = { PLATFORM_WA_PROVIDER: 'mock' };
+  const noToken = whatsappContainerEnv({ ...TWILIO, TWILIO_AUTH_TOKEN: '  ' });
+  assert.deepEqual(noToken, { mode: 'mock', missing: ['TWILIO_AUTH_TOKEN'], env: mockEnv });
+  const noSid = whatsappContainerEnv({ ...TWILIO, TWILIO_ACCOUNT_SID: '' });
+  assert.deepEqual(noSid, { mode: 'mock', missing: ['TWILIO_ACCOUNT_SID'], env: mockEnv });
+  const badSid = whatsappContainerEnv({ ...TWILIO, TWILIO_ACCOUNT_SID: '+905321234567' });
+  assert.equal(badSid.mode, 'mock');
+  assert.deepEqual(badSid.missing, ['TWILIO_ACCOUNT_SID (AC ile başlayan 34 karakter değil)']);
+  const noPhone = whatsappContainerEnv({ ...TWILIO, WA_PHONE: '' });
+  assert.deepEqual(noPhone.missing, ['WA_PHONE']);
+  const badPhone = whatsappContainerEnv({ ...TWILIO, WA_PHONE: 'numara' });
+  assert.deepEqual(badPhone.missing, ['WA_PHONE (E.164 değil)']);
+  for (const r of [noToken, noSid, badSid, noPhone, badPhone]) {
+    assert.equal(JSON.stringify(r).includes('twilio-gizli-token'), false);
+  }
+  assert.equal(isTwilioAccountSid(FAKE_SID), true);
+
+  for (const v of ['AC123', `SK${HEX16}${HEX16}`, '', undefined, null]) {
+    assert.equal(isTwilioAccountSid(v), false, String(v));
+  }
+});
+
+test('üç yoldan ikisi birlikte verilirse belirsiz: hiçbiri seçilmez', () => {
+  for (const [a, b, needle] of [
+    [D360, TWILIO, /D360_API_KEY/],
+    [TWILIO, FULL, /TWILIO_ACCOUNT_SID/],
+    [D360, FULL, /META_WA_TOKEN/],
+  ]) {
+    const both = { ...a, ...b };
+    const msg = whatsappSecretsConflict(both);
+    assert.match(msg, /belirsiz/);
+    assert.match(msg, needle);
+    const r = whatsappContainerEnv(both);
+    assert.equal(r.mode, 'mock');
+    assert.equal(r.conflict, msg);
+    assert.deepEqual(r.env, { PLATFORM_WA_PROVIDER: 'mock' });
+  }
+  // Tek yol çakışma değildir; yarım Twilio takımı da değil
+  assert.equal(whatsappSecretsConflict(TWILIO), null);
+  assert.equal(whatsappSecretsConflict({ ...D360, TWILIO_ACCOUNT_SID: FAKE_SID }), null);
+});
+
+test('secrets.mjs: Twilio secret\'ları yüklenir, biçimsiz Account SID dağıtımı durdurur', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'wa-twilio-'));
+  const existing = join(dir, 'existing.json');
+  writeFileSync(existing, JSON.stringify([{ name: 'SESSION_SECRET' }]));
+  const run = (env) =>
+    spawnSync(process.execPath, [new URL('./secrets.mjs', import.meta.url).pathname, existing], {
+      env: { PATH: process.env.PATH, DEV_PASSWORD: 'parola-12345', ...env },
+      encoding: 'utf8',
+    });
+
+  const ok = run(TWILIO);
+  assert.equal(ok.status, 0, ok.stderr);
+  const out = JSON.parse(ok.stdout);
+  assert.equal(out.TWILIO_ACCOUNT_SID, FAKE_SID);
+  assert.equal(out.TWILIO_AUTH_TOKEN, 'twilio-gizli-token');
+  assert.equal(out.WA_PHONE, '+18509099295');
+  assert.equal(ok.stderr.includes('twilio-gizli-token'), false, 'değerler loga yazılmaz');
+
+  const badSid = run({ ...TWILIO, TWILIO_ACCOUNT_SID: '18509099295' });
+  assert.equal(badSid.status, 1);
+  assert.match(badSid.stderr, /TWILIO_ACCOUNT_SID/);
+  assert.equal(badSid.stdout, '');
+
+  const spaced = run({ ...TWILIO, TWILIO_AUTH_TOKEN: 'iki parca' });
+  assert.equal(spaced.status, 1);
+  assert.match(spaced.stderr, /TWILIO_AUTH_TOKEN boşluk içeremez/);
+
+  const both = run({ ...TWILIO, D360_API_KEY: 'd360-gizli-anahtar' });
+  assert.equal(both.status, 1);
+  assert.match(both.stderr, /belirsiz/);
+  assert.equal(both.stdout, '');
 });

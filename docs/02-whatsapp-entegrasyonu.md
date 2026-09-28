@@ -33,6 +33,12 @@
 | 12 | **Commerce Policy:** alkol, tütün/nargile, ilaç, tehlikeli madde (tüp/LPG şüpheli) WhatsApp akışında satılamaz → ürün/kategori bayrağı; bu dikeyler hedeflenmez. | Faz 1 |
 | 13 | **WhatsApp'sız mod (SMS OTP yedeği):** müşterinin WhatsApp'ı yoksa, işletmenin WhatsApp bağlantısı henüz tamamlanmadıysa ya da WhatsApp kanalı arızalıysa Akış B doğrulaması SMS OTP ile yapılır; durum bilgisi takip sayfasından, kritik durumlarda (onaylandı, ret, iptal) SMS ile verilir. İşletme Meta adımları bitmeden ilk gün web siparişi alabilir (§6.11). | Faz 1 |
 
+> **Sağlayıcı notu (28.09.2026):** bu dokümandaki mesaj tasarımı, pencere kuralları, şablon kataloğu ve maliyet
+> modeli sağlayıcıdan bağımsızdır. Ortak numara üç yoldan bağlanabilir: 360dialog, **Twilio** ve doğrudan Meta Cloud API
+> (00 §12a madde 8; kurulum 15 §6). Twilio'nun API sözleşmesi Cloud API'den farklıdır (form-encoded gönderim, Content
+> API kaynaklı etkileşimli mesaj, `X-Twilio-Signature` webhook imzası) ve kasıtlı indirgemeler içerir: ayrıntılar
+> **[16 — Twilio WhatsApp adaptörü](16-twilio-whatsapp.md)**.
+
 ## 2. Meta tarafı hazırlık ve kritik yol **[Faz 0]**
 
 ### 2.1 Kritik yol

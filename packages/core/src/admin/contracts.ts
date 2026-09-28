@@ -223,7 +223,7 @@ export const adminWaSharedNumberSchema = z.object({
   /** Ortak numara (E.164; platformun numarası, müşteri verisi değildir); yapılandırılmamışsa null */
   displayPhone: z.string().nullable(),
   displayPhoneFormatted: z.string().nullable(),
-  provider: z.enum(['mock', 'cloud', 'd360']),
+  provider: z.enum(['mock', 'cloud', 'd360', 'twilio']),
   providerLabel: z.string(),
   /** PLATFORM_WA_WEBHOOK_TOKEN tanımlı mı (değilse ortak webhook 404) */
   webhookConfigured: z.boolean(),
@@ -268,14 +268,14 @@ export const adminWaSetupToneSchema = z.enum(['ok', 'warn', 'bad', 'info']);
 export type AdminWaSetupTone = z.infer<typeof adminWaSetupToneSchema>;
 
 export const adminWaSetupStatusSchema = z.object({
-  provider: z.enum(['mock', 'cloud', 'd360']),
+  provider: z.enum(['mock', 'cloud', 'd360', 'twilio']),
   providerLabel: z.string(),
   displayName: z.string(),
   /** Ortak numara E.164 (platformun numarası) */
   displayPhone: z.string().nullable(),
   displayPhoneFormatted: z.string().nullable(),
   graphApiVersion: z.string(),
-  /** Yönetim çağrılarının taban adresi (graph.facebook.com/v23.0 ya da waba-v2.360dialog.io) */
+  /** Yönetim çağrılarının taban adresi (graph.facebook.com/v23.0, waba-v2.360dialog.io ya da api.twilio.com) */
   apiBase: z.string(),
   fields: z.object({
     phoneNumberId: setupFieldSchema,
@@ -289,8 +289,8 @@ export const adminWaSetupStatusSchema = z.object({
   /** Webhook adresi, belirteç maskeli (…/shared/••••abcd) */
   webhookUrlMasked: z.string().nullable(),
   /**
-   * Adımlar çalıştırılabilir mi. test/templates: cloud (token + kimlik) ya da d360 (anahtar); register/subscribe yalnız cloud;
-   * webhook yalnız d360 (anahtar + webhook belirteci + https APP_BASE_URL).
+   * Adımlar çalıştırılabilir mi. test/templates: cloud (token + kimlik), d360 (anahtar) ya da twilio (Account SID + Auth Token);
+   * register/subscribe yalnız cloud; webhook yalnız d360 (Twilio'da webhook Console'dan elle girilir, 16 §4).
    */
   actions: z.object({ test: z.boolean(), register: z.boolean(), subscribe: z.boolean(), templates: z.boolean(), webhook: z.boolean() }),
   /** Türkçe eksik/uyarı satırları (boşsa kurulum bilgileri tam) */

@@ -1,4 +1,6 @@
-// WhatsApp sağlayıcı arayüzü (14 §8): mock | cloud | d360. Yalnız resmi Cloud API (ve uyumlu BSP).
+// WhatsApp sağlayıcı arayüzü (14 §8): mock | cloud | d360 | twilio. Yalnız resmi Cloud API ve resmi BSP'ler.
+// twilio Cloud API gövdesini KULLANMAZ (docs/16): kendi form-encoded uçları ve Content API kaynakları vardır;
+// arayüz aynıdır, gövde üretimi sağlayıcıya aittir.
 
 import type { WaProvider } from '@siparis/core';
 
@@ -9,9 +11,10 @@ export interface WaAccountRef {
   branchId: string;
   provider: WaProvider;
   displayPhone: string | null;
+  /** cloud: Graph phone_number_id; twilio: Twilio Account SID (AC…); d360: yok */
   phoneNumberId: string | null;
   wabaId: string | null;
-  /** Çözülmüş API anahtarı (mock'ta boş) */
+  /** Çözülmüş API anahtarı (mock'ta boş; twilio'da Auth Token) */
   apiKey: string | null;
 }
 

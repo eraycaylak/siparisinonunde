@@ -1,10 +1,13 @@
-// Cloudflare ortamında ortak numaranın kipi (15 §13, §6.2). İki gerçek yol vardır (00 §12a madde 8):
+// Cloudflare ortamında ortak numaranın kipi (15 §13, §6.2). Üç gerçek yol vardır (00 §12a madde 8):
 //   - 360dialog (VARSAYILAN, proje sahibinin kararı 27.09.2026): GitHub secret'ları D360_API_KEY ve WA_PHONE birlikte
 //     varsa container PLATFORM_WA_PROVIDER=d360 ile açılır (numara, anahtara bağlıdır; Meta tarafını 360dialog yönetir).
+//   - Twilio (alternatif, 15 §6.2d; docs/16): TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN ve WA_PHONE birlikte varsa
+//     PLATFORM_WA_PROVIDER=twilio. Account SID gönderim adresinde (PLATFORM_WA_PHONE_NUMBER_ID), Auth Token hem
+//     gönderimde hem webhook imzasında (X-Twilio-Signature) kullanılır; Meta imza anahtarı (WA_APP_SECRET) yoktur.
 //   - Meta Cloud API doğrudan (alternatif, 15 §6.2b): META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_APP_SECRET ve WA_PHONE
 //     birlikte varsa PLATFORM_WA_PROVIDER=cloud (META_WA_WABA_ID isteğe bağlı: admin "WhatsApp kurulumu"ndaki abonelik ve
 //     şablon adımları için).
-// D360_API_KEY ile tam META_* seti birlikte verilirse yol belirsizdir: dağıtım durur (iş akışı ve scripts/secrets.mjs
+// Birden çok yolun anahtarları birlikte verilirse yol belirsizdir: dağıtım durur (iş akışı ve scripts/secrets.mjs
 // whatsappSecretsConflict ile), Worker da bu durumda gerçek numarayı açmaz (mock + hata günlüğü). Hiçbir yol tamamlanmamışsa
 // taklit (mock) kalır: canlı ortamda (DEPLOY_ENV=production) bu, çalışan WhatsApp olmadığı anlamına gelir (vitrinde ve QR'da
 // WhatsApp bağlantısı gösterilmez; apps/api/src/config.ts platformDisplayPhone). Geliştirici araçlarını (DEV_TOOLS) bu modül
@@ -18,6 +21,10 @@ export interface WhatsAppSecrets {
   META_APP_SECRET?: string;
   /** 360dialog'un numaraya verdiği API anahtarı (D360-API-KEY) */
   D360_API_KEY?: string;
+  /** Twilio hesap kimliği: AC + 32 onaltılık karakter */
+  TWILIO_ACCOUNT_SID?: string;
+  /** Twilio Auth Token: gönderim ve webhook imzası */
+  TWILIO_AUTH_TOKEN?: string;
   /** Ortak numara, E.164 (ör. +905321234567); iki yolda da zorunlu */
   WA_PHONE?: string;
 }
@@ -26,8 +33,10 @@ export interface WhatsAppSecrets {
 export const REQUIRED_WA_SECRETS = ['META_WA_TOKEN', 'META_WA_PHONE_NUMBER_ID', 'META_APP_SECRET', 'WA_PHONE'] as const;
 /** 360dialog yolu için birlikte gereken secret'lar. */
 export const REQUIRED_D360_SECRETS = ['D360_API_KEY', 'WA_PHONE'] as const;
+/** Twilio yolu için birlikte gereken secret'lar. */
+export const REQUIRED_TWILIO_SECRETS = ['TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN', 'WA_PHONE'] as const;
 /** Tüm WhatsApp secret'ları (isteğe bağlı META_WA_WABA_ID dahil); iş akışı boşaltılanları Worker'dan siler. */
-export const WA_SECRET_NAMES = [...REQUIRED_WA_SECRETS, 'META_WA_WABA_ID', 'D360_API_KEY'] as const;
+export const WA_SECRET_NAMES = [...REQUIRED_WA_SECRETS, 'META_WA_WABA_ID', 'D360_API_KEY', 'TWILIO_ACCOUNT_SID', 'TWILIO_AUTH_TOKEN'] as const;
 
 const clean = (v: string | undefined | null) => (typeof v === 'string' ? v.trim() : '');
 
@@ -50,23 +59,48 @@ export function isMetaId(v: string | undefined | null): boolean {
   return /^\d{5,30}$/.test(clean(v));
 }
 
+/** Twilio Account SID: "AC" + 32 onaltılık karakter (Console > Account Info). */
+export function isTwilioAccountSid(v: string | undefined | null): boolean {
+  return /^AC[0-9a-fA-F]{32}$/.test(clean(v));
+}
+
+/** Yolun ANAHTAR takımı tam mı (ortak olan WA_PHONE sayılmaz). */
+function d360Complete(s: WhatsAppSecrets): boolean {
+  return !!clean(s.D360_API_KEY);
+}
+function twilioComplete(s: WhatsAppSecrets): boolean {
+  return !!clean(s.TWILIO_ACCOUNT_SID) && !!clean(s.TWILIO_AUTH_TOKEN);
+}
+function metaComplete(s: WhatsAppSecrets): boolean {
+  return !!clean(s.META_WA_TOKEN) && !!clean(s.META_WA_PHONE_NUMBER_ID) && !!clean(s.META_APP_SECRET);
+}
+
+/** Yolların hangi secret'ları sildirilecek (çakışma metni için). */
+const PATH_SECRETS: Record<string, string> = {
+  '360dialog': 'D360_API_KEY',
+  Twilio: 'TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN',
+  'Meta Cloud API': 'META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_WA_WABA_ID, META_APP_SECRET',
+};
+
 /**
- * İki yolun secret'ları birlikte mi (D360_API_KEY + tam META_* seti): Türkçe hata metni, yoksa null. Kısmi META_*
- * (ör. eski bir META_WA_TOKEN) çakışma sayılmaz; 360dialog seçilir, artıklar yok sayılır.
+ * Birden çok yolun anahtar takımı birlikte mi verilmiş: Türkçe hata metni, yoksa null. Kısmi artıklar (ör. yalnız eski
+ * bir META_WA_TOKEN) çakışma sayılmaz; tek tam yol seçilir, artıklar yok sayılır.
  */
 export function whatsappSecretsConflict(s: WhatsAppSecrets): string | null {
-  if (!clean(s.D360_API_KEY)) return null;
-  if (REQUIRED_WA_SECRETS.some((k) => !clean(s[k]))) return null;
+  const paths: string[] = [];
+  if (d360Complete(s)) paths.push('360dialog');
+  if (twilioComplete(s)) paths.push('Twilio');
+  if (metaComplete(s)) paths.push('Meta Cloud API');
+  if (paths.length < 2) return null;
+  const named = paths.map((p) => `${p} (${PATH_SECRETS[p]})`).join(' ve ');
   return (
-    "Hem 360dialog (D360_API_KEY) hem Meta Cloud API (META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_APP_SECRET) secret'ları " +
-    'tanımlı: ortak numaranın hangi yoldan bağlanacağı belirsiz. Kullanmadığınız yolun secret\'larını silin (360dialog için ' +
-    "META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_WA_WABA_ID, META_APP_SECRET; Meta doğrudan için D360_API_KEY) ve iş akışını " +
-    'yeniden çalıştırın (docs/15 §6.2).'
+    `Hem ${named} secret'ları tanımlı: ortak numaranın hangi yoldan bağlanacağı belirsiz. ` +
+    "Kullanmadığınız yolların secret'larını silin ve iş akışını yeniden çalıştırın (docs/15 §6.2, §6.2b, §6.2d)."
   );
 }
 
 export interface WhatsAppContainerEnv {
-  mode: 'cloud' | 'd360' | 'mock';
+  mode: 'cloud' | 'd360' | 'twilio' | 'mock';
   /** Seçilen gerçek yol için eksik (ya da geçersiz) secret adları */
   missing: string[];
   /** Container ortam değişkenleri (ortak numara ve sağlayıcı) */
@@ -98,6 +132,30 @@ export function whatsappContainerEnv(s: WhatsAppSecrets): WhatsAppContainerEnv {
       mode: 'd360',
       missing: [],
       env: { PLATFORM_WA_PROVIDER: 'd360', PLATFORM_WA_API_KEY: d360Key, PLATFORM_WA_DISPLAY_PHONE: phone! },
+    };
+  }
+
+  // Twilio: Account SID + Auth Token + numara. Webhook imzası Auth Token'ladır (X-Twilio-Signature), Meta imza
+  // anahtarı (WA_APP_SECRET) yoktur; Account SID gönderim adresindeki kimliktir.
+  const twilioSid = clean(s.TWILIO_ACCOUNT_SID);
+  const twilioToken = clean(s.TWILIO_AUTH_TOKEN);
+  if (twilioSid || twilioToken) {
+    const missingTwilio: string[] = [];
+    if (!twilioSid) missingTwilio.push('TWILIO_ACCOUNT_SID');
+    else if (!isTwilioAccountSid(twilioSid)) missingTwilio.push('TWILIO_ACCOUNT_SID (AC ile başlayan 34 karakter değil)');
+    if (!twilioToken) missingTwilio.push('TWILIO_AUTH_TOKEN');
+    if (!clean(s.WA_PHONE)) missingTwilio.push('WA_PHONE');
+    else if (phoneBad) missingTwilio.push('WA_PHONE (E.164 değil)');
+    if (missingTwilio.length) return { mode: 'mock', missing: missingTwilio, env: { ...MOCK_ENV } };
+    return {
+      mode: 'twilio',
+      missing: [],
+      env: {
+        PLATFORM_WA_PROVIDER: 'twilio',
+        PLATFORM_WA_API_KEY: twilioToken,
+        PLATFORM_WA_PHONE_NUMBER_ID: twilioSid,
+        PLATFORM_WA_DISPLAY_PHONE: phone!,
+      },
     };
   }
 

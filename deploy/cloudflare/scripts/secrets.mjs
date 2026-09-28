@@ -1,16 +1,16 @@
 // Dağıtımda yüklenecek gizli değerler (wrangler deploy --secrets-file). Worker'da zaten olanlara dokunulmaz
 // (ENCRYPTION_KEY değişirse yedekteki şifreli veriler okunamaz); eksikler rastgele üretilir. DEV_PASSWORD her
 // dağıtımda GitHub secret'ından güncellenir.
-// Gerçek WhatsApp (isteğe bağlı; src/whatsapp-env.ts): D360_API_KEY (360dialog, varsayılan yol), META_WA_TOKEN,
-// META_WA_PHONE_NUMBER_ID, META_WA_WABA_ID, META_APP_SECRET (Meta doğrudan) ve WA_PHONE ortamda doluysa her dağıtımda
-// yüklenir (boşsa dosyaya yazılmaz; iş akışı Worker'da kalmış eskisini siler). WA_PHONE E.164'e çevrilir; geçersiz telefon,
-// rakam olmayan Meta kimliği, boşluklu anahtar ya da iki yolun birlikte verilmesi (D360_API_KEY + tam META_* seti) dağıtımı
-// durdurur.
+// Gerçek WhatsApp (isteğe bağlı; src/whatsapp-env.ts): D360_API_KEY (360dialog, varsayılan yol), TWILIO_ACCOUNT_SID +
+// TWILIO_AUTH_TOKEN (Twilio), META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_WA_WABA_ID, META_APP_SECRET (Meta doğrudan) ve
+// WA_PHONE ortamda doluysa her dağıtımda yüklenir (boşsa dosyaya yazılmaz; iş akışı Worker'da kalmış eskisini siler).
+// WA_PHONE E.164'e çevrilir; geçersiz telefon, rakam olmayan Meta kimliği, biçimsiz Twilio Account SID, boşluklu anahtar
+// ya da birden çok yolun birlikte verilmesi dağıtımı durdurur.
 // Gizli staging (--no-whatsapp): WhatsApp secret'ları hiç yüklenmez; staging canlı numarayı kullanmaz (00 §12a madde 10).
 // Kullanım: node scripts/secrets.mjs <wrangler secret list çıktısı (JSON)> [--no-whatsapp] > secrets.json
 import { createECDH, randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { WA_SECRET_NAMES, isMetaId, normalizeE164, whatsappSecretsConflict } from '../src/whatsapp-env.ts';
+import { WA_SECRET_NAMES, isMetaId, isTwilioAccountSid, normalizeE164, whatsappSecretsConflict } from '../src/whatsapp-env.ts';
 
 const noWhatsapp = process.argv.includes('--no-whatsapp');
 let existing = new Set();
@@ -65,7 +65,9 @@ for (const name of noWhatsapp ? [] : WA_SECRET_NAMES) {
     else out[name] = phone;
   } else if ((name === 'META_WA_PHONE_NUMBER_ID' || name === 'META_WA_WABA_ID') && !isMetaId(value)) {
     waErrors.push(`${name} yalnız rakamlardan oluşmalı (Meta > WhatsApp > API Setup sayfasındaki kimlik; telefon numarası değil)`);
-  } else if ((name === 'D360_API_KEY' || name === 'META_WA_TOKEN') && /\s/.test(value)) {
+  } else if (name === 'TWILIO_ACCOUNT_SID' && !isTwilioAccountSid(value)) {
+    waErrors.push('TWILIO_ACCOUNT_SID "AC" ile başlayan 34 karakter olmalı (console.twilio.com > Account Info); telefon numarası ya da API Key SID değildir');
+  } else if ((name === 'D360_API_KEY' || name === 'META_WA_TOKEN' || name === 'TWILIO_AUTH_TOKEN') && /\s/.test(value)) {
     waErrors.push(`${name} boşluk içeremez (anahtarı yeniden, tek parça hâlinde kopyalayın)`);
   } else {
     out[name] = value;

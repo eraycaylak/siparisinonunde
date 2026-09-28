@@ -61,6 +61,10 @@ interface Env {
   // Gerçek WhatsApp (isteğe bağlı GitHub secret'ları; iş akışı yalnız doluysa yükler, boşaltılınca siler; 15 §13, §6.2)
   /** 360dialog API anahtarı (varsayılan yol; numara anahtara bağlıdır) */
   D360_API_KEY?: string;
+  /** Twilio hesap kimliği (AC…); gönderim adresindeki kimlik (docs/16 §3.1) */
+  TWILIO_ACCOUNT_SID?: string;
+  /** Twilio Auth Token: gönderim ve webhook imzası (X-Twilio-Signature) */
+  TWILIO_AUTH_TOKEN?: string;
   /** Meta sistem kullanıcısı token'ı (süresiz; Meta doğrudan yolu) */
   META_WA_TOKEN?: string;
   /** Ortak numaranın Phone number ID'si */
@@ -130,8 +134,9 @@ export class AppContainer extends Container<Env> {
     super(ctx, env);
     const mode = normalizeDeployMode(env.DEPLOY_MODE);
     const staging = mode === 'staging';
-    // Ortak numara kipi: D360_API_KEY + WA_PHONE → 360dialog; META_* + WA_PHONE → Meta Cloud API; değilse mock. Gizli
-    // staging canlı numarayı ASLA kullanmaz (iş akışı secret'ları da yüklemez).
+    // Ortak numara kipi: D360_API_KEY + WA_PHONE → 360dialog; TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN + WA_PHONE → Twilio;
+    // META_* + WA_PHONE → Meta Cloud API; değilse mock. Gizli staging canlı numarayı ASLA kullanmaz (iş akışı
+    // secret'ları da yüklemez).
     const wa = whatsappContainerEnv(staging ? {} : env);
     if (wa.conflict) console.error(`WhatsApp: ${wa.conflict}`);
     const someWaSecret = !staging && WA_SECRET_NAMES.some((k) => (env[k] ?? '').trim() !== '');
@@ -139,9 +144,11 @@ export class AppContainer extends Container<Env> {
       `kip: ${mode} (DEPLOY_ENV=${modeSettings(mode).deployEnv}); ` +
         (wa.mode === 'd360'
           ? 'WhatsApp: gerçek numara (360dialog)'
-          : wa.mode === 'cloud'
-            ? 'WhatsApp: gerçek numara (Meta Cloud API)'
-            : `WhatsApp: mock (${staging ? 'simülatör' : 'canlı ortamda çalışan WhatsApp yok'})${someWaSecret && wa.missing.length ? `; eksik: ${wa.missing.join(', ')}` : ''}`),
+          : wa.mode === 'twilio'
+            ? 'WhatsApp: gerçek numara (Twilio)'
+            : wa.mode === 'cloud'
+              ? 'WhatsApp: gerçek numara (Meta Cloud API)'
+              : `WhatsApp: mock (${staging ? 'simülatör' : 'canlı ortamda çalışan WhatsApp yok'})${someWaSecret && wa.missing.length ? `; eksik: ${wa.missing.join(', ')}` : ''}`),
     );
     // Ortam değişkenleri ve gerekçeleri: src/mode.ts containerEnv (DEPLOY_ENV, DEV_TOOLS, 2FA kipten türetilir)
     this.envVars = containerEnv(mode, { ...env, DATA_EPOCH: safeEpoch(env.DATA_EPOCH) }, wa.env);

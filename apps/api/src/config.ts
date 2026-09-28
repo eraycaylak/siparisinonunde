@@ -36,12 +36,12 @@ export const configSchema = z.object({
       return false;
     }
   }, 'ENCRYPTION_KEY 32 bayt base64 olmalı'),
-  WA_DEFAULT_PROVIDER: z.enum(['mock', 'cloud', 'd360']).default('mock'),
+  WA_DEFAULT_PROVIDER: z.enum(['mock', 'cloud', 'd360', 'twilio']).default('mock'),
   WA_APP_SECRET: optionalString,
   WA_VERIFY_TOKEN: z.string().default('dev-verify'),
-  PLATFORM_WA_PROVIDER: z.enum(['mock', 'cloud', 'd360']).default('mock'),
+  PLATFORM_WA_PROVIDER: z.enum(['mock', 'cloud', 'd360', 'twilio']).default('mock'),
   PLATFORM_WA_API_KEY: optionalString,
-  /** cloud: platform numarasının Graph phone_number_id'si (d360'ta gerekmez) */
+  /** cloud: platform numarasının Graph phone_number_id'si; twilio: Twilio Account SID (AC…); d360'ta gerekmez (16 §3.1) */
   PLATFORM_WA_PHONE_NUMBER_ID: optionalString,
   /**
    * cloud, isteğe bağlı: platform numarasının WhatsApp Business hesap kimliği (WABA ID). Yalnız admin "WhatsApp kurulumu"
@@ -112,6 +112,9 @@ export type Config = Omit<z.infer<typeof configSchema>, 'ADMIN_TOTP_REQUIRED'> &
 
 type ParsedConfig = z.infer<typeof configSchema>;
 
+/** Twilio Account SID: "AC" + 32 onaltılık karakter (Twilio Console > Account Info). */
+export const TWILIO_ACCOUNT_SID_RE = /^AC[0-9a-fA-F]{32}$/;
+
 /** Üretimde güçlü sayılmayan gizli anahtar: kısa ya da örnek dosyadaki geliştirme değeri. */
 const weakSecret = (v: string) => v.length < 32 || v.startsWith('dev-only');
 
@@ -155,6 +158,12 @@ export function productionConfigErrors(c: ParsedConfig): string[] {
   }
   if (c.PLATFORM_WA_PROVIDER === 'cloud' && !c.PLATFORM_WA_PHONE_NUMBER_ID) {
     errors.push('PLATFORM_WA_PROVIDER=cloud için PLATFORM_WA_PHONE_NUMBER_ID zorunlu');
+  }
+  // Twilio (16 §3.1): Account SID gönderim adresindedir, Auth Token hem gönderimde hem webhook imzasında (X-Twilio-Signature)
+  if (c.PLATFORM_WA_PROVIDER === 'twilio' && !TWILIO_ACCOUNT_SID_RE.test(c.PLATFORM_WA_PHONE_NUMBER_ID ?? '')) {
+    errors.push(
+      'PLATFORM_WA_PROVIDER=twilio için PLATFORM_WA_PHONE_NUMBER_ID Twilio Account SID olmalı: AC ile başlayan 34 karakter (canlı ortam: GitHub secret TWILIO_ACCOUNT_SID)',
+    );
   }
   // Ortak numaranın webhook'u platformun tek girişidir: Cloud API'de imzasız olay kabul edilmez (yalnız URL belirteci
   // yetmez; belirteç loga ya da yedeğe sızarsa sahte olay gönderilebilir)

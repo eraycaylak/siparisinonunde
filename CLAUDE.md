@@ -4,7 +4,7 @@
 
 ## Önce bunları oku
 - `docs/00-kararlar-ve-sozluk.md`: **bağlayıcı** kararlar, sözlük, sipariş durum makinesi, roller, enum'lar. Kodda ve dokümanda isimler buradakiyle birebir aynı olmalı. Bir kararı değiştirmek gerekiyorsa önce bu dosyayı güncelle, sonra kodu.
-- Konuya göre ilgili doküman: WhatsApp → `02`, müşteri akışları → `03`, işletme paneli → `04`, admin/site → `05`, mimari → `06`, veri modeli/API → `07`, mevzuat → `08`, yol haritası → `09`, riskler/metrikler → `10`.
+- Konuya göre ilgili doküman: WhatsApp → `02`, müşteri akışları → `03`, işletme paneli → `04`, admin/site → `05`, mimari → `06`, veri modeli/API → `07`, mevzuat → `08`, yol haritası → `09`, riskler/metrikler → `10`, Twilio adaptörü → `16`.
 
 ## Dil
 - Dokümanlar, UI metinleri ve commit mesajları Türkçe.
@@ -29,7 +29,7 @@ pnpm monorepo (`packages/core`, `packages/db`, `apps/api`, `apps/web`, `e2e`). B
 - Yalnız PostgreSQL: Drizzle, `jobs` tablosu + outbox + `LISTEN/NOTIFY` (Redis/BullMQ yok, PostGIS yok)
 - Kendi oturum sistemi (scrypt + HttpOnly çerez), TOTP 2FA
 - Zod 4 sözleşmeleri `packages/core/src/contracts`
-- WhatsApp: `WhatsAppProvider` (`mock` / `cloud` / `d360` = 360dialog)
+- WhatsApp: `WhatsAppProvider` (`mock` / `cloud` / `d360` = 360dialog / `twilio` = Twilio, docs/16)
 - Canlı ortam: Cloudflare (Worker + tek container: PostgreSQL + API + worker + web; yedekler R2'de), `deploy/cloudflare/` ve `.github/workflows/deploy-dev-cloudflare.yml` (00 §12a madde 10, 15 §13). Docker Compose / Türkiye VPS yolu isteğe bağlı alternatiftir.
 
 ## Komutlar

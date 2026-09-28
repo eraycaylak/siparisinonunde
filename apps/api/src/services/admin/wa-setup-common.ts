@@ -1,4 +1,5 @@
-// Ortak numara "WhatsApp kurulumu"nun (15 §6.2a) iki sağlayıcıda (cloud: Meta Graph, d360: 360dialog) ortak yardımcıları:
+// Ortak numara "WhatsApp kurulumu"nun (15 §6.2a) üç sağlayıcıda (cloud: Meta Graph, d360: 360dialog, twilio: Twilio)
+// ortak yardımcıları:
 // yapılandırma alt kümesi, ortam değişkeni → GitHub secret adı, maskeleme, ön koşullar ve Türkçe etiket tabloları.
 
 import { WA_PROVIDER_LABELS } from '@siparis/core';
@@ -23,8 +24,8 @@ export type WaSetupConfig = Pick<
 
 type Provider = WaSetupConfig['PLATFORM_WA_PROVIDER'];
 
-/** Ortam değişkeni → canlı ortamdaki (Cloudflare) GitHub secret'ı, sağlayıcıya göre (15 §13, §6.2, §6.2b). */
-const LIVE_SECRET: Record<'cloud' | 'd360', Record<string, string>> = {
+/** Ortam değişkeni → canlı ortamdaki (Cloudflare) GitHub secret'ı, sağlayıcıya göre (15 §13, §6.2, §6.2b, §6.2d). */
+const LIVE_SECRET: Record<'cloud' | 'd360' | 'twilio', Record<string, string>> = {
   cloud: {
     PLATFORM_WA_API_KEY: 'META_WA_TOKEN',
     PLATFORM_WA_PHONE_NUMBER_ID: 'META_WA_PHONE_NUMBER_ID',
@@ -36,11 +37,17 @@ const LIVE_SECRET: Record<'cloud' | 'd360', Record<string, string>> = {
     PLATFORM_WA_API_KEY: 'D360_API_KEY',
     PLATFORM_WA_DISPLAY_PHONE: 'WA_PHONE',
   },
+  twilio: {
+    PLATFORM_WA_API_KEY: 'TWILIO_AUTH_TOKEN',
+    PLATFORM_WA_PHONE_NUMBER_ID: 'TWILIO_ACCOUNT_SID',
+    PLATFORM_WA_DISPLAY_PHONE: 'WA_PHONE',
+  },
 };
 
 /** "PLATFORM_WA_API_KEY (canlı ortam: GitHub secret D360_API_KEY)"; mock'ta varsayılan yol (360dialog) adları. */
 export function envName(name: string, provider: Provider): string {
-  const s = LIVE_SECRET[provider === 'cloud' ? 'cloud' : 'd360'][name];
+  const key = provider === 'cloud' || provider === 'twilio' ? provider : 'd360';
+  const s = LIVE_SECRET[key][name];
   return s ? `${name} (canlı ortam: GitHub secret ${s})` : name;
 }
 
@@ -70,7 +77,8 @@ export function requireRealProvider(c: Pick<WaSetupConfig, 'PLATFORM_WA_PROVIDER
   throw conflict(
     'wa_setup_mock',
     `Sağlayıcı ${WA_PROVIDER_LABELS.mock.toLocaleLowerCase('tr')} (mock): gerçek WhatsApp bağlı değil. Varsayılan yol 360dialog: GitHub secret'ları ` +
-      "D360_API_KEY ve WA_PHONE'u ekleyip Actions › \"Canlı ortam (Cloudflare)\" › Run workflow (docs/15 §6.2). Meta doğrudan yol: META_* secret'ları (docs/15 §6.2b).",
+      "D360_API_KEY ve WA_PHONE'u ekleyip Actions › \"Canlı ortam (Cloudflare)\" › Run workflow (docs/15 §6.2). Twilio yolu: TWILIO_ACCOUNT_SID, " +
+      "TWILIO_AUTH_TOKEN, WA_PHONE (docs/15 §6.2d). Meta doğrudan yol: META_* secret'ları (docs/15 §6.2b).",
   );
 }
 

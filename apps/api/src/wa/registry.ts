@@ -1,4 +1,5 @@
 // Sağlayıcı seçimi (wa_accounts.provider) ve hesap referansı (api anahtarı lib/encryption ile çözülür).
+// twilio (16 §3.1): phone_number_id = Twilio Account SID, api anahtarı = Auth Token.
 // 'shared' (ortak numara, 00 §12a madde 8): işletme satırının kendi kimlik bilgisi yoktur; gönderim platform numarasının
 // sağlayıcısı ve anahtarıyla (PLATFORM_WA_*) yapılır — platform uyarılarıyla aynı numara.
 
@@ -9,6 +10,7 @@ import { createEncryptor, type Encryptor } from '../lib/encryption';
 import { createCloudProvider } from './providers/cloud';
 import { createD360Provider } from './providers/d360';
 import { createMockProvider } from './providers/mock';
+import { createTwilioProvider } from './providers/twilio';
 import type { WaAccountRef, WhatsAppProvider } from './types';
 
 export type WaAccountRow = typeof waAccounts.$inferSelect;
@@ -17,9 +19,10 @@ const providers: Record<WaOwnProvider, WhatsAppProvider> = {
   mock: createMockProvider(),
   cloud: createCloudProvider(),
   d360: createD360Provider(),
+  twilio: createTwilioProvider(),
 };
 
-/** Somut sağlayıcı (mock | cloud | d360). Ortak numara satırı için `providerForAccount` kullanılır. */
+/** Somut sağlayıcı (mock | cloud | d360 | twilio). Ortak numara satırı için `providerForAccount` kullanılır. */
 export function getWaProvider(name: WaOwnProvider): WhatsAppProvider {
   return providers[name] ?? providers.mock;
 }

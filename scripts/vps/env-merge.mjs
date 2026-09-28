@@ -9,7 +9,8 @@
 //     webhook adresi), VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY. Eksikse üretilir; mevcut değer bozuksa KENDİLİĞİNDEN
 //     DEĞİŞTİRİLMEZ, dağıtım anlaşılır bir hatayla durur.
 //   - Sağlayıcı değerleri her dağıtımda GitHub secret'larından yeniden yazılır: alan adı, Cloudflare token'ı (Caddy
-//     DNS-01), WhatsApp (D360_API_KEY + WA_PHONE → "d360", 360dialog, varsayılan yol; META_* + WA_PHONE → "cloud", Meta
+//     DNS-01), WhatsApp (D360_API_KEY + WA_PHONE → "d360", 360dialog, varsayılan yol; TWILIO_* + WA_PHONE → "twilio";
+//     META_* + WA_PHONE → "cloud", Meta
 //     doğrudan; ikisi birlikte → hata; hiçbiri tam değilse "mock"; deploy/cloudflare/src/whatsapp-env.ts ile aynı kural), Netgsm
 //     (üçü tamsa "netgsm", değilse "mock"). Sabitler: DEPLOY_ENV=production, DEV_TOOLS=0, ADMIN_TOTP_REQUIRED=true,
 //     demo vitrin/uyarı kapalı.
@@ -20,7 +21,7 @@
 //
 // Kullanım: node scripts/vps/env-merge.mjs --current <mevcut .env ya da boş dosya> --out <yeni .env>
 // Girdiler ortamdan (GitHub secret'ları): CLOUDFLARE_API_TOKEN (zorunlu; CADDY_CLOUDFLARE_API_TOKEN varsa Caddy onu
-// kullanır), DOMAIN, ACME_EMAIL, D360_API_KEY, META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_WA_WABA_ID, META_APP_SECRET, WA_PHONE,
+// kullanır), DOMAIN, ACME_EMAIL, D360_API_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_WA_WABA_ID, META_APP_SECRET, WA_PHONE,
 // NETGSM_USERCODE, NETGSM_PASSWORD, NETGSM_HEADER, SUPPORT_WHATSAPP, BACKUP_REMOTE, BACKUP_PING_URL.
 // GitHub Actions'ta (GITHUB_ACTIONS=true) tüm gizli değerler için ::add-mask:: yazar; değerler hiçbir zaman loga basılmaz.
 
@@ -307,7 +308,8 @@ export function mergeEnv({ current, secrets, generators = DEFAULT_GENERATORS }) 
   for (const key of ['POSTGRES_PASSWORD', 'SESSION_SECRET', 'TRACKING_SECRET', 'ENCRYPTION_KEY']) takeOrGenerate(key, generators[key]);
 
   // WhatsApp (deploy/cloudflare/src/whatsapp-env.ts ile aynı kural): D360_API_KEY + WA_PHONE → 360dialog (varsayılan);
-  // dört META secret'ı tamsa Meta Cloud API doğrudan; ikisi birlikte → belirsiz, hata; hiçbiri tam değilse mock
+  // TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN + WA_PHONE → Twilio; dört META secret'ı tamsa Meta Cloud API doğrudan;
+  // birden çoğu birlikte → belirsiz, hata; hiçbiri tam değilse mock
   v.set('WA_DEFAULT_PROVIDER', 'd360');
   takeOrGenerate('WA_VERIFY_TOKEN', generators.WA_VERIFY_TOKEN);
   const waRequired = ['META_WA_TOKEN', 'META_WA_PHONE_NUMBER_ID', 'META_APP_SECRET', 'WA_PHONE'];
@@ -321,12 +323,39 @@ export function mergeEnv({ current, secrets, generators = DEFAULT_GENERATORS }) 
     v.set('PLATFORM_WA_DISPLAY_PHONE', '');
   };
   let whatsapp = 'mock';
-  if (filled(s.D360_API_KEY) && waMissing.length === 0) {
+  // Yolların ANAHTAR takımı (ortak olan WA_PHONE sayılmaz): birden çoğu tamsa belirsizdir
+  const twilioComplete = filled(s.TWILIO_ACCOUNT_SID) && filled(s.TWILIO_AUTH_TOKEN);
+  const completePaths = [];
+  if (filled(s.D360_API_KEY)) completePaths.push('360dialog (D360_API_KEY)');
+  if (twilioComplete) completePaths.push('Twilio (TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)');
+  if (waMissing.filter((k) => k !== 'WA_PHONE').length === 0) completePaths.push('Meta Cloud API (META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_APP_SECRET)');
+  if (completePaths.length > 1) {
     errors.push(
-      "Hem 360dialog (D360_API_KEY) hem Meta Cloud API (META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_APP_SECRET) secret'ları tanımlı: " +
-        "ortak numaranın hangi yoldan bağlanacağı belirsiz. Kullanmadığınız yolun secret'larını silin (15 §6.2). " + secretHint,
+      `Hem ${completePaths.join(' hem ')} secret'ları tanımlı: ortak numaranın hangi yoldan bağlanacağı belirsiz. ` +
+        `Kullanmadığınız yolların secret'larını silin (15 §6.2, §6.2b, §6.2d). ${secretHint}`,
     );
     setMock();
+  } else if (twilioComplete) {
+    if (!filled(s.WA_PHONE)) {
+      warnings.push("Twilio için WA_PHONE GitHub secret'ı eksik: eklenene kadar ortak numara kapalı (mock) çalışır (15 §6.2d).");
+      setMock();
+    } else {
+      const phone = normalizeE164(s.WA_PHONE);
+      if (!phone) errors.push(`WA_PHONE telefon numarası olmalı, ülke koduyla (E.164), ör. +905321234567. ${secretHint}`);
+      if (!/^AC[0-9a-fA-F]{32}$/.test(clean(s.TWILIO_ACCOUNT_SID))) {
+        errors.push(`TWILIO_ACCOUNT_SID "AC" ile başlayan 34 karakter olmalı (console.twilio.com > Account Info). ${secretHint}`);
+      }
+      if (/\s/.test(clean(s.TWILIO_AUTH_TOKEN))) errors.push("TWILIO_AUTH_TOKEN boşluk içeremez (token'ı yeniden kopyalayın).");
+      whatsapp = 'twilio';
+      // Twilio: Account SID gönderim adresinde, Auth Token hem gönderimde hem webhook imzasında (X-Twilio-Signature);
+      // Meta imza anahtarı yoktur (docs/16 §3.1)
+      v.set('WA_APP_SECRET', '');
+      v.set('PLATFORM_WA_PROVIDER', 'twilio');
+      v.set('PLATFORM_WA_API_KEY', clean(s.TWILIO_AUTH_TOKEN));
+      v.set('PLATFORM_WA_PHONE_NUMBER_ID', clean(s.TWILIO_ACCOUNT_SID));
+      v.set('PLATFORM_WA_WABA_ID', '');
+      v.set('PLATFORM_WA_DISPLAY_PHONE', phone ?? '');
+    }
   } else if (filled(s.D360_API_KEY)) {
     if (!filled(s.WA_PHONE)) {
       warnings.push("360dialog için WA_PHONE GitHub secret'ı eksik: eklenene kadar ortak numara kapalı (mock) çalışır (15 §6.2).");
@@ -362,7 +391,7 @@ export function mergeEnv({ current, secrets, generators = DEFAULT_GENERATORS }) 
     }
   } else {
     if (waMissing.length < waRequired.length) {
-      warnings.push(`Gerçek WhatsApp için eksik GitHub secret: ${waMissing.join(', ')}. Hepsi eklenene kadar ortak numara kapalı (mock) çalışır (15 §6.2b; varsayılan yol 360dialog: D360_API_KEY + WA_PHONE, 15 §6.2).`);
+      warnings.push(`Gerçek WhatsApp için eksik GitHub secret: ${waMissing.join(', ')}. Hepsi eklenene kadar ortak numara kapalı (mock) çalışır (15 §6.2b; varsayılan yol 360dialog: D360_API_KEY + WA_PHONE, 15 §6.2; Twilio: TWILIO_ACCOUNT_SID + TWILIO_AUTH_TOKEN + WA_PHONE, 15 §6.2d).`);
     } else {
       warnings.push('WhatsApp secret\'ları yok: ortak numara kapalı (mock); vitrin ve QR WhatsApp bağlantısı göstermez, platform uyarıları gitmez (15 §6.2).');
     }

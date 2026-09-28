@@ -8,9 +8,13 @@
 // Ortak numara (00 §12a madde 8): GET/POST /api/v1/webhooks/wa/shared/:token (PLATFORM_WA_WEBHOOK_TOKEN) — aynı
 // doğrulama/imza/ham olay/hemen 200 kuralları; dükkan seçimi işlemede (services/messaging/shared-router.ts). İşletmenin
 // 'shared' satırının kendi webhook'u yoktur (404).
+// Twilio (16 §2.5): gövde JSON değil application/x-www-form-urlencoded'dır ve Meta imzası gelmez. Form alanları düz
+// nesneye çevrilip payload olarak saklanır; doğrulama X-Twilio-Signature iledir (Auth Token + ÇAĞRILAN ADRES + sıralı
+// alanlar). Adres istek başlıklarından değil APP_BASE_URL'den kurulur: sahte Host başlığı doğrulamayı yanıltamaz.
 
 import { waAccounts } from '@siparis/db';
 import { eq } from 'drizzle-orm';
+import type { FastifyRequest } from 'fastify';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { AppError, badRequest, forbidden, notFound } from '../../lib/errors';
@@ -19,6 +23,11 @@ import { safeEqual } from '../../lib/tokens';
 import { ingestWebhookPayload } from '../../services/messaging/ingest';
 import { ingestSharedWebhookPayload } from '../../services/messaging/shared-router';
 import { verifyMetaSignature } from '../../wa/signature';
+import { toAccountRef } from '../../wa/registry';
+import { verifyTwilioSignature } from '../../wa/twilio-signature';
+
+/** Bu eklentinin kök yolu (app.ts'te prefix olarak verilir); Twilio imzasındaki adresin kurulmasında kullanılır. */
+export const API_WA_WEBHOOK_PATH = '/api/v1/webhooks/wa';
 
 const paramsSchema = z.object({ webhookToken: z.string().min(8).max(200) });
 const sharedParamsSchema = z.object({ token: z.string().min(1).max(200) });
@@ -41,9 +50,46 @@ function parseRawPayload(body: unknown): { raw: Buffer; payload: object } {
   return { raw, payload };
 }
 
+const rawBodyOf = (body: unknown): Buffer =>
+  Buffer.isBuffer(body) ? body : Buffer.from(typeof body === 'string' ? body : '');
+
+/** İstek form-encoded mı (Twilio). */
+function isFormEncoded(request: FastifyRequest): boolean {
+  const ct = request.headers['content-type'];
+  return typeof ct === 'string' && ct.toLowerCase().includes('application/x-www-form-urlencoded');
+}
+
+/** Form gövdesi → düz nesne (aynı ad birden çok kez gelirse Twilio'nun kuralı gereği son değer geçerlidir). */
+export function formToObject(raw: Buffer): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of new URLSearchParams(raw.toString('utf8'))) out[k] = v;
+  return out;
+}
+
+/**
+ * Twilio'nun çağırdığı tam adres. İmza bu dizge üzerinden hesaplandığı için birebir aynı olmalıdır; bu yüzden
+ * istek başlıklarından değil yapılandırmadan kurulur (16 §2.5).
+ */
+export function twilioWebhookUrl(appBaseUrl: string, path: string): string {
+  return `${appBaseUrl.replace(/\/+$/, '')}${path}`;
+}
+
+/** Twilio gövdesi: imza doğrulanır, form alanları payload olur. İmza geçersizse 401. */
+function twilioPayload(request: FastifyRequest, authToken: string | undefined, appBaseUrl: string, path: string): Record<string, string> {
+  const params = formToObject(rawBodyOf(request.body));
+  if (!authToken) throw new AppError(401, 'invalid_signature', 'Twilio Auth Token tanımlı değil; imza doğrulanamıyor.');
+  const header = request.headers['x-twilio-signature'];
+  const url = twilioWebhookUrl(appBaseUrl, path);
+  if (!verifyTwilioSignature(url, params, typeof header === 'string' ? header : undefined, authToken)) {
+    throw new AppError(401, 'invalid_signature', 'İmza doğrulanamadı.');
+  }
+  return params;
+}
+
 const routes: FastifyPluginAsyncZod = async (app) => {
-  // Ham gövde: yalnız bu eklentinin rotaları için (kapsüllü)
+  // Ham gövde: yalnız bu eklentinin rotaları için (kapsüllü). Twilio form-encoded gönderir (16 §2.5).
   app.addContentTypeParser('application/json', { parseAs: 'buffer' }, (_req, body, done) => done(null, body));
+  app.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'buffer' }, (_req, body, done) => done(null, body));
 
   // Belirteç başına kaba sınır (taşkın koruması; Meta yeniden dener)
   const limiter = createRateLimiter({ limit: 1200, windowMs: 60_000 });
@@ -78,14 +124,19 @@ const routes: FastifyPluginAsyncZod = async (app) => {
   app.post('/shared/:token', { schema: { params: sharedParamsSchema } }, async (request, reply) => {
     if (!sharedTokenOk(request.params.token)) rejectSharedToken(clientIp(request));
     enforceRateLimit(sharedLimiter, 'shared');
-    const raw = Buffer.isBuffer(request.body) ? request.body : Buffer.from(typeof request.body === 'string' ? request.body : '');
-    if (app.config.WA_APP_SECRET && app.config.PLATFORM_WA_PROVIDER !== 'd360') {
-      const header = request.headers['x-hub-signature-256'];
-      if (!verifyMetaSignature(raw, typeof header === 'string' ? header : undefined, app.config.WA_APP_SECRET)) {
-        throw new AppError(401, 'invalid_signature', 'İmza doğrulanamadı.');
+    const raw = rawBodyOf(request.body);
+    let payload: object;
+    if (app.config.PLATFORM_WA_PROVIDER === 'twilio' || isFormEncoded(request)) {
+      payload = twilioPayload(request, app.config.PLATFORM_WA_API_KEY, app.config.APP_BASE_URL, `${API_WA_WEBHOOK_PATH}/shared/${request.params.token}`);
+    } else {
+      if (app.config.WA_APP_SECRET && app.config.PLATFORM_WA_PROVIDER !== 'd360') {
+        const header = request.headers['x-hub-signature-256'];
+        if (!verifyMetaSignature(raw, typeof header === 'string' ? header : undefined, app.config.WA_APP_SECRET)) {
+          throw new AppError(401, 'invalid_signature', 'İmza doğrulanamadı.');
+        }
       }
+      payload = parseRawPayload(raw).payload;
     }
-    const { payload } = parseRawPayload(raw);
     await ingestSharedWebhookPayload(app.db, payload);
     return reply.code(200).send({ ok: true });
   });
@@ -115,15 +166,22 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     // Ortak numara satırının işletmeye özel webhook'u yoktur (olaylar /shared/:token'dan gelir)
     if (!account || account.status === 'disconnected' || account.provider === 'shared') throw notFound('Webhook bulunamadı.');
 
-    const raw = Buffer.isBuffer(request.body) ? request.body : Buffer.from(typeof request.body === 'string' ? request.body : '');
-    // 360dialog Meta imzası göndermez; URL'deki gizli belirteç doğrulama yerine geçer (teyit edilmeli)
-    if (app.config.WA_APP_SECRET && account.provider !== 'd360') {
-      const header = request.headers['x-hub-signature-256'];
-      if (!verifyMetaSignature(raw, typeof header === 'string' ? header : undefined, app.config.WA_APP_SECRET)) {
-        throw new AppError(401, 'invalid_signature', 'İmza doğrulanamadı.');
+    const raw = rawBodyOf(request.body);
+    let payload: object;
+    if (account.provider === 'twilio' || isFormEncoded(request)) {
+      // Twilio: imza hesabın kendi Auth Token'ıyla (şifreli alandan çözülür), adres APP_BASE_URL'den
+      const ref = toAccountRef(account, app.config);
+      payload = twilioPayload(request, ref.apiKey ?? undefined, app.config.APP_BASE_URL, `${API_WA_WEBHOOK_PATH}/${token}`);
+    } else {
+      // 360dialog Meta imzası göndermez; URL'deki gizli belirteç doğrulama yerine geçer (teyit edilmeli)
+      if (app.config.WA_APP_SECRET && account.provider !== 'd360') {
+        const header = request.headers['x-hub-signature-256'];
+        if (!verifyMetaSignature(raw, typeof header === 'string' ? header : undefined, app.config.WA_APP_SECRET)) {
+          throw new AppError(401, 'invalid_signature', 'İmza doğrulanamadı.');
+        }
       }
+      payload = parseRawPayload(raw).payload;
     }
-    const { payload } = parseRawPayload(raw);
 
     await ingestWebhookPayload(app.db, account, payload);
     return reply.code(200).send({ ok: true });
