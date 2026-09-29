@@ -17,6 +17,9 @@
   ],
   // Yedek adres: API ve webhook istekleri çalışır, sayfa gezinmeleri özel alan adına yönlenir (src/access.ts)
   "workers_dev": true,
+  // Uyanık tutma: 5 dk'da bir container'a sağlık isteği (src/index.ts scheduled); container uyumaz, WhatsApp yanıtı
+  // uyanış beklemez, arka plan işleri sürekli çalışır. Gizli staging'de config-modes.mjs siler.
+  "triggers": { "crons": ["*/5 * * * *"] },
   "observability": { "enabled": true },
   "containers": [
     {

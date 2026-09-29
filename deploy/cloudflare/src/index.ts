@@ -126,7 +126,10 @@ function safeEpoch(raw: string | undefined): string {
 export class AppContainer extends Container<Env> {
   defaultPort = WEB_PORT;
   requiredPorts = [WEB_PORT, API_PORT];
-  // Son istekten 30 dk sonra uyur (SIGTERM → son yedek). Açık panel (SSE) bağlantısı uyumayı engeller.
+  // Son istekten 30 dk sonra uyur (SIGTERM → son yedek). Açık panel (SSE) bağlantısı uyumayı engeller. Canlı ortamda
+  // Worker'ın Cron Trigger'ı (5 dk'da bir, aşağıda scheduled) container'ı hiç uyutmaz: uyanış (R2'den geri yükleme +
+  // migration) WhatsApp yanıtını 20+ sn geciktiriyordu ve Twilio webhook'u 15 sn'de keser; arka plan işleri (alarm,
+  // zaman aşımı iptali, saklama) de ancak container ayaktayken çalışır.
   sleepAfter = '30m';
   enableInternet = true;
 
@@ -287,5 +290,30 @@ export default {
 
     const port = url.pathname.startsWith('/api/') ? API_PORT : WEB_PORT;
     return withEnvHeaders(await app.fetch(switchPort(forwarded, port)), settings);
+  },
+
+  /**
+   * Uyanık tutma (Cron Trigger, wrangler.jsonc triggers.crons): canlı ortamda container'a 5 dk'da bir sağlık isteği gider;
+   * her istek uyku sayacını (sleepAfter) sıfırlar, container uyumaz. Uyuyorsa uyandırılır (ör. dağıtımdan sonra).
+   * Maliyet: basic örnek sürekli açık ≈ 7 $/ay (bellek + disk sağlanan kaynağa, CPU yalnız kullanıma göre; 15 §13).
+   * Gizli staging'de çalışmaz (config-modes.mjs tetikleyiciyi de siler).
+   */
+  async scheduled(_controller, env, ctx): Promise<void> {
+    if (normalizeDeployMode(env.DEPLOY_MODE) !== 'domain') return;
+    ctx.waitUntil(
+      (async () => {
+        const app = getContainer(env.APP, INSTANCE);
+        try {
+          if (!(await app.ensureReady())) {
+            console.error('uyanık tutma: container başlatılamadı');
+            return;
+          }
+          const res = await app.fetch(switchPort(new Request('http://container/api/v1/health'), API_PORT));
+          if (!res.ok) console.error(`uyanık tutma: sağlık ucu ${res.status}`);
+        } catch (err) {
+          console.error('uyanık tutma hatası', err);
+        }
+      })(),
+    );
   },
 } satisfies ExportedHandler<Env>;

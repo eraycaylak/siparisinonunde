@@ -22,6 +22,9 @@ test('alan adı kipi (canlı ortam): yemekgelsin.net Custom Domain, SEED_MODE=ad
   assert.equal('DEPLOY_ENV' in c.vars, false);
   assert.equal('DEPLOY_ENV' in buildConfig({ ...base(), vars: { ...base().vars, DEPLOY_ENV: 'dev' } }, { url: 'https://yemekgelsin.net' }).vars, false);
   assert.equal('STAGING_DATA_EPOCH' in c.vars, false);
+  // Uyanık tutma: canlı ortamda 5 dk'da bir (src/index.ts scheduled); gerçek wrangler.jsonc'de tanımlı olmalı
+  assert.deepEqual(c.triggers, base().triggers);
+  assert.deepEqual(base().triggers, { crons: ['*/5 * * * *'] });
   assert.deepEqual(c.containers[0].image_vars, {
     NEXT_PUBLIC_SITE_URL: 'https://yemekgelsin.net',
     NEXT_PUBLIC_DEMO_BANNER: '0',
@@ -40,6 +43,7 @@ test('alan adı kipi (canlı ortam): yemekgelsin.net Custom Domain, SEED_MODE=ad
 test('gizli staging: routes yok (yalnız workers.dev), SEED_MODE=demo, kendi veri dönemi, demo uyarısı açık', () => {
   const c = buildConfig(base(), { url: STAGING_URL, mode: 'staging' });
   assert.equal(c.routes, undefined);
+  assert.equal(c.triggers, undefined, 'gizli staging uyuyabilir: uyanık tutma tetikleyicisi yok');
   assert.equal(c.workers_dev, true);
   assert.equal(c.vars.APP_BASE_URL, STAGING_URL);
   assert.equal(c.vars.DEPLOY_MODE, 'staging');

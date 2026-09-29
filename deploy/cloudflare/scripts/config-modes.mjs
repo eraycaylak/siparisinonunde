@@ -43,6 +43,8 @@ export function buildConfig(base, { url, mode = 'domain', supportWhatsapp = '' }
     if (!host.endsWith('.workers.dev')) throw new Error(`staging yalnız workers.dev adresinde çalışır ("${siteUrl}")`);
     delete config.routes;
     config.workers_dev = true;
+    // Gizli staging uyuyabilir: uyanık tutma tetikleyicisi yalnız canlı ortamda (src/index.ts scheduled da kipi denetler)
+    delete config.triggers;
   } else {
     const patterns = (config.routes ?? []).filter((r) => r.custom_domain).map((r) => r.pattern);
     if (!patterns.includes(host)) throw new Error(`alan adı kipinde wrangler.jsonc routes "${host}" Custom Domain'ini içermeli`);
