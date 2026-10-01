@@ -61,8 +61,8 @@ export const branchPanelPresence = pgTable(
     /** Son "panel çevrimdışı" uyarısı (60 dk'da en çok 1) */
     offlineAlertedAt: tstz('offline_alerted_at'),
     /**
-     * Aynı çevrimdışı serisinde gönderilen ardışık uyarı sayısı (0701). Seri PANEL_OFFLINE_ALERT_MAX'a ulaşınca uyarı
-     * kesilir; sayaç sipariş ekranı görülünce sıfırlanır, yeni açılışta (vardiya) 1'den başlar.
+     * Şubenin O YEREL GÜNÜNDE gönderilen uyarı sayısı (0701). PANEL_OFFLINE_ALERT_PER_DAY'e ulaşınca uyarı kesilir,
+     * gün dönünce 1'den başlar. (0701 dosyasının yorumu ilk sürüme ait: sınır artık seri/vardiya değil, GÜN başınadır.)
      */
     offlineAlertCount: integer('offline_alert_count').notNull().default(0),
     updatedAt: tstz('updated_at').notNull().defaultNow(),

@@ -6,13 +6,22 @@
 // - detectOfflinePanels (cron.panel_presence, dakikada bir): şu an sipariş alan şubede (çalışma saati içinde,
 //   duraklatılmamış, ordering_enabled, web canlı) sipariş ekranı 5 dk'dır görülmüyorsa ya da şube açılalı ≥ 10 dk
 //   olduğu hâlde açılıştan beri hiç görülmediyse sahibine platform.alert (`panel_offline`) gider. Şube başına 60 dk'da
-//   en çok bir uyarı (offline_alerted_at) VE aynı çevrimdışı serisinde en çok PANEL_OFFLINE_ALERT_MAX uyarı
-//   (offline_alert_count): paneli hiç açılmayan şube gün boyu saat başı mesaj almaz. Seri iki durumda biter ve
-//   sayaç sıfırlanır: sipariş ekranı görülünce (touchBranchPresence) ya da yeni bir açılışta/vardiyada (önceki
-//   uyarı bu açılıştan önceyse) — yoksa dünkü sınır bugünü de susturur ve sipariş kaçar.
+//   en çok bir uyarı (offline_alerted_at) VE şubenin yerel gününde en çok PANEL_OFFLINE_ALERT_PER_DAY uyarı
+//   (offline_alert_count): panel hiç açılmasa da günde tek mesaj gider, panel açılıp yine kapansa da o gün ikincisi
+//   gitmez. Sayaç şubenin saat diliminde gün değişince sıfırlanır (dünkü sınır bugünü susturmaz).
 //   Aday/kurulumdaki/salt-okunur/askıdaki/kapanmış ve demo işletmelerde çalışmaz.
 
-import { acceptsOrders, computeOrderingState, localDateString, scheduleIntervals, type LifecycleStage, type ScheduleInput, type TenantRole } from '@siparis/core';
+import {
+  DEFAULT_TIMEZONE,
+  acceptsOrders,
+  computeOrderingState,
+  localDateString,
+  scheduleIntervals,
+  zonedTimeToUtc,
+  type LifecycleStage,
+  type ScheduleInput,
+  type TenantRole,
+} from '@siparis/core';
 import { branchPanelPresence, branches, openingHours, specialDays, tenants, type Database } from '@siparis/db';
 import { and, eq, gte, inArray, isNotNull, isNull, lt, lte, notInArray, or, sql } from 'drizzle-orm';
 import { enqueueJob } from '../../lib/jobs';
@@ -26,11 +35,12 @@ export const PANEL_NEVER_SEEN_GRACE_MS = 10 * 60_000;
 /** Şube başına en sık uyarı aralığı. */
 export const PANEL_OFFLINE_ALERT_EVERY_MS = 60 * 60_000;
 /**
- * Aynı çevrimdışı serisinde gönderilecek en çok uyarı. Üçten sonrası bilgi taşımıyor, yalnız gürültü: panel hiç
- * açılmayan bir şube (ör. deneme işletmesi) 24 saat açıksa eski kuralla günde 24 WhatsApp mesajı gidiyordu.
- * Sayaç sipariş ekranı görülünce (touchBranchPresence) ve her yeni açılışta sıfırlanır, yani sınır vardiya başınadır.
+ * Bir şubeye aynı yerel günde gönderilecek en çok uyarı (Eray'ın kararı: günde tek mesaj). Eski kuralda yalnız
+ * "60 dk'da en çok 1" vardı; paneli hiç açılmayan şube (ör. deneme işletmesi) 24 saat açıksa günde 24 WhatsApp mesajı
+ * alıyordu. Sayaç şubenin saat diliminde gün dönünce sıfırlanır. Not: gün içinde panel açılıp yine kapanırsa ikinci
+ * uyarı GİTMEZ — günlük tek mesaj bunun karşılığıdır.
  */
-export const PANEL_OFFLINE_ALERT_MAX = 3;
+export const PANEL_OFFLINE_ALERT_PER_DAY = 1;
 /** Aynı şubeye bu süreden sık yazılmaz (çok sekme/cihaz). */
 const PRESENCE_WRITE_THROTTLE_MS = 20_000;
 
@@ -48,8 +58,8 @@ export async function touchBranchPresence(db: Database, input: { tenantId: strin
     .values({ branchId: input.branchId, tenantId: input.tenantId, lastSeenAt: now, updatedAt: now })
     .onConflictDoUpdate({
       target: branchPanelPresence.branchId,
-      // Panel görüldü: çevrimdışı serisi bitti, sayaç sıfırlanır (uyarı aralığı offline_alerted_at'te kalır)
-      set: { lastSeenAt: now, offlineAlertCount: 0, updatedAt: now },
+      // Günlük sayaca dokunulmaz: panel açılıp yine kapanırsa o gün ikinci uyarı gitmez (günde tek mesaj)
+      set: { lastSeenAt: now, updatedAt: now },
       setWhere: and(
         eq(branchPanelPresence.tenantId, input.tenantId),
         or(isNull(branchPanelPresence.lastSeenAt), lt(branchPanelPresence.lastSeenAt, throttleBefore)),
@@ -71,9 +81,9 @@ type Row = {
   pausedUntil: Date | null;
   busyExtraMinutes: number;
   lastSeenAt: Date | null;
-  /** Son uyarı (seri bu açılıştan önce başladıysa sayaç sıfırlanır) */
+  /** Son uyarı (dünden kalmışsa günlük sayaç sıfırlanır) */
   offlineAlertedAt: Date | null;
-  /** Satır yoksa null (hiç uyarılmamış şube) */
+  /** O yerel güne ait uyarı sayısı; satır yoksa null (hiç uyarılmamış şube) */
   offlineAlertCount: number | null;
 };
 
@@ -126,8 +136,14 @@ export async function detectOfflinePanels(db: Database, now: Date = new Date()):
 
   const alerts: PanelOfflineAlert[] = [];
   for (const row of rows) {
+    const tz = row.timezone || DEFAULT_TIMEZONE;
+    // Günlük sınır: bugün (şubenin saat diliminde) yeterince uyarı gittiyse yarına kadar sus
+    const dayStart = zonedTimeToUtc(localDateString(now, tz), '00:00', tz);
+    const sentToday = !!row.offlineAlertedAt && row.offlineAlertedAt >= dayStart;
+    if (sentToday && (row.offlineAlertCount ?? 0) >= PANEL_OFFLINE_ALERT_PER_DAY) continue;
+
     const input: ScheduleInput = {
-      timezone: row.timezone || 'Europe/Istanbul',
+      timezone: tz,
       hours: hours.filter((h) => h.branchId === row.branchId),
       specialDays: days.filter((d) => d.branchId === row.branchId),
       pausedUntil: row.pausedUntil,
@@ -138,9 +154,6 @@ export async function detectOfflinePanels(db: Database, now: Date = new Date()):
     if (!current) continue;
     // Sipariş almaya başladığı an: açılış ya da (daha geçse) biten duraklatma
     const since = row.pausedUntil && row.pausedUntil > current.start && row.pausedUntil <= now ? row.pausedUntil : current.start;
-    // Seri sınırı: bu açılışta zaten PANEL_OFFLINE_ALERT_MAX uyarı gittiyse panel görülene ya da yeni açılışa kadar sus
-    const sameShift = !!row.offlineAlertedAt && row.offlineAlertedAt >= since;
-    if (sameShift && (row.offlineAlertCount ?? 0) >= PANEL_OFFLINE_ALERT_MAX) continue;
 
     let minutes: number;
     if (row.lastSeenAt && row.lastSeenAt >= since) {
@@ -161,18 +174,18 @@ export async function detectOfflinePanels(db: Database, now: Date = new Date()):
           target: branchPanelPresence.branchId,
           set: {
             offlineAlertedAt: now,
-            // Bu açılışın ilk uyarısı seriyi 1'den başlatır, sonrakiler sayacı artırır
-            offlineAlertCount: sql`case when ${branchPanelPresence.offlineAlertedAt} is null or ${branchPanelPresence.offlineAlertedAt} < ${since.toISOString()}::timestamptz then 1 else ${branchPanelPresence.offlineAlertCount} + 1 end`,
+            // Günün ilk uyarısı sayacı 1'e çeker, aynı gün içindekiler artırır
+            offlineAlertCount: sql`case when ${branchPanelPresence.offlineAlertedAt} is null or ${branchPanelPresence.offlineAlertedAt} < ${dayStart.toISOString()}::timestamptz then 1 else ${branchPanelPresence.offlineAlertCount} + 1 end`,
             updatedAt: now,
           },
           setWhere: and(
             or(isNull(branchPanelPresence.offlineAlertedAt), lt(branchPanelPresence.offlineAlertedAt, alertBefore)),
             or(isNull(branchPanelPresence.lastSeenAt), lt(branchPanelPresence.lastSeenAt, staleBefore)),
-            // Yarış koruması: JS kontrolünden sonra araya başka bir tur girmiş olabilir (yeni açılışta sınır sıfırlanır)
+            // Yarış koruması: JS kontrolünden sonra araya başka bir tur girmiş olabilir (gün dönünce sınır sıfırlanır)
             or(
               isNull(branchPanelPresence.offlineAlertedAt),
-              lt(branchPanelPresence.offlineAlertedAt, since),
-              lt(branchPanelPresence.offlineAlertCount, PANEL_OFFLINE_ALERT_MAX),
+              lt(branchPanelPresence.offlineAlertedAt, dayStart),
+              lt(branchPanelPresence.offlineAlertCount, PANEL_OFFLINE_ALERT_PER_DAY),
             ),
           ),
         })
