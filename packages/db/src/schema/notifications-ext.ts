@@ -1,8 +1,8 @@
 // Dilim uzantısı: Web Push abonelikleri (00 §10 alarm t=0, 04 §4.5) ve panel varlığı (06 §7.7 panel çevrimdışı
 // dedektörü). Mevcut tablolar değiştirilmez.
-// SQL: migrations/0700_web_push.sql
+// SQL: migrations/0700_web_push.sql, migrations/0701_panel_offline_alert_count.sql
 
-import { index, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
+import { index, integer, pgTable, text, uniqueIndex, uuid } from 'drizzle-orm/pg-core';
 import { createdAt, pk, tstz, updatedAt } from './_helpers';
 import { branches, sessions, tenants, users } from './platform';
 
@@ -60,6 +60,11 @@ export const branchPanelPresence = pgTable(
     lastSeenAt: tstz('last_seen_at'),
     /** Son "panel çevrimdışı" uyarısı (60 dk'da en çok 1) */
     offlineAlertedAt: tstz('offline_alerted_at'),
+    /**
+     * Aynı çevrimdışı serisinde gönderilen ardışık uyarı sayısı (0701). Seri PANEL_OFFLINE_ALERT_MAX'a ulaşınca uyarı
+     * kesilir; sayaç sipariş ekranı görülünce sıfırlanır, yeni açılışta (vardiya) 1'den başlar.
+     */
+    offlineAlertCount: integer('offline_alert_count').notNull().default(0),
     updatedAt: tstz('updated_at').notNull().defaultNow(),
   },
   (t) => [index('branch_panel_presence_tenant_idx').on(t.tenantId)],

@@ -45,7 +45,7 @@ export function registerCronJobs(): void {
   registerCron({ name: 'branch_pause_end', type: 'cron.branch_pause_end', schedule: { everyMinutes: 1 } });
 
   // Panel çevrimdışı dedektörü (06 §7.7): sipariş alan şubede sipariş ekranı 5 dk'dır görülmüyorsa sahibine
-  // platform.alert `panel_offline` (şube başına 60 dk'da en çok 1)
+  // platform.alert `panel_offline` (şube başına 60 dk'da en çok 1, seri başına en çok PANEL_OFFLINE_ALERT_MAX)
   registerJobHandler('cron.panel_presence', async (_payload, { db, log }) => {
     const alerts = await detectOfflinePanels(db);
     if (alerts.length) log.warn({ branches: alerts.map((a) => a.branchId) }, 'panel çevrimdışı uyarısı kuyruğa atıldı');

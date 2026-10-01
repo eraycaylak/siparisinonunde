@@ -1,12 +1,13 @@
 // Panel çevrimdışı dedektörü (06 §7.7, 04 §4.17): SSE akışı açılınca şube varlığı yazılır (mutfak ve destek oturumu
 // hariç); cron.panel_presence yalnız sipariş alan ve sipariş ekranı görülmeyen şubelerde sahibine platform.alert
-// `panel_offline` kuyruğa atar (şube başına 60 dk'da en çok 1; kapalı/duraklatılmış/kurulumdaki işletmede yok).
+// `panel_offline` kuyruğa atar (şube başına 60 dk'da en çok 1 VE aynı çevrimdışı serisinde en çok
+// PANEL_OFFLINE_ALERT_MAX; kapalı/duraklatılmış/kurulumdaki işletmede yok).
 
 import { branchPanelPresence, branches, jobs, notifications, openingHours, tenants } from '@siparis/db';
 import { and, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { processDueJobs, registeredCrons } from '../src/lib/jobs';
-import { detectOfflinePanels, touchBranchPresence } from '../src/services/push/presence';
+import { PANEL_OFFLINE_ALERT_MAX, detectOfflinePanels, touchBranchPresence } from '../src/services/push/presence';
 import { createTestContext, sleep, type TestContext, type TestTenant } from './helpers';
 import { setupStore } from './orders-helpers';
 
@@ -206,5 +207,60 @@ describe('cron.panel_presence', () => {
     // 7/24 açık, hiç görülmemiş canlı işletme uyarılır (açılış dün 00:00)
     expect(alertsFor(alerts, live)).toHaveLength(1);
     for (const t of [off, onboarding, demo, notLive, suspended]) expect(await alertJobs(t)).toHaveLength(0);
+  });
+
+  it(`panel hiç açılmazsa seri ${PANEL_OFFLINE_ALERT_MAX} uyarıda durur (gün boyu saat başı mesaj yok)`, async () => {
+    const s = await setupStore(ctx);
+    await setPresence(s, at(-6));
+
+    // Saat başı turlar: ilk PANEL_OFFLINE_ALERT_MAX tanesi uyarır, sonrakiler sessiz
+    for (let i = 0; i < PANEL_OFFLINE_ALERT_MAX; i++) {
+      expect(alertsFor(await detectOfflinePanels(ctx.db, at(i * 61)), s)).toHaveLength(1);
+    }
+    expect((await presence(s.branchId))!.offlineAlertCount).toBe(PANEL_OFFLINE_ALERT_MAX);
+    for (let i = PANEL_OFFLINE_ALERT_MAX; i < PANEL_OFFLINE_ALERT_MAX + 6; i++) {
+      expect(alertsFor(await detectOfflinePanels(ctx.db, at(i * 61)), s)).toEqual([]);
+    }
+    // 24 saat boyunca dakikada bir çalışsa da toplam uyarı sayısı sınırı aşmaz
+    expect(await alertJobs(s)).toHaveLength(PANEL_OFFLINE_ALERT_MAX);
+  });
+
+  it('sipariş ekranı bir kez görülünce sayaç sıfırlanır, seri yeniden başlar', async () => {
+    const s = await setupStore(ctx);
+    await setPresence(s, at(-6));
+    for (let i = 0; i < PANEL_OFFLINE_ALERT_MAX; i++) await detectOfflinePanels(ctx.db, at(i * 61));
+    expect(alertsFor(await detectOfflinePanels(ctx.db, at(PANEL_OFFLINE_ALERT_MAX * 61)), s)).toEqual([]);
+
+    // Panel açıldı: sayaç sıfırlanır (uyarı aralığı korunur)
+    const seenAt = at(PANEL_OFFLINE_ALERT_MAX * 61 + 1);
+    await touchBranchPresence(ctx.db, { tenantId: s.tenantId, branchId: s.branchId }, seenAt);
+    const after = (await presence(s.branchId))!;
+    expect(after.offlineAlertCount).toBe(0);
+    expect(after.lastSeenAt).toEqual(seenAt);
+
+    // Panel yine kapandı: 5 dk sonra ve son uyarıdan 60 dk geçmişken seri yeniden başlar
+    const again = new Date(seenAt.getTime() + 61 * MIN);
+    expect(alertsFor(await detectOfflinePanels(ctx.db, again), s)).toHaveLength(1);
+    expect((await presence(s.branchId))!.offlineAlertCount).toBe(1);
+  });
+
+  it('sınır vardiya başınadır: ertesi günün açılışında seri sıfırdan başlar', async () => {
+    const t = await ctx.createTenantWithOwner();
+    await setHours(t, '08:00', '23:00');
+    await setPresence(t, at(-6));
+
+    // Gün 1: seri sınıra dayanır, sonra susar
+    for (let i = 0; i < PANEL_OFFLINE_ALERT_MAX; i++) {
+      expect(alertsFor(await detectOfflinePanels(ctx.db, at(i * 61)), t)).toHaveLength(1);
+    }
+    expect(alertsFor(await detectOfflinePanels(ctx.db, at(PANEL_OFFLINE_ALERT_MAX * 61)), t)).toEqual([]);
+
+    // Gün 2 (aynı saat): yeni açılış = yeni seri, dünkü sınır bugünü susturmaz
+    const nextDay = at(24 * 60);
+    expect(alertsFor(await detectOfflinePanels(ctx.db, nextDay), t)).toEqual([
+      // 08:00 açılışından beri hiç görülmedi → 4 saat
+      { tenantId: t.tenantId, branchId: t.branchId, minutes: 240 },
+    ]);
+    expect((await presence(t.branchId))!.offlineAlertCount).toBe(1);
   });
 });

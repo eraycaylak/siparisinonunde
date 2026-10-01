@@ -947,7 +947,7 @@ Metrikler ve alarm kanalları (on-call, admin paneli) [06](06-teknik-mimari.md) 
 | Webhook→panel gecikmesi | p95 > 3 sn (5 dk) | P2 | Kuyruk derinliği, worker ölçekleme |
 | Ingress imza hatası | > 10/dk | P2 | App Secret rotasyonu/saldırı kontrolü |
 | Yeni sipariş onaylanmadı | `new` ≥ 2 dk | İşletme | Kademeli alarm zinciri (§10.3) |
-| Panel çevrimdışı | Şube açıkken sesi açık ve nabız gönderen hiç cihaz yok (≥ 3 dk). **[Faz 1 uygulaması]** sipariş ekranı akışı 5 dk görülmüyor ya da açılıştan beri hiç görülmedi ve açılış ≥ 10 dk | İşletme | `isletme_panel_cevrimdisi_v1` + SMS, 30 dk'da en fazla 1 (§5.3, [06](06-teknik-mimari.md) §7.7). **[Faz 1 uygulaması]** yalnız platform WhatsApp, şube başına 60 dk'da en çok 1 |
+| Panel çevrimdışı | Şube açıkken sesi açık ve nabız gönderen hiç cihaz yok (≥ 3 dk). **[Faz 1 uygulaması]** sipariş ekranı akışı 5 dk görülmüyor ya da açılıştan beri hiç görülmedi ve açılış ≥ 10 dk | İşletme | `isletme_panel_cevrimdisi_v1` + SMS, 30 dk'da en fazla 1 (§5.3, [06](06-teknik-mimari.md) §7.7). **[Faz 1 uygulaması]** yalnız platform WhatsApp, şube başına 60 dk'da en çok 1 ve aynı çevrimdışı serisinde en çok 3 (sayaç panel görülünce ve her yeni açılışta sıfırlanır) |
 | Kalite düşüşü | `YELLOW` / `RED` | İşletme + admin | §9.4 |
 | Token 190 / süre bitimi yakın | Anında / 7 gün kala | İşletme + admin | §7.8 |
 | Ödeme 131042 | Anında | İşletme + admin | §3.7 |

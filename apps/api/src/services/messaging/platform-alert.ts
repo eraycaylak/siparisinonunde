@@ -3,7 +3,7 @@
 // (config: PLATFORM_WA_API_KEY + PLATFORM_WA_PHONE_NUMBER_ID). Ortak numara (00 §12a madde 8) aynı platform numarasıdır. onboarding_test'te sipariş no "TEST #<no>".
 // ops bayrağı platform_wa_alerts kapalıysa gönderilmez (Meta kesintisi, 10 §6.6).
 // panel_offline (cron.panel_presence, 06 §7.7): şablon isletme_panel_cevrimdisi_v1 [işletme(· şube), dakika]; kayıt metni
-// tr.ts panelOfflineAlertText. Tekillik (şube başına 60 dk'da 1) dedektördedir.
+// tr.ts panelOfflineAlertText. Tekillik (şube başına 60 dk'da 1) ve seri sınırı (en çok PANEL_OFFLINE_ALERT_MAX) dedektördedir.
 
 import { formatTL, maskPhone, panelOfflineAlertText, type PlatformTemplateName } from '@siparis/core';
 import { memberships, notifications, orders, users, type Database } from '@siparis/db';

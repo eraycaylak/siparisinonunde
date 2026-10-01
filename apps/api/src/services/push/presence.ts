@@ -6,11 +6,15 @@
 // - detectOfflinePanels (cron.panel_presence, dakikada bir): şu an sipariş alan şubede (çalışma saati içinde,
 //   duraklatılmamış, ordering_enabled, web canlı) sipariş ekranı 5 dk'dır görülmüyorsa ya da şube açılalı ≥ 10 dk
 //   olduğu hâlde açılıştan beri hiç görülmediyse sahibine platform.alert (`panel_offline`) gider. Şube başına 60 dk'da
-//   en çok bir uyarı (offline_alerted_at). Aday/kurulumdaki/salt-okunur/askıdaki/kapanmış ve demo işletmelerde çalışmaz.
+//   en çok bir uyarı (offline_alerted_at) VE aynı çevrimdışı serisinde en çok PANEL_OFFLINE_ALERT_MAX uyarı
+//   (offline_alert_count): paneli hiç açılmayan şube gün boyu saat başı mesaj almaz. Seri iki durumda biter ve
+//   sayaç sıfırlanır: sipariş ekranı görülünce (touchBranchPresence) ya da yeni bir açılışta/vardiyada (önceki
+//   uyarı bu açılıştan önceyse) — yoksa dünkü sınır bugünü de susturur ve sipariş kaçar.
+//   Aday/kurulumdaki/salt-okunur/askıdaki/kapanmış ve demo işletmelerde çalışmaz.
 
 import { acceptsOrders, computeOrderingState, localDateString, scheduleIntervals, type LifecycleStage, type ScheduleInput, type TenantRole } from '@siparis/core';
 import { branchPanelPresence, branches, openingHours, specialDays, tenants, type Database } from '@siparis/db';
-import { and, eq, gte, inArray, isNotNull, isNull, lt, lte, notInArray, or } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNotNull, isNull, lt, lte, notInArray, or, sql } from 'drizzle-orm';
 import { enqueueJob } from '../../lib/jobs';
 
 /** SSE açıkken varlık yenileme aralığı. */
@@ -21,6 +25,12 @@ export const PANEL_OFFLINE_AFTER_MS = 5 * 60_000;
 export const PANEL_NEVER_SEEN_GRACE_MS = 10 * 60_000;
 /** Şube başına en sık uyarı aralığı. */
 export const PANEL_OFFLINE_ALERT_EVERY_MS = 60 * 60_000;
+/**
+ * Aynı çevrimdışı serisinde gönderilecek en çok uyarı. Üçten sonrası bilgi taşımıyor, yalnız gürültü: panel hiç
+ * açılmayan bir şube (ör. deneme işletmesi) 24 saat açıksa eski kuralla günde 24 WhatsApp mesajı gidiyordu.
+ * Sayaç sipariş ekranı görülünce (touchBranchPresence) ve her yeni açılışta sıfırlanır, yani sınır vardiya başınadır.
+ */
+export const PANEL_OFFLINE_ALERT_MAX = 3;
 /** Aynı şubeye bu süreden sık yazılmaz (çok sekme/cihaz). */
 const PRESENCE_WRITE_THROTTLE_MS = 20_000;
 
@@ -38,7 +48,8 @@ export async function touchBranchPresence(db: Database, input: { tenantId: strin
     .values({ branchId: input.branchId, tenantId: input.tenantId, lastSeenAt: now, updatedAt: now })
     .onConflictDoUpdate({
       target: branchPanelPresence.branchId,
-      set: { lastSeenAt: now, updatedAt: now },
+      // Panel görüldü: çevrimdışı serisi bitti, sayaç sıfırlanır (uyarı aralığı offline_alerted_at'te kalır)
+      set: { lastSeenAt: now, offlineAlertCount: 0, updatedAt: now },
       setWhere: and(
         eq(branchPanelPresence.tenantId, input.tenantId),
         or(isNull(branchPanelPresence.lastSeenAt), lt(branchPanelPresence.lastSeenAt, throttleBefore)),
@@ -60,6 +71,10 @@ type Row = {
   pausedUntil: Date | null;
   busyExtraMinutes: number;
   lastSeenAt: Date | null;
+  /** Son uyarı (seri bu açılıştan önce başladıysa sayaç sıfırlanır) */
+  offlineAlertedAt: Date | null;
+  /** Satır yoksa null (hiç uyarılmamış şube) */
+  offlineAlertCount: number | null;
 };
 
 /**
@@ -78,6 +93,8 @@ export async function detectOfflinePanels(db: Database, now: Date = new Date()):
       pausedUntil: branches.pausedUntil,
       busyExtraMinutes: branches.busyExtraMinutes,
       lastSeenAt: branchPanelPresence.lastSeenAt,
+      offlineAlertedAt: branchPanelPresence.offlineAlertedAt,
+      offlineAlertCount: branchPanelPresence.offlineAlertCount,
     })
     .from(branches)
     .innerJoin(tenants, eq(tenants.id, branches.tenantId))
@@ -121,6 +138,9 @@ export async function detectOfflinePanels(db: Database, now: Date = new Date()):
     if (!current) continue;
     // Sipariş almaya başladığı an: açılış ya da (daha geçse) biten duraklatma
     const since = row.pausedUntil && row.pausedUntil > current.start && row.pausedUntil <= now ? row.pausedUntil : current.start;
+    // Seri sınırı: bu açılışta zaten PANEL_OFFLINE_ALERT_MAX uyarı gittiyse panel görülene ya da yeni açılışa kadar sus
+    const sameShift = !!row.offlineAlertedAt && row.offlineAlertedAt >= since;
+    if (sameShift && (row.offlineAlertCount ?? 0) >= PANEL_OFFLINE_ALERT_MAX) continue;
 
     let minutes: number;
     if (row.lastSeenAt && row.lastSeenAt >= since) {
@@ -136,13 +156,24 @@ export async function detectOfflinePanels(db: Database, now: Date = new Date()):
       // Tekillik: yalnız son uyarıdan 60 dk geçtiyse ve hâlâ görülmüyorsa (bu arada panel açıldıysa dokunulmaz)
       const [claim] = await tx
         .insert(branchPanelPresence)
-        .values({ branchId: row.branchId, tenantId: row.tenantId, lastSeenAt: null, offlineAlertedAt: now, updatedAt: now })
+        .values({ branchId: row.branchId, tenantId: row.tenantId, lastSeenAt: null, offlineAlertedAt: now, offlineAlertCount: 1, updatedAt: now })
         .onConflictDoUpdate({
           target: branchPanelPresence.branchId,
-          set: { offlineAlertedAt: now, updatedAt: now },
+          set: {
+            offlineAlertedAt: now,
+            // Bu açılışın ilk uyarısı seriyi 1'den başlatır, sonrakiler sayacı artırır
+            offlineAlertCount: sql`case when ${branchPanelPresence.offlineAlertedAt} is null or ${branchPanelPresence.offlineAlertedAt} < ${since.toISOString()}::timestamptz then 1 else ${branchPanelPresence.offlineAlertCount} + 1 end`,
+            updatedAt: now,
+          },
           setWhere: and(
             or(isNull(branchPanelPresence.offlineAlertedAt), lt(branchPanelPresence.offlineAlertedAt, alertBefore)),
             or(isNull(branchPanelPresence.lastSeenAt), lt(branchPanelPresence.lastSeenAt, staleBefore)),
+            // Yarış koruması: JS kontrolünden sonra araya başka bir tur girmiş olabilir (yeni açılışta sınır sıfırlanır)
+            or(
+              isNull(branchPanelPresence.offlineAlertedAt),
+              lt(branchPanelPresence.offlineAlertedAt, since),
+              lt(branchPanelPresence.offlineAlertCount, PANEL_OFFLINE_ALERT_MAX),
+            ),
           ),
         })
         .returning({ branchId: branchPanelPresence.branchId });
