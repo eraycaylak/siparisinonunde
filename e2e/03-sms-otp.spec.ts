@@ -98,7 +98,12 @@ test('WhatsApp bağlı olmayan işletme: SMS koduyla doğrulama ve onayın SMS i
   // --- SMS doğrulama ekranı (WhatsApp kodu yok)
   await expect(page.getByRole('heading', { name: 'SMS ile doğrulayın' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'WhatsApp ile onayla' })).toHaveCount(0);
-  await expect(page.getByLabel('Cep telefonu')).toHaveValue(customer.phone);
+  // Doğrulama ekranı kalıcı adrese (/t/<token>) taşındı: açık telefon ne URL'de ne istemci deposunda taşınır
+  // (CLAUDE.md kural 7). Alan BOŞ gelir; müşteri hangi numarayı yazacağını maskeli ipucundan görür.
+  const phoneField = page.getByLabel('Cep telefonu');
+  await expect(phoneField).toHaveValue('');
+  await expect(page.getByText(/Siparişte verdiğiniz numara: .*\*/)).toBeVisible();
+  await phoneField.fill(customer.phone);
   await page.getByRole('button', { name: 'Kod gönder' }).click();
   await expect(page.getByText(/numarasına 6 haneli kod gönderdik/)).toBeVisible();
 
