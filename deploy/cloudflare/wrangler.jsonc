@@ -26,7 +26,14 @@
       "class_name": "AppContainer",
       "image": "./Dockerfile",
       "image_build_context": "../..",
-      // 1/4 vCPU, 1 GiB bellek, 4 GB disk: PostgreSQL + API + worker + web için yeterli (pilot yükü; yetmezse standard-1)
+      // 1/4 vCPU, 1 GiB bellek, 4 GB disk: PostgreSQL + API + worker + web için yeterli (pilot yükü).
+      //
+      // ÖLÇÜLDÜ, YETERLİ — DEĞİŞTİRİLMEDİ (FAZ 4.9, 5 Eki 2026). Canlı `/api/v1/health/worker`:
+      // diskFreePct 73 (2.681 MiB boş), memUsedPct 14 (RSS 123 MiB). Yani diskin ~%27'si, yığın tavanının
+      // ~%14'ü kullanımda; `standard-1`e (4 GiB) geçmek bugün yalnız maliyeti artırırdı (≈ 7 $/ay → daha
+      // yükseği). Üç sürecin yığın tavanı toplamı 704 MiB'dır (entrypoint.sh: api 256 + worker 192 + web 256),
+      // yani 1 GiB içinde OOM'u önce `memUsedPct` haber verir, container ölümü değil.
+      // Ne zaman büyütülür, hangi eşikte ne yapılır: docs/15 §16 "Kapasite ve sınırlar".
       "instance_type": "basic",
       "max_instances": 1,
       "image_vars": {
@@ -104,8 +111,10 @@
     // "Bayat panel" uyarısı: panel tarafı sessiz ack eklenene kadar BOŞ bırakılır, yoksa her turda yanlış alarm
     "CANARY_STALE_ALERT": "",
 
-    // --- WhatsApp oturum kotası (02; apps/api/src/services/messaging/waba-quota.ts) -----------------------
-    // Aylık ücretsiz oturum tavanı (pozitif tam sayı). Boş/geçersizse koddaki varsayılan kullanılır.
+    // --- WhatsApp konuşma kotası (02 §9.4; apps/api/src/services/messaging/waba-quota.ts) -----------------
+    // Ortak numaranın **24 SAATLİK** iş-kaynaklı konuşma tavanı (pozitif tam sayı), aylık bir kota DEĞİL.
+    // Boş/geçersizse koddaki varsayılan (`WABA_CONVERSATION_CAP_DEFAULT` = 250, yeni portföyün en kötü
+    // basamağı) kullanılır; Meta basamağı yükselince (250 → 2.000 → 10.000 …) buraya yeni değer yazılır.
     "WABA_CONVERSATION_CAP": "",
     // "1": tavana yaklaşıldığında yalnız ÖNEMSİZ durum mesajları düşürülür (sipariş mesajları düşmez)
     "WABA_SHED_NONCRITICAL": ""
@@ -115,6 +124,16 @@
   // (`npx wrangler secret put <ad>`; --secrets-file eksik secret'ı silmez, kalıcı olur). Değerler burada yazılmaz.
   //   - WEBHOOK_DRAIN_SECRET: webhook tamponunu boşaltma ucunun (POST /__yg/webhook-drain) paylaşılan sırrı.
   //     Verilmezse uç 404 döner ve tampon yalnız Worker'ın kendi 5 dakikalık turuyla boşalır (15 §13).
+  //   - HEALTH_METRICS_TOKEN: `/api/v1/health/worker` AYRINTILI ölçümlerinin (yedek yaşı, disk, bellek ve eşikleri)
+  //     belirteci. Uç kimlik doğrulamasızdır: sade alanlar (ok, degraded, warnings, db, jobLagSec, stuckJobs,
+  //     maxLagSec, time) herkese açık kalır — dış izleme ve duman testi onlara bakar —, ayrıntılar yalnız
+  //     `x-health-metrics-token` başlığını doğru taşıyan isteğe yazılır. VERİLMEZSE ayrıntılar hiç kimseye
+  //     görünmez ve uç yine 200 döner (açık varsayılan olmasın; apps/api/src/routes/health.ts `metricsAllowed`).
+  //     En az 24 karakter olmalı, kısası kurulmamış sayılır: `openssl rand -hex 24`.
+  //     ⚠️ DIŞ BAĞIMLILIK: değerin container'a geçmesi için `src/mode.ts` `PASSTHROUGH_KEYS` listesine
+  //     'HEALTH_METRICS_TOKEN' eklenmelidir (ALERT_WEBHOOK_URL ile aynı desen) ve
+  //     `scripts/mode.test.mjs` SCOPE_OUT'tan çıkarılmalıdır. O satır olmadan secret verilse bile API beklenen
+  //     değeri bilmez; Worker başlığı gönderir, ayrıntı gelmez. Adım adım: docs/15 §10.
   //   - ALERT_WEBHOOK_URL: kısa JSON uyarıların gönderildiği adres (apps/api ile AYNI ad; src/mode.ts containerEnv
   //     bunu container'a da geçirir, yani tek secret hem Worker'ın hem API'nin uyarı kanalını açar). Verilmezse
   //     uyarılar yalnız günlüğe yazılır. İsteğe bağlı eşlikçisi ALERT_MIN_SEVERITY (info|warning|critical).

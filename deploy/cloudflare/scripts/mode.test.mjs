@@ -217,9 +217,19 @@ const SCOPE_OUT = new Map([
   ['PLATFORM_WA_PHONE_NUMBER_ID', 'src/whatsapp-env.ts yazar'],
   ['PLATFORM_WA_WABA_ID', 'src/whatsapp-env.ts yazar'],
   ['PLATFORM_WA_DISPLAY_PHONE', 'src/whatsapp-env.ts yazar'],
-  ['NETGSM_USERCODE', 'SMS_PROVIDER canlı ortamda mock: Netgsm hesabı bağlanmadı (15 §7)'],
+  ['NETGSM_USERCODE', 'SMS_PROVIDER canlı ortamda mock: Netgsm hesabı bağlanmadı (18 §2)'],
   ['NETGSM_PASSWORD', 'SMS_PROVIDER canlı ortamda mock'],
   ['NETGSM_HEADER', 'SMS_PROVIDER canlı ortamda mock'],
+  // E-posta kanalı (18 §3): sağlayıcı hesabı HENÜZ AÇILMADI, bu yüzden container'da EMAIL_PROVIDER şema
+  // varsayılanıyla (mock) kalır. Bu KAPALI bir varsayılandır ve sessiz değildir: canlı açılışta
+  // productionConfigWarnings "hiçbir e-posta gönderilmez" satırını yazar, her sendEmail çağrısı `skipped`
+  // döner ve uyarı kanalına `email_not_configured` gider (apps/api/src/services/messaging/email-send.ts).
+  // AÇMAK İÇİN: Worker secret'ları + src/mode.ts ContainerInputs & PASSTHROUGH_KEYS'e dört adı ekle +
+  // bu dört satırı SİL (adımlar: docs/18 §3 "Eray'ın yapacağı adımlar").
+  ['EMAIL_PROVIDER', 'e-posta sağlayıcısı bağlanmadı: şema varsayılanı mock (kapalı varsayılan, 18 §3)'],
+  ['EMAIL_FROM', 'e-posta kanalı kapalı (18 §3)'],
+  ['EMAIL_REPLY_TO', 'e-posta kanalı kapalı (18 §3)'],
+  ['RESEND_API_KEY', 'e-posta kanalı kapalı (18 §3)'],
   ['ANTHROPIC_API_KEY', 'Faz 2 (AI); canlı ortamda kapalı'],
   ['BACKUP_STATE_FILE', 'entrypoint.sh varsayılanı /tmp/yedek-durum.json (15 §13)'],
   ['BACKUP_STATUS_FILE', 'yalnız geriye dönük ad; kod BACKUP_STATE_FILE\'ı önce okur'],
@@ -227,6 +237,14 @@ const SCOPE_OUT = new Map([
   ['HEALTH_MIN_DISK_FREE_PCT', 'koddaki varsayılan eşik yeterli (15 §10)'],
   ['HEALTH_MAX_MEM_USED_PCT', 'koddaki varsayılan eşik yeterli (15 §10)'],
   ['HEALTH_DISK_PATH', 'verilmezse UPLOAD_DIR kullanılır; tek container\'da aynı disk'],
+  [
+    'HEALTH_METRICS_TOKEN',
+    // Değer verilmediğinde davranış BİLİNÇLİDİR ve güvenlidir: /health/worker ayrıntılı ölçümleri (yedek yaşı,
+    // disk, bellek) hiç kimseye görünmez, uç yine 200 döner, eşik aşımının haber yolu (`warnings` + uyarı
+    // kanalı) açık kalır. Yani kapsam dışı kalması bir arıza değil, kapalı varsayılandır.
+    'ayrıntılı ölçüm belirteci: verilmezse ayrıntılar GİZLİ kalır (kapalı varsayılan). Açmak için: Worker secret' +
+      ' + src/mode.ts PASSTHROUGH_KEYS\'e ekle + bu satırı SİL (15 §10)',
+  ],
   ['SSE_MAX_PER_BRANCH', 'koddaki varsayılan sınır yeterli'],
   ['SSE_MAX_PER_TENANT', 'koddaki varsayılan sınır yeterli'],
 ]);
@@ -360,4 +378,60 @@ test('künye web derlemesine de geçer: docker-compose web.build.args → docker
   // Künye web servisine ÇALIŞMA zamanı değişkeni olarak verilmez: statik sayfayı değiştirmez, yalnız ayrışma üretir
   const env = web.slice(web.indexOf('    environment:'), web.indexOf('    depends_on:'));
   for (const name of alanlar) assert.equal(env.includes(name), false, `web.environment künye taşımamalı: ${name}`);
+});
+
+// --- Sağlık ucunun ayrıntılı ölçüm belirteci (denetim 2026-10-05 bulgu A-2) ----------------------------------
+// `/api/v1/health/worker` kimlik doğrulamasızdır (src/access.ts HEALTH_PATHS): sade alanlar herkese açıktır,
+// ayrıntılı ölçümler (yedek yaşı, disk, bellek) yalnız doğru belirteçle görünür. Worker ile API AYRI paketlerdir
+// (apps/api'den import edilemez), yani başlığın adı iki yerde ELLE yazılıdır — aşağıdaki vaka o ikisini çivileyerek
+// sessiz ayrışmayı (Worker başlığı gönderiyor sanılır, API tanımaz) engeller.
+test('ayrıntılı ölçüm belirteci: başlık adı Worker ile apps/api arasında birebir aynı', () => {
+  const health = readFileSync(new URL('apps/api/src/routes/health.ts', ROOT), 'utf8');
+  const eslesme = health.match(/HEALTH_METRICS_HEADER = '([a-z0-9-]+)'/);
+  assert.ok(eslesme, 'apps/api/src/routes/health.ts içinde HEALTH_METRICS_HEADER bulunamadı (ad değişti mi?)');
+  const baslik = eslesme[1];
+
+  const index = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
+  assert.ok(
+    index.includes(`'${baslik}': olcumBelirteci`),
+    `src/index.ts yedek gözcüsü "${baslik}" başlığını göndermiyor: ayrıntı alanları gelmez, uyarı gövdesinde yaş/eşik eksilir`,
+  );
+  assert.ok(index.includes('HEALTH_METRICS_TOKEN?: string;'), 'src/index.ts Env arayüzünde HEALTH_METRICS_TOKEN tanımlı olmalı');
+  // Belirteç YOKSA başlık hiç yazılmaz (boş değerli başlık göndermek "yanlış belirteç" ile aynı sonucu verir ama
+  // günlükte kafa karıştırır) ve uyarı yolu kapanmaz: karar `warnings` dizisinden verilir (src/alert.ts).
+  assert.ok(index.includes('olcumBelirteci ? {'), 'belirteç boşsa başlık gönderilmemeli (koşullu yazım)');
+
+  // Sade alanlar SÖZLEŞMEDİR: dağıtımın duman testi (deploy-dev-cloudflare.yml) ve dış izleme bunlara bakar.
+  // Biri belirtecin arkasına taşınırsa duman testi/izleme sessizce körleşir.
+  const govdeBasi = health.indexOf('const body = {', health.indexOf("app.get('/health/worker'"));
+  assert.ok(govdeBasi > 0, '/health/worker yanıt gövdesi bulunamadı (rota taşındı mı?)');
+  const govde = health.slice(govdeBasi, health.indexOf('\n    };', govdeBasi));
+  for (const alan of ['ok', 'degraded', 'warnings', 'db', 'jobLagSec', 'stuckJobs', 'maxLagSec', 'time']) {
+    assert.match(govde, new RegExp(`^\\s+${alan}[,:]`, 'm'), `/health/worker gövdesinde sade alan kalmamış: ${alan}`);
+  }
+  // Ayrıntılı ölçümler koşulludur: belirteçsiz yanıtta alan HİÇ BULUNMAZ (null değil, yok).
+  assert.ok(govde.includes('...(detailed'), 'ayrıntılı ölçümler belirteç koşuluna bağlı yazılmalı');
+  for (const alan of ['lastBackupAgeSec', 'diskFreePct', 'memUsedPct']) {
+    assert.ok(govde.includes(alan), `ayrıntılı ölçüm gövdeden düşmüş: ${alan}`);
+  }
+});
+
+test('ayrıntılı ölçüm belirteci: wrangler.jsonc isteğe bağlı secret olarak belgeli (operatör nereye yazacağını bulur)', () => {
+  const ham = readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8');
+  assert.ok(ham.includes('HEALTH_METRICS_TOKEN'), 'wrangler.jsonc isteğe bağlı secret listesinde HEALTH_METRICS_TOKEN anlatılmalı');
+  // Değer DEPOYA YAZILMAZ: secret'tır. `vars` içinde görünmemeli.
+  const config = JSON.parse(stripJsonc(ham));
+  assert.equal('HEALTH_METRICS_TOKEN' in (config.vars ?? {}), false, 'belirteç vars\'a yazılmamalı (secret\'tır, depoda tutulmaz)');
+  assert.equal((config.secrets?.required ?? []).includes('HEALTH_METRICS_TOKEN'), false, 'belirteç ZORUNLU secret değil: verilmezse ayrıntılar gizli kalır, dağıtım yeşil yanar');
+});
+
+// --- Kapasite kararı (FAZ 4.9) -------------------------------------------------------------------------------
+// 5 Eki 2026 canlı ölçümü: diskFreePct 73, memUsedPct 14 → `basic` YETERLİ, değiştirilmedi. Bu vaka kararı
+// çivileyerek "bir ara büyütmüşüz, neden olduğunu kimse bilmiyor" durumunu engeller: örnek tipi değişirse
+// buradan kırmızı yanar ve gerekçe docs/15 §16'ya yazılır.
+test('kapasite: container örnek tipi basic (ölçüldü, yeterli) ve tek örnek', () => {
+  const config = JSON.parse(stripJsonc(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8')));
+  const container = (config.containers ?? [])[0] ?? {};
+  assert.equal(container.instance_type, 'basic', 'örnek tipi değiştiyse gerekçesi docs/15 §16\'ya yazılmalı (ölçüm: 5 Eki 2026 disk %27, bellek %14 kullanımda)');
+  assert.equal(container.max_instances, 1, 'tek container: veritabanı container içindedir, ikinci örnek ikinci veritabanı demektir');
 });

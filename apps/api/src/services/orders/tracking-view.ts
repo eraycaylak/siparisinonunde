@@ -15,7 +15,7 @@ import { trackResponseExtSchema, type TrackResponseExt } from '@siparis/core/ord
 import { normalizeAlarmPolicy } from './alarm-policy';
 import type { TenantRow } from './store-context';
 import type { OrderRow } from './summary';
-import { buildWaLink, findVerificationCode, loadVerificationChannels } from './verification';
+import { buildWaLink, findVerificationCode, loadVerificationChannels, type VerificationConfig } from './verification';
 
 const iso = (d: Date | null | undefined) => (d ? d.toISOString() : null);
 
@@ -62,7 +62,9 @@ const firstName = (name: string | null | undefined) => (name ? (name.trim().spli
 
 export async function buildTrackView(
   db: Database,
-  input: { order: OrderRow; tenant: TenantRow; now?: Date },
+  // config: SMS yedeğinin gerçekten gönderilebilir olup olmadığını belirler (verification.ts); taklit sağlayıcıda
+  // takip sayfası "SMS ile doğrula" yolunu göstermez
+  input: { order: OrderRow; tenant: TenantRow; now?: Date; config: VerificationConfig },
 ): Promise<TrackResponseExt> {
   const { order, tenant } = input;
   const now = input.now ?? new Date();
@@ -88,7 +90,7 @@ export async function buildTrackView(
   }
 
   const reasonText = reasonTextOf(order);
-  const channels = await loadVerificationChannels(db, tenant, order.branchId);
+  const channels = await loadVerificationChannels(db, tenant, order.branchId, input.config);
   let verification: TrackResponseExt['order']['verification'] = null;
   if (order.status === 'awaiting_customer') {
     const code = channels.waConnected ? await findVerificationCode(db, tenant.id, order.id) : undefined;

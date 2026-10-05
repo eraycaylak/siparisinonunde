@@ -18,7 +18,8 @@
 #   6. node --test .github/workflows/deploy-gate.test.mjs — bu kapının kendisi sökülmemiş mi (değişmez denetimi)
 #   7. pnpm check:legal                   — künye dolu mu, yasal metin sürümü yayınlanmış mı, yer tutucu kalmış mı
 #                                           (ŞİMDİLİK YALNIZ UYARI: continue-on-error; adımın başındaki nota bakın)
-# Ne koşmaz (bilinçli): Playwright e2e (9 senaryo) — kendi veritabanı (*_e2e_test), derlenmiş web ve tarayıcı indirmesi
+# Ne koşmaz (bilinçli): Playwright e2e (9 senaryo) — AYRI iş akışında: .github/workflows/e2e.yml (elle ya da gecelik,
+#   dağıtımı bloke etmez). Burada koşmamasının nedeni: kendi veritabanı (*_e2e_test), derlenmiş web ve tarayıcı indirmesi
 # gerekir; dağıtım kapısını ~10 dk uzatır. Ayrı bir iş akışına alınması FAZ 2 işidir (docs/09).
 # Ne koşmaz (bilinçli, 2): KAPSAM ÖLÇÜMÜ (`pnpm test:coverage`). Eşikler `vitest.config.ts` içinde yapılandırıldı
 # ama HENÜZ ÖLÇÜLMEMİŞ hedef değerlerdir; ölçülmemiş bir sayıyı kapıya bağlamak kapıyı ilk koşuda kırmızı yakar.
@@ -302,7 +303,7 @@ jobs:
             echo "- Koşanlar: lint, tür denetimi, core+db+api testleri, web birim testleri, dağıtım betikleri, kapı değişmezleri."
             echo "- Lint: ${{ steps.lint.outcome == 'success' && 'hata yok' || (steps.lint.outcome == 'failure' && 'HATA VAR (uyarı; dağıtımı durdurmuyor)' || 'koşmadı (önceki adım kırmızı)') }}"
             echo "- Yasal metin denetimi: ${{ steps.yasal.outcome == 'success' && 'temiz' || 'BULGU VAR (uyarı; dağıtımı durdurmuyor)' }}"
-            echo "- Koşmayanlar (bilinçli): Playwright e2e (9 senaryo; kendi veritabanı ve tarayıcısı gerekir); kapsam ölçümü (eşikler henüz ölçülmedi)."
+            echo "- Koşmayanlar (bilinçli): Playwright e2e → ayrı iş akışı \`Uçtan uca testler (e2e)\` (elle/gecelik); kapsam ölçümü (eşikler henüz ölçülmedi)."
             if [ "${{ job.status }}" != "success" ]; then
               echo "- **Dağıtım başlatılmadı.** Yukarıdaki kırmızı adımı düzeltip yeniden çalıştırın."
             fi

@@ -1,5 +1,6 @@
 // GET /api/v1/health — süreç ve veritabanı durumu (Docker sağlık denetimi).
-// GET /api/v1/health/worker — arka plan işlerinin gecikmesi + son yedeğin yaşı + disk/bellek baskısı.
+// GET /api/v1/health/worker — arka plan işlerinin gecikmesi + son yedeğin yaşı + disk/bellek baskısı
+//   (ölçüm SAYILARI yalnız `HEALTH_METRICS_TOKEN` başlığıyla; aşağıya bakın).
 //
 // "ÇALIŞIYOR MU" İLE "SAĞLIKLI MI" AYRI SİNYALLERDİR (denetim 2026-10-05 bulgu A). `/health/worker` iki şey söyler:
 //   - `ok` + durum kodu: hizmet GERÇEKTEN verilebiliyor mu. `ok:false` + **503** yalnız veritabanı düştüyse, vadesi
@@ -14,6 +15,17 @@
 // yüksek bellek bir dağıtım hatası DEĞİLDİR; geri alma onları düzeltmez, üstüne yeni container açılışı son yedekten
 // sonraki ~2 dakikayı kaybettirir. Eşik aşımı artık dağıtımı ve container'ı değil NÖBETÇİYİ rahatsız eder.
 //
+// "AYAKTA MI" İLE "ÖLÇÜM" DE AYRI SİNYALLERDİR (denetim 2026-10-05 bulgu A-2). Bu uç KİMLİK DOĞRULAMASIZDIR ve
+// Worker'da parola kapısının dışındadır (deploy/cloudflare/src/access.ts HEALTH_PATHS): herkese açıktır.
+//   - SADE ALANLAR her isteğe yazılır: `ok`, `degraded`, `warnings`, `db`, `jobLagSec`, `stuckJobs`, `maxLagSec`,
+//     `time`. Dış izleme ve dağıtımın duman testi bunlara bakar (docs/15 §10, §12) — SÖZLEŞME, değişmez.
+//   - AYRINTILI ÖLÇÜMLER (`lastBackupAgeSec`, `diskFreePct`/`diskFreeMb`, `memUsedPct`/`memRssMb` ve bunların
+//     eşikleri) yalnız doğru `HEALTH_METRICS_TOKEN` başlığını taşıyan isteğe yazılır; belirteçsiz yanıtta bu
+//     alanlar HİÇ BULUNMAZ (`null` değil, yok). Gerekçe: bu sayılar altyapının iç durumudur ve saldırgana
+//     ZAMANLAMA bilgisi verir — "yedek 2 dk'da bir alınıyor, son tur 110 sn önceydi" penceresini, diskin ne
+//     zaman dolacağını, belleğin OOM'a ne kadar yakın olduğunu. Arızanın SINIFI (`warnings`) açık kalır çünkü
+//     haber yolu odur; MİKTARI ve ANI gizlidir.
+//
 // Eşikler neden `/health`'te DEĞİL (denetim 2026-10-04 madde 1.5 ve H23): `/api/v1/health` üç yerin canlılık probudur —
 // docker-compose `api` healthcheck'i, Worker'ın uyanık tutma cron'u (deploy/cloudflare/src/index.ts) ve dağıtımın
 // sürüm kapısı. Orada 503 dönmek container'ı yeniden başlatır ve dağıtımı bloke eder; "disk doluyor" halinde yeniden
@@ -21,6 +33,7 @@
 
 import { sql } from 'drizzle-orm';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
+import { timingSafeEqual } from 'node:crypto';
 import { readFile, statfs } from 'node:fs/promises';
 import { getHeapStatistics } from 'node:v8';
 import { z } from 'zod';
@@ -55,29 +68,78 @@ const workerHealthResponse = z.object({
   /** 10 dk'dan uzun süredir `running` kalan iş sayısı. */
   stuckJobs: z.number().int().nullable(),
   maxLagSec: z.number().int(),
+  // ─── AYRINTILI ÖLÇÜMLER (yalnız `HEALTH_METRICS_TOKEN` başlığıyla) ────────────────────────────────────────
+  // Hepsi `.optional()`: belirteçsiz yanıtta alan HİÇ BULUNMAZ. "Yok" ile "bilinmiyor" (`null`) bilerek
+  // ayrıldı — `null` yazmak "ölçemedim" demektir ve nöbetçiyi yanlış yere bakmaya yollar.
   /**
    * Son başarılı yedeğin üzerinden geçen süre (sn); durum dosyasının `lastSuccessUnix` alanından. Dosya yoksa,
    * okunamazsa ya da hiç başarılı tur yoksa null — null uyarı üretmez.
    */
-  lastBackupAgeSec: z.number().int().nullable(),
-  maxBackupAgeSec: z.number().int(),
+  lastBackupAgeSec: z.number().int().nullable().optional(),
+  maxBackupAgeSec: z.number().int().optional(),
   /** İzlenen yoldaki boş disk oranı (%) ve boş alan (MiB); yol okunamazsa null. */
-  diskFreePct: z.number().int().nullable(),
-  diskFreeMb: z.number().int().nullable(),
-  minDiskFreePct: z.number().int(),
+  diskFreePct: z.number().int().nullable().optional(),
+  diskFreeMb: z.number().int().nullable().optional(),
+  minDiskFreePct: z.number().int().optional(),
   /** Bu sürecin yığın kullanımının kendi tavanına oranı (%) ve yerleşik belleği (MiB). */
-  memUsedPct: z.number().int().nullable(),
-  memRssMb: z.number().int(),
-  maxMemUsedPct: z.number().int(),
+  memUsedPct: z.number().int().nullable().optional(),
+  memRssMb: z.number().int().optional(),
+  maxMemUsedPct: z.number().int().optional(),
   time: z.string(),
 });
+
+/**
+ * Ayrıntılı ölçümleri isteyen tarafın göndereceği başlık. Küçük harf yazılır: Node/Fastify gelen başlık adlarını
+ * küçük harfe indirir, yani `X-Health-Metrics-Token` de bu anahtarla okunur.
+ */
+export const HEALTH_METRICS_HEADER = 'x-health-metrics-token';
+
+/**
+ * Belirteç bu uzunluğun altındaysa KURULMAMIŞ sayılır (ayrıntılar gizli kalır). Uç kimlik doğrulamasız ve
+ * herkese açıktır: 6 karakterlik bir belirteç kaba kuvvetle dakikalar içinde bulunur, yani kısa belirteç
+ * korumayı açmaz, yalnız açıldığı YANILSAMASINI verir. Üretme: `openssl rand -hex 24` (48 karakter).
+ * Kısa değer sessizce yutulmasın diye uç ilk yoklamada bir kez `log.warn` yazar.
+ */
+export const HEALTH_METRICS_TOKEN_MIN_LEN = 24;
+
+/** Kenar boşlukları kırpılmış belirteç; kurulmamış ya da çok kısaysa null. */
+function normalizeMetricsToken(token: string | undefined): string | null {
+  const value = (token ?? '').trim();
+  return value.length >= HEALTH_METRICS_TOKEN_MIN_LEN ? value : null;
+}
+
+/**
+ * Ayrıntılı ölçümler bu yanıtta görünecek mi?
+ *
+ * KARAR (denetim 2026-10-05 bulgu A-2): **belirteç tanımlı değilse ayrıntılar GİZLENİR ve uç yine 200 döner.**
+ *   - Neden gizlenir: ters karar ("belirteç yoksa herkese açık") açığı VARSAYILAN yapardı — kimse bir secret
+ *     tanımlamayı hatırlamadığı sürece sızıntı sürer. Gizlemenin bedeli küçüktür: eşik aşımının haber yolu
+ *     ayrıntı alanları DEĞİL, `warnings` + uyarı kanalıdır (`alert()`, lib/alert.ts) ve ikisi de açık kalır.
+ *     Worker'ın yedek gözcüsü de kararını `warnings`'ten verir (deploy/cloudflare/src/alert.ts
+ *     `yedekDurumunuOku`): belirteç yoksa uyarı gider, yalnız gövdesindeki iki sayı eksilir.
+ *   - Neden 200, neden 401/503 değil: bu uç container healthcheck'i, dağıtımın duman testi ve dış izlemenin
+ *     yokladığı yerdir. "İzleme kurulmamış" bir yapılandırma eksiği olabilir, ama sağlık ucunu kırmızı
+ *     yakmak dağıtımı geri aldırır ve container'ı yeniden başlatır — dosya başındaki aynı tuzak.
+ *
+ * Karşılaştırma sabit süreli: belirteci karakter karakter tahmin etmeyi (zamanlama saldırısı) kapatır.
+ */
+export function metricsAllowed(presented: string | string[] | undefined, token: string | undefined): boolean {
+  const expected = normalizeMetricsToken(token);
+  if (expected === null) return false;
+  // Başlık iki kez gönderilirse Node çoğu başlıkta değerleri birleştirir, bazılarında dizi verir: ilkini al.
+  const raw = Array.isArray(presented) ? presented[0] : presented;
+  if (typeof raw !== 'string') return false;
+  const got = Buffer.from(raw.trim(), 'utf8');
+  const want = Buffer.from(expected, 'utf8');
+  return got.length === want.length && timingSafeEqual(got, want);
+}
 
 /** scripts/worker-health.ts ile aynı eşik (WORKER_HEALTH_MAX_LAG_SEC varsayılanı). */
 export const WORKER_MAX_LAG_SEC = 300;
 
 /**
  * Yedek ve kaynak eşiklerinin varsayılanları (docs/15 §10). Her biri aynı adlı ortam değişkeniyle ezilir ve
- * **0 = o eşik kapalı** demektir: alan yine raporlanır, ama uyarı üretmez.
+ * **0 = o eşik kapalı** demektir: ölçüm yine yapılır (ve belirteçli yanıtta görünür), ama uyarı üretmez.
  */
 export const HEALTH_LIMIT_DEFAULTS = {
   /** `HEALTH_MAX_BACKUP_AGE_SEC`: 120 sn'lik yedek turunun ~7 kez kaçırılması (docs/15 §8, §13). */
@@ -264,9 +326,16 @@ export function healthWarningAlert(code: HealthWarning, r: HealthResources, limi
 /** Uyarı kodu başına son `alert()` anı. Süreç belleğindedir: yeniden başlatma dizgini sıfırlar (zararsız). */
 const warnedAt = new Map<string, number>();
 
+/**
+ * "HEALTH_METRICS_TOKEN çok kısa" satırı süreç ömründe BİR KEZ yazılır: bu uç dakikada bir yoklanır, her turda
+ * yazmak günde ~1400 satır eder (aynı gerekçe `HEALTH_ALERT_COOLDOWN_MS`'te).
+ */
+let shortMetricsTokenWarned = false;
+
 /** Testler için dizgin belleğini boşaltır (uç testleri birbirinin soğumasını miras almasın). */
 export function resetHealthWarningCooldown(): void {
   warnedAt.clear();
+  shortMetricsTokenWarned = false;
 }
 
 /**
@@ -312,7 +381,7 @@ const healthRoutes: FastifyPluginAsyncZod = async (app) => {
     return reply.status(db === 'up' ? 200 : 503).send(body);
   });
 
-  app.get('/health/worker', { schema: { response: { 200: workerHealthResponse, 503: workerHealthResponse } } }, async (_request, reply) => {
+  app.get('/health/worker', { schema: { response: { 200: workerHealthResponse, 503: workerHealthResponse } } }, async (request, reply) => {
     reply.header('cache-control', 'no-store');
     let lag: number | null = null;
     let stuck: number | null = null;
@@ -337,6 +406,18 @@ const healthRoutes: FastifyPluginAsyncZod = async (app) => {
     // `ok` YALNIZ hizmet verilemiyorsa false: veritabanı düştü, kuyruk gecikti ya da iş takıldı. Yedek/disk/bellek
     // eşikleri buraya GİRMEZ (dosya başındaki gerekçe: duman testi bu uca bakıyor ve kırmızısı geri alma tetikliyor).
     const ok = db === 'up' && lag !== null && lag <= WORKER_MAX_LAG_SEC && stuck === 0;
+    // Ayrıntılı ölçümler kime görünür: belirteç kurulu değilse KİMSEYE, kuruluysa yalnız doğru belirteci taşıyan
+    // isteğe (gerekçe `metricsAllowed` açıklamasında). Ölçüm her turda YAPILIR — `alert()` ve `warnings` ondan
+    // beslenir; gizlenen şey yalnız yanıta yazılması.
+    const metricsToken = process.env.HEALTH_METRICS_TOKEN;
+    const detailed = metricsAllowed(request.headers[HEALTH_METRICS_HEADER], metricsToken);
+    // Değer verilmiş ama eşiğin altında: korumanın açıldığı sanılmasın diye bir kez haber ver.
+    if (!shortMetricsTokenWarned && (metricsToken ?? '').trim() !== '' && normalizeMetricsToken(metricsToken) === null) {
+      shortMetricsTokenWarned = true;
+      app.log.warn(
+        `HEALTH_METRICS_TOKEN ${HEALTH_METRICS_TOKEN_MIN_LEN} karakterden kısa: kurulmamış sayıldı, /health/worker ayrıntılı ölçümleri gizli kalıyor (docs/15 §10)`,
+      );
+    }
     const body = {
       ok,
       degraded: warnings.length > 0,
@@ -345,14 +426,18 @@ const healthRoutes: FastifyPluginAsyncZod = async (app) => {
       jobLagSec: lag,
       stuckJobs: stuck,
       maxLagSec: WORKER_MAX_LAG_SEC,
-      lastBackupAgeSec: resources.lastBackupAgeSec,
-      maxBackupAgeSec: limits.maxBackupAgeSec,
-      diskFreePct: resources.diskFreePct,
-      diskFreeMb: resources.diskFreeMb,
-      minDiskFreePct: limits.minDiskFreePct,
-      memUsedPct: resources.memUsedPct,
-      memRssMb: resources.memRssMb,
-      maxMemUsedPct: limits.maxMemUsedPct,
+      ...(detailed
+        ? {
+            lastBackupAgeSec: resources.lastBackupAgeSec,
+            maxBackupAgeSec: limits.maxBackupAgeSec,
+            diskFreePct: resources.diskFreePct,
+            diskFreeMb: resources.diskFreeMb,
+            minDiskFreePct: limits.minDiskFreePct,
+            memUsedPct: resources.memUsedPct,
+            memRssMb: resources.memRssMb,
+            maxMemUsedPct: limits.maxMemUsedPct,
+          }
+        : {}),
       time: new Date().toISOString(),
     };
     // Eşik aşımının tek haber yolu budur (durum kodu 200 kaldığı için dış izleme görmez). `alert()` ateşle-ve-unut:

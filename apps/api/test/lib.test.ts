@@ -120,7 +120,10 @@ describe('config', () => {
     it('geçerli üretim yapılandırması yüklenir; taklit sağlayıcılar yalnız uyarı', () => {
       const c = loadConfig(prod);
       expect(c.DEV_TOOLS).toBe(false);
-      expect(productionConfigWarnings(c)).toHaveLength(3);
+      // Taklit sağlayıcıların her biri ayrı bir uyarı üretir; sayı değil İÇERİK sabitlenir
+      const uyarilar = productionConfigWarnings(c);
+      expect(uyarilar).toHaveLength(4);
+      expect(uyarilar.map((u) => u.split(':')[0])).toEqual(['SMS_PROVIDER=mock', 'PLATFORM_WA_PROVIDER=mock', 'WA_DEFAULT_PROVIDER=mock', 'EMAIL_PROVIDER=mock']);
       expect(productionConfigWarnings(loadConfig({ ...base, DEV_TOOLS: '1' }))).toEqual([]);
     });
     it('DEV_TOOLS=1 üretimde reddedilir', () => {

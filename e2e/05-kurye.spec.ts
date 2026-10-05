@@ -1,5 +1,6 @@
 // Senaryo 5 — Kurye akışı (04 §9, 00 §4): panelde siparişe kurye ata → kurye giriş linki (tek kullanımlık) →
-// /kurye'de "Yola çıktım" ve "Teslim ettim" → müşteri takip sayfasında "Teslim edildi" + değerlendirme.
+// /kurye'de "Yola çıktım" ve "Teslim ettim" (5 sn "Geri al" şeridi) → müşteri takip sayfasında "Teslim edildi"
+// + değerlendirme.
 
 import { devices } from '@playwright/test';
 import { expect, test } from './support/test';
@@ -81,6 +82,10 @@ test('Kurye atama, kurye linkiyle giriş, yola çıkış, teslim ve müşteri de
   await expect(deliver).toBeVisible();
   await expect(deliver.getByRole('radio', { name: /nakit alındı/ })).toBeChecked();
   await deliver.getByRole('button', { name: 'Teslim ettim' }).click();
+  // 5 sn "Geri al" şeridi (04 §9.2): istek ancak süre dolunca gider, sonra sipariş listeden düşer
+  const undo = courier.getByRole('region', { name: 'Geri alınabilir işlemler' });
+  await expect(undo).toContainText(`#${order.number} teslim edildi olarak işaretlendi`);
+  await expect(undo.getByRole('button', { name: 'Geri al' })).toBeVisible();
   await expect(job).toHaveCount(0);
   await courierContext.close();
 

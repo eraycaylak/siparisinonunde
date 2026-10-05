@@ -190,6 +190,11 @@ export const branches = pgTable(
   },
   (t) => [
     index('branches_tenant_idx').on(t.tenantId),
+    // İşletme başına EN ÇOK bir varsayılan şube (denetim H33 · FAZ 4.1): `is_default` varsayılanı `true`
+    // olduğu için kısıt olmadan ikinci şube eklemek işletmeyi "iki varsayılanlı" yapıyordu ve vitrin
+    // (`storefront/load.ts` → `limit 1`) hangi şubeyi göstereceğine sıra garantisi olmadan karar veriyordu.
+    // "En az bir" tarafı uygulama katmanındadır. Göç: migrations/0005_branches_default_unique.sql
+    uniqueIndex('branches_default_uk').on(t.tenantId).where(sql`is_default`),
     check('branches_busy_ck', sql`${t.busyExtraMinutes} between 0 and 180`),
     check('branches_prep_ck', sql`${t.defaultPrepMinutes} between 1 and 240`),
     check('branches_payment_methods_ck', sql`${t.paymentMethods} <@ array[${sql.raw(PAYMENT_METHODS.map((m) => `'${m}'`).join(', '))}]::text[]`),

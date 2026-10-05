@@ -102,7 +102,7 @@ async function buildCreateResponse(db: Database, config: Config, tenant: TenantR
   if (order.status !== 'awaiting_customer') {
     return { orderId: order.id, number: order.number, status: order.status, trackingUrl: url, verification: { required: false, smsAvailable: false } };
   }
-  const channels = await loadVerificationChannels(db, tenant, order.branchId);
+  const channels = await loadVerificationChannels(db, tenant, order.branchId, config);
   const code = channels.waConnected ? await findVerificationCode(db, tenant.id, order.id) : undefined;
   if (code && channels.waDisplayPhone) {
     return {
@@ -278,7 +278,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       if (totalProblem) throw totalProblem;
       validatePayment(branch, body, quote.totalKurus);
 
-      const channels = token ? null : await loadVerificationChannels(app.db, tenant, branch.id);
+      const channels = token ? null : await loadVerificationChannels(app.db, tenant, branch.id, app.config);
       const flowA = Boolean(token);
       const waCode = !flowA && Boolean(channels?.waConnected);
       const statusNotifyChannel = flowA || waCode ? 'whatsapp' : channels?.smsAvailable ? 'sms' : 'none';
@@ -385,7 +385,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       if (!order) throw notFound('Sipariş bulunamadı.');
       if (order.status !== 'awaiting_customer') throw conflict('not_awaiting_verification', 'Bu sipariş doğrulama beklemiyor.');
       const [tenant] = await app.db.select().from(tenants).where(eq(tenants.id, order.tenantId));
-      const channels = await loadVerificationChannels(app.db, tenant!, order.branchId);
+      const channels = await loadVerificationChannels(app.db, tenant!, order.branchId, app.config);
       if (!channels.smsAvailable) throw conflict('sms_unavailable', 'SMS ile doğrulama şu an kullanılamıyor. Lütfen işletmeyi arayın.');
 
       const raw = request.body.phone.trim();
@@ -498,7 +498,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
   app.get('/track/:token', { schema: { params: tokenParams, response: { 200: trackResponseExtSchema } } }, async (request, reply) => {
     noStore(reply);
     const { order, tenant } = await loadTracked(app.db, app.config, request.params.token);
-    return buildTrackView(app.db, { order, tenant });
+    return buildTrackView(app.db, { order, tenant, config: app.config });
   });
 
   // POST /store/track/:token/cancel — new/awaiting → doğrudan iptal; accepted+ → iptal talebi (03 §7.4)

@@ -1,7 +1,8 @@
-// Mesajlaşma servisi (dilim 3): konuşma motoru, outbox, sipariş bildirimleri, platform uyarısı, SMS.
+// Mesajlaşma servisi (dilim 3): konuşma motoru, outbox, sipariş bildirimleri, platform uyarısı, SMS, e-posta.
 export * from './budget';
 export * from './context';
 export * from './customers';
+export * from './email-send';
 export * from './engine';
 export * from './ingest';
 export * from './order-notify';

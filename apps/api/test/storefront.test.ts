@@ -4,6 +4,7 @@ import type { StorefrontView } from '@siparis/core/menu/contracts';
 import { branches, openingHours, specialDays, tenants, waAccounts } from '@siparis/db';
 import { eq } from 'drizzle-orm';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+import { branchOrderingInfo, findTenantBySlug, storefrontBranch } from '../src/services/storefront/load';
 import { createTestContext, expectError, type TestContext, type TestTenant } from './helpers';
 import { seedMenu, type SeededMenu } from './menu-helpers';
 
@@ -200,5 +201,24 @@ describe('GET /store/:slug — sipariş alma durumu (sahte saat)', () => {
     expect(body.branch.orderingState).toBe('paused');
     expect(body.orderingEnabled).toBe(false);
     await ctx.db.update(tenants).set({ lifecycleStage: 'trial', suspensionReason: null }).where(eq(tenants.id, timed.tenantId));
+  });
+
+  // Yasal kapı (taslak sözleşme / eksik künye) PLATFORM düzeyindedir: sipariş ucu 503 veriyor, vitrin de baştan
+  // "sipariş alınmıyor" demeli — yoksa müşteri sepeti doldurup son adımda duvara çarpar (denetim 04.10.2026).
+  it('platform düzeyinde kapalıyken (yasal kapı) şube açık olsa bile paused + orderingEnabled false', async () => {
+    const tenant = await findTenantBySlug(ctx.db, 'saatli-isletme');
+    expect(tenant).not.toBeNull();
+    const branch = await storefrontBranch(ctx.db, tenant!.id);
+    expect(branch).not.toBeNull();
+    const now = new Date('2026-09-24T09:00:00Z');
+
+    const acik = await branchOrderingInfo(ctx.db, tenant!, branch!, now);
+    expect(acik.orderingEnabled).toBe(true);
+    expect(acik.state).toBe('open');
+
+    const kapali = await branchOrderingInfo(ctx.db, tenant!, branch!, now, { platformBlocked: true });
+    expect(kapali.orderingEnabled).toBe(false);
+    expect(kapali.state).toBe('paused');
+    expect(kapali.nextOpenAt).toBeNull();
   });
 });

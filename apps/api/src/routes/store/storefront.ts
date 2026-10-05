@@ -18,6 +18,7 @@ import {
   setLinkCookie,
   verifyCustomerCookie,
 } from '../../services/storefront/cookies';
+import { legalOrderingGate } from '../../services/orders/legal-gate';
 import { findTenantBySlug, loadStorefront } from '../../services/storefront/load';
 import {
   customerDto,
@@ -43,7 +44,8 @@ const storefrontRoutes: FastifyPluginAsyncZod = async (app) => {
     '/:slug',
     { schema: { params: slugParams, response: { 200: storefrontResponseSchema } } },
     async (request, reply) => {
-      const view = await loadStorefront(app.db, request.params.slug, new Date());
+      // Yasal kapı (taslak sözleşme / eksik künye) kapalıysa vitrin de sipariş almıyor görünsün (sipariş ucu 503 veriyor)
+      const view = await loadStorefront(app.db, request.params.slug, new Date(), { platformBlocked: legalOrderingGate(app.config).blocked });
       if (!view) throw storeNotFound();
       reply.header('cache-control', STOREFRONT_CACHE_CONTROL);
       return view;

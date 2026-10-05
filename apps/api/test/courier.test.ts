@@ -168,6 +168,32 @@ describe('kurye görünümü', () => {
     expect(events[0]!.data).toMatchObject({ by: 'courier', from: 'cash_on_delivery', to: 'meal_card_on_delivery', toMealCardBrand: 'multinet' });
   });
 
+  // online_card BUGÜN UYKUDA: vitrin bu yöntemi seçtirmiyor (Faz 2 — ödeme sağlayıcısı entegrasyonu). Test
+  // davranışı SABİTLİYOR: Faz 2 açıldığında kurye "teslim ettim" dediği için sipariş ÖDENDİ sayılmamalı, aksi
+  // halde sağlayıcıdan tahsil edilmemiş sipariş kasa raporunda ödenmiş görünür ve fark hiç yakalanmaz
+  // (denetim 2026-10-05 LOW 2). Sipariş durumu normal ilerler, yalnız ödeme alanlarına DOKUNULMAZ.
+  it('online_card siparişinde teslim ÖDENDİ yazmaz (ödemeyi sağlayıcı yazar) ve yöntem kapıda değiştirilemez', async () => {
+    const o = await onTheWayOrder(burak.user.id, burak.cookie);
+    // Vitrin bu yöntemi henüz üretmiyor; sipariş satırı doğrudan kurulur (Faz 2 sonrası gerçek yol aynı duruma düşer)
+    await ctx.db.update(orders).set({ paymentMethod: 'online_card' }).where(eq(orders.id, o.id));
+
+    // Kurye yöntemi kapıda DEĞİŞTİREMEZ: ödemesi kapıda alınmayan siparişte 422
+    expectError(
+      await ctx.request({ method: 'POST', url: `/api/v1/courier/orders/${o.id}/delivered`, cookie: burak.cookie, body: { paidWith: 'cash_on_delivery' } }),
+      422,
+      'payment_method_locked',
+    );
+
+    const d = await ctx.request({ method: 'POST', url: `/api/v1/courier/orders/${o.id}/delivered`, cookie: burak.cookie, body: {} });
+    expect(d.statusCode, d.body).toBe(200);
+    expect(d.json().status).toBe('delivered');
+    const [row] = await ctx.db.select().from(orders).where(eq(orders.id, o.id));
+    expect(row).toMatchObject({ status: 'delivered', paymentMethod: 'online_card', paymentStatus: 'unpaid' });
+    expect(row!.paidAt).toBeNull();
+    expect(row!.deliveredAt).not.toBeNull();
+    expect(await eventsOf(o.id, 'payment_method_changed')).toHaveLength(0);
+  });
+
   it('aynı yöntemle teslimde değişiklik olayı yazılmaz', async () => {
     const o = await onTheWayOrder(burak.user.id, burak.cookie);
     const d = await ctx.request({

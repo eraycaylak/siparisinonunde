@@ -65,7 +65,18 @@ export interface BranchOrderingInfo {
 }
 
 /** Şubenin sipariş alma durumu (core computeOrderingState + tenant kill-switch'i). */
-export async function branchOrderingInfo(db: Database, tenant: TenantRow, branch: BranchRow, now: Date): Promise<BranchOrderingInfo> {
+/**
+ * `platformBlocked`: işletmeden bağımsız, PLATFORM düzeyinde sipariş alınamayan durum (yasal metinler taslak ya da
+ * künye eksik — services/orders/legal-gate.ts). Sipariş ucu bunu zaten 503 ile reddediyor; vitrinin de baştan
+ * "şu an sipariş alınmıyor" demesi gerekir, yoksa müşteri sepeti doldurup son adımda duvara çarpar.
+ */
+export async function branchOrderingInfo(
+  db: Database,
+  tenant: TenantRow,
+  branch: BranchRow,
+  now: Date,
+  opts: { platformBlocked?: boolean } = {},
+): Promise<BranchOrderingInfo> {
   const tz = branch.timezone || DEFAULT_TIMEZONE;
   const yesterday = localDateString(new Date(now.getTime() - 86_400_000), tz);
   const [hours, specials] = await Promise.all([
@@ -90,7 +101,8 @@ export async function branchOrderingInfo(db: Database, tenant: TenantRow, branch
   // Canlıya geçmemiş işletme (web_live_at boş) sipariş almaz (04 §3.4.4); salt-okunur/askı/kapanış aşamaları da
   // sipariş almaz (00 §9) — vitrin bunu "Şu an online sipariş alınmıyor. Sipariş için lütfen işletmeyi arayın."
   // bandıyla gösterir (apps/web/components/storefront/format.ts orderingStatus).
-  const orderingEnabled = tenant.orderingEnabled && !isOrderingBlockedStage(tenant.lifecycleStage) && tenant.webLiveAt != null;
+  const orderingEnabled =
+    !opts.platformBlocked && tenant.orderingEnabled && !isOrderingBlockedStage(tenant.lifecycleStage) && tenant.webLiveAt != null;
   if (!orderingEnabled) {
     // İşletme düzeyinde kapalı: "paused" gibi davran, açılış zamanı bilinmez
     return { state: 'paused', nextOpenAt: null, closesAt: null, pausedUntil: null, busyExtraMinutes: 0, orderingEnabled: false };
@@ -113,14 +125,19 @@ function branchAddress(b: BranchRow): string | null {
 }
 
 /** Vitrin için tam veri; slug bulunamazsa null. */
-export async function loadStorefront(db: Database, rawSlug: string, now: Date = new Date()): Promise<StorefrontView | null> {
+export async function loadStorefront(
+  db: Database,
+  rawSlug: string,
+  now: Date = new Date(),
+  opts: { platformBlocked?: boolean } = {},
+): Promise<StorefrontView | null> {
   const tenant = await findTenantBySlug(db, rawSlug);
   if (!tenant) return null;
   const branch = await storefrontBranch(db, tenant.id);
   if (!branch) return null;
 
   const [ordering, zoneRows, catRows, prodRows, waRows] = await Promise.all([
-    branchOrderingInfo(db, tenant, branch, now),
+    branchOrderingInfo(db, tenant, branch, now, opts),
     db
       .select()
       .from(deliveryZones)

@@ -244,7 +244,7 @@ describe('üretimde taklit (mock) ortak numara', () => {
     expect(acc).toMatchObject({ provider: 'shared', displayPhone: null });
     expect(whatsappLinkFor(acc!, { name: 'Üretim Dükkanı', waCode: 'URETIM' })).toBeNull();
     const [t] = await ctx.db.select().from(tenants).where(eq(tenants.id, T.tenantId));
-    expect(await loadVerificationChannels(ctx.db, t!, T.branchId)).toMatchObject({ waConnected: false, waDisplayPhone: null, waLink: null });
+    expect(await loadVerificationChannels(ctx.db, t!, T.branchId, ctx.config)).toMatchObject({ waConnected: false, waDisplayPhone: null, waLink: null });
     // Dev dağıtımında (simülatör) geliştirme numarası kullanılır
     const dev = await ensureSharedWaAccount(ctx.db, { ...prodMock, DEPLOY_ENV: 'dev' } as Config, T.tenantId);
     expect(dev!.displayPhone).toBe('+905550000000');

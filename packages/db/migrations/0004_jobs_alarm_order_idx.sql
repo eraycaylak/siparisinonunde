@@ -1,0 +1,28 @@
+-- DİLİM: TEMEL (0000–0099). `jobs` tablosu bu dilimde, 0000_init.sql içinde oluşturuldu; bu dosya yalnız indeks
+-- ekler, kolon/kısıt değiştirmez.
+--
+-- NEDEN BU DOSYA VAR (denetim 2026-10-05 LOW 1): alarm zincirinin emniyet ağı `cron.order_new_watch`
+-- (apps/api/src/jobs/cron/index.ts → `watchNewOrders`) DAKİKADA BİR koşar ve her `new` sipariş için o siparişin
+-- alarm adımı işlerini okur. Okuma `payload->>'orderId'` üzerinden yapılıyor, bu ifadenin indeksi YOKTU:
+--   * `jobs_type_idx` (type) yalnız türü daraltır — `order.alarm_step` işin EN KALABALIK türüdür (sipariş başına
+--     5 satır + nesil onarımları), yani süzgeç tablonun büyük bölümünü geçirir.
+--   * `jobs_status_idx` ve kısmi `jobs_pending_run_at_idx` bu sorgunun süzgeçlerini hiç içermiyor (`done`/`failed`
+--     satırlar da okunur: canlılık kararı en yüksek nesle bakar).
+-- Sonuç: `jobs` büyüdükçe (90 gün `failed` + 30 gün bitmiş iş saklaması) dakikalık tur tablo taramasına dönüyordu.
+--
+-- ÇÖZÜM: ifade üzerinde KISMİ indeks. Kısmi (`where type = 'order.alarm_step'`) olması iki şey kazandırır:
+--   1. İndeks yalnız alarm satırlarını tutar — `jobs` tablosunun geri kalanı (wa.send, notify, cron …) indekste yer
+--      kaplamaz, yazma maliyeti o türlerde SIFIR kalır.
+--   2. Planlayıcı yüklemi sorgudaki `type = 'order.alarm_step'` koşulundan birebir türetir, ek koşul gerekmez.
+-- Aynı turda okuma da TOPLU hale getirildi (`= any($1)`), yani dakikada aday başına bir sorgu yerine tek sorgu.
+--
+-- CONCURRENTLY BİLEREK KULLANILMADI: `migrate.ts` her dosyayı TEK transaction içinde uygular
+-- (`sql.begin` → `tx.unsafe(stmt)`), `CREATE INDEX CONCURRENTLY` ise transaction içinde çalışmaz. Bu indeks
+-- pilot ölçeğinde (tek işletme, günde yüzlerce iş) saniyenin altında kurulur; kilit penceresi dağıtım anındaki
+-- normal göç penceresinden uzun değildir. `jobs` milyon satıra çıktığında indeks ELLE, `CONCURRENTLY` ile
+-- kurulup bu dosyanın `IF NOT EXISTS` kapısı sayesinde göç no-op geçirilebilir.
+--
+-- Drizzle karşılığı: packages/db/src/schema/operations.ts → `index('jobs_alarm_order_idx')`
+-- (şema ↔ veritabanı sapma testi `packages/db/test/schema-drift.test.ts` ikisini karşılaştırır).
+CREATE INDEX IF NOT EXISTS "jobs_alarm_order_idx" ON "jobs" USING btree ((payload->>'orderId'))
+  WHERE type = 'order.alarm_step';

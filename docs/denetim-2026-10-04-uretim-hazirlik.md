@@ -164,13 +164,13 @@ Cloudflare Worker + **TEK container** (PostgreSQL + API + worker + web), yedek 2
 | H24 | Rollback mekanizması hiç yok; **aşağı migration da yok** → migrate hata verirse sonsuz yeniden başlatma, çıkış yolu `DATA_EPOCH` artırıp veriyi feda etmek | `workflow:328`, `migrate.ts` |
 | H25 | Görseller hiç küçültülmüyor (5 MB'a kadar orijinal, 104 px kutuda) + EXIF/GPS temizlenmiyor | `services/menu/uploads.ts:24` · ✅ **kapatıldı (3.9):** yüklemede sharp ile 320/640/1080 px WebP varyant + özgün biçimde 640 px geri düşme karesi; EXIF yönü uygulanıp **tüm** metaveri (EXIF/GPS, XMP, IPTC, ICC) düşürülüyor ve özgün dosya hiç saklanmıyor. Vitrin `srcset`/`sizes` + açık `width`/`height` ile çiziyor. Ölçülen: 4000×3000 / 2,75 MB fotoğraf → ürün kartına 2–41 KB iniyor, diskte 4 varyant toplam 276 KB. **Bağımsız inceleme düzeltmesi:** merdiven kuralı kaynağın çözünürlüğünü düşürüyordu (1024 px → 640 px); üst basamak artık kaynağın kendi genişliği, libvips belleği `concurrency(1)` + 16 MB ile kısıldı, yarım yazılan varyant kümesi temizleniyor. Kalan açık işler 06 §12'de (`og:image` 640 px, eşzamanlı yükleme sınırı yok) |
 | H26 | `jobs` 'failed' saklama adımı atlıyor (PII) / `notifications` hiç silinmiyor / `sms_messages.body` hiç temizlenmiyor | `jobs/system/index.ts:107,170,178` |
-| H27 | Migration numaralandırması dilim-bazlı → taze DB ile üretim **farklı sırada** uyguluyor; drizzle-kit meta `0000`'da donmuş, `db:generate` çalıştırılırsa container açılmaz | `migrate.ts:21`, `meta/_journal.json:4` |
+| H27 | Migration numaralandırması dilim-bazlı → taze DB ile üretim **farklı sırada** uyguluyor; drizzle-kit meta `0000`'da donmuş, `db:generate` çalıştırılırsa container açılmaz | `migrate.ts:21`, `meta/_journal.json:4` · ✅ **kapatıldı (4.7):** dilim aralıkları KORUNDU (yeniden adlandırma canlıda göçleri ikinci kez koştururdu), bunun yerine ayrışma MAKİNE KAPISI oldu — `migration-order.test.ts` her dosyanın dokunduğu tablonun kendisinden önceki bir dosyada oluşturulduğunu doğrular, `schema-drift.test.ts` göçleri taze ve ayrı bir veritabanına uygulayıp Drizzle şemasıyla karşılaştırır (CI'da atlamak yok). `pnpm generate` kapı betiğinin arkasında (`DRIZZLE_GENERATE_ONAY=1`). Ayrıntı: 4.7 durum tablosu |
 | H28 | Admin'de onboarding hunisi yok (`onboarding_step` yazılıyor, hiçbir uçtan okunmuyor) → "takılan işletme" görünümü tamamen kör | `services/onboarding/index.ts:160` · ✅ **3.13/3.12 ile kapatıldı** (liste sütunları + `?stuck=1`); kayıttaki aşama açık kaldı |
 | H29 | Parolasını unutan işletme sahibini kurtarmanın **hiçbir yolu yok** (self-servis yok, admin aksiyonu yok, container'da kabuk yok) | `docs/15:215` · ✅ **3.11 ile kapatıldı** (admin "Parolayı sıfırla"); self-servis sıfırlama hâlâ yok (e-posta kanalı yok) |
 | H30 | Destek oturumu müşteri telefonunu **maskesiz** görüyor + işletme destek erişiminden hiç haberdar edilmiyor | `panel-dto.ts:261`, `admin/impersonation.ts:77` · ⚠️ **yarım**: bildirim tarafı 3.13 ile kapatıldı (işletme artık görüyor); maskesiz telefon açık kaldı (`panel-dto.ts` bu işin alanında değil) |
 | H31 | SMS yedeği sağlayıcıyı sormuyor: canlıda `SMS_PROVIDER='mock'` sabit → bayrak açılırsa "kod gönderildi" denip sipariş 30 dk'da düşer | `services/orders/verification.ts:34`, `mode.ts:87` |
 | H32 | **E-posta kanalı diye bir şey yok** (SMTP/Resend/SES/nodemailer = 0): demo/lead başvurusu kimseye gitmiyor, KVKK başvuru kutusu yok, fatura yolu yok | `routes/public/index.ts:53` |
-| H33 | Vitrin **her zaman varsayılan şubeyi** yüklüyor, müşteri şube seçemiyor + `is_default` varsayılanı `true` ve tek-varsayılan kısıtı yok → çok şubeli paket çalışmıyor | `storefront/load.ts:46`, `platform.ts:157` |
+| H33 | Vitrin **her zaman varsayılan şubeyi** yüklüyor, müşteri şube seçemiyor + `is_default` varsayılanı `true` ve tek-varsayılan kısıtı yok → çok şubeli paket çalışmıyor | `storefront/load.ts:46`, `platform.ts:157` · ⚠️ **yarım (4.1):** tek-varsayılan kısıtı 2026-10-05'te kuruldu (`branches_default_uk` kısmi unique + geçmiş veride en ESKİ varsayılanı koruyan düzeltme adımı, `migrations/0005_branches_default_unique.sql`), yani "iki varsayılan şube" hali artık veritabanı düzeyinde imkânsız. **Vitrinde şube seçimi hâlâ yok** ve bu bilerek böyle: çok şubeli işletme satışının ertelenmesi Eray'ın kararı (docs/14 §7.1 notu) |
 | H34 | Panelin çevrimdışı kabuğu yok (service worker bilerek önbelleksiz) → internet 2 dk giderse panel hiç açılmaz | `public/panel-sw.js:2` |
 | H35 | Tailwind 4 / Next 16 → `oklch`/`color-mix` ⇒ **Chrome 111+ / Safari 16.4+** şartı; `browserslist` yok, hedef cihaz kararı yok. iOS'ta Web Push yalnız "Ana ekrana ekle" ile çalışır → alarmın t=0 adımı iPhone'da sessizce hiç gelmez | `apps/web/package.json`, `push-client.ts` |
 
@@ -186,8 +186,8 @@ Cloudflare Worker + **TEK container** (PostgreSQL + API + worker + web), yedek 2
 | **Güvenlik** | Canlı yolda **CSP ve HSTS hiç gönderilmiyor** (`/api/*` dahil, yüklenen görsellerde `nosniff` yok) · kendi Meta Cloud hesabında webhook imzası doğrulanmıyor (`WA_APP_SECRET` yalnız ortak numarada zorunlu) · girişte hesap bazlı sınır/kilit yok (yalnız 10/dk/IP), parola alt sınırı 8, işletmede 2FA isteğe bağlı · kendi parolasını değiştiren kullanıcının diğer oturumları kapanmıyor · sağlık ucu commit SHA'sını kimliksiz açıyor · hız sınırı süreç belleğinde (her dağıtımda sıfırlanır) · istemci IP'si kenar durumda taklit edilebilir · yedek ucu (`yedek.internal`) container içinden kimliksiz okunur/yazılabilir |
 | **Yalıtım** | Push aboneliği yalnız endpoint'le upsert → bir tenant diğerinin cihaz satırını devralıyor, B'nin alarmı susuyor · `sms_messages` şema yalıtım testinde gerekçesiz istisna · buton kimliğindeki sipariş kimliği tenant kapsamı olmadan okunuyor |
 | **WhatsApp** | `wa_pending_statuses` mekanizması kodda hiç yok (wamid yarışında `failed`+63016 kalıcı kaybolur) · Twilio Auth Token biçimi hiç doğrulanmıyor · docs/13 teyit kaydında Twilio hiç geçmiyor (butonlu mesajların tamamı teyit edilmemiş bir belge iddiasına dayanıyor) · docs/16 §2.5 durum eşlemesi kodla uyuşmuyor |
-| **Kalite** | **Hiç lint aracı yok** (ESLint/Biome/Prettier = 0) · kapsam (coverage) ölçümü hiç kurulmamış → "FSM+pricing %100 dal" kapısı ölçülemiyor · `apps/web`in 120 testi kök `pnpm test`'in dışında · otomatik IDOR taraması yok (`isolation.test.ts` kendi kurduğu örnek rotayı sınıyor) · konuşma FSM'i ne tablo güdümlü ne test edilmiş (7 durumdan 2'si yazılıyor, hiçbiri okunmuyor) · axe erişilebilirlik denetimi hiçbir katmanda yok · bağımlılık güvenliği (audit/Dependabot/SBOM/CVE) hiç ele alınmamış · yük/kapasite testi yok |
-| **Veri modeli** | 3 indekste şema↔DB sapması + sapmayı yakalayan test/CI yok · uygulanmış migration değişirse yalnız uyarı · `lock_timeout`/`statement_timeout`/`CONCURRENTLY` hiç uygulanmamış · 4 kolonda enum CHECK/`$type` yok, kodda enum'da olmayan değerler yazılıyor (`order_code_attempts`, `conversation_handoff`) · R2 yedek nesneleri hiç budanmıyor |
+| **Kalite** | **Hiç lint aracı yok** (ESLint/Biome/Prettier = 0) → ✅ **kapatıldı (4.6):** ESLint flat config + `pnpm lint`, CI adımı; 2026-10-05'te el yazması panel service worker'ı da kapsama alındı · kapsam (coverage) ölçümü hiç kurulmamış → "FSM+pricing %100 dal" kapısı ölçülemiyor (⚠️ yapılandırıldı, ölçüm 👤 Eray'da — 4.6) · `apps/web`in 120 testi kök `pnpm test`'in dışında · otomatik IDOR taraması yok (`isolation.test.ts` kendi kurduğu örnek rotayı sınıyor) · konuşma FSM'i ne tablo güdümlü ne test edilmiş (7 durumdan 2'si yazılıyor, hiçbiri okunmuyor) · axe erişilebilirlik denetimi hiçbir katmanda yok · bağımlılık güvenliği (audit/Dependabot/SBOM/CVE) hiç ele alınmamış · yük/kapasite testi yok |
+| **Veri modeli** | 3 indekste şema↔DB sapması + sapmayı yakalayan test/CI yok → ✅ **kapatıldı (4.7):** `schema-drift.test.ts` sapmayı yakalıyor, CI'da fail-closed · uygulanmış migration değişirse yalnız uyarı · `lock_timeout`/`statement_timeout`/`CONCURRENTLY` hiç uygulanmamış (⚠️ 2026-10-05'te eklenen iki indeks de `CONCURRENTLY` KULLANMIYOR ve bu bilinçli: `migrate.ts` her dosyayı tek transaction'da uygular, `CREATE INDEX CONCURRENTLY` transaction içinde çalışmaz — gerekçe ve ileride elle kurma yolu `migrations/0004_jobs_alarm_order_idx.sql` başında) · 4 kolonda enum CHECK/`$type` yok, kodda enum'da olmayan değerler yazılıyor (`order_code_attempts`, `conversation_handoff`) · R2 yedek nesneleri hiç budanmıyor |
 | **Doküman↔kod** | `POST /store/events` sözleşmede var, kodda 404 (huni ölçümü yok) · PIN'li paylaşımlı cihaz oturumu yazılmamış · docs/04 §4.12 "Faz 1" sipariş düzenleme aksiyonlarının hiçbiri yok · docs/14/15 fiilen kullanılan **Twilio yolunu hiç anmıyor** · platform şablon butonu siparişe derin bağlantı vermiyor · alarm sesi şartnamesi (ses dosyası/PWA önbelleği) karşılanmıyor |
 | **Diğer** | `initdb --locale=C.UTF-8` → "Çorba/İskender/Şiş" yanlış sıralanır, `ilike` ile `İ/ı` eşleşmez (lead/sipariş/sohbet/menü aramasında `turkishLower` yedeği yok) · raporlar sabit `Europe/Istanbul` · NTP/saat kayması hiç düşünülmemiş (15 dk iptal, saatler, 24 sa pencere container saatine bağlı) · vitrin `sitemap.xml`'de hiç yok ama taslak yasal metinler taranmaya açık · alerjen alanı yok (sorumluluk işletmeye atılmış, uyma imkânı verilmemiş) · takılı `preparing`/`on_the_way` siparişler için süpürücü yok · Twitter/X paylaşım kartı kök düzenden miras (işletmenin linki platformun pazarlama kartını gösteriyor) · `goLive` yaşam döngüsü matrisini atlıyor, `tenant_lifecycle_events` tablosu yok · menü adımı 1 ürünle "tamam" sayılıyor (şartname ≥5 + yasaklı ürün taraması diyor) · kurye giriş linki sistem tarafından hiç gönderilmiyor, yeni link eskisini iptal etmiyor, çevrimdışı kuyruk yok, navigasyonda şehir `"Yozgat"` gömülü · platform yöneticisi parolası her açılışta `DEV_PASSWORD`'e geri yazılıyor |
 
@@ -227,7 +227,7 @@ Cloudflare Worker + **TEK container** (PostgreSQL + API + worker + web), yedek 2
 | 7 | Olay yönetimi (SEV1–4, runbook, postmortem, destek SLA, P1 nöbet hattı) | ❌ docs/10 §5–§9 yazılı, kodda ve işletim listesinde **karşılığı yok**. docs/10 §1 madde 3 "ikinci VM + PITR + kurucuların P1 telefon hattı eksikse pilot başlamaz" diyor; üçü de yok. |
 | 8 | Panel ve admin erişilebilirliği | ❌ Hiç denetlenmedi. Sipariş alan ekranın klavye/odak/kontrast/ekran okuyucu durumu bilinmiyor. |
 | 9 | Türkiye VPS yolu (`deploy-production.yml`) | ⚠️ Denetim "kullanılmıyor" sayıp geçti ama canlı bir iş akışı; split-brain riski (`APP_BASE_URL` tek) ve root parolalı SSH + TOFU host anahtarı var. |
-| 10 | Toplu müşteri/sipariş dışa aktarma | ✅ **Yapıldı** — `GET /panel/exports/{orders,customers}.{csv,json}` (yalnız owner/manager, tarih aralıklı, akışlı, hız sınırlı + eşzamanlılık kapılı, denetim kayıtlı; telefon varsayılan maskeli, `includePersonal=1` destek oturumunda reddedilir; `customer_erasures` ve `test_kind` hariç). Kod: `routes/panel/exports.ts`, `services/reports/export*.ts`; doküman 04 §11.6, 14 §6.3. |
+| 10 | Toplu müşteri/sipariş dışa aktarma | ✅ **Yapıldı** — `GET /panel/exports/{orders,customers}.{csv,json}` (yalnız owner/manager, tarih aralıklı, akışlı, hız sınırlı + eşzamanlılık kapılı, denetim kayıtlı; telefon varsayılan maskeli, `includePersonal=1` destek oturumunda reddedilir; `customer_erasures` ve `test_kind` hariç). Kod: `routes/panel/exports.ts`, `services/reports/export*.ts`. **Panel arayüzü de eklendi** (2026-10-05): Raporlar > "Verilerinizi indirin" — `apps/web/components/reports/data-export-section.tsx` + `data-export.ts`; önceki turda uç nokta panelde hiçbir yerden çağrılmıyordu, taahhüt yalnız elle URL yazarak kullanılabiliyordu. Doküman 04 §11.6, 14 §6.3. |
 
 ---
 
@@ -236,38 +236,44 @@ Cloudflare Worker + **TEK container** (PostgreSQL + API + worker + web), yedek 2
 **S** = birkaç saat · **M** = yarım–1 gün · **L** = 2+ gün
 
 ### FAZ 0 — Çıkış ön koşulu (hukuk + kapı) · ~2 gün
-| # | İş | Boyut |
-|---|---|---|
-| 0.1 | Admin › WhatsApp › "Bağlantıyı test et" → `ready:true` + `ONLINE` gör. Değilse Twilio doğrulamasını tamamla. **Bu olmadan diğer her şey anlamsız.** | S |
-| 0.2 | `LEGAL_ENTITY`'yi gerçek şirket bilgileriyle doldur + `destek@yemekgelsin.net` kutusunu aç + "değerde `[` varsa derleme kırılsın" kontrolü | S |
-| 0.3 | Yasal metinleri avukat onayından geçir, `LEGAL_DOCUMENT_VERSION`'ı yayın sürümüne çevir, taslak bantlarını kaldır. **Onaya kadar:** sürüm `taslak` içeriyorsa sipariş ucu fail-closed reddetsin | M |
-| 0.4 | DPA (`/yasal/dpa`, 11 madde) + alt işleyen listesi + `legal_acceptances`'a kabul kaydı | M |
-| 0.5 | CI kapısı: `services: postgres:16` olan `testler` job'u + `deploy: needs:` + `pnpm typecheck && pnpm test` | S |
-| 0.6 | Üretim dalını `main`'e al, ajan dalını tetikleyiciden çıkar, `environment: production` + required reviewer | S |
-| 0.7 | `if: failure()` → `wrangler rollback` + `workflow_dispatch`'a `ref` girdisi | S |
+
+> **Durum sütunu nasıl okunur** (2026-10-05 itibarıyla, sürüm `49ea0f9` + aynı günün LOW turu):
+> ✅ kodda bitti ve canlıda · ⚠️ kodu bitti, kalan parça var · 👤 **Eray'ın yapacağı adım** (dış hesap, abonelik,
+> avukat onayı, GitHub/Cloudflare panelinden ayar — kodla kapatılamaz) · 🔁 karar değişti, madde bilerek
+> uygulanmadı (gerekçe hücrede) · ❌ yapılmadı.
+
+| # | İş | Boyut | Durum |
+|---|---|---|---|
+| 0.1 | Admin › WhatsApp › "Bağlantıyı test et" → `ready:true` + `ONLINE` gör. Değilse Twilio doğrulamasını tamamla. **Bu olmadan diğer her şey anlamsız.** | S | 👤 Twilio/Meta hesabı — kod tarafı hazır (`testConnection`, admin ekranı) |
+| 0.2 | `LEGAL_ENTITY`'yi gerçek şirket bilgileriyle doldur + `destek@yemekgelsin.net` kutusunu aç + "değerde `[` varsa derleme kırılsın" kontrolü | S | ⚠️ kontrol ✅ (`scripts/check-legal.ts`, `pnpm check:legal`, CI adımı); künye **değerleri** ve e-posta kutusu 👤 |
+| 0.3 | Yasal metinleri avukat onayından geçir, `LEGAL_DOCUMENT_VERSION`'ı yayın sürümüne çevir, taslak bantlarını kaldır. **Onaya kadar:** sürüm `taslak` içeriyorsa sipariş ucu fail-closed reddetsin | M | ⚠️ fail-closed kapı ✅ (üretim kipinde taslak sürüm/eksik künye → sipariş ucu 503 + açılışta kritik uyarı); avukat onayı 👤 |
+| 0.4 | DPA (`/yasal/dpa`, 11 madde) + alt işleyen listesi + `legal_acceptances`'a kabul kaydı | M | ✅ `app/(marketing)/yasal/dpa`, `…/alt-isleyenler`; kabul kaydına belge sürümü + içerik özeti yazılıyor |
+| 0.5 | CI kapısı: `services: postgres:16` olan `testler` job'u + `deploy: needs:` + `pnpm typecheck && pnpm test` | S | ✅ `.github/workflows/testler.yml` (yeniden kullanılabilir kapı) + iki dağıtım iş akışında `needs: testler` |
+| 0.6 | Üretim dalını `main`'e al, ajan dalını tetikleyiciden çıkar, `environment: production` + required reviewer | S | ⚠️ `environment: production` ✅ ve `main` tetikleyicide ✅; **ajan dalı (`claude/relaxed-pascal-1m775m`) hâlâ tetikleyicide** ❌ + zorunlu inceleyici GitHub panelinden açılır 👤 |
+| 0.7 | `if: failure()` → `wrangler rollback` + `workflow_dispatch`'a `ref` girdisi | S | ✅ duman testi kırmızıysa otomatik geri alma; `ref` girdisi üç iş akışında da var |
 
 ### FAZ 1 — Veri kaybını kes · ~2-3 gün
-| # | İş | Boyut |
-|---|---|---|
-| 1.1 | Yedek: `mktemp` + `pg_restore --list` doğrulaması + süreç grubu kill/`flock` + yükleme öncesi doğrulama | S |
-| 1.2 | Taze açılış kapısı: `DATA_EPOCH` boşsa satır sayısı kontrolü, `fresh=1` dalında ilk `backup_now force`'u engelle; `VPS_HOST` için elle onay | S |
-| 1.3 | `recoverStaleJobs`'a `attempts >= max_attempts` kapısı + claim sorgusuna `attempts < max_attempts` | S |
-| 1.4 | `jobs_dedupe_key_uk` → `WHERE status='pending'` kısmi unique (migration) + hayati işlerde null dönüşü sessiz bırakma | M |
-| 1.5 | `/health`'e `lastBackupAgeSec` + disk/bellek + dış izleme (1 dk, 3 hatada telefon) | M |
-| 1.6 | `apps/api/src/lib/alert.ts` + `ALERT_WEBHOOK_URL`; kalıcı iş hatası, yedek hatası, Worker `scheduled`, `*_unavailable` notlarından çağır | M |
-| 1.7 | Worker webhook spool (R2/Durable Object) + container hazır olunca idempotent drain | **L** |
-| 1.8 | `cron.order_new_watch` emniyet cron'u | S |
-| 1.9 | DLQ uyarısı + `failed` işler için retention (PII maskeleme + 30/90 gün) | S |
+| # | İş | Boyut | Durum |
+|---|---|---|---|
+| 1.1 | Yedek: `mktemp` + `pg_restore --list` doğrulaması + süreç grubu kill/`flock` + yükleme öncesi doğrulama | S | ✅ `docker/entrypoint.sh`; ek olarak yarım `pg_restore` kalıcı işaretle yakalanıyor (iyi yedeğin üzerine yazılmıyor) |
+| 1.2 | Taze açılış kapısı: `DATA_EPOCH` boşsa satır sayısı kontrolü, `fresh=1` dalında ilk `backup_now force`'u engelle; `VPS_HOST` için elle onay | S | ✅ |
+| 1.3 | `recoverStaleJobs`'a `attempts >= max_attempts` kapısı + claim sorgusuna `attempts < max_attempts` | S | ✅ |
+| 1.4 | `jobs_dedupe_key_uk` → `WHERE status='pending'` kısmi unique (migration) + hayati işlerde null dönüşü sessiz bırakma | M | 🔁 **KARAR DEĞİŞTİ — bu madde BİLEREK UYGULANMADI.** Kısmi unique müşteriye ikinci mesaj/ikinci paralı SMS/ikinci push yolunu açıyordu (CLAUDE.md kural 6 ve 8 anahtara dayanıyor). Tekillik TAM kaldı; yeniden kurulması gereken işler nesil eki alıyor (`…#g<n>`). Gerekçe `migrations/0003_jobs_dedupe_key_full_unique.sql` başında. **Bu satırı plan diye okuyup kısmi unique'e dönmeyin.** |
+| 1.5 | `/health`'e `lastBackupAgeSec` + disk/bellek + dış izleme (1 dk, 3 hatada telefon) | M | ⚠️ uç ✅ (`/health/worker` ayrıntılı ölçümler, belirteçli) + Worker cron yoklaması ✅; **dış izleme servisi (telefonu çaldıran)** 👤 |
+| 1.6 | `apps/api/src/lib/alert.ts` + `ALERT_WEBHOOK_URL`; kalıcı iş hatası, yedek hatası, Worker `scheduled`, `*_unavailable` notlarından çağır | M | ⚠️ kanal ✅ (soğumalı, PII maskeli, hiçbir koşulda hata atmaz); `ALERT_WEBHOOK_URL` **secret'ının girilmesi** 👤 |
+| 1.7 | Worker webhook spool (R2/Durable Object) + container hazır olunca idempotent drain | **L** | ✅ |
+| 1.8 | `cron.order_new_watch` emniyet cron'u | S | ✅ · 2026-10-05: tarama aday başına değil **tek sorguda** okuyor + `jobs` ifade indeksi (aşağıdaki LOW turu, madde 1) |
+| 1.9 | DLQ uyarısı + `failed` işler için retention (PII maskeleme + 30/90 gün) | S | ✅ · uyarı 2026-10-05'te 24 saatlik pencereye bağlandı (H21) |
 
 ### FAZ 2 — Para ve iş modeli · ~2 gün
-| # | İş | Boyut |
-|---|---|---|
-| 2.1 | `read_only`'yi `ORDERING_BLOCKED_STAGES`'e ekle + `cron.trial_watch` (deneme bitişinde `read_only`) | S |
-| 2.2 | `expectedTotalKurus` + sunucuda 409 `cart_changed` + istemcide butonu quote'a bağla + `amount_hash` | M |
-| 2.3 | ✅ Kurye ödeme yöntemi: `payment_method_changed` olayı (eski→yeni), `/delivered`'da `validatePayment`, şemayı 3 değere daralt, markasız yemek kartını reddet, panelde görünür kıl | M |
-| 2.4 | Kayıt kapısı: canlıda `signup_open`'ı kapat + lead formuna yönlendir (S) ya da `approved_at` onay akışını yaz (M) | S/M |
-| 2.5 | Bölge dışı ücret `parseTlToKurus` + tasarruf raporunda oranı nullable yap ("Oranınızı girin") | S |
-| 2.6 | Fatura/tahsilat: ilk ay elle, yazılı işletim adımı olarak kabul et (e-arşiv yükümlülüğü) | S (karar) |
+| # | İş | Boyut | Durum |
+|---|---|---|---|
+| 2.1 | `read_only`'yi `ORDERING_BLOCKED_STAGES`'e ekle + `cron.trial_watch` (deneme bitişinde `read_only`) | S | ✅ cron **kaydedildi** (son denetim: yazılmış ama hiç kaydedilmemişti); `read_only` ayar/personel yazmayı da durduruyor |
+| 2.2 | `expectedTotalKurus` + sunucuda 409 `cart_changed` + istemcide butonu quote'a bağla + `amount_hash` | M | ✅ checkout düğmesi canlı quote'a bağlı; sepet değişikliği onay ucu da yazıldı (ölü düğme kalmadı) |
+| 2.3 | Kurye ödeme yöntemi: `payment_method_changed` olayı (eski→yeni), `/delivered`'da `validatePayment`, şemayı 3 değere daralt, markasız yemek kartını reddet, panelde görünür kıl | M | ✅ · 2026-10-05: `online_card` siparişinde teslimin **ödendi yazmadığı** davranışı teste çivilendi (LOW turu, madde 2) |
+| 2.4 | Kayıt kapısı: canlıda `signup_open`'ı kapat + lead formuna yönlendir (S) ya da `approved_at` onay akışını yaz (M) | S/M | ⚠️ kapı ✅ (`routes/auth.ts` → `isFlagEnabled('signup_open')`, kapalıysa lead formuna); **bayrağın canlıda kapatılması** 👤 (admin › bayraklar) |
+| 2.5 | Bölge dışı ücret `parseTlToKurus` + tasarruf raporunda oranı nullable yap ("Oranınızı girin") | S | ✅ |
+| 2.6 | Fatura/tahsilat: ilk ay elle, yazılı işletim adımı olarak kabul et (e-arşiv yükümlülüğü) | S (karar) | 👤 karar + işletim adımı Eray'da (kod tarafı yok, olmamalı — CLAUDE.md kural 10) |
 
 ### FAZ 3 — İlk hafta dayanıklılığı · ~2-3 gün
 | # | İş | Boyut |
@@ -298,17 +304,17 @@ Cloudflare Worker + **TEK container** (PostgreSQL + API + worker + web), yedek 2
 Düzeltme `routes/auth.ts`'i (ve mevcut satırlar için bir geri dolum göçünü) sahiplenen işte yapılmalı: kayıtta `lifecycleStage: 'onboarding'`, `goLive()` terfiyi zaten yazıyor.
 
 ### FAZ 4 — Pilot sonrası (satmadan önce karar)
-| # | İş | Boyut |
-|---|---|---|
-| 4.1 | **Çok şubeli işletme satmayı ertele** ya da vitrine şube seçimi ekle + `is_default` tek-varsayılan kısıtı | M |
-| 4.2 | PITR (WAL arşivi → R2 / pgBackRest) ya da yönetilen Postgres | L |
-| 4.3 | İkinci webhook alım düğümü (docs/00 §11 pilot şartı) | L |
-| 4.4 | SMS: Netgsm secret'ları + `SMS_PROVIDER` türetmesi — ya da SMS basamağının çalışmadığını yazılı kabul et | M |
-| 4.5 | 5651 erişim kaydı (Cloudflare Logpush → R2, 1 yıl, maskeli) | M |
-| 4.6 | ESLint + coverage eşiği + otomatik IDOR taraması + axe | M · ⚠️ **3/4 yapıldı** — ayrıntı aşağıda |
-| 4.7 | Migration numaralandırmasını tek artan diziye çevir + drizzle-kit yolunu kapat + şema sapma testi | M |
-| 4.8 | E-posta kanalı (lead bildirimi, KVKK başvurusu, fatura) + SPF/DKIM/DMARC | M |
-| 4.9 | `instance_type: standard-1` ve bellek tavanlarını gerçek bütçeye indir | S |
+| # | İş | Boyut | Durum |
+|---|---|---|---|
+| 4.1 | **Çok şubeli işletme satmayı ertele** ya da vitrine şube seçimi ekle + `is_default` tek-varsayılan kısıtı | M | ⚠️ **kısıt ✅** (2026-10-05: `migrations/0005_branches_default_unique.sql` → `branches_default_uk` kısmi unique + geçmiş veriyi düzelten adım; şema karşılığı `schema/platform.ts`). Vitrine şube seçimi **bilerek eklenmedi**: çok şubeli satışın ertelenmesi 👤 **Eray'ın kararı** (not: docs/14 §7.1) |
+| 4.2 | PITR (WAL arşivi → R2 / pgBackRest) ya da yönetilen Postgres | L | ❌ |
+| 4.3 | İkinci webhook alım düğümü (docs/00 §11 pilot şartı) | L | ❌ (1.7'deki Worker tamponu kesintiyi yumuşatıyor ama İKİNCİ DÜĞÜM değildir) |
+| 4.4 | SMS: Netgsm secret'ları + `SMS_PROVIDER` türetmesi — ya da SMS basamağının çalışmadığını yazılı kabul et | M | 👤 Netgsm hesabı/secret'ları Eray'da — kod tarafı hazır (`SMS_PROVIDER`, sağlayıcı adaptörü); H31 bu yüzden hâlâ açık |
+| 4.5 | 5651 erişim kaydı (Cloudflare Logpush → R2, 1 yıl, maskeli) | M | 👤 Logpush Cloudflare panelinden açılır (ücretli özellik) |
+| 4.6 | ESLint + coverage eşiği + otomatik IDOR taraması + axe | M | ⚠️ **3/4 yapıldı** — ayrıntı aşağıda |
+| 4.7 | Migration numaralandırmasını tek artan diziye çevir + drizzle-kit yolunu kapat + şema sapma testi | M | ✅ **yapıldı (karar kısmen değişti)** — ayrıntı aşağıda |
+| 4.8 | E-posta kanalı (lead bildirimi, KVKK başvurusu, fatura) + SPF/DKIM/DMARC | M | — (H32) **bu turun kapsamı dışında:** maddenin sahibi ayrı bir iş; durumunu o iş yazar. 2026-10-05 LOW turunda `apps/api/src/email/` alanına dokunulmadı |
+| 4.9 | `instance_type: standard-1` ve bellek tavanlarını gerçek bütçeye indir | S | ❌ / 👤 bütçe kararı (H23) |
 
 #### 4.6 durumu (2026-10-05)
 
@@ -321,6 +327,43 @@ Kalite kapıları kuruldu; dördüncü parça (otomatik IDOR taraması) **yapıl
 | Kapsam eşiği | ⚠️ **yapılandırıldı, ÖLÇÜLMEDİ** — `pnpm test:coverage` + `@vitest/coverage-v8`; eşikler `packages/core` / `packages/db` / `apps/api` / `apps/web` için AYRI AYRI tanımlı ama yazılı sayılar hedeftir. `KAPSAM_ESIK=1` verilmedikçe uygulanmaz (ölçülmemiş sayıyı kapıya bağlamak kapıyı ilk turda kırmızı yakar). Ölçüm `pnpm test`i koşmayı, o da paylaşılan `siparis_test`i sıfırlamayı gerektirdiği için bu turda yapılmadı → **Eray'ın yapacağı adım**, 15 §15.2. | `vitest.config.ts`, `apps/web/vitest.config.ts` |
 | axe | ✅ **yapıldı (bir ekran)** — `apps/web/test/a11y.tsx` yardımcısı (jsdom + `createRoot`/`act`, WCAG 2.2 AA) ve checkout denetimi; 3 test yeşil, biri denetimin kendisinin sökülmediğini sınar. Panel ve admin ekranları ile gerçek tarayıcıda tam tarama (Playwright) **FAZ 5**. | `apps/web/components/storefront/checkout/checkout-a11y.test.tsx` |
 | Otomatik IDOR taraması | ❌ **yapılmadı** — rota listesinden türetilen çapraz-tenant tarayıcı, `apps/api` sahipliğindeki bir iştir (rota kaydı ve test yardımcılarına dokunur); bu turda o alana girilmedi. Bugünkü durum değişmedi: `isolation.test.ts` kendi kurduğu örnek rotayı sınıyor. | `apps/api/test/isolation.test.ts` |
+
+**2026-10-05 LOW turu eki (ESLint kapsamı):** yoksayma listesi `apps/web/public/**`'ı tümüyle dışarıda bırakıyordu ve
+"üretilmiş dosya" başlığı altında EL YAZMASI panel service worker'ını (`panel-sw.js` — alarmın t=0 Web Push adımını
+ve bildirim tıklamasını o işler) hiç lint etmiyordu. Yoksayma `apps/web/public/**/*.min.js`'e daraltıldı; service
+worker, Worker çalışma zamanı globalleriyle (`globals.serviceworker`) ve `sourceType: 'script'` ile yeni bir
+katmana (`yemekgelsin/panel-sw`) alındı. Dosya **0 bulgu** verdi, yani ölçüm sayıları değişmedi; kazanç bundan
+sonrasıdır (`no-undef` artık tarayıcı globali yazım hatasını yakalar). `**/*.js` katmanından `ignores` ile
+çıkarılması ŞART: flat config `globals` nesnelerini birleştirir, Node globalleri kalsaydı `self`/`fetch` Node'da da
+tanımlı olduğu için gerçek hata kapıdan geçerdi.
+
+#### 4.7 durumu (2026-10-05) — ✅ yapıldı, bir parçası bilerek farklı
+
+| Parça | Durum | Nerede |
+|-------|-------|--------|
+| Şema ↔ veritabanı sapma testi | ✅ **yapıldı** — göçler TAZE ve AYRI bir veritabanına (`siparis_drift_test`) uygulanır, sonra introspection ile Drizzle şemasıyla karşılaştırılır (tablo, kolon, tip, NOT NULL, default, indeks adı/tekilliği/kısmiliği/kolon listesi, CHECK adları, FK + ON DELETE). Paylaşılan `siparis_test`'e dokunmaz. CI'da **atlamak yok** (fail-closed). | `packages/db/test/schema-drift.test.ts`, `test/drift-helpers.ts` |
+| Göç sırası testi | ✅ **yapıldı** — her dosyanın dokunduğu tablo, kendisinden önceki (ya da kendi) bir dosyada oluşturulmuş olmalı; numaranın tek olduğu ve bir dilim aralığına düştüğü de denetlenir. Veritabanı gerekmez (SQL metin olarak ayrıştırılır). | `packages/db/test/migration-order.test.ts`, `test/migration-parse.ts` |
+| drizzle-kit yolunu kapat | ✅ **yapıldı** — `pnpm generate` bir kapı betiğinin arkasında: `DRIZZLE_GENERATE_ONAY=1` verilmedikçe hata verip çıkar (gerekçe `package.json` içindeki `_generate_notu`'nda). `meta/_journal.json` bilerek `0000`'da duruyor; göçler elle yazılır. | `packages/db/package.json` |
+| Tek artan diziye çevirme | 🔁 **BİLEREK YAPILMADI** — dilim aralıkları (docs/14 §2) KORUNDU. Numaraları yeniden dizmek, üretimde `_migrations` tablosunda ADLARIYLA kayıtlı 17 göcü yeniden adlandırmak demektir: `migrate.ts` disk üstündeki adı aradığı için yeniden adlandırılan her dosya "uygulanmamış" görünür ve CANLI veritabanında ikinci kez koşar. H27'nin gerçek zararı (ad sırası ≠ bağımlılık sırası) yeniden adlandırmaya gerek olmadan **göç sırası testiyle** kapatıldı: ayrışma artık makine kapısıdır. | `migrations/meta`, `docs/14 §2` |
+
+---
+
+### 2026-10-05 LOW turu — kapatılan dört küçük madde
+
+Faz 0-4'ten sonra kalan MEDIUM/LOW kuyruğundan dördü kapatıldı. Hiçbiri müşteriye bugün görünen bir arıza değildi;
+üçü **ileride sessizce patlayacak** sınıftandır, biri (madde 2) uykuda bir davranışı çiviliyor.
+
+| # | Ne | Neden LOW ama gerçek | Nasıl doğrulanır |
+|---|---|---|---|
+| 1 | `cron.order_new_watch` okumasını **tek sorguya** indirdik (`= any($1)` + bellekte gruplama) ve `jobs` üzerinde ifade indeksi açtık: `jobs_alarm_order_idx` → `(payload->>'orderId') where type = 'order.alarm_step'` | Tur DAKİKADA BİR koşuyor ve **aday sipariş başına** indekssiz bir sorgu açıyordu. `jobs_type_idx` türü daraltır ama alarm adımı işin en kalabalık türüdür (sipariş başına 5 satır + nesil onarımları, `failed` satırlar 90 gün durur): sorgu o türün tamamını tarıyordu. Yoğun saatte 20 açık sipariş = dakikada 20 tam tarama; `jobs` büyüdükçe maliyet tabloyla birlikte büyür | `explain` ile: plan artık `Bitmap Index Scan on jobs_alarm_order_idx` ve `Index Cond` satırında ANY koşulu görünür (çok değerli ANY'de Postgres bitmap seçer; tek değerde düz `Index Scan`). Davranış: `apps/api/test/jobs-cron.test.ts` → "toplu okuma siparişleri karıştırmaz" (refaktörün tek riski gruplamanın kayması). ⚠️ **Bağımsız inceleme düzeltmesi (aynı gün):** toplu okuma ilk halinde ÇALIŞMIYORDU — Drizzle `sql` şablonuna verilen çıplak JS dizisi tek parametreye bağlanmaz, `($1, $2, …)` listesine açılır; `any((…)::text[])` Postgres'te ROW sayıldığı için sorgu "cannot cast type record to text[]" ile hazırlanamıyordu (tek adaylı turda "malformed array literal"). Yani emniyet ağı her turda düşüp DLQ'ya gidecekti. `sql.param(...)` ile bağlandı; `apps/api/src/jobs/cron/index.ts` içindeki uyarı notu tuzağı anlatıyor |
+| 2 | `online_card` siparişinde kurye "teslim ettim" dediğinde `payment_status` **`paid` YAZILMAZ** — davranış teste çivilendi | Bugün uykuda: vitrin bu yöntemi seçtirmiyor (Faz 2, ödeme sağlayıcısı entegrasyonu yok). Faz 2 açıldığında yanlış davranışın bedeli büyük: sağlayıcıdan tahsil edilmemiş sipariş kasa raporunda **ödenmiş** görünür ve fark hiç yakalanmaz. Kod doğruydu, kapıyı tutan bir test YOKTU | `apps/api/test/courier.test.ts` → "online_card siparişinde teslim ÖDENDİ yazmaz…": `paymentStatus` `unpaid` kalır, `paidAt` null, sipariş `delivered` olur, kurye yöntemi kapıda değiştiremez (422 `payment_method_locked`) |
+| 3 | ESLint yoksayma listesi daraltıldı; el yazması panel service worker'ı lint kapsamına alındı | Yoksayma `apps/web/public/**` idi ve "üretilmiş dosya" başlığı altındaydı. `panel-sw.js` ÜRETİLMİŞ DEĞİL: alarmın t=0 Web Push adımını ve bildirim tıklamasını o işler, yani sipariş kaçmamasının son halkasıdır — ve 106 satırı hiçbir statik denetimden geçmiyordu | `npx eslint apps/web/public/panel-sw.js` → 0 bulgu. Kapsamda olduğunun kanıtı: `npx eslint --print-config apps/web/public/panel-sw.js` → `sourceType: "script"`, `globals` içinde `clients` var / `process` YOK, `no-undef: error` |
+| 4 | FAZ 4.1'in kod parçası: işletme başına tek varsayılan şube kısıtı (`branches_default_uk`) | `is_default` varsayılanı `true` ve kısıt yoktu: ikinci şubeyi `is_default` vermeden eklemek işletmeyi sessizce iki varsayılanlı yapıyordu. Vitrin varsayılan şubeyi `limit 1` ile seçiyor → aynı müşteri iki istekte iki ayrı şubenin menüsünü/teslimat bölgesini/ödeme yöntemlerini görebilirdi. Ortak numara yönlendirmesi de aynı sıralamaya dayanıyor (`0900`, satır 82) | Taze veritabanında `schema-drift.test.ts` yeşil (indeks adı/tekillik/kısmilik/kolon listesi şemayla birebir). Göç adımı ayrıca elle ölçüldü: üç varsayılanlı bir işletmede EN ESKİ şube varsayılan kalıyor, ikinci varsayılan eklemek `duplicate key … branches_default_uk` veriyor, `is_default = false` ikinci şube geçiyor |
+
+**Bilerek yapılmayanlar (bu turda):** vitrine şube seçimi (4.1'in diğer yarısı — satış kararı 👤 Eray),
+`CREATE INDEX CONCURRENTLY` (göç çalıştırıcısı tek transaction kullanıyor; gerekçe 0004'ün başında), ikinci
+`/delivered` çağrısının 200 dönmesi (ayrı LOW maddesi, `routes/courier` sahipliğinde), göç numaralarını tek artan
+diziye çevirme (4.7 tablosundaki 🔁 satırı).
 
 ---
 

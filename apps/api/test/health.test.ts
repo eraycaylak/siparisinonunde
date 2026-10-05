@@ -11,6 +11,11 @@
 // (`lastSuccessUnix` / `consecutiveFailures` / `lastResult`), yol değişkeni `BACKUP_STATE_FILE`.
 // Disk ve bellek eşikleri uç testlerinde BİLEREK kapatılır (0): gerçek makinenin dolu diski testi yanlış uyarıya
 // düşürmesin. O eşiklerin mantığı resourceWarnings birim testlerinde (ölçüm enjekte edilerek) sınanır.
+//
+// İKİNCİ ÇİVİ (denetim 2026-10-05 bulgu A-2): ayrıntılı ölçümler (yedek yaşı, disk, bellek) kimlik doğrulamasız
+// yanıtta BULUNMAZ; yalnız `HEALTH_METRICS_TOKEN` başlığını taşıyan istek görür. `workerHealth()` bu yüzden
+// belirteci VARSAYILAN OLARAK gönderir (ölçüm vakaları ayrıntıya bakıyor); `{ token: null }` ise herkese açık
+// yanıtı sorar. "Sade alanlar her zaman açık" ve "ayrıntı belirteçsiz yok" vakaları aşağıdaki son blokta.
 
 import { jobs } from '@siparis/db';
 import { mkdtempSync } from 'node:fs';
@@ -22,12 +27,15 @@ import {
   BACKUP_STATE_FILE_DEFAULT,
   HEALTH_ALERT_COOLDOWN_MS,
   HEALTH_LIMIT_DEFAULTS,
+  HEALTH_METRICS_HEADER,
+  HEALTH_METRICS_TOKEN_MIN_LEN,
   HEALTH_WARNINGS,
   WORKER_MAX_LAG_SEC,
   backupAgeSecFrom,
   dueWarnings,
   healthLimits,
   healthWarningAlert,
+  metricsAllowed,
   resetHealthWarningCooldown,
   resourceWarnings,
   type HealthResources,
@@ -45,6 +53,7 @@ const TOUCHED = [
   'HEALTH_MIN_DISK_FREE_PCT',
   'HEALTH_MAX_MEM_USED_PCT',
   'HEALTH_DISK_PATH',
+  'HEALTH_METRICS_TOKEN',
   'ALERT_WEBHOOK_URL',
 ] as const;
 const saved: Record<string, string | undefined> = {};
@@ -52,10 +61,36 @@ const saved: Record<string, string | undefined> = {};
 /** Ölçüm temeli: hiçbir eşiği aşmayan, "her şey bilinir" durumu. */
 const healthy: HealthResources = { lastBackupAgeSec: 60, diskFreePct: 50, diskFreeMb: 5000, memUsedPct: 20, memRssMb: 180 };
 
-async function workerHealth(): Promise<{ status: number; body: Record<string, unknown> }> {
-  const res = await ctx.request({ method: 'GET', url: '/api/v1/health/worker' });
+/** Eşiğin (24) üstünde, gerçekçi uzunlukta test belirteci. */
+const METRICS_TOKEN = 'a3f9'.repeat(10);
+
+/**
+ * `/health/worker` yoklaması. Varsayılan olarak DOĞRU belirteci gönderir (ayrıntı alanları görünür).
+ * `{ token: null }` → başlık hiç gönderilmez (herkese açık yanıt), `{ token: '...' }` → verilen değer.
+ */
+async function workerHealth(opts: { token?: string | null } = {}): Promise<{ status: number; body: Record<string, unknown> }> {
+  const token = opts.token === undefined ? METRICS_TOKEN : opts.token;
+  const res = await ctx.request({
+    method: 'GET',
+    url: '/api/v1/health/worker',
+    ...(token === null ? {} : { headers: { [HEALTH_METRICS_HEADER]: token } }),
+  });
   return { status: res.statusCode, body: res.json() };
 }
+
+/** Belirteçsiz yanıtta HER ZAMAN bulunan alanlar (dış izleme + dağıtım duman testi sözleşmesi). */
+const PUBLIC_FIELDS = ['db', 'degraded', 'jobLagSec', 'maxLagSec', 'ok', 'stuckJobs', 'time', 'warnings'] as const;
+/** Yalnız belirteçle eklenen alanlar. */
+const METRIC_FIELDS = [
+  'diskFreeMb',
+  'diskFreePct',
+  'lastBackupAgeSec',
+  'maxBackupAgeSec',
+  'maxMemUsedPct',
+  'memRssMb',
+  'memUsedPct',
+  'minDiskFreePct',
+] as const;
 
 beforeAll(async () => {
   for (const k of TOUCHED) saved[k] = process.env[k];
@@ -65,6 +100,7 @@ beforeAll(async () => {
   process.env.BACKUP_STATE_FILE = statusFile;
   process.env.HEALTH_MIN_DISK_FREE_PCT = '0';
   process.env.HEALTH_MAX_MEM_USED_PCT = '0';
+  process.env.HEALTH_METRICS_TOKEN = METRICS_TOKEN;
   // Uyarı kanalı KAPALI: uç testleri dışarıya POST atmasın (uyarı mantığı jobs-alert.test.ts'te sınanır)
   delete process.env.ALERT_WEBHOOK_URL;
 });
@@ -258,6 +294,40 @@ describe('dueWarnings (uyarı dizgini)', () => {
   });
 });
 
+describe('metricsAllowed (ayrıntılı ölçüm belirteci)', () => {
+  const token = METRICS_TOKEN;
+
+  it('belirteç TANIMSIZ ya da boşsa hiç kimse ayrıntı görmez (açık varsayılan olmasın)', () => {
+    expect(metricsAllowed(undefined, undefined)).toBe(false);
+    expect(metricsAllowed(token, undefined)).toBe(false);
+    expect(metricsAllowed(token, '')).toBe(false);
+    expect(metricsAllowed(token, '    ')).toBe(false);
+  });
+
+  it(`belirteç ${HEALTH_METRICS_TOKEN_MIN_LEN} karakterden kısaysa KURULMAMIŞ sayılır (kaba kuvvete açık koruma, koruma değildir)`, () => {
+    const kisa = 'k'.repeat(HEALTH_METRICS_TOKEN_MIN_LEN - 1);
+    expect(metricsAllowed(kisa, kisa)).toBe(false);
+    const tamSinir = 's'.repeat(HEALTH_METRICS_TOKEN_MIN_LEN);
+    expect(metricsAllowed(tamSinir, tamSinir)).toBe(true);
+  });
+
+  it('yalnız birebir doğru belirteç geçer', () => {
+    expect(metricsAllowed(token, token)).toBe(true);
+    expect(metricsAllowed(`  ${token}  `, token)).toBe(true);
+    expect(metricsAllowed(token.toUpperCase(), token)).toBe(false);
+    expect(metricsAllowed(`${token}x`, token)).toBe(false);
+    expect(metricsAllowed(token.slice(0, -1), token)).toBe(false);
+    expect(metricsAllowed('', token)).toBe(false);
+    expect(metricsAllowed(undefined, token)).toBe(false);
+  });
+
+  it('başlık iki kez gönderilmişse (dizi) ilk değer sorulur — dizi yüzünden çökmez', () => {
+    expect(metricsAllowed([token, 'yanlis'], token)).toBe(true);
+    expect(metricsAllowed(['yanlis', token], token)).toBe(false);
+    expect(metricsAllowed([], token)).toBe(false);
+  });
+});
+
 describe('GET /api/v1/health', () => {
   it('alanları ve anlamları değişmedi (dağıtım duman testi bunlara bakıyor)', async () => {
     const res = await ctx.request({ method: 'GET', url: '/api/v1/health' });
@@ -299,28 +369,9 @@ describe('GET /api/v1/health/worker — yedek ve kaynak görünürlüğü', () =
     expect(body.maxBackupAgeSec).toBe(HEALTH_LIMIT_DEFAULTS.maxBackupAgeSec);
   });
 
-  it('kaynak alanları her yanıtta ölçülür (disk bilinmiyorsa null, bellek her zaman sayı)', async () => {
+  it('belirteçle: kaynak alanları ölçülür (disk bilinmiyorsa null, bellek her zaman sayı)', async () => {
     const { body } = await workerHealth();
-    expect(Object.keys(body).sort()).toEqual(
-      [
-        'db',
-        'degraded',
-        'diskFreeMb',
-        'diskFreePct',
-        'jobLagSec',
-        'lastBackupAgeSec',
-        'maxBackupAgeSec',
-        'maxLagSec',
-        'maxMemUsedPct',
-        'memRssMb',
-        'memUsedPct',
-        'minDiskFreePct',
-        'ok',
-        'stuckJobs',
-        'time',
-        'warnings',
-      ].sort(),
-    );
+    expect(Object.keys(body).sort()).toEqual([...PUBLIC_FIELDS, ...METRIC_FIELDS].sort());
     expect(typeof body.memRssMb).toBe('number');
     expect(body.memRssMb as number).toBeGreaterThan(0);
     expect(typeof body.memUsedPct).toBe('number');
@@ -411,5 +462,69 @@ describe('GET /api/v1/health/worker — yedek ve kaynak görünürlüğü', () =
       delete process.env.BACKUP_STATUS_FILE;
       process.env.BACKUP_STATE_FILE = statusFile;
     }
+  });
+});
+
+describe('GET /api/v1/health/worker — ayrıntılı ölçüm belirteci (denetim 2026-10-05 bulgu A-2)', () => {
+  it('belirteçsiz yanıt YALNIZ sade alanları taşır: disk, bellek ve yedek yaşı yoktur', async () => {
+    const { status, body } = await workerHealth({ token: null });
+    expect(status, JSON.stringify(body)).toBe(200);
+    expect(Object.keys(body).sort()).toEqual([...PUBLIC_FIELDS].sort());
+    for (const alan of METRIC_FIELDS) {
+      expect(alan in body, `${alan} belirteçsiz yanıta sızdı`).toBe(false);
+    }
+    // Sözleşme: dış izleme ve dağıtımın duman testi bu alanlara bakıyor (docs/15 §10, §12)
+    expect(body).toMatchObject({ ok: true, degraded: false, warnings: [], db: 'up', jobLagSec: 0, stuckJobs: 0, maxLagSec: WORKER_MAX_LAG_SEC });
+    expect(typeof body.time).toBe('string');
+  });
+
+  it('yanlış ya da boş belirteç ayrıntı açmaz; uç yine 200 döner (sağlık ucu kırmızı yanmaz)', async () => {
+    for (const token of ['', 'yanlis-belirtec', `${METRICS_TOKEN}x`, METRICS_TOKEN.slice(0, -1)]) {
+      const { status, body } = await workerHealth({ token });
+      expect(status, JSON.stringify(body)).toBe(200);
+      expect('diskFreePct' in body, `yanlış belirteç ayrıntı açtı: ${token}`).toBe(false);
+      expect(body.ok).toBe(true);
+    }
+  });
+
+  it('eşik aşımı belirteçsiz de HABER VERİR: degraded + warnings açık kalır, sayılar gizlidir', async () => {
+    await writeFile(statusFile, `{"lastSuccessUnix":${Math.floor(Date.now() / 1000) - 3 * 3600},"lastResult":"hata"}\n`);
+    const { status, body } = await workerHealth({ token: null });
+    expect(status, JSON.stringify(body)).toBe(200);
+    // Arızanın SINIFI açık (Worker'ın yedek gözcüsü kararını buradan verir: deploy/cloudflare/src/alert.ts)
+    expect(body).toMatchObject({ ok: true, degraded: true, warnings: ['backup_stale'] });
+    // MİKTARI ve ANI gizli: zamanlama bilgisi sızmaz
+    expect('lastBackupAgeSec' in body).toBe(false);
+    expect('maxBackupAgeSec' in body).toBe(false);
+  });
+
+  it('ortamda belirteç YOKSA doğru başlıkla bile ayrıntı gelmez (gizlemek varsayılandır)', async () => {
+    await rm(statusFile, { force: true });
+    delete process.env.HEALTH_METRICS_TOKEN;
+    try {
+      const { status, body } = await workerHealth();
+      expect(status, JSON.stringify(body)).toBe(200);
+      expect(Object.keys(body).sort()).toEqual([...PUBLIC_FIELDS].sort());
+    } finally {
+      process.env.HEALTH_METRICS_TOKEN = METRICS_TOKEN;
+    }
+  });
+
+  it('kısa belirteç kurulmamış sayılır: ayrıntı gelmez (uç 200 kalır)', async () => {
+    const kisa = 'k'.repeat(HEALTH_METRICS_TOKEN_MIN_LEN - 1);
+    process.env.HEALTH_METRICS_TOKEN = kisa;
+    try {
+      const { status, body } = await workerHealth({ token: kisa });
+      expect(status, JSON.stringify(body)).toBe(200);
+      expect('memUsedPct' in body).toBe(false);
+    } finally {
+      process.env.HEALTH_METRICS_TOKEN = METRICS_TOKEN;
+    }
+  });
+
+  it('sade `/api/v1/health` belirteçten etkilenmez (alanları değişmedi)', async () => {
+    const res = await ctx.request({ method: 'GET', url: '/api/v1/health', headers: { [HEALTH_METRICS_HEADER]: METRICS_TOKEN } });
+    expect(res.statusCode).toBe(200);
+    expect(Object.keys(res.json<object>()).sort()).toEqual(['db', 'ok', 'time', 'uptimeSec', 'version']);
   });
 });

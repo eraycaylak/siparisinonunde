@@ -64,6 +64,33 @@ export const configSchema = z.object({
   NETGSM_USERCODE: optionalString,
   NETGSM_PASSWORD: optionalString,
   NETGSM_HEADER: optionalString,
+  /**
+   * E-posta kanalı (18 §3): `mock` hiçbir e-posta göndermez (geliştirme/test; canlıda uyarı üretir), `resend` HTTP
+   * API'siyle gönderir. Kanal "sessizce yutmaz": yapılandırılmamışken çağrı `skipped` döner, `log.error` yazar ve
+   * uyarı kanalına (`email_not_configured`) düşer. Bağlanacak akışlar: lead bildirimi, KVKK başvurusu, parola
+   * sıfırlama, fatura (docs/18 §3 "Hangi akışlar").
+   */
+  EMAIL_PROVIDER: z.enum(['mock', 'resend']).default('mock'),
+  /** Gönderici adresi (`Ad <adres@alan>` ya da yalın adres). `resend` için zorunlu; alan adının doğrulanmış olması gerekir. */
+  EMAIL_FROM: optionalString.refine((v) => v === undefined || /^[^<>@\s]+@[^<>@\s.]+\.[^<>@\s]+$|^[^<>]{1,64}<[^<>@\s]+@[^<>@\s.]+\.[^<>@\s]+>$/.test(v), {
+    message: 'EMAIL_FROM geçerli bir e-posta adresi ya da "Ad <adres@alan.tld>" biçiminde olmalı',
+  }),
+  /** Yanıtların gideceği adres (isteğe bağlı; boşsa EMAIL_FROM). */
+  EMAIL_REPLY_TO: optionalString.refine((v) => v === undefined || /^[^<>@\s]+@[^<>@\s.]+\.[^<>@\s]+$/.test(v), {
+    message: 'EMAIL_REPLY_TO geçerli bir e-posta adresi olmalı',
+  }),
+  /** EMAIL_PROVIDER=resend için API anahtarı (`re_…`). Koda YAZILMAZ: Worker secret'ı (15 §13 madde 5). */
+  RESEND_API_KEY: optionalString,
+  /**
+   * Operasyon uyarılarının gittiği tek dış kanal (`apps/api/src/lib/alert.ts`; türlerin tamamı 17 §1). Boşsa uyarılar
+   * yalnız günlüğe yazılır ve uygulama çalışmaya devam eder. Yalnız http/https kabul edilir: yanlış yapılandırma
+   * sessizce başka bir yere POST atmasın.
+   */
+  ALERT_WEBHOOK_URL: optionalString.refine((v) => v === undefined || /^https?:\/\/[^\s]+$/.test(v), {
+    message: 'ALERT_WEBHOOK_URL http:// ya da https:// ile başlamalı',
+  }),
+  /** Uyarı kanalına gönderilen en düşük ağırlık (ALERT_SEVERITIES). Verilmezse `warning`. */
+  ALERT_MIN_SEVERITY: z.enum(['info', 'warning', 'critical']).optional(),
   UPLOAD_DIR: z.string().default('./uploads'),
   ANTHROPIC_API_KEY: optionalString,
   /**
@@ -154,6 +181,11 @@ export function productionConfigErrors(c: ParsedConfig): string[] {
   if (c.SMS_PROVIDER === 'netgsm' && (!c.NETGSM_USERCODE || !c.NETGSM_PASSWORD || !c.NETGSM_HEADER)) {
     errors.push('SMS_PROVIDER=netgsm için NETGSM_USERCODE, NETGSM_PASSWORD ve NETGSM_HEADER zorunlu');
   }
+  // E-posta: gerçek sağlayıcı seçildiyse anahtarı ve gönderici adresi olmadan açılmaz (yarım yapılandırmayla her
+  // gönderim çalışma anında patlar; fail-fast burada daha ucuz)
+  if (c.EMAIL_PROVIDER === 'resend' && (!c.RESEND_API_KEY || !c.EMAIL_FROM)) {
+    errors.push('EMAIL_PROVIDER=resend için RESEND_API_KEY ve EMAIL_FROM zorunlu');
+  }
   if (c.PLATFORM_WA_PROVIDER !== 'mock' && !c.PLATFORM_WA_API_KEY) {
     errors.push(`PLATFORM_WA_PROVIDER=${c.PLATFORM_WA_PROVIDER} için PLATFORM_WA_API_KEY zorunlu`);
   }
@@ -185,14 +217,25 @@ export function productionConfigErrors(c: ParsedConfig): string[] {
  * Üretimde başlatmayı engellemeyen ama loglanan uyarılar: taklit (mock) sağlayıcılar hiçbir mesajı gerçekten
  * göndermez (kurulum aşamasında bilerek seçilebilir; canlıya çıkmadan önce değiştirilmeli).
  */
-export function productionConfigWarnings(c: Pick<Config, 'NODE_ENV' | 'SMS_PROVIDER' | 'WA_DEFAULT_PROVIDER' | 'PLATFORM_WA_PROVIDER'>): string[] {
+export function productionConfigWarnings(
+  c: Pick<Config, 'NODE_ENV' | 'SMS_PROVIDER' | 'WA_DEFAULT_PROVIDER' | 'PLATFORM_WA_PROVIDER' | 'EMAIL_PROVIDER'>,
+): string[] {
   if (c.NODE_ENV !== 'production') return [];
   const out: string[] = [];
-  if (c.SMS_PROVIDER === 'mock') out.push('SMS_PROVIDER=mock: SMS OTP ve alarm SMS\'leri gönderilmez');
+  if (c.SMS_PROVIDER === 'mock') {
+    out.push(
+      "SMS_PROVIDER=mock: SMS OTP ve alarm SMS'leri gönderilmez. Müşteriye SMS yedeği TEKLİF EDİLMEZ (vitrinde \"işletmeyi arayın\" görünür) ve alarm zincirinin SMS basamağı 'sms_unavailable' notuyla atlanır",
+    );
+  }
   if (c.PLATFORM_WA_PROVIDER === 'mock') {
     out.push("PLATFORM_WA_PROVIDER=mock: ortak numara kapalı (vitrinde, QR'da ve sipariş onayında WhatsApp bağlantısı gösterilmez) ve işletme sahibine platform WhatsApp uyarıları gönderilmez");
   }
   if (c.WA_DEFAULT_PROVIDER === 'mock') out.push('WA_DEFAULT_PROVIDER=mock: yeni WhatsApp hesapları taklit sağlayıcıyla açılır');
+  if (c.EMAIL_PROVIDER === 'mock') {
+    out.push(
+      'EMAIL_PROVIDER=mock: hiçbir e-posta gönderilmez (lead bildirimi, KVKK başvurusu, parola sıfırlama, fatura). Çağrılar `skipped` döner ve uyarı kanalına düşer; sessizce yutulmaz (18 §3)',
+    );
+  }
   return out;
 }
 
@@ -210,7 +253,7 @@ export function platformDisplayPhone(
 }
 
 /**
- * Bu kanalın mesajı gerçekten bir alıcıya ulaşır mı. Taklit (mock) sağlayıcı geliştirme/test ortamında ve simülatörlü
+ * Bu kanalın mesajı gerçekten bir alıcıya ulaşır mı (`platform_wa`, `sms`, `email`). Taklit (mock) sağlayıcı geliştirme/test ortamında ve simülatörlü
  * dev dağıtımında (DEPLOY_ENV=dev) mesajı simülatöre "teslim eder"; canlı ortamda (NODE_ENV=production +
  * DEPLOY_ENV=production) mock hiçbir yere göndermez. Canlı ortamda mock kanal için gönderim yapılmaz ve hiçbir ekran
  * mesajın gittiğini söylemez (alarm zinciri: jobs/order; panel kartı: alarmNotice).
@@ -218,8 +261,17 @@ export function platformDisplayPhone(
 export function channelDelivers(
   c: Pick<Config, 'NODE_ENV' | 'DEPLOY_ENV' | 'PLATFORM_WA_PROVIDER' | 'SMS_PROVIDER'>,
   channel: 'platform_wa' | 'sms',
+): boolean;
+export function channelDelivers(c: Pick<Config, 'NODE_ENV' | 'DEPLOY_ENV' | 'EMAIL_PROVIDER'>, channel: 'email'): boolean;
+export function channelDelivers(
+  c: Pick<Config, 'NODE_ENV' | 'DEPLOY_ENV'> & Partial<Pick<Config, 'PLATFORM_WA_PROVIDER' | 'SMS_PROVIDER' | 'EMAIL_PROVIDER'>>,
+  channel: 'platform_wa' | 'sms' | 'email',
 ): boolean {
-  const provider = channel === 'platform_wa' ? c.PLATFORM_WA_PROVIDER : c.SMS_PROVIDER;
+  const provider = channel === 'platform_wa' ? c.PLATFORM_WA_PROVIDER : channel === 'sms' ? c.SMS_PROVIDER : c.EMAIL_PROVIDER;
+  // Aşırı yükleme imzaları alanı zorunlu tutuyor, ama GERÇEKLEŞTİRME imzası `Partial`: alan hiç verilmezse
+  // `undefined !== 'mock'` doğru çıkıp kanal "teslim ediyor" sanılırdı (fail-open). Eksik yapılandırma yalan
+  // değil sessizlik üretir: teslim etmiyor sayılır.
+  if (!provider) return false;
   return provider !== 'mock' || mockDelivers(c);
 }
 

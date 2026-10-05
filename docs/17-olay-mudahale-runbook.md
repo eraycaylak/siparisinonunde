@@ -18,6 +18,7 @@ yoktur** — `docker compose …` ve `psql` komutları yalnız isteğe bağlı V
 | Container + Worker günlüğü | `npx wrangler tail siparisinonunde-dev` (ya da Cloudflare > Workers & Pages > Logs) |
 | Süreç + veritabanı | `curl -s https://yemekgelsin.net/api/v1/health` |
 | Worker/kuyruk/yedek/disk/bellek | `curl -s https://yemekgelsin.net/api/v1/health/worker` — **`ok`/503 "hizmet verilebiliyor mu"** (db + kuyruk), **`degraded`/`warnings` "eşik aşıldı mı"** (yedek, disk, bellek; durum kodu 200 kalır) |
+| Ayrıntılı ölçüm (yedek yaşı, disk, bellek **sayıları**) | `curl -s -H "x-health-metrics-token: $HEALTH_METRICS_TOKEN" …/api/v1/health/worker` — bu alanlar **belirteçsiz yanıtta hiç bulunmaz** (altyapı iç bilgisi, denetim 2026-10-05 bulgu A-2). Belirteç kurulu değilse (bugünkü varsayılan) elinde yalnız `warnings` + `wrangler tail` vardır; kurulumu docs/15 §10 "Ayrıntılı ölçümler" |
 | Başarısız işler (DLQ) + yeniden dene | `/admin/isler` · `GET /api/v1/admin/jobs?status=failed` · `POST /api/v1/admin/jobs/:id/retry` |
 | WhatsApp hesap sağlığı | `/admin/whatsapp` → "Bağlantıyı test et" |
 | Kill-switch'ler | `/admin/bayraklar` |
@@ -61,9 +62,9 @@ düşer — o zaman tek haber kaynağı dış izlemenin 503'leri olur.
 | U-21 | `waba_messaging_limit` | critical | Sağlayıcı "mesaj sınırı" hatası döndü (Meta **131048**; Twilio karşılığı buna çevrilir, `apps/api/src/wa/errors.ts:59`). Türetilen sayaç düşük okusa da bu hata tavanın GERÇEĞİDİR | `data.shared` **true** → ortak numara, tüm dükkanların yeni müşteriye giden mesajları durdu; false → yalnız o işletme | `/admin/whatsapp` → "Bağlantıyı test et" | Meta'da messaging limit ve kalite derecesine bak, kısıtlama itirazı aç. Geçici: işletmeler telefonla sipariş alır. Soğuma 15 dk |
 | U-22 | `waba_quality_rating` | critical (`RED`) / warning (`YELLOW`, `FLAGGED`, `RESTRICTED`) | Ortak numaranın kalite derecesi düştü; Meta basamağı düşürebilir ya da numarayı kısıtlayabilir | `data.quality`, `data.ready`. İzinsiz/gereksiz mesaj gönderimi ya da şikâyet artışı var mı? | Okuma **saatte bir** yapılır (`WABA_QUALITY_READ_INTERVAL_MS`); elle: `/admin/whatsapp` → "Bağlantıyı test et" | Gereksiz gönderimi durdur, engelleme/şikâyet kaynağını bul. Dereceyi sağlayıcıdan okuyamazsak uyarı **üretilmez** (değer uydurulmaz). Soğuma 60 dk |
 
-| U-25 | `backup_stale` | critical | Son **başarılı** veritabanı yedeği `HEALTH_MAX_BACKUP_AGE_SEC`'ten (900 sn) eski: yedek zinciri kopmuş olabilir, canlı veri yalnız **geçici** container diskinde. **Uç 503 DÖNMEZ** (`degraded:true`); tek haber yolu bu uyarıdır | §2.2 | `curl -s /api/v1/health/worker` → `warnings`, `lastBackupAgeSec`, `maxBackupAgeSec` | §2.2. Soğuma **30 dk** (iki katman: log satırı eşik düzelince sıfırlanır, **webhook gönderimi sıfırlanmaz**). Yani 30 dk içinde düzelip tekrarlayan bir arıza günlükte hemen görünür ama webhook pencerenin sonunu bekler: **uyarı gelmiyor olması "yedek düzeldi" demek DEĞİLDİR**, §2.2 adım 1 ile doğrula |
-| U-26 | `disk_low` | warning | Boş disk `HEALTH_MIN_DISK_FREE_PCT`'in (%15) altında. `/data` hem PostgreSQL verisini hem görselleri tutar | §2.6 | `curl -s /api/v1/health/worker` → `diskFreePct`, `diskFreeMb` | §2.6. Soğuma 30 dk |
-| U-27 | `memory_high` | critical | API sürecinin yığın kullanımı `HEALTH_MAX_MEM_USED_PCT`'i (%95) aştı: OOM'a yakın, süreç ölürse işler yarıda kalır (U-6 ile birlikte gelebilir) | §2.6 | `curl -s /api/v1/health/worker` → `memUsedPct`, `memRssMb` | §2.6. Soğuma 30 dk |
+| U-25 | `backup_stale` | critical | Son **başarılı** veritabanı yedeği `HEALTH_MAX_BACKUP_AGE_SEC`'ten (900 sn) eski: yedek zinciri kopmuş olabilir, canlı veri yalnız **geçici** container diskinde. **Uç 503 DÖNMEZ** (`degraded:true`); tek haber yolu bu uyarıdır | §2.2 | `curl -s /api/v1/health/worker` → `warnings`; sayılar (`lastBackupAgeSec`, `maxBackupAgeSec`) **belirteçle** (§1 tablosu). Uyarının kendi `data` gövdesi de o anın sayılarını taşır | §2.2. Soğuma **30 dk** (iki katman: log satırı eşik düzelince sıfırlanır, **webhook gönderimi sıfırlanmaz**). Yani 30 dk içinde düzelip tekrarlayan bir arıza günlükte hemen görünür ama webhook pencerenin sonunu bekler: **uyarı gelmiyor olması "yedek düzeldi" demek DEĞİLDİR**, §2.2 adım 1 ile doğrula |
+| U-26 | `disk_low` | warning | Boş disk `HEALTH_MIN_DISK_FREE_PCT`'in (%15) altında. `/data` hem PostgreSQL verisini hem görselleri tutar | §2.6 | `curl -s /api/v1/health/worker` → `warnings`; `diskFreePct`, `diskFreeMb` **belirteçle** (§1 tablosu) ya da uyarının `data` gövdesinden | §2.6. Soğuma 30 dk |
+| U-27 | `memory_high` | critical | API sürecinin yığın kullanımı `HEALTH_MAX_MEM_USED_PCT`'i (%95) aştı: OOM'a yakın, süreç ölürse işler yarıda kalır (U-6 ile birlikte gelebilir) | §2.6 | `curl -s /api/v1/health/worker` → `warnings`; `memUsedPct`, `memRssMb` **belirteçle** (§1 tablosu) ya da uyarının `data` gövdesinden | §2.6. Soğuma 30 dk |
 
 > **Numaralar sabittir:** U-13…U-18 ve U-28 Worker uyarılarıdır (§1.2), U-23/U-24 container açılış uyarılarıdır (§1.3). Yeni türler bir sonraki boş numaradan (U-29) devam eder, böylece §2'deki atıflar kaymaz. **U-19…U-22 ortak numara ve panel akışı uyarılarıdır ve bugün CANLIDA üretilir** (`cron.waba_quota_watch` 5 dk, `services/messaging/send.ts`, `shared-router.ts`, `plugins/sse-limit.ts`); U-20/U-22 yalnız ortak numarada gerçek bir sağlayıcı bağlıyken ölçülür (`PLATFORM_WA_PROVIDER` mock ise ölçüm yok).
 
@@ -77,7 +78,7 @@ düşer — o zaman tek haber kaynağı dış izlemenin 503'leri olur.
 | U-16 | `webhook_tampon_yazilamadi` | **En kötü satır:** tampona da yazılamadı, sağlayıcıya 503 döndü | Hemen: R2 bağlaması/kotası ve `DATA_EPOCH` doğru mu? | `wrangler tail` → `webhook TAMPONLANAMADI` | R2'yi düzelt. Twilio gelen mesaj webhook'unu **bir daha teslim etmez** (`deploy/cloudflare/src/webhook-spool.ts:6`) — o mesaj gerçekten kayıptır; Meta 7 güne kadar yeniden dener |
 | U-17 | `webhook_drain_reddedildi` | Container kaydı **kalıcı reddetti** (4xx) ya da kayıt okunamadı; kayıt silinmedi, yerinde duruyor | `ayrinti.durum`: `404` = webhook belirteci değişti · `401` = imza sırrı uyuşmuyor (U-2 ile aynı kök) | R2'de kayıt duruyor | Sırrı düzelt → `POST /__yg/webhook-drain` ile turu tetikle (docs/15 §13 sorun giderme) |
 | U-18 | `webhook_drain_hatasi` | Boşaltma turu geçici hata verdi; kayıtlar R2'de | Container hasta mı (U-13/U-14 ile birlikte gelir)? | R2 `e3/webhook-tampon/` kayıt sayısı azalıyor mu | Container düzelince kendiliğinden. **Soğuma yok**: her 5 dk tekrar uyarır |
-| U-28 | `yedek_eskidi` | Uyanık tutma turunun **yedek gözcüsü** yoklaması `/api/v1/health/worker`'da eşikten eski yedek gördü. U-25'in Worker kanalındaki ikizi: container'ın kendi uyarı yolu kurulu değilse ya da API uyarısı gitmiyorsa haber bu kanaldan gelir. `ayrinti.yasSn` / `ayrinti.esikSn` yedek yaşını ve eşiği saniye olarak taşır | §2.2 | `curl -s /api/v1/health/worker` → `lastBackupAgeSec`; gövdedeki `yasSn` ile aynı olmalı | §2.2. Soğuma **1 saat** (damga Durable Object deposunda). Yedek yaşı okunamazsa (uç yanıt vermiyor, gövde bozuk) uyarı **üretilmez** — o durumun haberi U-13/U-14'tür |
+| U-28 | `yedek_eskidi` | Uyanık tutma turunun **yedek gözcüsü** yoklaması `/api/v1/health/worker`'da eşikten eski yedek gördü. U-25'in Worker kanalındaki ikizi: container'ın kendi uyarı yolu kurulu değilse ya da API uyarısı gitmiyorsa haber bu kanaldan gelir. `ayrinti.yasSn` / `ayrinti.esikSn` yedek yaşını ve eşiği saniye olarak taşır | §2.2 | `curl -s /api/v1/health/worker` → `warnings` içinde `backup_stale`; `lastBackupAgeSec` **belirteçle**. Worker belirteci yoksa uyarıda `yasSn`/`esikSn` BULUNMAZ (uydurulmaz) ve karar yine `warnings`'ten verilir — uyarının gelmesi için belirteç gerekmez | §2.2. Soğuma **1 saat** (damga Durable Object deposunda). Yedek yaşı okunamazsa (uç yanıt vermiyor, gövde bozuk) uyarı **üretilmez** — o durumun haberi U-13/U-14'tür |
 
 ### 1.3 Container (açılış) uyarıları
 
@@ -85,8 +86,8 @@ Bu iki tür container **açılırken** üretilir ve ikisi de aynı şeyi söyler
 
 | # | `kind` | Ağırlık | Ne anlama geliyor | İlk 5 dakika | Nasıl doğrularsın | Nasıl kapatırsın |
 |---|---|---|---|---|---|---|
-| U-23 | `yarim_geri_yukleme` | critical | Açılışta "geri yükleme sürüyor" işareti bulundu: önceki açılışta `pg_restore` **yarıda kalmış**. Veritabanı yarım olabilir; **satır sayısı hiçbir şey kanıtlamaz**. R2'ye yazma container ömrü boyunca **donduruldu** (iyi `son.dump` + `gun-<0–6>.dump` korunuyor); geri yükleme **yeniden denenmez**, ama migration ve seed yarım şema üzerinde çalışır. Site eksik/boş görünebilir, migration yarım şemada patlarsa container çökme döngüsüne girer | **R2'ye dokunma.** `data.gercekVeriSatiri` ve `data.epoch`'u not et → §2.8 | `wrangler tail` → `YARIM GERİ YÜKLEME` satırı + her 2 dk `yedek zinciri DONDURULDU`; `/health/worker` `lastBackupAgeSec` büyüyor | §2.8: **yeni container başlat** (Actions > "Canlı ortam (Cloudflare)"). Temiz diskte işaret yoktur, R2'den tek seferde geri yüklenir |
-| U-24 | `geri_yukleme_izi_yazilamadi` | critical | İşaret **yazılamadı** (`PGDATA`'nın yanındaki birim yazılamıyor). Yarım geri yükleme korumasız kalmasın diye zincir önleyici olarak donduruldu — geri yükleme yine de yapıldı | Disk dolu mu / birim salt okunur mu: `/health/worker` `diskFreePct` (§2.6) | `wrangler tail` → `geri yükleme izi yazılamadı` | Diski/birimi düzelt, yeniden dağıt. Zincir ancak temiz bir açılışta geri açılır |
+| U-23 | `yarim_geri_yukleme` | critical | Açılışta "geri yükleme sürüyor" işareti bulundu: önceki açılışta `pg_restore` **yarıda kalmış**. Veritabanı yarım olabilir; **satır sayısı hiçbir şey kanıtlamaz**. R2'ye yazma container ömrü boyunca **donduruldu** (iyi `son.dump` + `gun-<0–6>.dump` korunuyor); geri yükleme **yeniden denenmez**, ama migration ve seed yarım şema üzerinde çalışır. Site eksik/boş görünebilir, migration yarım şemada patlarsa container çökme döngüsüne girer | **R2'ye dokunma.** `data.gercekVeriSatiri` ve `data.epoch`'u not et → §2.8 | `wrangler tail` → `YARIM GERİ YÜKLEME` satırı + her 2 dk `yedek zinciri DONDURULDU`; `/health/worker` `warnings` → `backup_stale` (sayı için belirteç) | §2.8: **yeni container başlat** (Actions > "Canlı ortam (Cloudflare)"). Temiz diskte işaret yoktur, R2'den tek seferde geri yüklenir |
+| U-24 | `geri_yukleme_izi_yazilamadi` | critical | İşaret **yazılamadı** (`PGDATA`'nın yanındaki birim yazılamıyor). Yarım geri yükleme korumasız kalmasın diye zincir önleyici olarak donduruldu — geri yükleme yine de yapıldı | Disk dolu mu / birim salt okunur mu: `/health/worker` `warnings` → `disk_low`; sayı için belirteç (§2.6) | `wrangler tail` → `geri yükleme izi yazılamadı` | Diski/birimi düzelt, yeniden dağıt. Zincir ancak temiz bir açılışta geri açılır |
 
 > **Numaralar sabittir:** U-23/U-24 container açılış uyarılarıdır; §1.1'deki sağlık eşiği türleri **U-25…U-27**, Worker'ın yedek gözcüsü **U-28**'dir (§1.2). Yeni türler U-29'dan devam eder.
 
@@ -114,15 +115,17 @@ Bu iki tür container **açılırken** üretilir ve ikisi de aynı şeyi söyler
 > dağıtımın duman testi bu uca 200 bekliyor ve kırmızısı `wrangler rollback` tetikliyordu — sağlam bir dağıtım yalnızca
 > son yedek biraz eski diye geri alınıyordu (denetim 2026-10-05 bulgu A; docs/15 §10). Yani **tek haber yolu uyarı
 > kanalıdır**: `ALERT_WEBHOOK_URL` tanımsızsa bu arıza yalnız günlükte görünür.
-1. `curl -s /api/v1/health/worker` → `warnings`, `lastBackupAgeSec`, `maxBackupAgeSec`.
-   `lastBackupAgeSec` `null` ise **alarm değil**: ilk yedek turundan önce ya da durum dosyası yok.
+1. `curl -s /api/v1/health/worker` → `warnings`. Yaş **sayısı** için belirteç gerekir:
+   `curl -s -H "x-health-metrics-token: …" …` → `lastBackupAgeSec`, `maxBackupAgeSec` (§1 tablosu).
+   `lastBackupAgeSec` `null` ise **alarm değil**: ilk yedek turundan önce ya da durum dosyası yok. Alan
+   **hiç yoksa** belirteç geçersiz ya da kurulu değildir — bu da alarm değildir: `warnings` zaten kararı söyler.
 2. `wrangler tail` → şu satırları ara: `pg_dump başarısız` · `döküm doğrulanamadı (pg_restore --list)` ·
    `boş yedek gönderilmedi` · R2 PUT hatası.
    **Önce şuna bak:** `yedek zinciri DONDURULDU (yarım geri yükleme)` satırı varsa zincir **bilerek** kapalıdır, arızalı değil → **§2.8**; bu maddenin kalanı geçerli değildir.
 3. R2 > `e3/db/son.dump` son değiştirilme zamanına bak. Birkaç dakikadan eskiyse zincir gerçekten kopmuştur.
 4. Ayrımı yap: **yazamıyor** (R2 kotası/bağlama/ağ) mı, **üretemiyor** (`pg_dump` hatası = veritabanı hasta) mu?
    İkincisi daha ciddidir: SEV1 adayı, çünkü hem yedek hem canlı veri risk altında.
-5. Kapatma: `lastBackupAgeSec` eşiğin altına inene (`/health/worker` `degraded:false`) **ve** `wrangler tail`'de
+5. Kapatma: `warnings` boşalana (`/health/worker` `degraded:false`; belirteç varsa `lastBackupAgeSec` eşiğin altına iner) **ve** `wrangler tail`'de
    `veritabanı yedeği R2'ye yazıldı` satırı görülene kadar izle. Durum dosyasının kendisi (`lastResult`) kabuk
    olmadığı için okunamaz; gözlenebilir iki sinyal bunlardır. Eşiği geçici susturmak gerekiyorsa
    `HEALTH_MAX_BACKUP_AGE_SEC=0` (docs/15 §10) — **yalnız yanlış alarmda**, arızayı susturmak için değil.
@@ -159,11 +162,13 @@ Bu iki tür container **açılırken** üretilir ve ikisi de aynı şeyi söyler
 
 ### 2.6 Veritabanı doldu / bellek (U-26 `disk_low`, U-27 `memory_high`; uç 200 + `degraded`)
 `/data` hem PostgreSQL verisini (`/data/pg`) hem görselleri (`/data/uploads`) tutar — `diskFreePct` ikisini birden ölçer.
-1. `diskFreePct` < 15 → disk. `memUsedPct` > 95 → OOM'a yakın yığın.
+1. Hangi eşik: `warnings` içinde `disk_low` → disk, `memory_high` → OOM'a yakın yığın. **Sayıları** görmek için
+   belirteç gerekir (`x-health-metrics-token`, §1 tablosu): `diskFreePct` < 15 → disk, `memUsedPct` > 95 → bellek.
+   Belirteç yoksa ölçüm yerine uyarı gövdesine bakın: `alert()` gövdesi (`data`) o anın sayılarını taşır.
 2. **Disk:** container diski geçicidir; kalıcı dolma kaynağı görseller ve WAL'dır. Hızlı hamle yeniden dağıtımdır
    (temiz disk + R2'den geri yükleme), ama **yeniden açılış son yedekten sonraki ~2 dakikayı kaybettirir**.
 3. **Bellek:** 1 GiB container'da üç sürecin yığın tavanı toplamı 704 MiB (docs/15 §10). Kalıcı çözüm
-   `instance_type: standard-1` (maliyet artar).
+   `instance_type: standard-1` (maliyet artar) — hangi eşikte büyütülür: docs/15 §16.4.
 4. Eşiği `0` ile kapatmak **alarmı** kapatır, sorunu kapatmaz.
 5. Kapatma: `/api/v1/health/worker` `degraded:false` ve `warnings` boş (durum kodu bu eşiklerde zaten 200'dür).
 
@@ -190,11 +195,12 @@ geri kalanı eksik), çok erken kesilmişse boş görünür. İki durumda da say
 1. **İlk kural: R2'ye DOKUNMA.** `e3/db/son.dump` ve `e3/db/gun-<0–6>.dump` şu an **sağlam** — dondurmanın tek amacı
    buydu. Dökümleri silmeyin, üzerine yazmayın, bu iş çözülmeden `DATA_EPOCH`'u **artırmayın**.
 2. **Doğrula** (`npx wrangler tail siparisinonunde-dev`): açılışta bir kez `YARIM GERİ YÜKLEME …` satırı, ardından her
-   2 dakikada `yedek zinciri DONDURULDU (yarım geri yükleme)`. `curl -s /api/v1/health/worker` → `lastBackupAgeSec`
-   büyüyor (15 dk sonra `degraded:true` + `warnings:["backup_stale"]`; **durum kodu 200 kalır**, uyarı U-25/U-28).
+   2 dakikada `yedek zinciri DONDURULDU (yarım geri yükleme)`. Sağlık ucunda yedek yaşı büyür: `curl -s
+   /api/v1/health/worker` 15 dk sonra `degraded:true` + `warnings:["backup_stale"]` yazar (**durum kodu 200 kalır**,
+   uyarı U-25/U-28); yaşın **sayısını** görmek için belirteç gerekir (§1 tablosu).
    > **Sağlık ucunun sessiz kaldığı hal:** `/tmp` süpürülmüş bir açılışta `lastSuccessUnix` 0 kalır ve
-   > `lastBackupAgeSec` **`null`** döner (`apps/api/src/routes/health.ts:163`) → `backup_stale` da U-28 de
-   > üretilmez (`deploy/cloudflare/src/alert.ts:117`), uç 200 + `degraded:false` görünür. O halde tek haber yolu
+   > `lastBackupAgeSec` **`null`** döner (`apps/api/src/routes/health.ts` `backupAgeSecFrom`) → `backup_stale` da U-28 de
+   > üretilmez (`deploy/cloudflare/src/alert.ts` `yedekDurumunuOku`), uç 200 + `degraded:false` görünür. O halde tek haber yolu
    > bu bölümün 1. maddesindeki uyarı ve günlük satırlarıdır; donmuş zinciri sağlık ucuyla **arayarak bulamazsın**.
 3. **Çöz: yeni container başlat.** İşaret container diskindedir, container diski ise geçicidir — GitHub > Actions >
    "Canlı ortam (Cloudflare)" > **Run workflow** (ya da herhangi bir push). Temiz diskte işaret yoktur; container
@@ -329,7 +335,15 @@ satırı · §10'daki "nöbetçinin telefonu çalar" → tek kişi · §13 canl�
 
 **Dört mercekli son denetimde eklenenler (bu dosya):** §1 giriş bloğuna üçüncü uyarı gövdesi (container açılışı) · yeni **§1.3** container açılış uyarıları (U-23 `yarim_geri_yukleme`, U-24 `geri_yukleme_izi_yazilamadi`) · yeni **§2.8** yarım geri yükleme senaryosu · §2.1'in tipik sebep listesine `YARIM GERİ YÜKLEME` satırı · §2.2'ye "donmuş zincir arıza değildir" ayrımı. Kaynak: `deploy/cloudflare/entrypoint.sh` dördüncü kapı; işletim tarafı [15](15-kurulum-ve-isletim.md) §13 "Yarım geri yükleme".
 
-**Bağımsız doğrulamada düzeltilenler (bu dosya):** U-23 satırındaki "seed denenmedi" yanlıştı — `entrypoint.sh` donmuş açılışta geri yüklemeyi atlar ama **migration ve seed'i çalıştırır** · §2.8 adım 2'ye "sağlık ucunun sessiz kaldığı hal" notu: `/tmp` süpürülmüş açılışta `lastBackupAgeSec` `null` olduğu için `backup_stale` ve U-28 **hiç üretilmez** (`health.ts:163`, `alert.ts:117`), dolayısıyla donmuş zincir sağlık ucundan aranarak bulunamaz.
+**Bağımsız doğrulamada düzeltilenler (bu dosya):** U-23 satırındaki "seed denenmedi" yanlıştı — `entrypoint.sh` donmuş açılışta geri yüklemeyi atlar ama **migration ve seed'i çalıştırır** · §2.8 adım 2'ye "sağlık ucunun sessiz kaldığı hal" notu: `/tmp` süpürülmüş açılışta `lastBackupAgeSec` `null` olduğu için `backup_stale` ve U-28 **hiç üretilmez** (`health.ts` `backupAgeSecFrom`, `alert.ts` `yedekDurumunuOku`), dolayısıyla donmuş zincir sağlık ucundan aranarak bulunamaz.
+
+**Sağlık ucu gizliliği turunda değişenler (5 Eki 2026, denetim bulgu A-2 · bu dosya):** §1 teşhis tablosuna
+"ayrıntılı ölçüm" satırı · U-25/U-26/U-27/U-28 ve U-23/U-24'ün "nasıl bakılır" hücreleri: `lastBackupAgeSec`,
+`diskFreePct`, `memUsedPct` artık **belirteçsiz yanıtta yok** (`x-health-metrics-token`), karar `warnings`'ten
+okunur ve uyarının `data` gövdesi o anın sayılarını taşır · §2.2 adım 1 ve 5, §2.6 adım 1 aynı ayrımla yeniden
+yazıldı · §2.8 adım 2 · kırılgan satır atıfları (`health.ts:163`, `alert.ts:117`) işlev adlarına çevrildi.
+Belirteç **kurulu değilse** (bugünkü varsayılan) ayrıntılar hiç kimseye görünmez, uç 200 döner ve uyarı yolu
+çalışmaya devam eder: kurulum ve gerekçe [15](15-kurulum-ve-isletim.md) §10 "Ayrıntılı ölçümler".
 
 **Hâlâ eksik (kod işi, bu dosyanın sahipliği dışında — DIŞ BAĞIMLILIK):**
 1. `detectSharedNumberSilence` (`apps/api/src/services/messaging/shared-health.ts:100`) hiçbir cron'a bağlı değil →

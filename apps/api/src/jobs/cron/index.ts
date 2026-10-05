@@ -133,10 +133,38 @@ export async function watchNewOrders(db: Database, now: Date = new Date(), ctx?:
     );
 
   const result: OrderNewWatchResult = { requeued: 0, orderIds: [], exhausted: [] };
+  if (!candidates.length) return result;
+
+  // TEK SORGU (denetim 2026-10-05 LOW 1): adayların alarm işleri bir kerede okunur ve bellekte sipariş kimliğine
+  // göre gruplanır. Eskiden bu okuma DÖNGÜNÜN İÇİNDEYDİ, yani aday sipariş başına bir sorgu koşuyordu; tur dakikada
+  // bir olduğu için yoğun saatte 20 açık sipariş = dakikada 20 sorgu. Sorgu `payload->>'orderId'` üzerinde
+  // İNDEKSSİZDİ: `jobs_type_idx` türü daraltır ama alarm adımları işin en kalabalık türüdür, bu yüzden her çağrı
+  // o türün tamamını tarıyordu. İndeks aynı turda eklendi (0004_jobs_alarm_order_idx.sql); toplu okuma indeksle
+  // birlikte tek bitmap taramasına iner.
+  //
+  // ⚠️ `sql.param(...)` ŞART (bağımsız inceleme 2026-10-05): Drizzle'ın `sql` şablonuna ÇIPLAK bir JS dizisi
+  // verilirse dizi TEK bir parametreye bağlanmaz, parantezli listeye AÇILIR (`sql/sql.cjs` → `Array.isArray`
+  // dalı): `any(($1, $2, $3)::text[])`. Bu geçerli SQL değildir — Postgres `(…)` ifadesini ROW sayar ve sorgu
+  // HAZIRLANIRKEN "cannot cast type record to text[]" ile düşer; tek adaylı turda ise `($1)::text[]` sözdizimsel
+  // olarak geçer ama çalışma anında "malformed array literal" verir. Yani her iki durumda da emniyet ağının
+  // kendisi çöker (iş kalıcı başarısız → DLQ) ve alarm zinciri eksik siparişler ONARILMADAN kalır.
+  // `sql.param` diziyi tek yer tutucuya bağlar, postgres-js onu gerçek bir `text[]` olarak gönderir.
+  // Regresyon kapısı: `apps/api/test/jobs-cron.test.ts` → "toplu okuma siparişleri karıştırmaz" (iki aday
+  // olduğu için açılmış liste orada derhal patlar).
+  const grouped = new Map<string, AlarmJobRow[]>();
+  const alarmRows = (await db.execute<AlarmJobRow & { orderId: string }>(sql`
+    select payload->>'orderId' as "orderId", payload->>'step' as step, payload->>'gen' as gen, status from jobs
+     where type = 'order.alarm_step' and payload->>'orderId' = any(${sql.param(candidates.map((c) => c.id))}::text[])`)) as unknown as (AlarmJobRow & {
+    orderId: string;
+  })[];
+  for (const r of alarmRows) {
+    const list = grouped.get(r.orderId);
+    if (list) list.push(r);
+    else grouped.set(r.orderId, [r]);
+  }
+
   for (const o of candidates) {
-    const rows = (await db.execute<AlarmJobRow>(sql`
-      select payload->>'step' as step, payload->>'gen' as gen, status from jobs
-       where type = 'order.alarm_step' and payload->>'orderId' = ${o.id}`)) as unknown as AlarmJobRow[];
+    const rows = grouped.get(o.id) ?? [];
     /** Adım → o adımda görülen en yüksek nesil (satır hiç yoksa anahtar eklenmez). */
     const maxGen = new Map<number, number>();
     /** Adım → en yüksek nesilde canlı (pending/running/done) satır var mı. */

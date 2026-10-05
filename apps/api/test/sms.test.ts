@@ -5,6 +5,7 @@ import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { enqueueJob } from '../src/lib/jobs';
 import { handlePlatformAlert } from '../src/services/messaging/platform-alert';
+import { loadVerificationChannels } from '../src/services/orders/verification';
 import { handleSmsSend } from '../src/services/messaging/sms-send';
 import { smsQuotaForTenant } from '../src/sms/index';
 import { createTestContext, type TestContext, type TestTenant } from './helpers';
@@ -13,6 +14,30 @@ import { runJobs, silentLog } from './wa-helpers';
 let ctx: TestContext;
 let t: TestTenant;
 const deps = () => ({ db: ctx.db, config: ctx.config, log: silentLog });
+
+/** Canlı ortam + taklit SMS sağlayıcısı: hiçbir SMS gidemeyen yapılandırma (channelDelivers false). */
+const liveMockConfig = () => ({ ...ctx.config, NODE_ENV: 'production' as const, DEPLOY_ENV: 'production' as const, SMS_PROVIDER: 'mock' as const });
+
+/** `log.error` satırlarını toplayan en küçük pino uyumlu kayıtçı (gönderilmediğinin loga yazıldığını kanıtlar). */
+function captureLog() {
+  const errors: string[] = [];
+  const noop = () => {};
+  const logger = {
+    errors,
+    level: 'info',
+    error: (_o: unknown, msg?: string) => {
+      errors.push(typeof _o === 'string' ? _o : (msg ?? ''));
+    },
+    warn: noop,
+    info: noop,
+    debug: noop,
+    trace: noop,
+    fatal: noop,
+    silent: noop,
+    child: () => logger,
+  };
+  return logger;
+}
 
 beforeAll(async () => {
   ctx = await createTestContext();
@@ -74,6 +99,40 @@ describe('sms.send', () => {
 
   it('geçersiz telefon atlanır', async () => {
     expect(await handleSmsSend(deps(), { tenantId: t.tenantId, to: 'abc', body: 'x', purpose: 'status' })).toMatchObject({ status: 'skipped', reason: 'invalid_phone' });
+  });
+
+  // Denetim 2026-10-04 madde 4.4: canlı ortamda SMS_PROVIDER=mock iken kayıt 'sent' işaretleniyor ve günlüğe
+  // "SMS gönderildi" yazılıyordu; müşteri gelmeyen kodu bekliyordu. Bu test o yalanın geri dönmesini engeller.
+  it('canlı ortamda taklit sağlayıcı: "gönderildi" DENMEZ, kayıt failed, loga hata yazılır', async () => {
+    const log = captureLog();
+    const to = '+905338887766';
+    const r = await handleSmsSend(
+      { db: ctx.db, config: liveMockConfig(), log },
+      { tenantId: t.tenantId, to, body: 'Doğrulama kodunuz: 999111.', purpose: 'otp', countsTowardQuota: true },
+    );
+
+    expect(r.status).not.toBe('sent');
+    expect(r).toMatchObject({ status: 'skipped', reason: 'provider_not_deliverable' });
+
+    const [row] = await ctx.db.select().from(smsMessages).where(eq(smsMessages.toPhone, to));
+    expect(row).toMatchObject({ status: 'failed', provider: 'mock' });
+    // Gitmeyen SMS kotadan düşmez ve sağlayıcı kimliği uydurulmaz
+    expect(row!.countsTowardQuota).toBe(false);
+    expect(row!.providerMessageId).toBeNull();
+    expect(row!.error).toContain('taklit sağlayıcı');
+    expect(log.errors.join(' | ')).toContain('SMS GÖNDERİLMEDİ');
+  });
+
+  // Asıl koruma müşteri tarafındadır: SMS gidemiyorsa vitrin SMS yedeğini HİÇ teklif etmez
+  // (verification-screen.tsx method=null dalı → "işletmeyi arayın").
+  it('canlı ortamda taklit sağlayıcı: smsAvailable false (müşteriye SMS yedeği teklif edilmez)', async () => {
+    const [tenantRow] = await ctx.db.select().from(tenants).where(eq(tenants.id, t.tenantId));
+    expect(tenantRow!.smsFallbackEnabled).toBe(true);
+
+    // Test ortamında (mock "simülatöre teslim eder") yedek açık kalır
+    expect(await loadVerificationChannels(ctx.db, tenantRow!, t.branchId, ctx.config)).toMatchObject({ smsAvailable: true });
+    // Canlı ortam + mock: işletme ayarı ve bayrak açık olsa da kanal teslim etmediği için kapalı
+    expect(await loadVerificationChannels(ctx.db, tenantRow!, t.branchId, liveMockConfig())).toMatchObject({ smsAvailable: false });
   });
 });
 

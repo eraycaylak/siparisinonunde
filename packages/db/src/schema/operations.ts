@@ -165,6 +165,12 @@ export const jobs = pgTable(
     index('jobs_running_locked_idx').on(t.lockedAt).where(sql`status = 'running'`),
     index('jobs_status_idx').on(t.status, t.createdAt),
     index('jobs_type_idx').on(t.type),
+    // `cron.order_new_watch` (dakikada bir) alarm adımlarını yük içindeki sipariş kimliğine göre okur; ifade
+    // indekssizdi ve `jobs_type_idx` yetmiyordu (alarm adımı işin en kalabalık türü). Kısmi: indeks yalnız
+    // alarm satırlarını tutar, diğer türlerde yazma maliyeti yok. Göç: migrations/0004_jobs_alarm_order_idx.sql
+    index('jobs_alarm_order_idx')
+      .on(sql`(payload->>'orderId')`)
+      .where(sql`type = 'order.alarm_step'`),
     enumCheck('jobs_queue_ck', t.queue, QUEUES),
     enumCheck('jobs_status_ck', t.status, JOB_STATUSES),
   ],

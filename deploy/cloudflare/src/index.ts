@@ -123,6 +123,18 @@ interface Env {
   ALERT_WEBHOOK_URL?: string;
   /** Container'a geçirilir (apps/api süzgeci): dış kanala gidecek en düşük ağırlık, varsayılan "warning". */
   ALERT_MIN_SEVERITY?: string;
+  /**
+   * `/api/v1/health/worker` AYRINTILI ÖLÇÜMLERİNİN belirteci (yedek yaşı, disk, bellek; denetim 2026-10-05 bulgu
+   * A-2). Uç kimlik doğrulamasızdır: sade alanlar herkese açıktır, ayrıntılar yalnız bu belirteci taşıyan isteğe
+   * yazılır (apps/api/src/routes/health.ts `metricsAllowed`). Aşağıdaki yedek gözcüsü, varsa, belirteci gönderir
+   * ki `yedek_eskidi` uyarısı yaşı ve eşiği de taşısın; YOKSA uyarı yine gider (karar `warnings` dizisinden
+   * verilir, src/alert.ts `yedekDurumunuOku`), yalnız gövdesindeki iki sayı eksilir.
+   *
+   * ⚠️ DIŞ BAĞIMLILIK: bu değer container'a ancak `src/mode.ts` `PASSTHROUGH_KEYS` listesine eklenirse geçer
+   * (ALERT_WEBHOOK_URL ile aynı desen). O satır yazılmadan secret verilse bile API beklenen değeri bilmez ve
+   * ayrıntılar gizli kalır (15 §10, §13).
+   */
+  HEALTH_METRICS_TOKEN?: string;
   /** "1": CSP yalnız rapor kipinde gönderilir (ilk yayında kırılan bir şey var mı diye); src/security-headers.ts */
   CSP_REPORT_ONLY?: string;
 }
@@ -518,6 +530,7 @@ export default {
    *   1. `/api/v1/health` — canlılık; 200 değilse `uyanik_tutma_hatasi`.
    *   2. `/api/v1/health/worker` — yedek gözcüsü; yedek eşikten eskiyse `yedek_eskidi` (soğuma: saatte bir,
    *      damga Durable Object deposunda). Yedek yaşını başka hiçbir yoklama görmüyordu (denetim 2026-10-05 bulgu B).
+   *      Varsa `HEALTH_METRICS_TOKEN` başlığıyla sorar: uyarı gövdesine yaş ve eşik de girsin (bulgu A-2).
    *   3. Webhook tamponunu boşaltma (denetim 1.7).
    */
   async scheduled(_controller, env, ctx): Promise<void> {
@@ -554,7 +567,14 @@ export default {
           // uyarısı üretilmez, `/health/worker` 503 döner ama bu tur onu okumaz. Süreç gerçekten ölürse
           // entrypoint.sh `wait -n` container'ı düşürür ve hâl U-13/U-14'e düşer; asılma o ağa takılmaz.
           try {
-            const res = await app.fetch(switchPort(new Request('http://container/api/v1/health/worker'), API_PORT));
+            // Belirteç varsa gönderilir: `lastBackupAgeSec`/`maxBackupAgeSec` yalnız o zaman gövdede olur (denetim
+            // 2026-10-05 bulgu A-2). Yoksa başlık hiç yazılmaz ve karar `warnings` dizisinden verilir — uyarı
+            // gider, gövdesinde yaş ve eşik olmaz (`yedekUyariAyrinti` bilinmeyen alanı YAZMAZ).
+            const olcumBelirteci = (env.HEALTH_METRICS_TOKEN ?? '').trim();
+            const istek = new Request('http://container/api/v1/health/worker', {
+              headers: olcumBelirteci ? { 'x-health-metrics-token': olcumBelirteci } : {},
+            });
+            const res = await app.fetch(switchPort(istek, API_PORT));
             const okuma = yedekDurumunuOku(await res.json().catch(() => null));
             // Soğuma Durable Object deposundadır: aynı uyarı her 5 dakikada bir değil, en çok saatte bir gider.
             if (okuma.eskidi && (await app.yedekUyarisiSirasiMi(Date.now()))) {

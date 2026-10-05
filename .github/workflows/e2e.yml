@@ -1,0 +1,102 @@
+# UÇTAN UCA TESTLER (Playwright, 9 senaryo — 14 §10).
+#
+# NEDEN AYRI BİR İŞ AKIŞI: e2e, `testler.yml` kapısına DAHİL DEĞİLDİR ve dağıtımı bloke etmez. Gerekçe:
+# kendi veritabanı (`siparis_e2e_test`) + `next dev` derlemesi + tarayıcı indirmesi ile ~10-15 dakika sürer;
+# dağıtım kapısına konulsaydı her acil düzeltme bu süreyi beklerdi. Burada elle (workflow_dispatch) ya da
+# gecelik olarak koşar; kırmızı yanarsa dağıtımı durdurmaz ama sürümün uçtan uca bozulduğunu gösterir.
+#
+# NOT (05.10.2026): bu iş akışı, e2e katmanının yerelde koşturulamaması üzerine eklendi — geliştirme makinesinde
+# Playwright'ın Chromium indirmesi tamamlanamadı. Düzeneğin kendisi çalışıyor (veritabanı sıfırlama, seed,
+# API + worker + web ayağa kalkıyor); eksik olan yalnız tarayıcı ikilisiydi. Linux koşucusunda o sorun yok.
+#
+# Çıktılar: başarısızlıkta Playwright raporu ve izleri (trace) sanat eseri olarak yüklenir —
+# `pnpm exec playwright show-trace <indirilen zip>` ile adım adım izlenir.
+name: Uçtan uca testler (e2e)
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Koşulacak sürüm (boşsa dalın ucu)'
+        required: false
+        type: string
+      grep:
+        description: 'Yalnız eşleşen senaryolar (Playwright --grep); boşsa hepsi'
+        required: false
+        type: string
+  schedule:
+    # Her gece 02:30 UTC (TR 05:30) — gece koşusu, kimse dağıtım beklemiyorken
+    - cron: '30 2 * * *'
+
+concurrency:
+  group: yemekgelsin-e2e
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Playwright (chromium)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: siparis
+          POSTGRES_PASSWORD: siparis
+          POSTGRES_DB: siparis_e2e_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U siparis -d siparis_e2e_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      # e2e/support/env.ts varsayılanıyla aynı; servis kimlikleri yukarıdaki postgres bloğuyla eşleşmeli
+      E2E_DATABASE_URL: postgres://siparis:siparis@localhost:5432/siparis_e2e_test
+      ALLOW_DB_RESET: '1'
+      CI: 'true'
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Bağımlılıklar
+        run: pnpm install --frozen-lockfile
+
+      # Yalnız chromium: playwright.config.ts tek projede (chromium) koşuyor, diğer tarayıcılar boşa indirilmesin.
+      # `--with-deps` Linux'ta eksik sistem kütüphanelerini de kurar (headless_shell onlarsız açılmaz).
+      - name: Tarayıcı
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Uçtan uca testler
+        run: pnpm e2e ${{ inputs.grep && format('--grep "{0}"', inputs.grep) || '' }}
+
+      - name: Rapor ve izler (yalnız başarısızlıkta)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-raporu
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Özet
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "✅ Uçtan uca testler geçti." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "❌ Uçtan uca testler kırmızı. Rapor: bu koşunun 'e2e-raporu' sanat eserini indirip" >> "$GITHUB_STEP_SUMMARY"
+            echo '`pnpm exec playwright show-trace <zip>` ile adım adım izleyin.' >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "Bu iş akışı dağıtımı DURDURMAZ (gerekçe dosyanın başında); kırmızıysa sürümü elle değerlendirin." >> "$GITHUB_STEP_SUMMARY"
+          fi

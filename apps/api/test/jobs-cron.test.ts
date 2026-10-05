@@ -198,6 +198,31 @@ describe('cron.order_new_watch', () => {
     await closeOrder(order.id);
   });
 
+  // Alarm işleri artık aday BAŞINA değil TEK sorguda okunup bellekte gruplanıyor (denetim 2026-10-05 LOW 1:
+  // dakikalık tur aday başına indekssiz `payload->>'orderId'` sorgusu koşuyordu). Bu refaktörün tek gerçek
+  // riski gruplamanın kayması: bir siparişin satırları başka siparişin canlılık kararına sayılırsa ya sağlam
+  // zincir "eksik" sanılır (ikinci kez kurulur) ya da eksik zincir "canlı" sanılıp SESSİZCE onarılmaz.
+  it('toplu okuma siparişleri karıştırmaz: yalnız zinciri bozulan onarılır', async () => {
+    const a = await newOrder();
+    const b = await newOrder();
+    await watchNewOrders(ctx.db);
+    const rowsA = await alarmJobs(a.id);
+    expect(rowsA).toHaveLength(5);
+    expect(await alarmJobs(b.id)).toHaveLength(5);
+
+    // Yalnız A'nın son adımı kalıcı başarısız olsun; B'nin zinciri sağlam
+    await ctx.db.execute(sql`update jobs set status = 'failed', finished_at = now() where id = ${rowsA.find((r) => Number(r.step) === 6)!.id}`);
+
+    const res = await watchNewOrders(ctx.db);
+    expect(res.orderIds).toContain(a.id);
+    expect(res.orderIds).not.toContain(b.id);
+    // A: adım 6 için yeni nesil satır açılır (5 + 1); B'ye hiç dokunulmaz
+    expect(await alarmJobs(a.id)).toHaveLength(6);
+    expect(await alarmJobs(b.id)).toHaveLength(5);
+    await closeOrder(a.id);
+    await closeOrder(b.id);
+  });
+
   it('`done` adım yeniden kurulmaz, `failed`/`cancelled` adım yeniden kurulur', async () => {
     const order = await newOrder();
     await watchNewOrders(ctx.db);

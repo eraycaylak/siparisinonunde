@@ -103,7 +103,12 @@ export default tseslint.config(
       '**/uploads/**',
       // Üretilmiş / elle yazılmamış dosyalar
       'packages/db/drizzle/**',
-      'apps/web/public/**',
+      // `apps/web/public/**` TAMAMI yoksayılıyordu ve "üretilmiş dosya" sayıldığı için EL YAZMASI panel service
+      // worker'ı (`panel-sw.js`, 106 satır, alarmın t=0 Web Push adımını işler) hiç lint edilmiyordu
+      // (denetim 2026-10-05 LOW 3). Yoksayma küçültülmüş/paketlenmiş çıktılarla sınırlandı; service worker
+      // aşağıda (katman 5e) Worker globalleriyle kapsama alındı. public altındaki diğer dosyalar görsel ve
+      // SVG'dir, ESLint onları zaten hiçbir `files` deseniyle eşlemiyor.
+      'apps/web/public/**/*.min.js',
       'deploy/cloudflare/wrangler.generated.jsonc',
     ],
   },
@@ -396,6 +401,10 @@ export default tseslint.config(
   {
     name: 'yemekgelsin/mjs',
     files: ['**/*.mjs', '**/*.js'],
+    // Panel service worker'ı buradan ÇIKARILDI (katman 5e): bu katmanın Node globalleri ve `sourceType: 'module'`
+    // ayarı birleşik yapılandırmada orada da geçerli olurdu (flat config `globals` nesnelerini BİRLEŞTİRİR), yani
+    // `self` Node'da da tanımlı olduğu için tarayıcı globali yazım hataları `no-undef`ten kaçardı.
+    ignores: ['apps/web/public/panel-sw.js'],
     extends: [js.configs.recommended],
     languageOptions: {
       ecmaVersion: 2023,
@@ -421,5 +430,30 @@ export default tseslint.config(
       globals: { ...globals.serviceworker, ...globals.browser },
     },
     rules: { 'no-console': 'off' },
+  },
+
+  // 5e. Panel service worker'ı (`apps/web/public/panel-sw.js`): EL YAZMASI, üretilmiş değil — alarmın t=0 Web Push
+  // adımını ve bildirim tıklamasını o işler. Katman 5c (`**/*.js`) onu Node globalleriyle ve `sourceType: 'module'`
+  // ile görürdü; ikisi de yanlış: dosya KLASİK (non-module) service worker'dır, çalışma zamanı globalleri
+  // `self`/`clients`/`registration`'dır. Doğru global kümesi olmadan `no-undef` sahte hatalar üretir (ya da
+  // `self` Node'da da tanımlı olduğu için GERÇEK yazım hatasını kaçırır).
+  {
+    name: 'yemekgelsin/panel-sw',
+    files: ['apps/web/public/panel-sw.js'],
+    extends: [js.configs.recommended],
+    languageOptions: {
+      ecmaVersion: 2023,
+      // Klasik service worker: `importScripts` dünyası, `import` yok (`register(…)` çağrısında `type: 'module'`
+      // VERİLMİYOR — components/push/push-client.ts).
+      sourceType: 'script',
+      globals: { ...globals.serviceworker },
+    },
+    rules: {
+      // Service worker'da `console` tarayıcı konsoluna gider; pino yok, maskeleme kuralı da yok (yük zaten
+      // kişisel veri taşımıyor: 06 §7.3 — yalnız kind/title/body/url/tag/orderId).
+      'no-console': 'off',
+      'no-unused-vars': ['warn', { argsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }],
+      'no-restricted-imports': YASAK_WA_IMPORT,
+    },
   },
 );

@@ -375,6 +375,23 @@ test('yedek okuması: eşik kararının kaynağı ucun warnings dizisidir', () =
   assert.equal(takili.eskidi, true);
 });
 
+test('yedek okuması: BELİRTEÇSİZ gövdede (ayrıntı alanları yok) uyarı yine üretilir — karar warnings\'ten', () => {
+  // Denetim 2026-10-05 bulgu A-2: /health/worker ayrıntılı ölçümleri (lastBackupAgeSec, maxBackupAgeSec) yalnız
+  // HEALTH_METRICS_TOKEN başlığıyla gelir. Worker secret'ı verilmemişse gövde SADE alanlardan oluşur; yedek
+  // gözcüsünün uyarı yolu bu durumda da kapanmamalı, yalnız uyarı gövdesindeki iki sayı eksilmeli.
+  const sade = ucGovdesi({ degraded: true, warnings: ['backup_stale'] });
+  delete sade.lastBackupAgeSec;
+  delete sade.maxBackupAgeSec;
+  assert.deepEqual(yedekDurumunuOku(sade), { yasSn: null, esikSn: null, eskidi: true });
+  assert.deepEqual(yedekUyariAyrinti(yedekDurumunuOku(sade)), { kaynak: 'yedek_gozcusu' });
+
+  // Sağlam durumda (eşik aşımı yok) belirteçsiz gövde de uyarı üretmez
+  const saglamSade = ucGovdesi();
+  delete saglamSade.lastBackupAgeSec;
+  delete saglamSade.maxBackupAgeSec;
+  assert.equal(yedekDurumunuOku(saglamSade).eskidi, false);
+});
+
 test('yedek okuması: warnings yoksa (eski API sürümü) yaş/eşik karşılaştırmasına düşer', () => {
   const govde = ucGovdesi({ lastBackupAgeSec: 11_000 });
   delete govde.warnings;

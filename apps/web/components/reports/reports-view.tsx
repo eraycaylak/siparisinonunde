@@ -24,11 +24,8 @@ import { useApiQuery } from '@/lib/api';
 import { currentRole, useMe } from '@/lib/auth';
 import { formatDate, formatMoney, formatNumber, toIstanbulDateKey } from '@/lib/format';
 import { BarList, ColumnChart, Heatmap, StatTile, VizStyles } from './charts';
-
-function shiftDate(date: string, days: number): string {
-  const [y, m, d] = date.split('-').map(Number) as [number, number, number];
-  return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10);
-}
+import { addDays } from './data-export';
+import { DataExportSection } from './data-export-section';
 
 const dayLabel = (date: string) => formatDate(`${date}T12:00:00+03:00`);
 const shortTL = (k: number) => formatMoney(k, 'short');
@@ -39,20 +36,25 @@ function ackText(sec: number | null): string {
   return `${Math.floor(sec / 60)} dk ${sec % 60} sn`;
 }
 
-/** Raporlar (04 §11): gün sonu kasa özeti, dönem grafiği + ısı haritası, tasarruf kartı. Test siparişleri hariç. */
+/**
+ * Raporlar (04 §11): gün sonu kasa özeti, dönem grafiği + ısı haritası, tasarruf kartı, toplu veri indirme.
+ * Test siparişleri hiçbir rapora ve dosyaya girmez.
+ */
 export function ReportsView() {
   const me = useMe();
   const role = currentRole(me.data);
   const today = toIstanbulDateKey(new Date());
   const [date, setDate] = useState(today);
   const cashier = role === 'cashier';
+  // Toplu dışa aktarma uç noktası yalnız owner/manager'a açık (04 §11.6); diğer roller bloğu hiç görmez
+  const canExport = role === 'owner' || role === 'manager';
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-4">
       <VizStyles />
       <PageHeader title="Raporlar" description="Test siparişleri raporlara dahil edilmez. Günler Türkiye saatine göredir." />
       <div className="flex flex-wrap items-end gap-2">
-        <Button variant="secondary" size="icon" aria-label="Önceki gün" onClick={() => setDate(shiftDate(date, -1))} disabled={cashier}>
+        <Button variant="secondary" size="icon" aria-label="Önceki gün" onClick={() => setDate(addDays(date, -1))} disabled={cashier}>
           <ChevronLeft aria-hidden />
         </Button>
         <label className="flex flex-col gap-1 text-sm font-semibold text-fg">
@@ -66,7 +68,7 @@ export function ReportsView() {
             className="min-h-hit rounded-md border border-border-strong bg-surface-raised px-3 text-base text-fg"
           />
         </label>
-        <Button variant="secondary" size="icon" aria-label="Sonraki gün" onClick={() => setDate(shiftDate(date, 1))} disabled={cashier || date >= today}>
+        <Button variant="secondary" size="icon" aria-label="Sonraki gün" onClick={() => setDate(addDays(date, 1))} disabled={cashier || date >= today}>
           <ChevronRight aria-hidden />
         </Button>
         {date !== today ? (
@@ -82,6 +84,7 @@ export function ReportsView() {
           <SavingsSection />
         </>
       ) : null}
+      {canExport ? <DataExportSection supportSession={Boolean(me.data?.impersonating)} /> : null}
     </div>
   );
 }
@@ -182,7 +185,7 @@ function SummarySection() {
   const today = toIstanbulDateKey(new Date());
   const [days, setDays] = useState(30);
   const [asTable, setAsTable] = useState(false);
-  const from = shiftDate(today, -(days - 1));
+  const from = addDays(today, -(days - 1));
   const q = useApiQuery<SummaryReport>(['panel', 'reports', 'summary', from, today], '/panel/reports/summary', { query: { from, to: today } });
   return (
     <Section title={`Son ${days} gün`} description="Günlük teslim edilen ciro; saat ve güne göre yoğunluk.">
