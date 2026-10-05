@@ -1,9 +1,10 @@
 // Dilim 4 — müşteriler: liste (maskeli, arama, sayfalama), profil (tam telefon), not/kara liste, sipariş geçmişi,
-// KVKK dışa aktarma ve silme/anonimleştirme (08 §2.10); yetki ve yalıtım.
+// KVKK dışa aktarma ve silme/anonimleştirme (08 §2.10, SMS gönderim kayıtları dahil); yetki ve yalıtım.
 
-import { localDateString } from '@siparis/core';
-import { auditLog, cancellationRequests, conversations, customerAddresses, customers, messages, orderEvents, orderItems, orders, tenants, waAccounts } from '@siparis/db';
-import { and, eq, isNull } from 'drizzle-orm';
+import { localDateString, maskPhone } from '@siparis/core';
+import { auditLog, cancellationRequests, conversations, customerAddresses, customers, messages, orderEvents, orderItems, orders, smsMessages, tenants, waAccounts } from '@siparis/db';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { SMS_REDACTED_BODY } from '../src/services/customers/index';
 import { signCustomerCookie } from '../src/services/storefront/cookies';
 import { findTenantCustomer } from '../src/services/storefront/session';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -127,6 +128,8 @@ describe('profil, not, kara liste, siparişler', () => {
 
 describe('KVKK: dışa aktarma ve silme', () => {
   let convId: string;
+  /** Silmenin kapsaması gereken (otp, status) ve kapsamaması gereken (işletme alarmı, başka tenant) SMS kayıtları */
+  let sms: { otp: string; status: string; alarm: string; otherTenant: string };
 
   beforeAll(async () => {
     const [acc] = await ctx.db
@@ -136,6 +139,20 @@ describe('KVKK: dışa aktarma ve silme', () => {
     const [conv] = await ctx.db.insert(conversations).values({ tenantId: a.tenantId, branchId: a.branchId, waAccountId: acc!.id, customerId: ayse.id }).returning();
     convId = conv!.id;
     await ctx.db.insert(messages).values({ tenantId: a.tenantId, conversationId: convId, direction: 'in', kind: 'text', body: 'Adresim Lise Cad. 12' });
+
+    const [ord] = await ctx.db.select({ id: orders.id }).from(orders).where(and(eq(orders.customerId, ayse.id), isNull(orders.testKind))).limit(1);
+    const rows = await ctx.db
+      .insert(smsMessages)
+      .values([
+        { tenantId: a.tenantId, orderId: ord!.id, toPhone: '+905321112233', body: 'Doğrulama kodunuz: 123456', purpose: 'otp', provider: 'mock', status: 'sent', countsTowardQuota: true },
+        { tenantId: a.tenantId, orderId: null, toPhone: '+905321112233', body: 'Siparişiniz yolda: https://yemekgelsin.net/t/abc', purpose: 'status', provider: 'mock', status: 'sent', countsTowardQuota: true },
+        // İşletme sahibine giden alarm SMS'i müşterinin verisi değildir: dokunulmaz
+        { tenantId: a.tenantId, orderId: ord!.id, toPhone: '+905339998877', body: 'Yemek Gelsin: sipariş onay bekliyor', purpose: 'alarm', provider: 'mock', status: 'sent', countsTowardQuota: true },
+        // Başka tenant'ta aynı telefona giden kayıt (yalıtım)
+        { tenantId: b.tenantId, orderId: null, toPhone: '+905321112233', body: 'Doğrulama kodunuz: 999888', purpose: 'otp', provider: 'mock', status: 'sent', countsTowardQuota: true },
+      ])
+      .returning({ id: smsMessages.id });
+    sms = { otp: rows[0]!.id, status: rows[1]!.id, alarm: rows[2]!.id, otherTenant: rows[3]!.id };
   });
 
   it('dışa aktarma: yalnız sahip/yönetici; JSON içerik ve audit', async () => {
@@ -180,9 +197,27 @@ describe('KVKK: dışa aktarma ve silme', () => {
     const all = await req('GET', '/customers?limit=100', a.ownerCookie);
     expect(all.json().items.map((i: { id: string }) => i.id)).not.toContain(ayse.id);
     expectError(await req('GET', `/customers/${ayse.id}`, a.ownerCookie), 404, 'not_found');
+    // SMS gönderim kayıtları (08 §2.8 satır 19): kayıt kalır, telefon maskelenir, gövde (düz OTP, takip linki) boşaltılır
+    const smsRows = await ctx.db.select().from(smsMessages).where(inArray(smsMessages.id, [sms.otp, sms.status, sms.alarm, sms.otherTenant]));
+    expect(smsRows).toHaveLength(4);
+    for (const id of [sms.otp, sms.status]) {
+      const row = smsRows.find((x) => x.id === id)!;
+      expect(row.toPhone).toBe(maskPhone('+905321112233'));
+      expect(row.toPhone).not.toContain('5321112233');
+      expect(row.body).toBe(SMS_REDACTED_BODY);
+      expect(row.body).not.toContain('123456');
+      expect(row.body).not.toContain('/t/abc');
+      expect(row).toMatchObject({ status: 'sent', provider: 'mock', countsTowardQuota: true });
+    }
+    // İşletme alarmı ve başka tenant'ın kaydı olduğu gibi kalır
+    expect(smsRows.find((x) => x.id === sms.alarm)).toMatchObject({ toPhone: '+905339998877', body: 'Yemek Gelsin: sipariş onay bekliyor' });
+    expect(smsRows.find((x) => x.id === sms.otherTenant)).toMatchObject({ toPhone: '+905321112233', body: 'Doğrulama kodunuz: 999888' });
+
     const logs = await ctx.db.select().from(auditLog).where(and(eq(auditLog.tenantId, a.tenantId), eq(auditLog.action, 'customer.erase')));
     expect(logs).toHaveLength(1);
     expect(JSON.stringify(logs[0]!.data)).not.toContain('5321112233');
+    // İmha tutanağı: kaç SMS kaydı temizlendi
+    expect(logs[0]!.data).toMatchObject({ smsCount: 2 });
     // Başka tenant'taki aynı telefonlu kayıt etkilenmez
     const [f] = await ctx.db.select().from(customers).where(eq(customers.id, foreign.id));
     expect(f!.phoneE164).toBe('+905321112233');

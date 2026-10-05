@@ -137,7 +137,8 @@ describe('aksiyonlar', () => {
     expectError(await post(`/orders/${o.id}/reject`, cashier, { reason: 'closed' }), 409, 'rejection_pending');
     const fin = await jobsFor(ctx, o.id, 'order.finalize_rejection');
     expect(fin).toHaveLength(1);
-    expect(fin[0]!.dedupeKey).toBe(`finalize_rejection:${o.id}`);
+    // Nesil eki = siparişin yeni sürüm numarası: ret → geri al → yeniden ret her seferinde TAZE anahtar alır
+    expect(fin[0]!.dedupeKey).toMatch(new RegExp(`^finalize_rejection:${o.id}#g\\d+$`));
 
     const undo = await post(`/orders/${o.id}/undo-reject`, cashier);
     expect(undo.statusCode, undo.body).toBe(200);
@@ -154,6 +155,36 @@ describe('aksiyonlar', () => {
     expect(done).toMatchObject({ status: 'rejected', rejectionReason: 'other', rejectionNote: 'Malzeme bitti', rejectionScheduledAt: null });
     expect(done.trackingExpiresAt).toBeTruthy();
     expectError(await post(`/orders/${o.id}/undo-reject`, cashier), 409, 'rejection_finalized');
+  });
+
+  // H-b: `order.finalize_rejection` kalıcı başarısız olursa sipariş eskiden "bekleyen ret"te KİLİTLENİYORDU —
+  // anahtar işgal edildiği için yeniden ret işi hiç kurulamıyor, onay da 409 veriyordu. Nesil eki (sipariş sürümü)
+  // her ret denemesine taze anahtar verir. Aynı kilit 30 saniyelik yarışta da oluşuyordu: `cancelJobs` yalnız
+  // `pending` satıra dokunduğu için `running` iş anahtarı elinde tutuyordu.
+  it('ret işi kalıcı başarısız olsa bile sipariş kilitlenmez: yeniden ret taze nesil anahtarı alır', async () => {
+    const o = await createHookedOrder(ctx, s);
+    expect((await post(`/orders/${o.id}/reject`, cashier, { reason: 'too_busy' })).statusCode).toBe(200);
+    const [j1] = await jobsFor(ctx, o.id, 'order.finalize_rejection');
+    expect(j1).toBeTruthy();
+    await ctx.db.update(jobs).set({ status: 'failed', finishedAt: new Date(), lastError: 'kalıcı' }).where(eq(jobs.id, j1!.id));
+
+    // Bekleyen ret sürüyor: ne onay ne ikinci ret
+    expectError(await post(`/orders/${o.id}/accept`, cashier, { etaMinutes: 20 }), 409, 'rejection_pending');
+    expectError(await post(`/orders/${o.id}/reject`, cashier, { reason: 'closed' }), 409, 'rejection_pending');
+
+    // Geri al (başarısız satıra dokunulmaz) + yeniden ret → YENİ iş kurulur
+    expect((await post(`/orders/${o.id}/undo-reject`, cashier)).statusCode).toBe(200);
+    expect((await post(`/orders/${o.id}/reject`, cashier, { reason: 'too_busy' })).statusCode).toBe(200);
+    const all = await jobsFor(ctx, o.id, 'order.finalize_rejection');
+    expect(all).toHaveLength(2);
+    const fresh = all.find((j) => j.status === 'pending')!;
+    expect(fresh, 'yeniden ret işi kuyruğa girmeli').toBeTruthy();
+    expect(fresh.dedupeKey).not.toBe(j1!.dedupeKey);
+    expect((await ctx.db.select().from(jobs).where(eq(jobs.id, j1!.id)))[0]!.status).toBe('failed');
+
+    // Kilit açıldı: ret 30 sn sonra kesinleşir
+    await runJobsAt(ctx, 31_000);
+    expect((await statusOf(o.id)).status).toBe('rejected');
   });
 
   it('ret: "Diğer" notsuz 400; "Ürün kalmadı" seçilen ürünleri bugün tükendi yapar; yalnız new reddedilir', async () => {

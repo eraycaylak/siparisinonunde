@@ -66,8 +66,21 @@
     // (işletmeler, siparişler) boş veritabanıyla değiştirir; yalnız bilinçli bir sıfırlama kararıyla değiştirin.
     "DATA_EPOCH": "3",
     // Gizli staging'in ayrı veri dönemi (demo verisi alan adı verisine karışmasın); DATA_EPOCH'tan farklı olmalı
-    "STAGING_DATA_EPOCH": "901"
+    "STAGING_DATA_EPOCH": "901",
+    // İçerik güvenliği kuralı (CSP) yalnız rapor kipinde mi gönderilsin: "1" = tarayıcı uygulamaz, yalnız konsola
+    // yazar. İlk yayında kırılan bir şey var mı diye "1" ile başlanabilir; birkaç gün konsol temiz kaldıktan sonra
+    // "0" yapılır (src/security-headers.ts). "0": kural uygulanır.
+    "CSP_REPORT_ONLY": "0"
   },
+  // Gizli değerler iş akışında üretilir/yüklenir (scripts/secrets.mjs; wrangler deploy --secrets-file). Worker'da
+  // zaten olanlara dokunulmaz. İSTEĞE BAĞLI secret'lar aşağıdaki listede YOKTUR, elle bir kez verilir
+  // (`npx wrangler secret put <ad>`; --secrets-file eksik secret'ı silmez, kalıcı olur). Değerler burada yazılmaz.
+  //   - WEBHOOK_DRAIN_SECRET: webhook tamponunu boşaltma ucunun (POST /__yg/webhook-drain) paylaşılan sırrı.
+  //     Verilmezse uç 404 döner ve tampon yalnız Worker'ın kendi 5 dakikalık turuyla boşalır (15 §13).
+  //   - ALERT_WEBHOOK_URL: kısa JSON uyarıların gönderildiği adres (apps/api ile AYNI ad; src/mode.ts containerEnv
+  //     bunu container'a da geçirir, yani tek secret hem Worker'ın hem API'nin uyarı kanalını açar). Verilmezse
+  //     uyarılar yalnız günlüğe yazılır. İsteğe bağlı eşlikçisi ALERT_MIN_SEVERITY (info|warning|critical).
+  //   - Gerçek WhatsApp secret'ları (D360_API_KEY / TWILIO_* / META_*, WA_PHONE): iş akışı doluysa yükler (15 §6.2).
   "secrets": {
     "required": [
       "DEV_PASSWORD",

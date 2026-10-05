@@ -31,6 +31,15 @@
 # Seçilen yolun secret'larından biri eksikse mock (canlı ortamda çalışan WhatsApp yok).
 # Secret eklemek/değiştirmek dağıtımı kendiliğinden başlatmaz: Actions > "Canlı ortam (Cloudflare)" > Run workflow.
 # Dosya adı (deploy-dev-cloudflare.yml) ve Worker adı (siparisinonunde-dev) iç tanımlayıcıdır, değişmez (00 §12a madde 9).
+# DAĞITIM KAPISI (denetim 2026-10-04 · B4, B5 · FAZ 0.5 + 0.6 + 0.7) — kapının tamamı ve DAL POLİTİKASI önerisi
+# .github/workflows/testler.yml dosyasının başında anlatılıyor; tek kaynak orası. Burada olan bitenin özeti:
+#   - `testler` işi o kapıyı çağırır (PostgreSQL 16 + tür denetimi + ~897 test); `deploy` `needs: [kontrol, testler]`
+#     ile bekler, kapı kırmızıysa wrangler HİÇ çalışmaz.
+#   - Duman testi (ya da deploy'un kendisi) kırmızıysa son adım `wrangler rollback` ile Worker'ı geri alır. YARIM bir
+#     geri alıştır: container imajı ve veritabanı geri ALINMAZ (ayrıntı o adımın yorumunda ve iş akışı özetinde).
+#   - `workflow_dispatch` > `ref`: eski bir commit SHA'sı verilirse o sürüm dağıtılır; APP_VERSION ve duman testi
+#     tetikleyen commit'i değil GERÇEKTEN dağıtılan commit'i (DEPLOY_SHA) kullanır. Tam geri alış yolu budur.
+#   - Tetikleyici (ajan dalı dahil) BİLEREK değiştirilmedi; karar Eray'ın (testler.yml > DAL POLİTİKASI).
 name: Canlı ortam (Cloudflare)
 
 on:
@@ -38,9 +47,16 @@ on:
     branches: [main, claude/relaxed-pascal-1m775m]
     paths-ignore: ['docs/**', '**/*.md']
   workflow_dispatch:
+    inputs:
+      ref:
+        description: "Dağıtılacak commit, etiket ya da dal (boş: seçilen dalın son hâli). Geri almak için eski commit SHA'sını yazın."
+        type: string
+        required: false
+        default: ''
 
+# Grup adı deploy-production.yml ile AYNI: iki iş akışı aynı alan adına dağıtır, üst üste gelmesinler.
 concurrency:
-  group: deploy-dev-cloudflare
+  group: yemekgelsin-canli-dagitim
   cancel-in-progress: false
 
 permissions:
@@ -87,11 +103,25 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then echo "::error::$msg"; exit 1; fi
           echo "::warning::Canlı ortam dağıtımı atlandı. $msg"
 
-  deploy:
+  # DAĞITIM KAPISI: monorepo'nun tür denetimi ve testleri (PostgreSQL 16 servisiyle). Kırmızıysa `deploy` hiç başlamaz.
+  # `kontrol` hazır değilse (secret eksik ya da VPS yolu seçilmiş) kapı da koşmaz: boşa 40 dk CI harcanmasın.
+  testler:
     needs: kontrol
+    if: needs.kontrol.outputs.ready == 'true'
+    uses: ./.github/workflows/testler.yml
+    with:
+      # Elle eski bir sürüme dönülüyorsa kapı da O sürümün testlerini koşar (dalın son hâlini değil).
+      ref: ${{ inputs.ref || github.sha }}
+
+  deploy:
+    needs: [kontrol, testler]
     if: needs.kontrol.outputs.ready == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    # Dağıtım ortamı. GitHub > Settings > Environments > production > "Required reviewers" açıldığı anda her dağıtım
+    # onay bekler (bkz. dosya başındaki DAL POLİTİKASI önerisi). Ortam yoksa ilk çalıştırmada kuralsız oluşturulur ve
+    # dağıtım bugünkü gibi akar — bu satır tek başına hiçbir şeyi kilitlemez.
+    environment: production
     env:
       MODE: ${{ needs.kontrol.outputs.mode }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -103,6 +133,22 @@ jobs:
         working-directory: deploy/cloudflare
     steps:
       - uses: actions/checkout@v4
+        with:
+          # `ref` girdisi verilmişse o sürüm dağıtılır (elle geri alma); push'ta tetikleyen commit.
+          ref: ${{ inputs.ref || github.sha }}
+
+      # GERÇEKTEN dağıtılan commit. `github.sha` iş akışını tetikleyen commit'tir; `ref` ile eski bir sürüme
+      # dönüldüğünde ikisi FARKLIDIR. APP_VERSION ve duman testinin sürüm karşılaştırması bunu kullanır, yoksa
+      # geri alma dağıtımında duman testi hiç eşleşmeyen bir sürümü 20 dk bekler.
+      - name: Dağıtılacak sürüm (commit)
+        run: |
+          sha="$(git rev-parse HEAD)"
+          echo "DEPLOY_SHA=$sha" >> "$GITHUB_ENV"
+          echo "Dağıtılacak sürüm: ${sha:0:12}"
+          # `inputs.ref` değeri KABUĞA GÖMÜLMEZ (betik enjeksiyonu): yalnız tetikleyen commit'ten farklı mı denir.
+          if [ "$sha" != "$GITHUB_SHA" ]; then
+            echo "::notice::Elle seçilen bir sürüm dağıtılıyor (${sha:0:12}); dalın son hâli değil. Geri alma dağıtımı ise duman testi de bu sürümü arar."
+          fi
 
       - uses: actions/setup-node@v4
         with:
@@ -110,7 +156,9 @@ jobs:
           cache: npm
           cache-dependency-path: deploy/cloudflare/package-lock.json
 
-      - name: Bağımlılıklar, tür denetimi ve testler
+      # YALNIZ Worker kabuğu (deploy/cloudflare: access, mode, whatsapp-env, config-modes — 31 node:test vakası) ve
+      # wrangler'ın kendisi. Monorepo'nun tür denetimi ve ~897 testi `testler` işinde koştu; bu iş onu BEKLEDİ.
+      - name: Worker kabuğu bağımlılıkları, tür denetimi ve testleri
         run: |
           npm ci --no-audit --no-fund
           npm run typecheck
@@ -278,7 +326,7 @@ jobs:
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           WA_PHONE: ${{ secrets.WA_PHONE }}
         run: |
-          APP_VERSION="$GITHUB_SHA" node scripts/prepare-config.mjs "$SITE_URL" --mode "$MODE"
+          APP_VERSION="$DEPLOY_SHA" node scripts/prepare-config.mjs "$SITE_URL" --mode "$MODE"
           # İlk dağıtımda Worker yoktur: liste boş sayılır, tüm gizli değerler üretilir
           npx wrangler secret list -c wrangler.generated.jsonc --format json > "$RUNNER_TEMP/existing.json" 2>/dev/null || echo '[]' > "$RUNNER_TEMP/existing.json"
           # Gerçek WhatsApp secret'ları yalnız alan adı kipinde ve doluysa yüklenir (secrets.mjs; geçersiz telefon/kimlik,
@@ -299,7 +347,13 @@ jobs:
           done
 
       - name: Dağıt (Worker + container imajı; canlı ortamda özel alan adı)
+        id: dagit
         run: |
+          # Geri alma kapısı: bu noktadan SONRA Worker canlıda değişmiş olabilir. wrangler, Worker sürümünü imaj ve
+          # rollout adımlarından ÖNCE etkinleştirir ve adımlar transactional DEĞİLDİR: deploy hata verse bile yeni
+          # Worker canlı olabilir (developers.cloudflare.com/containers/guides/deploy). Bu yüzden işaret deploy'dan
+          # önce yazılır; "if: failure()" adımı buna bakar.
+          echo "attempted=true" >> "$GITHUB_OUTPUT"
           set +e
           npx wrangler deploy -c wrangler.generated.jsonc --secrets-file "$RUNNER_TEMP/secrets.json" --containers-rollout=immediate 2>&1 | tee "$RUNNER_TEMP/deploy.log"
           status=${PIPESTATUS[0]}
@@ -326,6 +380,7 @@ jobs:
           fi
 
       - name: Duman testi
+        id: duman
         env:
           WORKERS_DEV: ${{ steps.cf.outputs.workers_dev }}
           WA_MODE: ${{ steps.wa.outputs.mode }}
@@ -338,8 +393,9 @@ jobs:
 
           # İlk dağıtımda özel alan adının DNS kaydı ve sertifikası birkaç dakika sürer; container ilk açılışta seed ile
           # kurulur. Süreyle sınırlı (15 dk): container açılamazsa her istek ~150 sn bekleyip 503 döner.
-          # Eski container, yenisi devralana kadar yanıt vermeye devam eder: sürüm (APP_VERSION = bu commit) eşleşene
-          # kadar beklenir, yoksa eski sürümü (ör. eski demo verisini) test etmiş oluruz.
+          # Eski container, yenisi devralana kadar yanıt vermeye devam eder: sürüm (APP_VERSION = DEPLOY_SHA, yani
+          # gerçekten dağıtılan commit) eşleşene kadar beklenir, yoksa eski sürümü (ör. eski demo verisini) test
+          # etmiş oluruz.
           code=000; ver=""; i=0
           deadline=$((SECONDS + 1200))
           while [ "$SECONDS" -lt "$deadline" ]; do
@@ -349,12 +405,12 @@ jobs:
             code=$(printf '%s' "$body" | tail -n1)
             ver=$(printf '%s' "$body" | sed '$d' | jq -r '.version // empty' 2>/dev/null || true)
             echo "sağlık denemesi $i: HTTP $code, sürüm ${ver:-?}"
-            [ "$code" = "200" ] && [ "$ver" = "$GITHUB_SHA" ] && break
+            [ "$code" = "200" ] && [ "$ver" = "$DEPLOY_SHA" ] && break
             [ $((deadline - SECONDS)) -gt 15 ] || break
             sleep 15
           done
           [ "$code" = "200" ] || fail "$SITE_URL/api/v1/health 200 dönmedi (son: $code). Özel alan adı, sertifika ya da container hazır değil (docs/15 §13 Sorun giderme)."
-          [ "$ver" = "$GITHUB_SHA" ] || fail "Yeni sürüm 20 dk içinde devreye girmedi (yanıt veren: ${ver:-bilinmiyor}, beklenen: $GITHUB_SHA)."
+          [ "$ver" = "$DEPLOY_SHA" ] || fail "Yeni sürüm 20 dk içinde devreye girmedi (yanıt veren: ${ver:-bilinmiyor}, beklenen: $DEPLOY_SHA)."
 
           if [ "$MODE" = "staging" ]; then
             # Gizli: parolasız 401 (sağlık uçları açık), parolayla demo verili site
@@ -478,3 +534,49 @@ jobs:
             echo "- SMS: mock (SMS gönderilmez; SMS yedeği kapalı). Geliştirici araçları ve simülatör kapalı (/dev/* 404)."
             echo "- Yedek: R2'ye 2 dakikada bir (değişiklik varsa) ve her kapanışta/dağıtımda; beklenmedik çökmede en çok ~2 dakika kaybolabilir (docs/15 §13)."
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # Duman testi (ya da deploy'un kendisi) kırmızıysa Worker'ı bir önceki sürüme döndürür. Yalnız dağıtım
+      # DENENDİYSE çalışır: token/izin/yapılandırma hatasında canlıda hiçbir şey değişmemiştir.
+      # `wrangler rollback` (developers.cloudflare.com/workers/wrangler/commands/workers/#rollback): sürüm kimliği
+      # verilmezse en son sürümden ÖNCE yüklenene döner; `--message` etkileşimli soruyu atlar (CI'da şart); en son 100
+      # sürüme dönülebilir. GERİ ALINAN: Worker kodu/yapılandırması (rotalar, özel alan adı, başlıklar, vars).
+      # GERİ ALINMAYAN: (1) CONTAINER İMAJI — rollout yalnız `wrangler deploy` ile başlar
+      # (/containers/configuration/rollouts: "--containers-rollout applies to wrangler deploy only"), yani postgres +
+      # api + worker + web hâlâ yeni imajdadır; (2) VERİTABANI — aşağı migration yok (denetim H24).
+      # Container'lar Durable Object üzerine kurulu olduğu için Cloudflare, aradaki sürümlerde DO sınıf yaşam döngüsü
+      # değiştiyse geri almayı REDDEDEBİLİR: o durumda bu adım açık bir Türkçe talimat bırakır, işi kötüleştirmez.
+      - name: Duman testi kırmızı → Worker'ı geri al (wrangler rollback)
+        # `failure() || cancelled()`: iş 60 dk zaman aşımına düşerse ya da elle kesilirse de koşar; yoksa
+        # yarım kalmış bir sürüm canlıda geri alınmadan kalırdı (fail-open). `steps.duman.outcome != 'success'`:
+        # duman testi YEŞİL geçtikten sonra eklenen bir adım kırmızı yanarsa SAĞLAM dağıtım geri alınmasın.
+        if: ${{ (failure() || cancelled()) && steps.dagit.outputs.attempted == 'true' && steps.duman.outcome != 'success' }}
+        run: |
+          mesaj="Duman testi/dağıtım kırmızı: ${DEPLOY_SHA:-bilinmeyen sürüm} geri alındı (GitHub Actions run $GITHUB_RUN_ID)"
+          cfg=wrangler.generated.jsonc
+          [ -f "$cfg" ] || cfg=wrangler.jsonc
+          set +e
+          npx wrangler rollback -c "$cfg" --message "$mesaj" 2>&1 | tee "$RUNNER_TEMP/rollback.log"
+          rc=${PIPESTATUS[0]}
+          set -e
+          {
+            echo "### Dağıtım başarısız → otomatik geri alma"
+            echo ""
+            echo "- Dağıtılmak istenen sürüm: \`${DEPLOY_SHA:0:12}\`"
+            if [ "$rc" = "0" ]; then
+              echo "- \`wrangler rollback\` **başarılı**: Worker bir önceki sürüme döndü (yönlendirme, özel alan adı, başlıklar, Worker yapılandırması)."
+            else
+              echo "- \`wrangler rollback\` **BAŞARISIZ** (çıkış kodu $rc). Canlı Worker hâlâ bu çalıştırmanın sürümünde olabilir. Günlüğe bakın; Durable Object sınıfı değiştiyse ya da bir binding silindiyse Cloudflare geri almayı reddeder."
+            fi
+            echo "- ⚠️ \`wrangler rollback\` sürüm kimliği VERMEZ: en son sürümden önce yüklenene döner. \`wrangler deploy\` hiç sürüm YÜKLEMEDEN hata verdiyse (yapılandırma, izin ya da imaj derleme hatası) bu geri alma zaten sağlam olan sürümü bir adım geriye almış olabilir — \`npx wrangler versions list\` ile doğrulayın. Yarım bir dağıtımın canlıda kalmasındansa bu bilerek seçilmiş sınırdır."
+            echo "- ⚠️ **Container imajı geri ALINMADI.** \`wrangler rollback\` yalnız Worker sürümünü döndürür; container rollout'u yalnız \`wrangler deploy\` başlatır. PostgreSQL + API + worker + web hâlâ bu çalıştırmanın imajında çalışıyor."
+            echo "- ⚠️ **Veritabanı geri alınmadı.** Aşağı migration yok; bu dağıtım migration uyguladıysa şema yeni hâlindedir."
+            echo ""
+            echo "**Tam geri alış (container dahil):** Actions > \"Canlı ortam (Cloudflare)\" > Run workflow > \`ref\` alanına çalışan son commit'in SHA'sını yazın. O sürümün testleri de kapıdan geçer ve imaj yeniden derlenip rollout edilir."
+            echo ""
+            echo "**Durumu görmek için:** \`npx wrangler deployments list\` ve \`npx wrangler versions list\` (deploy/cloudflare dizininde)."
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$rc" != "0" ]; then
+            echo "::error::Otomatik geri alma başarısız (çıkış $rc). Canlı ortam bu çalıştırmanın sürümünde kalmış olabilir: iş akışını \`ref\` girdisiyle çalışan son commit'te elle çalıştırın (docs/15 §13)."
+          fi
+          # Bu adım iş akışının sonucunu DEĞİŞTİRMEZ: asıl hata (duman testi) kırmızı kalır, çalıştırma başarısız görünür.
+          exit 0

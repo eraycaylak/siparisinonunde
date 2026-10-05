@@ -1,7 +1,7 @@
 // Müşteriler / CRM (04 §8) ve KVKK talepleri (08 §2.10): liste (maskeli telefon), profil, not/kara liste,
 // sipariş geçmişi, veri dışa aktarma ve silme/anonimleştirme. Test siparişleri hariç.
 
-import { maskPhone, turkishLower, type FulfillmentType, type PaymentMethod } from '@siparis/core';
+import { maskPhone, turkishLower, type FulfillmentType, type PaymentMethod, type SmsPurpose } from '@siparis/core';
 import type { CustomerDetail, CustomerListItem, CustomerOrderItem, CustomerPatch } from '@siparis/core/settings/contracts';
 import {
   cancellationRequests,
@@ -16,6 +16,7 @@ import {
   orders,
   otpVerifications,
   reviews,
+  smsMessages,
   storefrontLinkTokens,
   tenants,
   type Database,
@@ -29,6 +30,13 @@ type CustomerRow = typeof customers.$inferSelect;
 
 export const ERASED_CUSTOMER_NAME = 'Silinmiş müşteri';
 export const ANONYMOUS_ORDER_NAME = 'Anonim müşteri';
+/**
+ * Gövdesi boşaltılan SMS gönderim kaydının metni. Kayıt silinmez (gövde NOT NULL): durum, amaç, sağlayıcı ve kota
+ * alanları maliyet raporu için kalır (07 §9, 08 §2.8 satır 19). Saklama işi de aynı metni yazar (idempotent kontrol).
+ */
+export const SMS_REDACTED_BODY = 'SMS içeriği silindi.';
+/** Müşteriye giden SMS amaçları. `alarm` işletme sahibine gider; müşteri silmesinde ona dokunulmaz. */
+const CUSTOMER_SMS_PURPOSES: readonly SmsPurpose[] = ['otp', 'status'];
 const OPEN_STATUSES = ['awaiting_customer', 'new', 'accepted', 'preparing', 'ready', 'on_the_way'] as const;
 
 /** Sayfalama imleci: [grup (0 = siparişi olan, 1 = olmayan)] | an (mikrosaniye hassasiyetli UTC metin) | id */
@@ -371,14 +379,15 @@ export async function exportCustomer(db: Database, c: CustomerRow) {
 
 /**
  * KVKK silme/anonimleştirme (08 §2.10, §2.8): açık siparişi varsa 409. Müşteri kimlik/iletişim alanları, adresler,
- * sohbet içerikleri silinir; siparişlerde ad/telefon/adres anonimleşir, tutarlar (mali kayıt) korunur.
+ * sohbet içerikleri silinir; siparişlerde ad/telefon/adres anonimleşir, tutarlar (mali kayıt) korunur. SMS gönderim
+ * kayıtlarında telefon maskelenir ve gövde boşaltılır (kayıt maliyet için kalır).
  * `actorUserId` null = sistem (saklama işi, retention.customer_inactive); `customer_erasures.erased_by_user_id` boş kalır.
  */
 export async function eraseCustomer(
   tx: Database,
   c: CustomerRow,
   actorUserId: string | null,
-): Promise<{ orderCount: number; messageCount: number }> {
+): Promise<{ orderCount: number; messageCount: number; smsCount: number }> {
   const [open] = await tx
     .select({ n: sql<number>`count(*)::int` })
     .from(orders)
@@ -438,10 +447,41 @@ export async function eraseCustomer(
       .set({ lastMessagePreview: null, unreadCount: 0, updatedAt: new Date() })
       .where(and(eq(conversations.tenantId, c.tenantId), inArray(conversations.id, convs.map((x) => x.id))));
   }
+  const smsCount = await eraseCustomerSms(tx, c, orderIds);
   await tx.delete(storefrontLinkTokens).where(and(eq(storefrontLinkTokens.tenantId, c.tenantId), eq(storefrontLinkTokens.customerId, c.id)));
   await forgetSharedRoute(tx, c);
   await tx.insert(customerErasures).values({ customerId: c.id, tenantId: c.tenantId, erasedByUserId: actorUserId });
-  return { orderCount: orderIds.length, messageCount };
+  return { orderCount: orderIds.length, messageCount, smsCount };
+}
+
+/**
+ * Müşteriye gönderilmiş SMS kayıtları (08 §2.8 satır 19): kayıt silinmez — telefon `maskPhone` ile maskelenir, gövde
+ * (düz OTP kodu, takip linki) `SMS_REDACTED_BODY` ile boşaltılır; durum, amaç, sağlayıcı ve kota alanları maliyet
+ * raporu için kalır (07 §9). Kapsam: bu tenant'ın `otp`/`status` SMS'lerinden anonimleşen siparişlere bağlı olanlar ve
+ * müşterinin telefonuna gidenler (telefon başka kayıtta da geçebilir). Maskeli telefon yeniden maskelenmez.
+ */
+async function eraseCustomerSms(tx: Database, c: CustomerRow, orderIds: string[]): Promise<number> {
+  const subject = [
+    ...(orderIds.length ? [inArray(smsMessages.orderId, orderIds)] : []),
+    ...(c.phoneE164 ? [eq(smsMessages.toPhone, c.phoneE164)] : []),
+  ];
+  if (!subject.length) return 0;
+  const rows = await tx
+    .select({ id: smsMessages.id, toPhone: smsMessages.toPhone })
+    .from(smsMessages)
+    .where(and(eq(smsMessages.tenantId, c.tenantId), inArray(smsMessages.purpose, [...CUSTOMER_SMS_PURPOSES]), or(...subject)));
+  if (!rows.length) return 0;
+  const values = sql.join(
+    rows.map((r) => sql`(${r.id}::uuid, ${maskPhone(r.toPhone) || '****'})`),
+    sql`, `,
+  );
+  await tx.execute(sql`
+    update sms_messages s
+       set to_phone = case when strpos(s.to_phone, '*') > 0 then s.to_phone else v.masked end,
+           body = ${SMS_REDACTED_BODY}
+      from (values ${values}) as v(id, masked)
+     where s.id = v.id`);
+  return rows.length;
 }
 
 /**

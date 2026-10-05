@@ -46,6 +46,14 @@ export interface ContainerInputs {
   PLATFORM_WA_WEBHOOK_TOKEN: string;
   VAPID_PUBLIC_KEY: string;
   VAPID_PRIVATE_KEY: string;
+  /**
+   * Operasyon uyarılarının gittiği adres (apps/api/src/lib/alert.ts; 15 §6.1). Worker secret'ı olarak verilir ve
+   * BURADAN container'a geçer: containerEnv bir beyaz listedir, listeye yazılmayan hiçbir Worker değişkeni
+   * container'a ulaşmaz — bu satır olmadan API'nin tek uyarı kanalı canlı yolda hiç kurulamıyordu.
+   */
+  ALERT_WEBHOOK_URL?: string;
+  /** Dış kanala gönderilecek en düşük uyarı ağırlığı: info | warning | critical (varsayılan warning). */
+  ALERT_MIN_SEVERITY?: string;
 }
 
 /**
@@ -58,6 +66,8 @@ export function containerEnv(mode: DeployMode, env: ContainerInputs, waEnv: Reco
   const settings = modeSettings(mode);
   const staging = mode === 'staging';
   const seedMode = env.SEED_MODE === 'demo' || env.SEED_MODE === 'admin' ? env.SEED_MODE : staging ? 'demo' : 'admin';
+  const alertUrl = (env.ALERT_WEBHOOK_URL ?? '').trim();
+  const alertMin = (env.ALERT_MIN_SEVERITY ?? '').trim();
   return {
     NODE_ENV: 'production',
     APP_VERSION: env.APP_VERSION ?? '',
@@ -98,5 +108,9 @@ export function containerEnv(mode: DeployMode, env: ContainerInputs, waEnv: Reco
     VAPID_SUBJECT: env.APP_BASE_URL,
     UPLOAD_DIR: '/data/uploads',
     LOG_LEVEL: 'info',
+    // Uyarı kanalı (apps/api/src/lib/alert.ts): yalnız değer verildiyse yazılır. Boş dizge yazmak, adresi "tanımlı
+    // ama geçersiz" yapıp API'nin üretim açılış denetimini (loadConfig) ilerde kırabilir.
+    ...(alertUrl ? { ALERT_WEBHOOK_URL: alertUrl } : {}),
+    ...(alertMin ? { ALERT_MIN_SEVERITY: alertMin } : {}),
   };
 }

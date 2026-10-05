@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { StorefrontView } from '@siparis/core/menu/contracts';
-import { LEGAL_DOCUMENT_VERSION } from '@siparis/core/enums';
+import { LEGAL_DOCUMENT_VERSION, isDraftLegalVersion } from '@siparis/core/enums';
 import {
   IMPRINT_PLACEHOLDERS,
   STORE_LEGAL_DOCS,
+  STORE_LEGAL_IS_DRAFT,
   WITHDRAWAL_EXCEPTION_TEXT,
   availableImprintRows,
   buildStoreLegalDocument,
   fulfilmentLines,
   imprintRows,
   isStoreLegalDoc,
+  legalDocumentPlainText,
   paymentMethodsText,
   sellerImprint,
   storeImprint,
@@ -240,5 +242,38 @@ describe('ön bilgilendirme ve mesafeli satış (08 §4.4)', () => {
     const pickupOnly = store({ branch: { acceptsDelivery: false } });
     expect(fulfilmentLines(pickupOnly)).toHaveLength(1);
     expect(zoneLines(pickupOnly)).toEqual([]);
+  });
+});
+
+describe('sürüm ve içerik özeti (08 §7.5; denetim B2, H19)', () => {
+  it('taslak işareti sürümden türetilir, sayfaya çivilenmez', () => {
+    expect(isDraftLegalVersion('2026-09-28-taslak')).toBe(true);
+    expect(isDraftLegalVersion('2026-10-15')).toBe(false);
+    expect(isDraftLegalVersion('2026-10-15-DRAFT')).toBe(true);
+    expect(STORE_LEGAL_IS_DRAFT).toBe(isDraftLegalVersion(LEGAL_DOCUMENT_VERSION));
+  });
+
+  it('kanonik düz metin sürümü, künyeyi ve bütün bölümleri taşır', () => {
+    const d = buildStoreLegalDocument('mesafeli-satis', store());
+    const text = legalDocumentPlainText(d);
+    expect(text.startsWith('# Mesafeli satış sözleşmesi')).toBe(true);
+    expect(text).toContain(`surum: ${LEGAL_DOCUMENT_VERSION}`);
+    expect(text).toContain('belge: mesafeli-satis');
+    expect(text).toContain(`kunye: Unvan = ${FULL_LEGAL.legalName}`);
+    for (const [i, section] of d.sections.entries()) expect(text).toContain(`## ${i + 1}. ${section.title}`);
+    // Satır içi boşluk normalleştirilir: biçim değişikliği özeti değiştirmez
+    expect(text.split('\n').every((line) => line === line.trim() && !/\s{2,}/.test(line))).toBe(true);
+  });
+
+  it('aynı şablon farklı işletmede farklı metin üretir: özet işletmeye özgüdür', () => {
+    const a = legalDocumentPlainText(buildStoreLegalDocument('on-bilgilendirme', store()));
+    const b = legalDocumentPlainText(buildStoreLegalDocument('on-bilgilendirme', store({ legal: { legalName: 'Başka Unvan' } })));
+    expect(a).not.toBe(b);
+  });
+
+  it('metin değişmedikçe düz metin kararlıdır (aynı girdi, aynı çıktı)', () => {
+    const once = legalDocumentPlainText(buildStoreLegalDocument('aydinlatma', store()));
+    const twice = legalDocumentPlainText(buildStoreLegalDocument('aydinlatma', store()));
+    expect(once).toBe(twice);
   });
 });

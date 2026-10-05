@@ -6,6 +6,7 @@ import {
   isDevToolsPath,
   isHealthPath,
   isNavigation,
+  isWebhookPath,
   normalizeDeployMode,
   normalizeEpoch,
   normalizePathForAuth,
@@ -58,6 +59,21 @@ test('workers.dev: sayfa gezintisi özel alan adına 302, API ve webhook çalı�
   assert.equal(redirectFor(new URL(`${dev}/_next/static/a.js`), 'GET', '*/*', SITE), null);
   // Site adresi workers.dev ise (yedek yapılandırma) yönlendirme yok
   assert.equal(redirectFor(new URL(`${dev}/`), 'GET', HTML, dev), null);
+});
+
+test('gelen webhook yolları (container alamazsa yalnız bunlar R2 tamponuna yazılır; src/webhook-spool.ts)', () => {
+  for (const p of [
+    '/api/v1/webhooks/wa/abc123',
+    '/api/v1/webhooks/wa/shared/abc123',
+    '/API/v1/Webhooks/wa/x',
+    '/api/v1/%77ebhooks/wa/x',
+    '/api//v1/webhooks/wa/x',
+  ]) {
+    assert.equal(isWebhookPath(p), true, p);
+  }
+  for (const p of ['/api/v1/webhooks', '/api/v1/health', '/', '/panel/giris', '/api/v1/store/x/orders', '/webhooks/wa/x']) {
+    assert.equal(isWebhookPath(p), false, p);
+  }
 });
 
 test('gezinme tanımı', () => {

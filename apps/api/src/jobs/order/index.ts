@@ -13,15 +13,8 @@ import { branches, customers, memberships, orderEvents, orders, tenants, users, 
 import { and, asc, eq, isNull, sql } from 'drizzle-orm';
 import { channelDelivers, mockDelivers, type Config } from '../../config';
 import { appendBranchEvent } from '../../lib/events';
-import { cancelJobs, enqueueJob, registerJobHandler } from '../../lib/jobs';
-import {
-  ALARM_STEP,
-  alarmDedupeKey,
-  awaitingTimeoutKey,
-  finalizeRejectionKey,
-  normalizeAlarmPolicy,
-  planAlarmSteps,
-} from '../../services/orders/alarm-policy';
+import { cancelJobs, enqueueJob, generationKey, registerJobHandler } from '../../lib/jobs';
+import { ALARM_STEP, alarmDedupeKey, awaitingTimeoutKey, normalizeAlarmPolicy, planAlarmSteps } from '../../services/orders/alarm-policy';
 import type { OrderRow } from '../../services/orders/summary';
 import { onOrderCreated, onOrderTransition, transitionOrder } from '../../services/orders/transition';
 import { enqueueNewOrderPush } from '../../services/push/send';
@@ -31,6 +24,12 @@ export interface AlarmStepPayload {
   tenantId: string;
   branchId: string;
   step: number;
+  /**
+   * Adımın kaçıncı DENEMESİ olduğu (anahtar eki `…#g<gen>`, `generationKey`). 0/tanımsız = çıplak anahtar.
+   * Artıranlar: bekleyen ret ertelemesi (aşağıda) ve emniyet cron'u (`watchNewOrders`). Adımın kendisi dışarıya
+   * etki üretmez — nesil yalnız tam unique altında yeni bir satır açabilmek içindir.
+   */
+  gen?: number;
   [key: string]: unknown;
 }
 
@@ -46,6 +45,26 @@ export interface AwaitingTimeoutPayload {
   orderId: string;
   tenantId: string;
   [key: string]: unknown;
+}
+
+/** Erteleme bekleme katsayısının katlanmayı bıraktığı nesil (üst sınır 2^6 ≈ 33 dk'lık adım). */
+const DEFER_MAX_SHIFT = 6;
+
+/**
+ * Bekleyen ret yüzünden ertelenen alarm adımının, RET ANINA göre kümülatif beklemesi (ms).
+ *
+ * `gen = 1` tam olarak eski davranıştır: ret + 30 sn geri alma penceresi + 1 sn. Sonraki nesiller katlanarak
+ * uzayan adımlarla EKLENİR (31 sn, +62 sn, +124 sn …, sınırdan sonra sabit +33 dk), yani hedef an her nesilde
+ * kesin olarak İLERLER. Neden gerekli: ret 30 sn'de kesinleşmediyse (ör. `finalize_rejection` kalıcı başarısız)
+ * hedef an geçmişte kalır; sabit bekleme ile adım her worker turunda yeniden ertelenip her turda yeni bir satır
+ * açardı (sonsuz döngü). Katlanan adımla satır sayısı günde onlarla sınırlı kalır ve asıl arıza zaten
+ * `job_failed_permanent` kritik uyarısını vermiştir.
+ */
+export function deferWaitMs(gen: number, baseMs = REJECTION_UNDO_WINDOW_MS + 1_000): number {
+  const n = Math.max(1, Math.floor(gen));
+  const capped = Math.min(n, DEFER_MAX_SHIFT);
+  // 1 + 2 + 4 + … + 2^(capped-1) = 2^capped - 1; sınırdan sonra her nesil sabit 2^DEFER_MAX_SHIFT ekler
+  return baseMs * (2 ** capped - 1 + 2 ** DEFER_MAX_SHIFT * Math.max(0, n - DEFER_MAX_SHIFT));
 }
 
 /** Sipariş `new` olduğunda (oluşturma ya da awaiting_customer → new) zinciri planlar. t0 = şimdi. */
@@ -132,16 +151,19 @@ export async function runAlarmStep(db: Database, payload: AlarmStepPayload, conf
       .for('update');
     if (!order || order.status !== 'new') return;
 
-    // Bekleyen ret: eskalasyon durur; adım ret penceresinin sonrasına ertelenir (geri alınırsa sürer)
+    // Bekleyen ret: eskalasyon durur; adım ret penceresinin sonrasına ertelenir (geri alınırsa sürer).
+    // Erteleme bir SONRAKİ nesli açar: eski `…:after:<ret zamanı>` deseni, ret hâlâ aynı ana planlıyken ikinci kez
+    // ertelemek gerektiğinde ÇALIŞAN kendi satırının anahtarını üretiyordu → çakışma → adım buharlaşıyordu.
     if (order.rejectionScheduledAt) {
-      const resumeAt = new Date(order.rejectionScheduledAt.getTime() + REJECTION_UNDO_WINDOW_MS + 1_000);
+      const gen = (payload.gen ?? 0) + 1;
+      const resumeAt = new Date(order.rejectionScheduledAt.getTime() + deferWaitMs(gen));
       await enqueueJob(tx, {
         queue: 'notify',
         type: 'order.alarm_step',
         tenantId: order.tenantId,
         runAt: resumeAt,
-        dedupeKey: `${alarmDedupeKey(order.id, payload.step)}:after:${order.rejectionScheduledAt.getTime()}`,
-        payload: { ...payload },
+        dedupeKey: generationKey(alarmDedupeKey(order.id, payload.step), gen),
+        payload: { ...payload, gen },
       });
       return;
     }
@@ -343,7 +365,10 @@ export function registerOrderJobs(): void {
     if (from === 'awaiting_customer') await cancelJobs(tx, { dedupeKey: awaitingTimeoutKey(order.id) });
     if (from === 'new') {
       await cancelAlarmChain(tx, order.id);
-      if (to !== 'rejected') await cancelJobs(tx, { dedupeKey: finalizeRejectionKey(order.id) });
+      // Anahtar değil tür+sipariş ile: `finalize_rejection` anahtarı nesil eki taşır (`…#g<version>`), tek bir
+      // anahtar metni artık siparişin tüm ret işlerini kapsamıyor. Bekleyen ret zaten tek olabilir (reject rotası
+      // ikincisine 409 `rejection_pending` verir), yani iptal kümesi pratikte aynı kalır.
+      if (to !== 'rejected') await cancelJobs(tx, { type: 'order.finalize_rejection', orderId: order.id });
     }
     if (to === 'new') {
       await scheduleAlarmChain(tx, order);

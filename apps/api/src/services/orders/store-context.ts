@@ -1,14 +1,12 @@
 // Storefront bağlamı: slug → işletme + varsayılan şube, şubenin anlık sipariş alma durumu (00 §7 ordering_state).
 
 import { computeOrderingState, localDateString, type OrderingStateResult } from '@siparis/core';
+import { isOrderingBlockedStage } from '@siparis/core/admin/lifecycle';
 import { branches, openingHours, specialDays, tenants, type Database } from '@siparis/db';
 import { and, asc, desc, eq, gte } from 'drizzle-orm';
 
 export type TenantRow = typeof tenants.$inferSelect;
 export type BranchRow = typeof branches.$inferSelect;
-
-/** Sipariş almayı kapatan yaşam döngüsü aşamaları (00 §9: askı, kapanış). */
-const CLOSED_STAGES = new Set<TenantRow['lifecycleStage']>(['suspended', 'churned']);
 
 export async function loadDefaultBranch(db: Database, tenantId: string): Promise<BranchRow | undefined> {
   const [b] = await db
@@ -54,9 +52,11 @@ export async function computeBranchOrderingState(db: Database, branch: BranchRow
 }
 
 /**
- * İşletme genelinde online sipariş kapalı mı: kill-switch, askı/kapanış ya da henüz "Canlıya geç" denmemiş
- * (web_live_at boş; künye tamamlanmadan storefront yayına alınmaz — 04 §3.4.4, 6563 s. K. m.3).
+ * İşletme genelinde online sipariş kapalı mı: kill-switch, sipariş almayan aşama (salt-okunur/askı/kapanış) ya da
+ * henüz "Canlıya geç" denmemiş (web_live_at boş; künye tamamlanmadan storefront yayına alınmaz — 04 §3.4.4,
+ * 6563 s. K. m.3). Aşama listesi `@siparis/core/admin/lifecycle` → `ORDERING_BLOCKED_STAGES` ile TEK kaynaktan
+ * gelir (00 §9): vitrin düğmeyi gizlerken sipariş ucunun aynı siparişi kabul etmesi mümkün olmasın.
  */
 export function tenantOrderingBlocked(tenant: TenantRow): boolean {
-  return !tenant.orderingEnabled || CLOSED_STAGES.has(tenant.lifecycleStage) || !tenant.webLiveAt;
+  return !tenant.orderingEnabled || isOrderingBlockedStage(tenant.lifecycleStage) || !tenant.webLiveAt;
 }

@@ -10,6 +10,7 @@ import {
   CUSTOMER_INACTIVE_MONTHS,
   eraseInactiveCustomer,
   inactiveCustomerIds,
+  SMS_REDACTED_BODY,
   tenantsWithInactiveCustomers,
 } from '../../services/customers/index';
 
@@ -18,9 +19,15 @@ export const RETENTION_DAYS = {
   branchEvents: 7,
   waWebhookEvents: 30,
   otpVerifications: 30,
-  /** SMS gönderim kaydı: süre dolunca telefon maskelenir; durum, amaç ve kota/maliyet alanları kalır (08 §2.8 satır 19) */
+  /** SMS gönderim kaydı: süre dolunca telefon maskelenir ve gövde boşaltılır; durum, amaç ve kota/maliyet alanları kalır (08 §2.8 satır 19) */
   smsMessages: 90,
+  /** İşletme bildirimi (panel, web push, platform WA, SMS, log): silinir (07 §9, 08 §2.8 satır 22) */
+  notifications: 90,
   finishedJobs: 30,
+  /** Kalıcı hata (DLQ) işi: satır teşhis için kalır, yükteki kişisel veri ve hata metni maskelenir (08 §2.8 satır 22) */
+  failedJobsMask: 30,
+  /** Kalıcı hata (DLQ) işi: maskelenmiş satır bu süreden sonra silinir */
+  failedJobs: 90,
   storefrontLinkTokens: 30,
   courierLoginLinks: 7,
   /** Gelen konum ve medya mesajlarının koordinat/adres/medya kimliği (08 §2.8 retention.locations, retention.media) */
@@ -62,6 +69,22 @@ const WA_MESSAGE_TEXT_KEYS = ['title', 'profileName', 'username', 'referral', 'r
 /** Konum/medya mesajından silinen yük anahtarları. */
 const LOCATION_MEDIA_KEYS = sql.raw(`array['lat', 'lng', 'address', 'name', 'mediaId', 'raw']`);
 
+/**
+ * Kalıcı hata (DLQ) işinin yükünde kişisel veri ya da sır taşıyan anahtar DESENİ. Admin yük maskesinin üç deseni
+ * (`services/admin/util.ts` PHONE/ADDRESS/SECRET_KEYS, 05 A-11) birebir buraya taşınır: orada da anahtar DESENLE
+ * eşleşir, tam liste `toPhone`, `phoneE164`, `secret`, `password`, `apiKey` gibi yazım farklarını kaçırırdı. Buna ek
+ * olarak serbest metin alanları (`body`: düz metin OTP kodu, `text`: uyarı metni) ve `customerName` de boşaltılır.
+ * Kısa adlar çapalanır: `^to$` `totalKurus`'u, `^text$` `test`'i, `^lat$` `translatedAt`'i tutmasın. Değer silinmez,
+ * `"***"` olur: iş türü ve yükün şekli DLQ teşhisi için kalsın. Yalnız ÜST DÜZEY anahtarlar taranır (bugünkü iş
+ * yükleri düz; iç içe yük gelirse bu adım onu kaçırır).
+ */
+const JOB_PII_KEY_RE = sql.raw(
+  `'(phone|^to$|msisdn|wa_?id|bsuid|address|directions|^lat$|^lng$|location|token|secret|password|api_?key|code_?hash|^code$|^body$|^text$|^customerName$)'`,
+);
+const JOB_PII_MASK = sql.raw(`'"***"'::jsonb`);
+/** Hata metnindeki telefon benzeri rakam dizisi (safeError ile aynı desen). */
+const PHONE_IN_TEXT = sql.raw(`'\\+?\\d[\\d\\s-]{6,}\\d'`);
+
 const FINAL_STATUSES = sql.raw(`('delivered', 'rejected', 'cancelled')`);
 
 /** SMS maskeleme partisi. */
@@ -88,14 +111,19 @@ async function affectedRows(db: Database, q: SQL): Promise<number> {
   return Number(r?.n ?? 0);
 }
 
-/** SMS gönderim kayıtlarında 90 günü geçen telefonları maskeler (maskPhone; maskeli değer '*' içerir → idempotent). */
-async function maskOldSmsPhones(db: Database): Promise<number> {
+/**
+ * SMS gönderim kayıtlarında 90 günü geçenlerin telefonunu maskeler (maskPhone) ve gövdesini boşaltır: gövde düz metin
+ * OTP kodu ve takip linki taşır, süresiz kalmamalı. Kayıt silinmez; durum, amaç, sağlayıcı ve kota alanları maliyet
+ * raporu için kalır (08 §2.8 satır 19). Maskeli telefon '*' içerir, boşaltılan gövde sabit metne eşittir → ikinci
+ * koşuda satır seçilmez (idempotent).
+ */
+async function redactOldSmsMessages(db: Database): Promise<number> {
   let total = 0;
   for (;;) {
     const rows = (await db.execute<{ id: string; to_phone: string }>(sql`
       select id, to_phone from sms_messages
        where created_at < now() - make_interval(days => ${RETENTION_DAYS.smsMessages})
-         and strpos(to_phone, '*') = 0
+         and (strpos(to_phone, '*') = 0 or body <> ${SMS_REDACTED_BODY})
        order by id
        limit ${SMS_MASK_BATCH}`)) as unknown as { id: string; to_phone: string }[];
     if (!rows.length) break;
@@ -105,9 +133,11 @@ async function maskOldSmsPhones(db: Database): Promise<number> {
     );
     const n = await affectedRows(
       db,
-      sql`update sms_messages s set to_phone = v.masked
+      sql`update sms_messages s
+             set to_phone = case when strpos(s.to_phone, '*') > 0 then s.to_phone else v.masked end,
+                 body = ${SMS_REDACTED_BODY}
             from (values ${values}) as v(id, masked)
-           where s.id = v.id and strpos(s.to_phone, '*') = 0
+           where s.id = v.id and (strpos(s.to_phone, '*') = 0 or s.body <> ${SMS_REDACTED_BODY})
           returning s.id`,
     );
     total += n;
@@ -171,11 +201,37 @@ export async function runRetention(db: Database, log: FastifyBaseLogger): Promis
   await step('retention.technical.branch_events', sql`delete from branch_events where created_at < now() - make_interval(days => ${r.branchEvents}) returning seq`);
   await step('retention.technical.wa_webhook_events', sql`delete from wa_webhook_events where received_at < now() - make_interval(days => ${r.waWebhookEvents}) returning id`);
   await step('retention.technical.otp_verifications', sql`delete from otp_verifications where created_at < now() - make_interval(days => ${r.otpVerifications}) returning id`);
-  // SMS gönderim kaydı silinmez: telefon maskelenir; durum, amaç, sağlayıcı ve kota alanı (maliyet raporu) kalır
-  await record('retention.technical.sms_messages', null, () => maskOldSmsPhones(db));
+  // SMS gönderim kaydı silinmez: telefon maskelenir, gövde boşaltılır; durum, amaç, sağlayıcı ve kota alanı (maliyet raporu) kalır
+  await record('retention.technical.sms_messages', null, () => redactOldSmsMessages(db));
   await step(
     'retention.technical.jobs',
     sql`delete from jobs where status in ('done', 'cancelled') and finished_at < now() - make_interval(days => ${r.finishedJobs}) returning id`,
+  );
+  // Kalıcı hata (DLQ): satır teşhis için kalır, 30 gün sonra yükteki kişisel veri ve hata metnindeki telefon maskelenir
+  await step(
+    'retention.technical.jobs.failed_payload',
+    sql`update jobs j
+           set payload = (
+                 select coalesce(jsonb_object_agg(e.k, case when e.k ~* ${JOB_PII_KEY_RE} then ${JOB_PII_MASK} else e.v end), '{}'::jsonb)
+                   from jsonb_each(j.payload) as e(k, v)),
+               last_error = case when j.last_error is null then null else regexp_replace(j.last_error, ${PHONE_IN_TEXT}, '***', 'g') end
+         where j.status = 'failed'
+           and coalesce(j.finished_at, j.updated_at) < now() - make_interval(days => ${r.failedJobsMask})
+           and (exists (select 1 from jsonb_each(j.payload) as e(k, v) where e.k ~* ${JOB_PII_KEY_RE} and e.v <> ${JOB_PII_MASK})
+                or j.last_error ~ ${PHONE_IN_TEXT})
+       returning j.id`,
+  );
+  // Maskelenmiş DLQ satırı 90 gün sonra silinir (tablo sınırsız büyümesin)
+  await step(
+    'retention.technical.jobs.failed',
+    sql`delete from jobs
+         where status = 'failed' and coalesce(finished_at, updated_at) < now() - make_interval(days => ${r.failedJobs})
+       returning id`,
+  );
+  // İşletme bildirimleri (panel/push/WA/SMS/log kaydı) 90 gün (07 §9)
+  await step(
+    'retention.technical.notifications',
+    sql`delete from notifications where created_at < now() - make_interval(days => ${r.notifications}) returning id`,
   );
   await step(
     'retention.technical.storefront_link_tokens',

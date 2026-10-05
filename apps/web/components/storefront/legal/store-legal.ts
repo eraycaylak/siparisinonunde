@@ -4,12 +4,37 @@
 // alan köşeli parantezli yer tutucuyla gösterilir (künye eksikken vitrin canlıya alınamaz, 08 §4.7).
 // Aydınlatma metninde "vb.", "gibi" türünden belirsiz ifade kullanılmaz (08 §2.4).
 
-import { LEGAL_DOCUMENT_VERSION, MEAL_CARD_BRAND_LABELS, PAYMENT_METHOD_LABELS, type MealCardBrand } from '@siparis/core/enums';
+import { LEGAL_DOCUMENT_VERSION, MEAL_CARD_BRAND_LABELS, PAYMENT_METHOD_LABELS, isDraftLegalVersion, type MealCardBrand } from '@siparis/core/enums';
 import type { StorefrontView } from '@siparis/core/menu/contracts';
-import { formatMoney, formatPhone } from '@/lib/format';
+import { formatMoney } from '@/lib/format';
 import { SITE_NAME } from '@/lib/site';
 import { storefrontHref } from '@/lib/storefront-url';
 import { deliveryEtaText } from '../format';
+import {
+  contactPhrase,
+  imprintRows,
+  list,
+  p,
+  storeImprint,
+  writtenContactPhrase,
+  type LegalSection,
+  type SellerImprint,
+} from './store-legal-imprint';
+
+// Künye yardımcıları aynı adlarla buradan da dışa verilir: çağıran dosyalar (checkout, takip sayfası, belge görünümü)
+// tek giriş noktası kullanmaya devam eder.
+export {
+  IMPRINT_PLACEHOLDERS,
+  availableImprintRows,
+  imprintRows,
+  sellerImprint,
+  storeImprint,
+  type ImprintInput,
+  type ImprintRow,
+  type LegalBlock,
+  type LegalSection,
+  type SellerImprint,
+} from './store-legal-imprint';
 
 export const STORE_LEGAL_DOCS = ['aydinlatma', 'on-bilgilendirme', 'mesafeli-satis'] as const;
 export type StoreLegalDoc = (typeof STORE_LEGAL_DOCS)[number];
@@ -31,6 +56,14 @@ export const STORE_LEGAL_LINK_LABELS: Record<StoreLegalDoc, string> = {
 /** Metin sürümü: siparişe bağlanan kabul kaydıyla (legal_acceptances.version) aynı. */
 export const STORE_LEGAL_VERSION = LEGAL_DOCUMENT_VERSION;
 
+/**
+ * Yürürlükteki sürüm taslak mı? Kural: taslak metinle sözleşme kurulmaz (08 §7.5; denetim B2).
+ * ⚠️ Bu bayrağı henüz hiçbir kapı okumuyor — checkout onay kutusu ve sipariş ucu taslak sürümde de çalışır.
+ * Asıl kapı sunucuda, `apps/api/src/routes/store/orders.ts` → `POST /:slug/orders` içinde ve kabul kaydı
+ * insert'inden önce olmalıdır; bu bayrak yalnız ekranın aynı ölçüte bağlanması için duruyor.
+ */
+export const STORE_LEGAL_IS_DRAFT = isDraftLegalVersion(STORE_LEGAL_VERSION);
+
 /** 03 §4.4 / 08 §4.4 kilitli cayma cümlesi (checkout ve WhatsApp özetiyle birebir aynı). */
 export const WITHDRAWAL_EXCEPTION_TEXT = 'Gıda siparişleri çabuk bozulabilen ürünler olduğundan cayma hakkı kapsamı dışındadır.';
 
@@ -44,141 +77,7 @@ export function storeLegalHref(slug: string, doc: StoreLegalDoc): string {
 }
 
 // ---------------------------------------------------------------------------
-// Satıcı / veri sorumlusu künyesi
-
-/** Zorunlu künye alanı boşsa gösterilen yer tutucular (08 §4.7 zorunlu alanlar). */
-export const IMPRINT_PLACEHOLDERS = {
-  legalName: '[İşletme unvanı]',
-  address: '[İşletme adresi]',
-  phone: '[İşletme telefonu]',
-  taxNo: '[Vergi kimlik no]',
-} as const;
-
-export interface ImprintInput {
-  /** Ticari ad (vitrinde görünen işletme adı). */
-  name: string;
-  legal: {
-    legalName?: string | null;
-    taxNo?: string | null;
-    taxOffice?: string | null;
-    address?: string | null;
-    phone?: string | null;
-    email?: string | null;
-  };
-  /** Künye adresi yoksa şube adresi (panel künye kontrolüyle aynı kural). */
-  branchAddress?: string | null;
-  /** Künye telefonu yoksa şube/işletme telefonu. */
-  phone?: string | null;
-}
-
-export interface SellerImprint {
-  tradeName: string;
-  legalName: string;
-  address: string;
-  /** Biçimli telefon ya da yer tutucu. */
-  phone: string;
-  email: string | null;
-  taxOffice: string | null;
-  taxNo: string;
-  /** Eksik zorunlu alanların adları (boşsa künye tam). */
-  missing: string[];
-}
-
-const clean = (v: string | null | undefined): string | null => {
-  const t = v?.trim();
-  return t ? t : null;
-};
-
-/** Künyeyi yer tutucularla tamamlar. İsteğe bağlı alanlar (e-posta, vergi dairesi) boşsa null kalır, yer tutucu basılmaz. */
-export function sellerImprint(input: ImprintInput): SellerImprint {
-  const legalName = clean(input.legal.legalName);
-  const address = clean(input.legal.address) ?? clean(input.branchAddress);
-  const phoneRaw = clean(input.legal.phone) ?? clean(input.phone);
-  const taxNo = clean(input.legal.taxNo);
-  const missing: string[] = [];
-  if (!legalName) missing.push('Unvan');
-  if (!address) missing.push('Adres');
-  if (!phoneRaw) missing.push('Telefon');
-  if (!taxNo) missing.push('Vergi kimlik no');
-  return {
-    tradeName: input.name.trim(),
-    legalName: legalName ?? IMPRINT_PLACEHOLDERS.legalName,
-    address: address ?? IMPRINT_PLACEHOLDERS.address,
-    phone: phoneRaw ? formatPhone(phoneRaw) : IMPRINT_PLACEHOLDERS.phone,
-    email: clean(input.legal.email),
-    taxOffice: clean(input.legal.taxOffice),
-    taxNo: taxNo ?? IMPRINT_PLACEHOLDERS.taxNo,
-    missing,
-  };
-}
-
-/** Storefront yanıtından künye. */
-export function storeImprint(store: StorefrontView): SellerImprint {
-  return sellerImprint({
-    name: store.tenant.name,
-    legal: store.legal,
-    branchAddress: store.branch.address,
-    phone: store.branch.phone ?? store.tenant.phone,
-  });
-}
-
-export interface ImprintRow {
-  label: string;
-  value: string;
-}
-
-/** Künye tablosu satırları (belge başı, altbilgi, takip sayfası). */
-export function imprintRows(i: SellerImprint): ImprintRow[] {
-  const rows: ImprintRow[] = [{ label: 'Unvan', value: i.legalName }];
-  if (i.tradeName && i.tradeName !== i.legalName) rows.push({ label: 'İşletme adı', value: i.tradeName });
-  rows.push({ label: 'Adres', value: i.address }, { label: 'Telefon', value: i.phone });
-  if (i.email) rows.push({ label: 'E-posta', value: i.email });
-  if (i.taxOffice) rows.push({ label: 'Vergi dairesi', value: i.taxOffice });
-  rows.push({ label: 'Vergi kimlik no', value: i.taxNo });
-  return rows;
-}
-
-/**
- * Yalnız dolu künye alanları (yer tutucusuz): vitrin altbilgisi ve takip sayfasındaki "İşletme bilgileri" kutusu.
- * Unvan yoksa ticari ad gösterilir.
- */
-export function availableImprintRows(input: ImprintInput): ImprintRow[] {
-  const phone = clean(input.legal.phone) ?? clean(input.phone);
-  const rows: [string, string | null][] = [
-    ['Unvan', clean(input.legal.legalName) ?? clean(input.name)],
-    ['Adres', clean(input.legal.address) ?? clean(input.branchAddress)],
-    ['Telefon', phone ? formatPhone(phone) : null],
-    ['E-posta', clean(input.legal.email)],
-    ['Vergi dairesi', clean(input.legal.taxOffice)],
-    ['Vergi kimlik no', clean(input.legal.taxNo)],
-  ];
-  return rows.filter((r): r is [string, string] => Boolean(r[1])).map(([label, value]) => ({ label, value }));
-}
-
-/** Şikâyet için iletişim: "{adres} adresine, {telefon} numaralı telefona ya da {e-posta} e-posta adresine". */
-function contactPhrase(i: SellerImprint): string {
-  const parts = [`${i.address} adresine`, `${i.phone} numaralı telefona`];
-  if (i.email) parts.push(`${i.email} e-posta adresine`);
-  return `${parts.slice(0, -1).join(', ')} ya da ${parts.at(-1)}`;
-}
-
-/** KVKK başvurusu yazılıdır (Başvuru Tebliği): adres ve varsa e-posta; telefon yalnız bilgi için. */
-function writtenContactPhrase(i: SellerImprint): string {
-  return i.email ? `${i.address} adresine ya da ${i.email} e-posta adresine` : `${i.address} adresine`;
-}
-
-// ---------------------------------------------------------------------------
 // Belge yapısı
-
-export type LegalBlock =
-  | { kind: 'p'; text: string }
-  | { kind: 'list'; items: string[] }
-  | { kind: 'facts'; rows: ImprintRow[] };
-
-export interface LegalSection {
-  title: string;
-  blocks: LegalBlock[];
-}
 
 export interface StoreLegalDocument {
   doc: StoreLegalDoc;
@@ -188,9 +87,6 @@ export interface StoreLegalDocument {
   intro: string[];
   sections: LegalSection[];
 }
-
-const p = (text: string): LegalBlock => ({ kind: 'p', text });
-const list = (items: string[]): LegalBlock => ({ kind: 'list', items });
 
 /** Belgeyi işletme verisiyle üretir. */
 export function buildStoreLegalDocument(doc: StoreLegalDoc, store: StorefrontView): StoreLegalDocument {
@@ -204,6 +100,27 @@ export function buildStoreLegalDocument(doc: StoreLegalDoc, store: StorefrontVie
     case 'mesafeli-satis':
       return { ...base, ...distanceSalesContract(imprint, store) };
   }
+}
+
+/**
+ * Belgenin kanonik düz metni. Kabul kaydının içerik özeti (hash) bu metinden alınır: "müşteri hangi metni onayladı"
+ * sorusunun kanıtı sürüm + özet ikilisidir (08 §7.5; denetim H19). Biçim kasten sade ve kararlıdır — görsel değişiklik
+ * (CSS, ikon, sıralama dışı düzen) özeti değiştirmez, metnin kendisi değişirse değiştirir. İşletme künyesi de metnin
+ * parçasıdır: aynı şablon iki işletmede iki farklı özet üretir, çünkü sözleşmenin tarafı işletmedir.
+ */
+export function legalDocumentPlainText(d: StoreLegalDocument): string {
+  const lines: string[] = [`# ${d.title}`, `surum: ${d.version}`, `belge: ${d.doc}`];
+  for (const row of imprintRows(d.imprint)) lines.push(`kunye: ${row.label} = ${row.value}`);
+  for (const t of d.intro) lines.push(t);
+  d.sections.forEach((section, i) => {
+    lines.push(`## ${i + 1}. ${section.title}`);
+    for (const block of section.blocks) {
+      if (block.kind === 'p') lines.push(block.text);
+      else if (block.kind === 'list') for (const item of block.items) lines.push(`- ${item}`);
+      else for (const row of block.rows) lines.push(`${row.label} = ${row.value}`);
+    }
+  });
+  return lines.map((l) => l.replace(/\s+/g, ' ').trim()).join('\n');
 }
 
 // ---------------------------------------------------------------------------

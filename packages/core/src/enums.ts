@@ -411,16 +411,41 @@ export const CANCELLATION_REQUEST_STATUS_LABELS: Record<CancellationRequestStatu
   rejected: 'Reddedildi',
 };
 
-export const LEGAL_DOCUMENTS = ['abonelik', 'kvkk_aydinlatma', 'mesafeli_satis', 'on_bilgilendirme'] as const;
+/**
+ * Click-wrap ile kabul edilen belgeler (08 §7.4, §7.5). `dpa`: veri işleme sözleşmesi, aboneliğin eki (08 §2.2).
+ * DİKKAT: `legal_acceptances.document` kolonunda `legal_acceptances_document_ck` CHECK kısıtı vardır
+ * (packages/db/migrations/0000_init.sql:106) ve yalnız ilk dört değeri kabul eder. `dpa` kaydı yazılmadan önce
+ * kısıtı genişleten bir migration gerekir; migration olmadan insert 23514 ile düşer.
+ */
+export const LEGAL_DOCUMENTS = ['abonelik', 'kvkk_aydinlatma', 'mesafeli_satis', 'on_bilgilendirme', 'dpa'] as const;
 export type LegalDocument = (typeof LEGAL_DOCUMENTS)[number];
 export const LEGAL_DOCUMENT_LABELS: Record<LegalDocument, string> = {
   abonelik: 'Abonelik sözleşmesi',
   kvkk_aydinlatma: 'KVKK aydınlatma metni',
   mesafeli_satis: 'Mesafeli satış sözleşmesi',
   on_bilgilendirme: 'Ön bilgilendirme formu',
+  dpa: 'Veri işleme sözleşmesi (DPA)',
 };
-/** Taslak yasal metin sürümü (hukuki inceleme bekliyor). 27.09.2026: barındırma Cloudflare, yurt dışına aktarım KVKK m.9 (00 §12a madde 10). 28.09.2026: WhatsApp iş çözümü sağlayıcıları (Twilio, 360dialog) adıyla yazıldı. */
+/**
+ * Yürürlükteki yasal metin sürümü. Yayınlanmış sürüm değiştirilemez; metin değişirse yeni sürüm yazılır (08 §7.5).
+ * Bilerek ortam değişkeninden okunmaz: aynı sabit hem sunucuda (kabul kaydı) hem istemci paketinde (ekranda gösterilen
+ * sürüm) kullanılır; `NEXT_PUBLIC_` olmayan bir değer istemci paketinde `undefined` olacağı için ekranla kabul kaydı
+ * birbirinden ayrılırdı. Avukat onayından sonra bu satır tarihli yayın sürümüne çevrilir (ör. `2026-10-15`), taslak
+ * bantları ve `scripts/check-legal.ts` kapısı ona göre yeşile döner.
+ * 27.09.2026: barındırma Cloudflare, yurt dışına aktarım KVKK m.9 (00 §12a madde 10). 28.09.2026: WhatsApp iş çözümü
+ * sağlayıcıları (Twilio, 360dialog) adıyla yazıldı. 04.10.2026: DPA ve alt işleyen listesi eklendi (08 §2.2, §2.11).
+ */
 export const LEGAL_DOCUMENT_VERSION = '2026-09-28-taslak';
+/** Sürümü "yayınlanmamış" yapan işaretler: biri geçiyorsa metin hukuki inceleme bekliyor demektir. */
+export const LEGAL_DRAFT_MARKERS = ['taslak', 'draft'] as const;
+/**
+ * Sürüm taslak mı? Fail-closed kapıların tek ölçütü (sipariş ucu, kabul kaydı, derleme denetimi): taslak sürümle
+ * müşteriye sözleşme onaylatılmaz (08 §7.5; denetim B2).
+ */
+export function isDraftLegalVersion(version: string = LEGAL_DOCUMENT_VERSION): boolean {
+  const v = version.toLocaleLowerCase('tr-TR');
+  return LEGAL_DRAFT_MARKERS.some((marker) => v.includes(marker));
+}
 
 // WhatsApp (14 §4, §8)
 /**

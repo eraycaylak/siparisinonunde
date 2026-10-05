@@ -6,8 +6,28 @@ import { jobs, type Database } from '@siparis/db';
 import { sql, type SQL } from 'drizzle-orm';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Config } from '../config';
+import { alert, type AlertContext } from './alert';
 
 export type JobPayload = Record<string, unknown>;
+
+/**
+ * Tekillik anahtarının NESİL eki (`…#g<n>`) — `jobs_dedupe_key_uk` TAM unique'tir (0000_init.sql:817,
+ * 0003_jobs_dedupe_key_full_unique.sql): bir anahtarla satır bir kez var olduysa (hangi durumda olursa olsun)
+ * ikinci satır eklenemez. Kural: **anahtar NİYETİ tanımlar, nesil DENEMEYİ.**
+ *
+ * Dışarıya geri alınamaz etki üreten iş (müşteriye mesaj, paralı SMS, push, platform uyarısı) nesil ALMAZ:
+ * anahtarı ebedîdir, çift etki veritabanı düzeyinde imkânsızdır (CLAUDE.md kural 6 ve 8). Yalnız zamanlayan ya da
+ * durum değiştiren iş nesil alır — `alarm:<sipariş>:<adım>` ve `finalize_rejection:<sipariş>`.
+ *
+ * Nesil 0 çıplak anahtardır (ek yok): canlıdaki ve testlerdeki mevcut anahtar metinleri değişmez.
+ * `#` ayracı `cancelJobs`'un `#cancelled:<id>` eki tarafından zaten rezerve edilmişti.
+ */
+export function generationKey(base: string, gen: number): string {
+  return gen > 0 ? `${base}#g${gen}` : base;
+}
+
+/** Takılı iş kurtarması deneme sınırı yüzünden `failed` yaptığında `last_error`'a eklenen işaret. */
+export const STALE_EXHAUSTED_ERROR = 'takılı iş kurtarması: deneme sınırı aşıldı (worker süreci iş sürerken öldü)';
 
 export interface JobRow {
   id: string;
@@ -61,7 +81,11 @@ export interface EnqueueJobInput {
   runAt?: Date;
   /** DB saatine göre gecikme (runAt yerine). */
   delayMs?: number;
-  /** Tekillik: aynı anahtarla bekleyen/biten iş varsa yenisi eklenmez (null döner). */
+  /**
+   * Tekillik: aynı anahtarla iş **bir kez** eklenir; satırın durumu ne olursa olsun (`pending`, `running`,
+   * `done`, `failed`) ikincisi eklenmez ve null döner. Yalnız `cancelJobs` anahtarı bırakır (yeniden adlandırma).
+   * Yeniden kurulabilmesi gereken işler nesil ekiyle taze anahtar alır (`generationKey`).
+   */
   dedupeKey?: string | null;
   tenantId?: string | null;
   maxAttempts?: number;
@@ -84,6 +108,8 @@ export async function enqueueJob(tx: Database, input: EnqueueJobInput): Promise<
       tenantId: input.tenantId ?? null,
       maxAttempts: input.maxAttempts ?? 5,
     })
+    // Tam unique indeks (`jobs_dedupe_key_uk`): yüklem YOK. Yüklemli bir ON CONFLICT indeksle birebir aynı
+    // olmak zorundaydı; en küçük sapma üretimde "no unique or exclusion constraint matching" hatası demekti.
     .onConflictDoNothing({ target: jobs.dedupeKey })
     .returning({ id: jobs.id });
   return rows[0]?.id ?? null;
@@ -97,6 +123,10 @@ export type CancelJobsFilter =
 /**
  * Bekleyen işleri iptal eder; tekillik anahtarı serbest bırakılır (aynı anahtarla yeniden eklenebilir).
  * İptal edilen iş sayısını döner.
+ *
+ * Anahtarın `#cancelled:<id>` olarak YENİDEN ADLANDIRILMASI tam unique altında anahtarı bırakmanın tek yoludur:
+ * `cancelled` satır da indekstedir. Yalnız `pending` satır iptal edilir — yani iş DIŞ ETKİSİNİ ÜRETMEDEN önce;
+ * gerçekleşmiş bir etkinin tekrarlanması bu yolla mümkün değildir.
  */
 export async function cancelJobs(tx: Database, filter: CancelJobsFilter): Promise<number> {
   let where;
@@ -149,7 +179,12 @@ type ClaimedRow = {
   dedupe_key: string | null;
 };
 
-/** Vadesi gelen işleri çekip sırayla çalıştırır; işlenen iş sayısını döner. */
+/**
+ * Vadesi gelen işleri çekip sırayla çalıştırır; işlenen iş sayısını döner.
+ * Çekme sorgusunda `attempts < max_attempts` kapısı vardır (denetim H2/1.3): denemesi tükenmiş bir satır (ör. worker
+ * süreci iş sürerken öldüğü için kurtarmaya kalmış iş) bir daha ALINMAZ. Böyle satırları `recoverStaleJobs`
+ * `failed` yapar ve uyarı gönderir.
+ */
 export async function processDueJobs(opts: ProcessOptions): Promise<number> {
   const { db, log } = opts;
   const workerId = opts.workerId ?? `w-${process.pid}`;
@@ -165,7 +200,7 @@ export async function processDueJobs(opts: ProcessOptions): Promise<number> {
        set status = 'running', locked_at = now(), locked_by = ${workerId}, attempts = attempts + 1
      where id in (
        select id from jobs
-        where status = 'pending' and run_at <= ${nowExpr} ${queueFilter} ${laneFilter}
+        where status = 'pending' and run_at <= ${nowExpr} and attempts < max_attempts ${queueFilter} ${laneFilter}
         order by run_at, created_at
         for update skip locked
         limit ${limit}
@@ -214,6 +249,18 @@ export async function processDueJobs(opts: ProcessOptions): Promise<number> {
           update jobs set status = 'failed', finished_at = now(), locked_at = null, locked_by = null,
                           last_error = ${message.slice(0, 2000)}
            where id = ${job.id}`);
+        // Kalıcı iş hatası = DLQ'ya düşen iş: operasyon uyarısı (denetim B9/1.6). İş türü başına soğumalı; yük
+        // GÖNDERİLMEZ (telefon, düz metin OTP taşıyabilir), yalnız tür/kuyruk/deneme ve hata metni.
+        alert(
+          { log: jobLog, config: opts.config },
+          {
+            kind: 'job_failed_permanent',
+            severity: 'critical',
+            message: `İş kalıcı olarak başarısız: ${job.type} (${job.queue}) — ${message}`,
+            data: { jobId: job.id, type: job.type, queue: job.queue, attempts: job.attempts, permanent },
+            dedupeKey: `job_failed_permanent:${job.type}`,
+          },
+        );
       } else {
         const delay = backoffMs(job.attempts);
         jobLog.warn({ err, retryInMs: delay }, 'iş başarısız, yeniden denenecek');
@@ -228,13 +275,50 @@ export async function processDueJobs(opts: ProcessOptions): Promise<number> {
   return processed;
 }
 
-/** Çöken worker'ın kilitli bıraktığı işleri geri alır. */
-export async function recoverStaleJobs(db: Database, staleMs = 5 * 60_000): Promise<number> {
-  const rows = await db.execute<{ id: string }>(sql`
+export interface RecoverStaleResult {
+  /** Yeniden denenmek üzere `pending`e dönen iş sayısı. */
+  requeued: number;
+  /** Denemesi tükendiği için `failed` yapılan iş sayısı. */
+  failed: number;
+  /** `failed` yapılan işlerin türleri (uyarı gövdesi; kişisel veri taşımaz). */
+  failedTypes: string[];
+}
+
+/**
+ * Çöken worker'ın kilitli bıraktığı işleri geri alır (denetim H2/1.3).
+ *
+ * Denemesi tükenmiş iş (`attempts >= max_attempts`) `pending`e GERİ ATILMAZ: `failed` yapılır ve uyarı gönderilir.
+ * Eski davranışta deneme sayısına hiç bakılmıyordu; worker sürecini öldüren (OOM, sonsuz döngü) bir iş her turda
+ * yeniden alınıyor, container tekrar tekrar düşüyordu — site sürekli kapanıyordu.
+ *
+ * Aynı süpürme `pending` kalmış ama artık alınamayacak satırları (`attempts >= max_attempts`) da `failed` yapar:
+ * `processDueJobs` çekme kapısı eklendikten sonra böyle bir satır sonsuza kadar bekler ve `/health/worker` kalıcı
+ * 503 döndürürdü.
+ */
+export async function recoverStaleJobs(db: Database, staleMs = 5 * 60_000, ctx?: AlertContext): Promise<RecoverStaleResult> {
+  const staleExpr = sql`now() - (${staleMs} * interval '1 millisecond')`;
+  const exhausted = (await db.execute<{ type: string }>(sql`
+    update jobs
+       set status = 'failed', finished_at = now(), locked_at = null, locked_by = null,
+           last_error = left(coalesce(last_error || ' | ', '') || ${STALE_EXHAUSTED_ERROR}, 2000)
+     where attempts >= max_attempts
+       and ((status = 'running' and locked_at < ${staleExpr}) or status = 'pending')
+     returning type`)) as unknown as { type: string }[];
+  const requeued = await db.execute<{ id: string }>(sql`
     update jobs set status = 'pending', locked_at = null, locked_by = null
-     where status = 'running' and locked_at < now() - (${staleMs} * interval '1 millisecond')
+     where status = 'running' and locked_at < ${staleExpr} and attempts < max_attempts
      returning id`);
-  return (rows as unknown as unknown[]).length;
+  const failedTypes = [...new Set(exhausted.map((r) => r.type))];
+  if (ctx && exhausted.length) {
+    alert(ctx, {
+      kind: 'job_stale_exhausted',
+      severity: 'critical',
+      message: `${exhausted.length} iş denemesi tükendiği için kalıcı başarısız yapıldı (worker iş sürerken ölmüş olabilir).`,
+      data: { count: exhausted.length, types: failedTypes },
+      dedupeKey: `job_stale_exhausted:${failedTypes.join(',')}`,
+    });
+  }
+  return { requeued: (requeued as unknown as unknown[]).length, failed: exhausted.length, failedTypes };
 }
 
 // ---------------------------------------------------------------------------
@@ -280,12 +364,23 @@ export async function scheduleCronJobs(db: Database, now: Date = new Date()): Pr
       slot = today;
       runAt = at;
     }
+    const dedupeKey = `cron:${c.name}:${slot}`;
+    // Dilim bir kez kuyruğa girdiyse — hangi durumda olursa olsun — yeniden eklenmez: aksi halde başarısız olan
+    // günlük iş (ör. cron.retention) 15 sn'lik zamanlayıcı turunda gün boyu tekrar tekrar kuyruğa girerdi.
+    // Başarısız cron işi admin DLQ ekranından yeniden denenir.
+    // Bu açık kontrol tam unique altında ARTIK GEREKLİ DEĞİL (`enqueueJob` zaten null dönerdi) ve bir cron satırı
+    // `cancelJobs` ile yeniden adlandırılsa onu da kaçırır; kalma gerekçesi yalnız niyeti okunur kılmak —
+    // doğruluk indekse, yani SATIRIN KALICILIĞINA dayanıyor. Maliyeti 15 sn'de birkaç indeksli `limit 1`.
+    const seen = (await db.execute<{ one: number }>(sql`select 1 as one from jobs where dedupe_key = ${dedupeKey} limit 1`)) as unknown as {
+      one: number;
+    }[];
+    if (seen.length) continue;
     const id = await enqueueJob(db, {
       queue: c.queue ?? 'cron',
       type: c.type,
       payload: c.payload ?? {},
       runAt,
-      dedupeKey: `cron:${c.name}:${slot}`,
+      dedupeKey,
     });
     if (id) added++;
   }
@@ -441,8 +536,9 @@ async function runLane(opts: RunWorkerOptions, lane: WorkerLane, workerId: strin
       }
       if (lane.housekeeping && now - lastRecover >= 60_000) {
         lastRecover = now;
-        const n = await recoverStaleJobs(opts.db);
-        if (n) opts.log.warn({ count: n }, 'takılı işler geri alındı');
+        const rec = await recoverStaleJobs(opts.db, undefined, { log: opts.log, config: opts.config });
+        if (rec.requeued) opts.log.warn({ count: rec.requeued }, 'takılı işler geri alındı');
+        if (rec.failed) opts.log.error({ count: rec.failed, types: rec.failedTypes }, 'denemesi tükenmiş takılı işler kalıcı başarısız yapıldı');
       }
       const processed = await processDueJobs({
         db: opts.db,

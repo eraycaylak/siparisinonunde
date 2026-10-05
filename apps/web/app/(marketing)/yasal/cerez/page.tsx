@@ -5,7 +5,7 @@ import { SITE_NAME } from '@/lib/site';
 
 export const metadata: Metadata = pageMetadata({
   title: 'Çerez politikası',
-  description: `${SITE_NAME} çerez politikası (taslak).`,
+  description: `${SITE_NAME} çerez politikası.`,
   path: '/yasal/cerez',
 });
 

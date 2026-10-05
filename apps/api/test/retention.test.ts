@@ -1,8 +1,9 @@
 // Saklama (cron.retention, 08 §2.8): sipariş notu final durumdan 30 gün sonra boşaltılır (satır 1); WhatsApp mesaj
 // içeriği 6 ay sonra silinir, wamid/yön/zaman/durum kalır (satır 4); hareketsiz müşteri 24 ay sonra elle KVKK silmesiyle
-// aynı anlamda anonimleşir (satır 6); SMS kaydında telefon 90 gün sonra maskelenir (satır 19); audit 2 yıl (satır 13),
-// lead 12 ay (satır 15); onay IP'si 1 yıl. Her adım retention_runs'a tutanak yazar (kabul kriterleri). Aydınlatma metni
-// (storefront /yasal/aydinlatma) bu süreleri müşteriye taahhüt eder.
+// aynı anlamda anonimleşir (satır 6); SMS kaydında telefon 90 gün sonra maskelenir ve gövde boşaltılır (satır 19);
+// kalıcı hata (DLQ) işinin yükü 30 günde maskelenir, satır 90 günde silinir, bildirimler 90 günde silinir (satır 22);
+// audit 2 yıl (satır 13), lead 12 ay (satır 15); onay IP'si 1 yıl. Her adım retention_runs'a tutanak yazar (kabul
+// kriterleri). Aydınlatma metni (storefront /yasal/aydinlatma) bu süreleri müşteriye taahhüt eder.
 
 import { maskPhone } from '@siparis/core';
 import {
@@ -11,9 +12,11 @@ import {
   customerAddresses,
   customerErasures,
   customers,
+  jobs,
   leads,
   legalAcceptances,
   messages,
+  notifications,
   orderItems,
   orders,
   otpVerifications,
@@ -26,7 +29,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { enqueueJob, processDueJobs } from '../src/lib/jobs';
 import { RETENTION_REDACTED_BODY, RETENTION_RUN_SUMMARY } from '../src/jobs/system/index';
 import { loadOverview } from '../src/services/admin/overview';
-import { ANONYMOUS_ORDER_NAME, ERASED_CUSTOMER_NAME } from '../src/services/customers/index';
+import { ANONYMOUS_ORDER_NAME, ERASED_CUSTOMER_NAME, SMS_REDACTED_BODY } from '../src/services/customers/index';
 import { createTestContext, type TestContext } from './helpers';
 import { createHookedOrder, createLinkToken, setupStore, type StoreFixture } from './orders-helpers';
 
@@ -337,7 +340,7 @@ describe('saklama: hareketsiz müşteri 24 ay (08 §2.8 satır 6, retention.cust
 });
 
 describe('saklama: SMS ve OTP kayıtları (08 §2.8 satır 19, retention.technical)', () => {
-  it('90 günü geçen SMS kaydı silinmez, telefonu maskelenir (durum, amaç, kota kalır); OTP kaydı 30 günde silinir', async () => {
+  it('90 günü geçen SMS kaydı silinmez, telefonu maskelenir ve gövdesi boşaltılır (durum, amaç, kota kalır); OTP kaydı 30 günde silinir', async () => {
     const order = await ctx.createOrder({ tenantId: s.tenantId, branchId: s.branchId, status: 'delivered' });
     const [oldSms, freshSms] = await ctx.db
       .insert(smsMessages)
@@ -361,15 +364,90 @@ describe('saklama: SMS ve OTP kayıtları (08 §2.8 satır 19, retention.technic
     const masked = sms.find((x) => x.id === oldSms!.id)!;
     expect(masked).toMatchObject({ toPhone: maskPhone('+905321112244'), status: 'sent', purpose: 'otp', countsTowardQuota: true, provider: 'mock' });
     expect(masked.toPhone).not.toContain('5321112244');
-    expect(sms.find((x) => x.id === freshSms!.id)!.toPhone).toBe('+905321112255');
+    // Gövde düz metin OTP taşır: boşaltılır (kayıt maliyet raporu için kalır)
+    expect(masked.body).toBe(SMS_REDACTED_BODY);
+    expect(masked.body).not.toContain('123456');
+    const freshRow = sms.find((x) => x.id === freshSms!.id)!;
+    expect(freshRow.toPhone).toBe('+905321112255');
+    expect(freshRow.body).toBe('Doğrulama kodunuz: 654321');
 
     const otps = await ctx.db.select({ id: otpVerifications.id }).from(otpVerifications).where(inArray(otpVerifications.id, [oldOtp!.id, freshOtp!.id]));
     expect(otps.map((x) => x.id)).toEqual([freshOtp!.id]);
 
     // İdempotent: maskeli kayıt yeniden maskelenmez
+    const beforeSecond = new Date();
     await runRetention();
-    const [again] = await ctx.db.select({ toPhone: smsMessages.toPhone }).from(smsMessages).where(eq(smsMessages.id, oldSms!.id));
+    const [again] = await ctx.db.select({ toPhone: smsMessages.toPhone, body: smsMessages.body }).from(smsMessages).where(eq(smsMessages.id, oldSms!.id));
     expect(again!.toPhone).toBe(maskPhone('+905321112244'));
+    expect(again!.body).toBe(SMS_REDACTED_BODY);
+    const secondRun = await ctx.db
+      .select({ affectedCount: retentionRuns.affectedCount })
+      .from(retentionRuns)
+      .where(and(eq(retentionRuns.jobName, 'retention.technical.sms_messages'), gte(retentionRuns.startedAt, beforeSecond)));
+    expect(secondRun.map((x) => x.affectedCount)).toEqual([0]);
+  });
+});
+
+describe('saklama: DLQ işleri ve bildirimler (08 §2.8 satır 22, retention.technical)', () => {
+  it('kalıcı hata işinin yükündeki kişisel veri 30 günde maskelenir (satır teşhis için kalır), satır 90 günde silinir; taze DLQ kaydına dokunulmaz; bildirim 90 günde silinir', async () => {
+    // sms.send yükü: alıcı telefon + düz metin OTP gövdesi (DLQ'da süresiz kalıyordu)
+    // `toPhone` yazım farkı desenle yakalanır (tam liste kaçırırdı); `totalKurus` çapa sayesinde (`^to$`) maskelenmez
+    const piiPayload = { tenantId: s.tenantId, to: '+905321119988', toPhone: '+905321119988', body: 'Doğrulama kodunuz: 445566', purpose: 'otp', countsTowardQuota: true, totalKurus: 24500 };
+    const failedJob = (ageDays: number) => ({
+      queue: 'notify' as const,
+      type: 'sms.send',
+      status: 'failed' as const,
+      attempts: 5,
+      payload: { ...piiPayload },
+      lastError: 'SmsSendError: +90 532 111 99 88 numarasına gönderilemedi',
+      finishedAt: new Date(Date.now() - ageDays * DAY),
+      createdAt: new Date(Date.now() - ageDays * DAY),
+    });
+    const [stale, ancient, recent, finished] = await ctx.db
+      .insert(jobs)
+      .values([
+        failedJob(40),
+        failedJob(100),
+        failedJob(5),
+        { ...failedJob(40), status: 'done' as const, lastError: null },
+      ])
+      .returning();
+    const [oldNotif, freshNotif] = await ctx.db
+      .insert(notifications)
+      .values([
+        { tenantId: s.tenantId, kind: 'new_order_alarm', channel: 'platform_wa' as const, status: 'sent' as const, payload: { text: 'Yeni sipariş onay bekliyor' }, createdAt: new Date(Date.now() - 100 * DAY) },
+        { tenantId: s.tenantId, kind: 'new_order_alarm', channel: 'platform_wa' as const, status: 'sent' as const, payload: { text: 'Yeni sipariş onay bekliyor' }, createdAt: new Date(Date.now() - 10 * DAY) },
+      ])
+      .returning();
+
+    await runRetention();
+
+    const rows = await ctx.db.select().from(jobs).where(inArray(jobs.id, [stale!.id, ancient!.id, recent!.id, finished!.id]));
+    // 100 günlük DLQ satırı ve 30 günü geçmiş bitmiş iş silinir; 40 ve 5 günlük DLQ satırları kalır
+    expect(rows.map((x) => x.id).sort()).toEqual([stale!.id, recent!.id].sort());
+
+    const masked = rows.find((x) => x.id === stale!.id)!;
+    expect(masked.payload).toMatchObject({ to: '***', toPhone: '***', body: '***', purpose: 'otp', countsTowardQuota: true, tenantId: s.tenantId, totalKurus: 24500 });
+    expect(JSON.stringify(masked.payload)).not.toContain('5321119988');
+    expect(JSON.stringify(masked.payload)).not.toContain('445566');
+    expect(masked.lastError).toContain('***');
+    expect(masked.lastError).not.toContain('532 111');
+    // Taze DLQ kaydı teşhis için olduğu gibi kalır
+    expect(rows.find((x) => x.id === recent!.id)!.payload).toMatchObject({ to: '+905321119988', body: 'Doğrulama kodunuz: 445566' });
+
+    const notifs = await ctx.db.select({ id: notifications.id }).from(notifications).where(inArray(notifications.id, [oldNotif!.id, freshNotif!.id]));
+    expect(notifs.map((x) => x.id)).toEqual([freshNotif!.id]);
+
+    // İdempotent: maskelenmiş DLQ kaydı ikinci koşuda yeniden yazılmaz (tutanakta 0)
+    const beforeSecond = new Date();
+    await runRetention();
+    const second = await ctx.db
+      .select({ jobName: retentionRuns.jobName, affectedCount: retentionRuns.affectedCount })
+      .from(retentionRuns)
+      .where(and(inArray(retentionRuns.jobName, ['retention.technical.jobs.failed_payload', 'retention.technical.notifications']), gte(retentionRuns.startedAt, beforeSecond)));
+    expect(second.map((x) => x.affectedCount)).toEqual([0, 0]);
+    const [againJob] = await ctx.db.select({ payload: jobs.payload }).from(jobs).where(eq(jobs.id, stale!.id));
+    expect(againJob!.payload).toMatchObject({ to: '***', body: '***' });
   });
 });
 
@@ -449,6 +527,9 @@ describe('saklama: imha tutanağı retention_runs ve admin sağlık göstergesi 
       'retention.technical.otp_verifications',
       'retention.technical.sms_messages',
       'retention.technical.jobs',
+      'retention.technical.jobs.failed_payload',
+      'retention.technical.jobs.failed',
+      'retention.technical.notifications',
       'retention.technical.storefront_link_tokens',
       'retention.technical.courier_login_links',
       'retention.technical.sessions',

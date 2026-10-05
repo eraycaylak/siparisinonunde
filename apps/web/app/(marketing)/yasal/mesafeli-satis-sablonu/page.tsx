@@ -5,7 +5,7 @@ import { SITE_NAME } from '@/lib/site';
 
 export const metadata: Metadata = pageMetadata({
   title: 'Ön bilgilendirme ve mesafeli satış sözleşmesi şablonu',
-  description: 'İşletme ile son müşteri arasındaki ön bilgilendirme formu ve mesafeli satış sözleşmesi şablonu (taslak).',
+  description: 'İşletme ile son müşteri arasındaki ön bilgilendirme formu ve mesafeli satış sözleşmesi şablonu.',
   path: '/yasal/mesafeli-satis-sablonu',
 });
 
@@ -23,10 +23,12 @@ export default function DistanceSalesTemplatePage() {
       sections={[
         {
           title: 'Satıcı bilgileri',
+          // yasal-denetim:muaf — bu sayfa ŞABLON gösterir; köşeli parantezler siparişte otomatik dolan alan adlarıdır
           body: <p>[İşletme unvanı], [adres], [telefon], [e-posta], [vergi no], [varsa MERSİS no ve gıda işletmesi kayıt no].</p>,
         },
         {
           title: 'Sözleşme konusu ürünler',
+          // yasal-denetim:muaf — şablon alan adı
           body: <p>[Ürün adı, seçenekleri ve adedi] — sipariş özetinde gösterildiği şekliyle.</p>,
         },
         {

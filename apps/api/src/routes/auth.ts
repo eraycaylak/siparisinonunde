@@ -75,6 +75,8 @@ import { ensureSharedWaAccount, generateWaCode } from '../services/messaging/sha
 import { courierLinkAllowed } from '../services/staff/index';
 
 const TRIAL_DAYS = 14;
+/** Kayıt kapalıyken yönlendirilen lead formu (kanonik kopya: apps/web/lib/signup-status.ts SIGNUP_SOON.href). */
+const LEAD_FORM_PATH = '/demo';
 
 /** Benzersiz slug üretir (ayrılmış adlar hariç). */
 async function uniqueSlug(db: Database, businessName: string): Promise<string> {
@@ -115,8 +117,12 @@ const authRoutes: FastifyPluginAsyncZod = async (app) => {
     { schema: { body: signupRequestSchema, response: { 201: signupResponseSchema } } },
     async (request, reply) => {
       enforceRateLimit(signupLimiter, `signup:${clientIp(request)}`);
+      // Kayıt kapısı (00 §4 `signup_open`, 05 §313 "bekleme listesi"): yönetici /admin/bayraklar'dan kapatır (sahte
+      // kayıt dalgası, Meta kotası, tek WABA'nın korunması). Kapalıyken istemci `leadFormPath`'e yönlendirir.
       if (!(await isFlagEnabled(app.db, 'signup_open'))) {
-        throw forbidden('Yeni kayıtlar geçici olarak kapalı.', 'signup_closed');
+        throw new AppError(403, 'signup_closed', 'Yeni işletme kayıtları şu an kapalı. Formu doldurun, sizi arayalım.', {
+          leadFormPath: LEAD_FORM_PATH,
+        });
       }
       const body = request.body;
       const phone = normalizeTrMobile(body.phone);

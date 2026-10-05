@@ -54,8 +54,8 @@ Admin paneli sıradan bir CRUD ekranı değildir. Üç soruya saniyeler içinde 
 | `trial` | Deneme | `subscription.status = trialing` ve canlı **[Faz 2]** | Tam hizmet; bitişte 3 gün uyarı bandı |
 | `active` | Aktif | `active` | Tam hizmet |
 | `past_due` | Ödeme gecikti | G0–G+9 (dunning) | Tam hizmet + panel bandı |
-| `read_only` | Salt-okunur | G+10 | Sipariş alma sürer; menü, ayar, personel düzenleme kapalı ([08](08-mevzuat-kvkk-odeme-fatura.md) §6.3) |
-| `suspended` | Askıda | G+21 (`suspension_reason = payment`); deneme bitişi + 3 gün uyarı bandı (`trial_ended`); pilot bitişi + 3 gün, plan yok (`pilot_ended`); admin askısı (`policy`, `abuse`, `legal`) | Yeni online sipariş kapalı; storefront ve bot "şu an online sipariş alınmıyor, lütfen arayın". Ödeme veya plan seçimiyle veri aynen geri döner |
+| `read_only` | Salt-okunur | G+10 (dunning); deneme bitişi + 3 gün uyarı bandı (`cron.trial_watch`) | **Yeni online sipariş kapalı** (storefront ve bot "şu an online sipariş alınmıyor, lütfen arayın"); panel, geçmiş ve dışa aktarma açık; menü, ayar, personel düzenleme kapalı ([08](08-mevzuat-kvkk-odeme-fatura.md) §6.3) |
+| `suspended` | Askıda | G+21 (`suspension_reason = payment`); pilot bitişi + 3 gün, plan yok (`pilot_ended`); admin askısı (`policy`, `abuse`, `legal`) | Yeni online sipariş kapalı; storefront ve bot "şu an online sipariş alınmıyor, lütfen arayın". Ödeme veya plan seçimiyle veri aynen geri döner |
 | `churned` | Kayıp | Abonelik `cancelled`: iptal (dönem sonu); dunning G+75 hesap kapatma; deneme bitişinde plan seçilmeden 90 gün | Hizmet kapalı. Gönüllü iptalde dönem sonundan itibaren 30 günlük dışa aktarma penceresi; dunning ve deneme bitişinde bu pencere askı süresince işlemiştir (dışa aktarma hakkı hatırlatılır). Ardından veri silme (`retention.tenant_offboarding`, [08](08-mevzuat-kvkk-odeme-fatura.md) §2.8) |
 
 **Türetme önceliği:** `churned` > `suspended` > `read_only` > `past_due` > `onboarding` > `pilot` > `trial` > `active`. Örnek: kurulumu bitmemiş pilot işletme `onboarding` görünür.
@@ -69,11 +69,13 @@ stateDiagram-v2
     pilot --> active: Pilot sonu ödeme
     pilot --> suspended: Pilot bitti, plan yok
     trial --> active: Plan seçildi, ödendi
-    trial --> suspended: Bitiş + 3 gün
+    trial --> read_only: Bitiş + 3 gün (cron.trial_watch)
+    trial --> suspended: Admin askısı
     active --> past_due: G0 tahsilat başarısız
     past_due --> active: Ödeme alındı
     past_due --> read_only: G+10
     read_only --> active: Ödeme alındı
+    read_only --> trial: Deneme elle uzatıldı
     read_only --> suspended: G+21
     suspended --> active: Ödeme (≤ 5 dk içinde açılır)
     suspended --> churned: G+75 hesap kapatma / deneme + 90 gün
@@ -81,9 +83,9 @@ stateDiagram-v2
     churned --> onboarding: Geri kazanım (veri silinmediyse aynı tenant)
 ```
 
-- **Dunning takvimi** kanoniktir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9): G (ödeme günü) başarısız → G+1/G+3/G+7 yeniden deneme + e-posta/WhatsApp hatırlatma → **G+10 salt-okunur** (ayar değiştirilemez, sipariş alma sürer) → **G+21 askı** (storefront ve bot "şu an online sipariş alınmıyor, lütfen arayın") → **G+75 hesap kapatma ve veri silme süreci** (dışa aktarma hakkı hatırlatılarak). Bildirim metinleri, salt-okunur modda açık/kapalı işlevler ve sözleşme eki [08](08-mevzuat-kvkk-odeme-fatura.md) §6.3'tedir.
-- **Deneme bitişi ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9):** 14 gün dolunca (D0) plan seçilmediyse 3 gün uyarı bandı → D+3 askı (sipariş alma durur) → 90 gün içinde plan seçilirse veriler aynen döner → sonra silme. Deneme bitişinde salt-okunur ara aşama yoktur.
-- **Pilot bitişi [T]:** Pilot bitiminden 14 gün önce admin'de görev açılır (SR + F). Plan seçilmezse deneme bitişiyle aynı kural (3 gün bant → askı) uygulanır.
+- **Dunning takvimi** kanoniktir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9): G (ödeme günü) başarısız → G+1/G+3/G+7 yeniden deneme + e-posta/WhatsApp hatırlatma → **G+10 salt-okunur** (`read_only`: online sipariş durur — storefront ve bot "şu an online sipariş alınmıyor, lütfen arayın"; panel ve dışa aktarma açık, ayar değiştirilemez) → **G+21 askı** (`suspended`: panel de kapanır) → **G+75 hesap kapatma ve veri silme süreci** (dışa aktarma hakkı hatırlatılarak). G0–G+9 (`past_due`) boyunca sipariş alma sürer. Bildirim metinleri, salt-okunur modda açık/kapalı işlevler ve sözleşme eki [08](08-mevzuat-kvkk-odeme-fatura.md) §6.3'tedir.
+- **Deneme bitişi ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9):** 14 gün dolunca (D0) plan seçilmediyse 3 gün uyarı bandı → D+3'te aşama `read_only` olur ve online sipariş alma durur → 90 gün içinde plan seçilirse veriler aynen döner → sonra silme. Uygulayan iş `cron.trial_watch` (`apps/api/src/services/admin/trial.ts` → `enforceTrialEnds`; karar `packages/core/src/admin/lifecycle.ts` → `trialEnforcementTarget`): yalnız `trial` aşamasındaki, `trial_ends_at` + 3 gün dolmuş ve aboneliği `active` olmayan işletmeye dokunur, aşamayla birlikte abonelik durumunu da `read_only` yapar ve `audit_log`'a `tenant.trial_ended` (`data.actorType = 'system'`) yazar. Salt-okunur, askıdan hafiftir: işletme panelini ve geçmişini görmeye devam eder. Deneme bu aşamadan sonra elle uzatılabilir: admin `trial_ends_at`'i ilerletip aşamayı `trial`e çevirir (`read_only → trial` izinlidir) — hiç ödeme almadan `active` yapmak MRR'ı şişirir.
+- **Pilot bitişi [T]:** Pilot bitiminden 14 gün önce admin'de görev açılır (SR + F). Plan seçilmezse aynı takvim (3 gün bant) işler; pilot bitişinde aşama `suspended` olur (`suspension_reason = pilot_ended`) — deneme bitişi `read_only`'ye düşer, pilot bitişi askıya.
 
 ### A.2.2 Onboarding adımları (`onboarding_step`)
 
@@ -412,7 +414,7 @@ KPI hedefleri ve eşikler [10](10-riskler-operasyon-ve-metrikler.md)'dadır; bur
 
 | Metrik | Tanım |
 |---|---|
-| **MRR** | `active`, `past_due` ve `read_only` aboneliklerin aylık normalize net tutarı: yıllık plan ÷ 12, indirimler (kurucu üye dahil) düşülmüş. `trialing`, pilot ve `suspended` hariç |
+| **MRR** | `active`, `past_due` ve `read_only` aboneliklerin aylık normalize net tutarı: yıllık plan ÷ 12, indirimler (kurucu üye dahil) düşülmüş. `trialing`, pilot ve `suspended` hariç; **hiç ödeme alınmamış `read_only` abonelikler de hariç** (deneme bitişinden gelenler — `cron.trial_watch`) |
 | **Risk altındaki MRR** | `past_due` + `read_only` aboneliklerin MRR'ı; ayrıca `suspended` olanların son MRR'ı |
 | **Net yeni MRR** | Yeni + genişleme (plan yükseltme, şube ekleme) + yeniden kazanım − daralma (plan düşürme) − churn MRR |
 | **Logo churn (aylık)** | Ay içinde `churned` olan ücretli işletme ÷ ay başındaki ücretli işletme. Pilot ve deneme hariç (ayrı izlenir: deneme → ücretli dönüşüm) |

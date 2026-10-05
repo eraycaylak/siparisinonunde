@@ -1,0 +1,176 @@
+# DAĞITIM KAPISI (denetim 2026-10-04, B4 + FAZ 0.5): canlıya inen her sürüm önce buradan geçer.
+# Bu iş akışı tek başına bir şey dağıtmaz; iki dağıtım iş akışı da onu `uses:` ile ÇAĞIRIR ve `needs: testler` ile
+# bekler. Kapı kırmızıysa dağıtım HİÇ başlamaz (GitHub, başarısız bir `needs` işinden sonraki işi çalıştırmaz).
+#   - "Canlı ortam (Cloudflare)"  → .github/workflows/deploy-dev-cloudflare.yml
+#   - "Canlı ortam (Türkiye VPS)" → .github/workflows/deploy-production.yml
+# NEDEN: 2026-10-04 denetimine kadar dağıtım hattı monorepo'nun 85 dosyadaki ~897 Vitest vakasının ve tür denetiminin
+# HİÇBİRİNİ koşmuyordu; yalnız `deploy/cloudflare` kabuğunun 31 `node:test` vakası koşuyordu. apps/api ve packages/db
+# üretimde `node --import tsx` ile çalıştığı için tür hatası derlemede yakalanmıyor, ilk istekte patlıyor (docs/15 §13).
+#
+# Ne koşar (hepsi gerçek PostgreSQL 16 servisine karşı, sırayla):
+#   1. pnpm typecheck                     — packages/core, packages/db, apps/api, apps/web + e2e ve scripts tsconfig'leri
+#   2. ALLOW_DB_RESET=1 pnpm test         — core + db + api (api testleri siparis_test veritabanını sırayla sıfırlar)
+#   3. pnpm --filter @siparis/web test    — web birim testleri (lib/*, components/*; tarayıcı gerekmez)
+#   4. pnpm test:vps                      — dağıtım betikleri (env-merge, cloudflare-dns, deploy.sh günlük süzgeci)
+#   5. node --test .github/workflows/deploy-gate.test.mjs — bu kapının kendisi sökülmemiş mi (değişmez denetimi)
+# Ne koşmaz (bilinçli): Playwright e2e (9 senaryo) — kendi veritabanı (*_e2e_test), derlenmiş web ve tarayıcı indirmesi
+# gerekir; dağıtım kapısını ~10 dk uzatır. Ayrı bir iş akışına alınması FAZ 2 işidir (docs/09).
+#
+# Veritabanı: apps/api/test/helpers.ts'teki TEST_DATABASE_URL varsayılanıyla BİREBİR aynı olmalı
+# (postgres://siparis:siparis@localhost:5432/siparis_test). Değişirse deploy-gate.test.mjs kırmızı yanar.
+# NOT (denetim bulgu 20): üretim container'ı `initdb --locale=C.UTF-8` ile açılıyor, bu servis ise imajın varsayılan
+# yerel ayarını kullanır. Yani sıralama/`ilike` davranışı CI ile üretimde aynı değildir. Üretimdeki yerel ayar kararı
+# (deploy/cloudflare/entrypoint.sh) netleştikten sonra buraya POSTGRES_INITDB_ARGS ile aynısı yazılmalıdır.
+#
+# ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+# KAPININ DAĞITIMA BAĞLANMA BİÇİMİ (iki dağıtım iş akışında da aynı)
+# ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+#   - `jobs.testler: { needs: kontrol, uses: ./.github/workflows/testler.yml }` — `kontrol` hazır değilse (secret
+#     eksik ya da o yol seçilmemiş) kapı da koşmaz, boşa CI harcanmaz.
+#   - `jobs.deploy: { needs: [kontrol, testler] }` — GitHub, başarısız bir `needs` işinden sonraki işi ÇALIŞTIRMAZ:
+#     kapı kırmızıysa dağıtım hiç başlamaz. `deploy`un `if:`i yalnız `kontrol`a bakar; oraya `always()` yazmak kapıyı
+#     etkisiz kılar (bu yüzden deploy-gate.test.mjs onu da denetler).
+#   - `with: ref:` — elle eski bir sürüme dönülürken (geri alma) kapı O sürümün testlerini koşar.
+#   - `concurrency` grubu iki dağıtım iş akışında AYNIDIR (yemekgelsin-canli-dagitim): Cloudflare ve isteğe bağlı
+#     Türkiye VPS yolu aynı alan adına dağıtıyor. Üst üste çalışırlarsa Twilio mesajları bir ortama, müşteri trafiği
+#     diğerine gider ve İKİ ayrı veritabanında iki ayrı sipariş gerçeği oluşur (denetim bulgu 17, split-brain).
+#     `cancel-in-progress: false`: yarım kalmış bir dağıtım kesilmez, yenisi kuyruğa girer.
+#
+# ÖNERİ — DAL POLİTİKASI (UYGULANMADI; karar Eray'ın · denetim B5 · FAZ 0.6)
+#   Bugün iki dağıtım iş akışının tetikleyicisi de `branches: [main, claude/relaxed-pascal-1m775m]`. Yani bir AJAN
+#   DALINA atılan her push doğrudan yemekgelsin.net'e iniyor (VPS yolunda: DNS'i taşıyabiliyor). İlk gerçek siparişten
+#   sonra bu kabul edilemez bir risktir. Önerilen üç adım:
+#     a) Üretim dalı YALNIZ `main` olsun: tetikleyici listesinden `claude/relaxed-pascal-1m775m` çıkarılsın. Ajan
+#        dalları PR ile `main`'e girsin.
+#     b) GitHub > Settings > Environments > `production` > "Required reviewers" → Eray. Her iki `deploy` işi zaten
+#        `environment: production` diyor; zorunlu inceleyici açıldığı an her dağıtım onay bekler.
+#        ⚠️ Bu ayar GitHub tarafında BİLEREK AÇILMADI: açıldığı anda onay verilmeden hiçbir dağıtım tamamlanamaz;
+#        canlı ortam yanlış zamanda kilitlenmesin diye kararı ve zamanlamasını Eray verir.
+#     c) Settings > Branches > `main` > "Require status checks to pass" → "Testler (dağıtım kapısı)" seçilsin; böylece
+#        kapı PR'da da zorunlu olur (bu iş akışına `pull_request` tetikleyicisi eklemek gerekir).
+#   Tetikleyiciler BİLEREK değiştirilmedi (denetim görevinin kısıtı).
+# ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+name: Testler (dağıtım kapısı)
+
+on:
+  # Dağıtım iş akışları çağırır (jobs.testler.uses). `ref` verilirse testler O commit'te koşar: elle eski bir sürüme
+  # dönerken (geri alma) kapı da o sürümün testlerini koşar, dalın son hâlinin testlerini değil.
+  workflow_call:
+    inputs:
+      ref:
+        description: "Testlerin koşacağı commit/etiket/dal (boş: iş akışını tetikleyen commit)"
+        type: string
+        required: false
+        default: ''
+  # Elle çalıştırma: dağıtmadan yalnız kapıyı koşmak için (Actions > Testler (dağıtım kapısı) > Run workflow).
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Testlerin koşacağı commit/etiket/dal (boş: seçilen dalın son hâli)"
+        type: string
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  testler:
+    name: Tür denetimi ve testler (PostgreSQL 16)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      # GitHub, servis "healthy" olana kadar adımları başlatmaz; sağlık komutu servis container'ının içinde koşar.
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: siparis
+          POSTGRES_PASSWORD: siparis
+          POSTGRES_DB: siparis_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U siparis -d siparis_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 30
+    env:
+      # apps/api/test/helpers.ts bu değişkeni okur; varsayılanı da aynıdır (açıkça yazmak kapının niyetini belgeler).
+      TEST_DATABASE_URL: postgres://siparis:siparis@localhost:5432/siparis_test
+      # Testler yalnız siparis_test'e dokunur; adı *_test kalıbına uyduğu için zaten sıfırlanabilir. Bayrağı CLAUDE.md'deki
+      # komutla aynı olsun diye açıkça veriyoruz (packages/db/src/reset.ts assertResettable).
+      ALLOW_DB_RESET: '1'
+      # Üretimde asla; reset.ts NODE_ENV=production ise sıfırlamayı tümden reddeder.
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+
+      # pnpm sürümü package.json "packageManager" alanından okunur (10.33.0): sürüm tek yerde tanımlı kalır.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Kapının koştuğu sürüm (commit)
+        run: |
+          sha="$(git rev-parse HEAD)"
+          echo "DEPLOY_SHA=$sha" >> "$GITHUB_ENV"
+          echo "Kapı bu sürümde koşuyor: ${sha:0:12}"
+
+      - name: Bağımlılıklar
+        run: pnpm install --frozen-lockfile
+
+      # Servis sağlık kontrolü yeterli olmalı; bu adım yine de açık bir Türkçe hata verir (sessiz 50 test hatası yerine).
+      - name: PostgreSQL hazır mı
+        run: |
+          for i in $(seq 1 60); do
+            if (exec 3<>/dev/tcp/localhost/5432) 2>/dev/null; then
+              exec 3>&-
+              echo "PostgreSQL hazır ($i. deneme)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::PostgreSQL servisi 120 sn içinde 5432'de yanıt vermedi; testler koşmadan dağıtım yapılmaz."
+          exit 1
+
+      - name: Tür denetimi (tüm monorepo)
+        run: pnpm typecheck
+
+      - name: Birim ve tümleşme testleri (core, db, api)
+        run: pnpm test
+
+      - name: Web birim testleri
+        run: pnpm --filter @siparis/web test
+
+      - name: Dağıtım betikleri testleri
+        run: pnpm test:vps
+
+      # Elle eski bir sürüme dönerken (geri alma) çalışma ağacı kapıdan ÖNCEki bir commit olabilir ve o ağaçta bu
+      # dosya yoktur. Zaten KOŞAN iş akışı YAML'ları seçilen DALdan gelir, çalışma ağacından değil: o sürümün
+      # YAML'larını denetlemek anlamsızdır. Dosya varsa test ZORUNLUDUR (olağan push'ta hep vardır), yoksa uyarı.
+      - name: Dağıtım kapısı değişmezleri
+        run: |
+          if [ -f .github/workflows/deploy-gate.test.mjs ]; then
+            node --test .github/workflows/deploy-gate.test.mjs
+          else
+            echo "::warning::Bu sürümde .github/workflows/deploy-gate.test.mjs yok (kapıdan önceki bir commit); kapı değişmezleri denetlenmedi. Koşan iş akışı dosyaları seçilen daldan geldiği için kapı yine de yerinde."
+          fi
+
+      - name: Özet
+        if: always()
+        run: |
+          {
+            echo "### Dağıtım kapısı: ${{ job.status == 'success' && 'YEŞİL' || 'KIRMIZI' }}"
+            echo ""
+            echo "- Sürüm: \`${DEPLOY_SHA:0:12}\`"
+            echo "- Koşanlar: tür denetimi, core+db+api testleri, web birim testleri, dağıtım betikleri, kapı değişmezleri."
+            echo "- Koşmayanlar (bilinçli): Playwright e2e (9 senaryo; kendi veritabanı ve tarayıcısı gerekir)."
+            if [ "${{ job.status }}" != "success" ]; then
+              echo "- **Dağıtım başlatılmadı.** Yukarıdaki kırmızı adımı düzeltip yeniden çalıştırın."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

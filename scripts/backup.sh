@@ -87,7 +87,9 @@ log "Tamam: $(du -h "$db_file" | cut -f1)"
 
 if [[ $PRE_DEPLOY -eq 1 ]]; then
   # Son PRE_DEPLOY_KEEP güncelleme öncesi döküm kalır (ad zaman damgalı: sıralama = zaman)
-  find "$BACKUP_DIR" -maxdepth 1 -type f -name 'pre-deploy-db-*.dump' | sort | head -n -"$PRE_DEPLOY_KEEP" |
+  # `head -n -N` GNU'ya özgüdür (macOS/BSD'de "illegal line count" verir ve temizlik hiç çalışmaz).
+  # Taşınabilir karşılığı: en yeniden eskiye sırala, ilk N'i atla, kalanını sil.
+  find "$BACKUP_DIR" -maxdepth 1 -type f -name 'pre-deploy-db-*.dump' | sort -r | tail -n +"$((PRE_DEPLOY_KEEP + 1))" |
     while IFS= read -r old; do rm -f "$old" && log "silindi: $old"; done
   log "Güncelleme öncesi yedek bitti (yalnız veritabanı; son $PRE_DEPLOY_KEEP döküm saklanır)."
   exit 0
@@ -97,6 +99,8 @@ uploads_file="$BACKUP_DIR/uploads-$STAMP.tar.gz"
 if $COMPOSE ps --status running --services 2>/dev/null | grep -qx api; then
   log "Görseller: $uploads_file"
   $COMPOSE exec -T api tar -czf - -C /data uploads >"$uploads_file.partial"
+  # Arşiv okunabiliyor mu? (veritabanı dökümünde de aynı denetim var: yarım/bozuk bir arşivi "yedek" sayıp saklamayalım)
+  tar -tzf "$uploads_file.partial" >/dev/null
   mv "$uploads_file.partial" "$uploads_file"
 else
   log "UYARI: api konteyneri çalışmıyor; görsel yedeği atlandı."

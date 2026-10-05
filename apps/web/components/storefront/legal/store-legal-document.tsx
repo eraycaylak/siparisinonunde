@@ -1,9 +1,16 @@
 import Link from 'next/link';
 import { ArrowLeft, Store, TriangleAlert } from 'lucide-react';
+import { isDraftLegalVersion } from '@siparis/core/enums';
 import type { StorefrontView } from '@siparis/core/menu/contracts';
 import { storefrontHref } from '@/lib/storefront-url';
 import { PrintButton } from './print-button';
 import type { LegalBlock, StoreLegalDocument } from './store-legal';
+
+// Yalnız metnin durumunu söyler: "sipariş alınmaz" gibi bir davranış sözü verilmez, çünkü taslak sürümde sipariş ucunu
+// kapatan kapı (apps/api/src/routes/store/orders.ts) henüz yazılmadı — olmayan bir korumayı müşteriye bildirmek,
+// yer tutucu künyeyle aynı türden bir yanlış beyandır. Kapı yazıldığında reddin metnini kapının kendisi verir.
+// yasal-denetim:muaf — ibare sürümden türetilir (isDraftLegalVersion), sayfaya çivilenmiş bir beyan değildir
+const DRAFT_NOTICE = 'Bu metin taslaktır, hukuki inceleme beklemektedir ve yayınlanmış sürüm değildir. Sipariş koşullarını işletmeye sorabilirsiniz.';
 
 /**
  * İşletmeye özel yasal metin sayfası (S-10): işletme markalı başlık, menüye dönüş, yazdır; belge gövdesi. Diğer metinlerin
@@ -11,6 +18,8 @@ import type { LegalBlock, StoreLegalDocument } from './store-legal';
  */
 export function StoreLegalDocumentView({ store, document: d }: { store: StorefrontView; document: StoreLegalDocument }) {
   const slug = store.tenant.slug;
+  // Taslak ibaresi sürümden türetilir: yayın sürümünde kendiliğinden kalkar, taslak sürümde gizlenemez (denetim B2).
+  const isDraft = isDraftLegalVersion(d.version);
   return (
     <div className="flex flex-col gap-5 pb-4 print:gap-3 print:pb-0">
       <div className="flex items-center gap-2 print:hidden">
@@ -42,8 +51,15 @@ export function StoreLegalDocumentView({ store, document: d }: { store: Storefro
           <h1 id="belge-baslik" className="text-2xl font-bold leading-8 text-fg">
             {d.title}
           </h1>
-          <p className="text-sm text-fg-muted">Sürüm {d.version} · Taslak, hukuki inceleme bekliyor</p>
+          <p className="text-sm text-fg-muted">Sürüm {d.version}</p>
         </div>
+
+        {isDraft ? (
+          <div role="note" className="flex items-start gap-2 rounded-md border-2 border-warning bg-warning-bg p-3 text-sm text-fg">
+            <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-warning" />
+            <span>{DRAFT_NOTICE}</span>
+          </div>
+        ) : null}
 
         {d.imprint.missing.length ? (
           <div role="note" className="flex items-start gap-2 rounded-md border border-warning bg-warning-bg p-3 text-sm text-fg">

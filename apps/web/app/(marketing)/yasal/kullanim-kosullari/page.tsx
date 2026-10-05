@@ -5,7 +5,7 @@ import { LEGAL_ENTITY, SITE_NAME } from '@/lib/site';
 
 export const metadata: Metadata = pageMetadata({
   title: 'Kullanım koşulları',
-  description: `${SITE_NAME} abonelik ve kullanım koşulları (taslak).`,
+  description: `${SITE_NAME} abonelik ve kullanım koşulları.`,
   path: '/yasal/kullanim-kosullari',
 });
 

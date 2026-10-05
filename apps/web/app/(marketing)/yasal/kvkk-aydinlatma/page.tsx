@@ -5,7 +5,7 @@ import { LEGAL_ENTITY, SITE_NAME } from '@/lib/site';
 
 export const metadata: Metadata = pageMetadata({
   title: 'KVKK aydınlatma metni',
-  description: '6698 sayılı KVKK m.10 kapsamında aydınlatma metni (taslak).',
+  description: '6698 sayılı KVKK m.10 kapsamında aydınlatma metni.',
   path: '/yasal/kvkk-aydinlatma',
 });
 

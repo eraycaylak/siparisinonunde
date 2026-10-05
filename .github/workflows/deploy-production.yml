@@ -29,6 +29,17 @@
 # geçişi + duman testini yapar (sunucuya dokunmaz; yarım kalan DNS geçişini tamamlamak için).
 # Kişisel veri (00 §12a madde 10, CLAUDE.md kural 7): sunucudaki servis günlükleri bu iş akışına HAM olarak kopyalanmaz;
 # hata durumunda deploy.sh diag yalnız süzülmüş uyarı/hata özetini yazar, tam günlük sunucuda kalır.
+# DAĞITIM KAPISI (denetim 2026-10-04 · B4, B5 · FAZ 0.5 + 0.6) — kapının tamamı ve DAL POLİTİKASI önerisi
+# .github/workflows/testler.yml dosyasının başında anlatılıyor; tek kaynak orası. Bu dosyaya özgü noktalar:
+#   - `testler` işi o kapıyı çağırır; `deploy` `needs: [kontrol, testler]` ile bekler, yani kapı kırmızıysa SUNUCUYA
+#     HİÇ BAĞLANILMAZ. "Ön denetim" adımındaki `node --test scripts/vps/*` kapıda da koşuyor; SSH'den önceki hızlı
+#     ikinci savunma hattı olduğu için orada bırakıldı.
+#   - GERİ ALMA: bu yolda `wrangler rollback` KULLANILAMAZ (canlı, sunucuda Docker Compose yığınıdır). Geri alış =
+#     bu iş akışını `ref` girdisine eski commit SHA'sı yazarak elle çalıştırmak. Veritabanı geri alınmaz (aşağı
+#     migration yok, denetim H24); deploy.sh `up` güncellemeden önce veritabanı yedeği alır (scripts/backup.sh).
+#   - UYARI (denetim bulgu 15, B14): VPS_HOST secret'ını eklemek bir sonraki push'ta alan adını BOŞ veritabanlı bir
+#     sunucuya taşır; "hedef veritabanı dolu mu" kontrolü hiçbir adımda yok. O kapı FAZ 1.2'nin (entrypoint/deploy.sh)
+#     işidir, bu iş akışının değil. Secret'ı eklemeden önce docs/15 §14'ü okuyun.
 name: Canlı ortam (Türkiye VPS)
 
 on:
@@ -50,8 +61,9 @@ on:
         type: boolean
         default: false
 
+# Grup adı deploy-dev-cloudflare.yml ile AYNI: iki iş akışı aynı alan adına dağıtır, üst üste gelmesinler.
 concurrency:
-  group: deploy-production
+  group: yemekgelsin-canli-dagitim
   cancel-in-progress: false
 
 permissions:
@@ -84,11 +96,25 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then echo "::error::$msg"; exit 1; fi
           echo "::notice::İsteğe bağlı VPS yolu kullanılmıyor (canlı ortam Cloudflare'de; 00 §12a madde 10). Bu iş akışı atlandı."
 
-  deploy:
+  # DAĞITIM KAPISI: monorepo'nun tür denetimi ve testleri (PostgreSQL 16 servisiyle). Kırmızıysa `deploy` hiç başlamaz
+  # ve sunucuya hiç bağlanılmaz. VPS yolu kullanılmıyorsa (olağan durum) kapı da koşmaz: boşa CI harcanmasın.
+  testler:
     needs: kontrol
+    if: needs.kontrol.outputs.ready == 'true'
+    uses: ./.github/workflows/testler.yml
+    with:
+      # Elle eski bir sürüme dönülüyorsa kapı da O sürümün testlerini koşar (checkout ile aynı ref).
+      ref: ${{ inputs.ref || github.sha }}
+
+  deploy:
+    needs: [kontrol, testler]
     if: needs.kontrol.outputs.ready == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    # Dağıtım ortamı. GitHub > Settings > Environments > production > "Required reviewers" açıldığı anda her dağıtım
+    # onay bekler (dosya başındaki DAL POLİTİKASI önerisi). Ortam yoksa ilk çalıştırmada kuralsız oluşturulur ve
+    # dağıtım bugünkü gibi akar — bu satır tek başına hiçbir şeyi kilitlemez.
+    environment: production
     env:
       VPS_HOST: ${{ secrets.VPS_HOST }}
       VPS_USER: ${{ secrets.VPS_USER }}

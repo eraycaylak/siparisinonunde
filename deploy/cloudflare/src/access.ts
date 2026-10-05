@@ -46,6 +46,17 @@ export function normalizeDeployMode(raw: string | undefined | null): DeployMode 
   return (raw ?? '').trim() === 'staging' ? 'staging' : 'domain';
 }
 
+/** Gelen webhook yollarının öneki (ortak numara ve işletmenin kendi numarası; apps/api routes/webhooks/wa.ts). */
+export const WEBHOOK_PATH_PREFIX = '/api/v1/webhooks/';
+
+/**
+ * Gelen webhook yolu mu: yalnız bu yolların gövdesi, container alamadığında R2 tamponuna yazılır
+ * (src/webhook-spool.ts; denetim 1.7). Yüzde kodlanmış biçimler de sayılır.
+ */
+export function isWebhookPath(pathname: string): boolean {
+  return normalizePathForAuth(pathname).startsWith(WEBHOOK_PATH_PREFIX);
+}
+
 const HEALTH_PATHS = ['/api/v1/health', '/api/v1/health/worker'];
 
 /** İzleme uçları (parolasız; gizli staging'de de açık). */

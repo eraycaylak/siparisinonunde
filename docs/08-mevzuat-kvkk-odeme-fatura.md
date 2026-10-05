@@ -87,6 +87,10 @@ KVKK, GDPR m.28 gibi maddeleri tek tek saymaz. Ancak m.12/2 ve Kurum uygulaması
 | 10 | Sözleşme sonu | Silmeden önce en az 30 günlük dışa aktarma penceresi: gönüllü iptalde dönem sonundan itibaren 30 gün; dunning'de G+45 bildiriminden G+75 kapanışına kadar; deneme bitişinde askı süresince D+90'a kadar (§6.2, §6.3). Ardından silme; yedeklerden rotasyonla düşme süresi (§2.8). Yasal saklama istisnaları ayrıca yazılır |
 | 11 | İşletmenin yükümlülükleri | Aydınlatma metnini yayınlamak (şablon bizden), ETK/İYS yükümlülükleri, hukuka uygun talimat, VERBİS kaydı varsa güncel tutmak |
 
+**Üründe [Faz 0]:** 11 maddenin tamamı `/yasal/dpa` sayfasında yayında (`apps/web/app/(marketing)/yasal/dpa/page.tsx`); madde 5 ve 6'nın atıf yaptığı kamuya açık alt işleyen listesi `/yasal/alt-isleyenler`'dedir (§2.11). Veri işleyen künyesi sayfaya `LEGAL_*` ortam değişkenlerinden basılır (§4.7), kodda yer tutucu yoktur. Kabul, abonelik sözleşmesiyle aynı click-wrap adımında alınır ve `legal_acceptances` tablosuna `document='dpa'` olarak yazılır; `dpa` değeri `packages/core/src/enums.ts` → `LEGAL_DOCUMENTS` içinde tanımlıdır.
+
+> **Açık iş:** `legal_acceptances.document` kolonundaki `legal_acceptances_document_ck` CHECK kısıtı yalnız ilk dört belgeyi kabul eder (`packages/db/migrations/0000_init.sql`). Kısıtı `dpa` ile genişleten migration uygulanmadan kayıt yazılamaz; kayıt yazan uç (`apps/api/src/routes/auth.ts` kayıt işlemi) da bu migrationdan sonra güncellenir.
+
 ### 2.3 VERBİS
 
 - **Dayanak:** Veri Sorumluları Sicili Hakkında Yönetmelik (RG 30.12.2017) [Y]. **Muafiyet:** Kurul'un 2018/87 sayılı kararı. Üç koşul birlikte aranır: yıllık çalışan < 50, yıllık mali bilanço < 25 milyon TL, ana faaliyet özel nitelikli veri işleme değil [Y]. Bilanço eşiğinin sonradan yükseltildiği (100 milyon TL gibi) hatırlanıyor [D?] (teyit edilmeli).
@@ -170,9 +174,10 @@ Dayanak: Silme, Yok Etme veya Anonim Hale Getirme Yönetmeliği (RG 28.10.2017) 
 | 16 | Bizim faturalarımız ve muhasebe belgelerimiz | 10 yıl | Belge tarihi | — | — | 2 | TTK m.82, VUK m.253 [O] |
 | 17 | Yedekler (PITR) | 35 gün rotasyon | — | Eski yedek otomatik silinir. Silinen veri en geç 35 günde yedeklerden de düşer | Yedek aracı politikası | 1 | [T]; A03 35–90 gün |
 | 18 | İmha kayıtları (bu işlerin çıktısı) | En az 3 yıl | Koşu | — | — | 1 | [O] |
-| 19 | SMS OTP doğrulama kayıtları (`otp_verifications`) ve SMS gönderim kayıtları (`sms_messages`: müşteri OTP'si, WhatsApp'sız mod durum SMS'i, işletme alarmı) | OTP kaydı 30 gün; SMS gönderim kaydı 90 gün | Kayıt | OTP kaydı silinir; SMS kaydında telefon maskelenir, durum ve maliyet kalır | `retention.technical` | 1 | [T]; Akış B SMS OTP yedeği ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7), [07](07-veri-modeli-ve-api.md) §9 |
+| 19 | SMS OTP doğrulama kayıtları (`otp_verifications`) ve SMS gönderim kayıtları (`sms_messages`: müşteri OTP'si, WhatsApp'sız mod durum SMS'i, işletme alarmı) | OTP kaydı 30 gün; SMS gönderim kaydı 90 gün | Kayıt | OTP kaydı silinir; SMS kaydında telefon maskelenir **ve gövde (düz OTP kodu, takip linki) boşaltılır**, durum, amaç ve maliyet kalır. Müşterinin KVKK silme talebinde süre beklenmez: o müşteriye giden `otp` ve `status` kayıtları hemen maskelenir ve gövdeleri boşaltılır (§2.10); işletmeye giden `alarm` kaydı müşteri verisi değildir, dokunulmaz | `retention.technical` | 1 | [T]; Akış B SMS OTP yedeği ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7), [07](07-veri-modeli-ve-api.md) §9 |
 | 20 | Ürün analitiği olayları (`analytics_events`: storefront hunisi ve panel kullanım olayları; ad, telefon, adres, not, IP, kullanıcı ve müşteri kimliği **içermez**; yalnız sekme oturumu boyunca geçerli rastgele oturum kimliği) | 90 gün | Olayın alınması | Aylık partition düşürülür | `retention.analytics` | 1 | [T]; veri minimizasyonu ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9); şema [07](07-veri-modeli-ve-api.md) §3.5; rıza değerlendirmesi §2.13 |
 | 21 | [Faz 2] Pastane özel sipariş formu yanıtları (`order_custom_forms.answers`) ve müşterinin yüklediği görseller (`order_attachments`) — alerji/sağlık alanı **yoktur** | Sipariş kaydıyla aynı süre (yanıtlar); görseller 30 gün [T] | Teslim | Nesne depodan kalıcı silme, referans NULL | `retention.media` | 2 | [T]; 07 §3.8 |
+| 22 | İş kuyruğu kayıtları (`jobs`: iş türü ve yük anlık görüntüsü — `sms.send` yükünde alıcı telefon ve düz metin OTP gövdesi) ve işletme bildirimleri (`notifications`) | Bitmiş iş (`done`, `cancelled`) 30 gün; kalıcı hata (DLQ, `failed`) yükü 30 gün, satır 90 gün; bildirim 90 gün | İşin bitişi (`finished_at`) / bildirimin kaydı | Bitmiş iş ve bildirim silinir. DLQ satırı arıza teşhisi için kalır: yükün kişisel veri taşıyan alanları (telefon, gövde, uyarı metni, adres, ad) `"***"` ile değiştirilir, hata metnindeki telefon maskelenir; 90 gün sonra satır da silinir | `retention.technical` | 1 | [T]; [07](07-veri-modeli-ve-api.md) §9 |
 
 **Kabul kriterleri (otomatik silme) [Faz 1]:**
 - Her iş idempotenttir, tenant bazında çalışır ve sonucu `retention_runs` tablosuna yazar: iş adı, tenant, silinen/anonimleşen kayıt sayısı, süre, hata. Bu kayıt imha tutanağı yerine geçer.
@@ -180,7 +185,7 @@ Dayanak: Silme, Yok Etme veya Anonim Hale Getirme Yönetmeliği (RG 28.10.2017) 
 - İşletme süre ayarını (satır 6) değiştirince yeni süre bir sonraki koşuda uygulanır. Ayar değişikliği `audit_log`'a yazılır.
 - Staging'de zaman yolculuğu (sahte saat) testiyle her iş doğrulanır. CI'da "silinmiş alan logda görünmez" testi çalışır.
 - Saklama-imha politikası (iç doküman) bu tabloyu birebir içerir; tablo değişirse politika sürümü de değişir.
-- *Uygulama notu (Faz 1):* `retention_runs.job_name` tablodaki iş adını önek olarak kullanır; bir iş birden çok adımdan oluşuyorsa alt ad eklenir: `retention.technical.<tablo>` (satır 19 ve teknik kayıtlar), `retention.order_notes.items`, `retention.wa_messages.previews`, sipariş onayı ve son müşteri belge kabulündeki IP/tarayıcı bilgisinin 1 yıl sonra boşaltılması `retention.access_logs.orders` / `retention.access_logs.legal_acceptances` (satır 10). `retention.customer_inactive` haftalık değil günlük koşuda çalışır; işletme süre ayarı (6–24 ay) henüz yoktur, süre 24 aydır. Ayrıntı [14](14-uygulama-sartnamesi.md) §7.2.
+- *Uygulama notu (Faz 1):* `retention_runs.job_name` tablodaki iş adını önek olarak kullanır; bir iş birden çok adımdan oluşuyorsa alt ad eklenir: `retention.technical.<tablo>` (satır 19, 22 ve teknik kayıtlar; DLQ iki adımdır: `retention.technical.jobs.failed_payload` maskeler, `retention.technical.jobs.failed` siler), `retention.order_notes.items`, `retention.wa_messages.previews`, sipariş onayı ve son müşteri belge kabulündeki IP/tarayıcı bilgisinin 1 yıl sonra boşaltılması `retention.access_logs.orders` / `retention.access_logs.legal_acceptances` (satır 10). `retention.customer_inactive` haftalık değil günlük koşuda çalışır; işletme süre ayarı (6–24 ay) henüz yoktur, süre 24 aydır. Ayrıntı [14](14-uygulama-sartnamesi.md) §7.2.
 
 ### 2.9 Veri ihlali müdahale süreci (72 saat)
 
@@ -212,7 +217,7 @@ Dayanak: m.11, m.13 ve Başvuru Tebliği (RG 10.03.2018). Cevap süresi en geç 
 |---|---|---|
 | Müşteri detayında **"Verileri dışa aktar"**: kimlik, iletişim, adresler, siparişler, mesajlar, onaylar (JSON + okunur PDF/CSV) | `owner`, `manager` | 1 |
 | **"Düzelt"** (KVKK başvurusuna bağlı düzeltme, başvuru kaydına işlenir): ad, telefon, adres. Kasiyerin sipariş sırasında yaptığı olağan adres/ad güncellemesi KVKK talebi sayılmaz | `owner`, `manager` | 1 |
-| **"Sil / anonimleştir"**: açık siparişi yoksa çalışır; mali sipariş kaydı anonim kalır (§2.8 satır 6 yöntemi) | `owner`, `manager` | 1 |
+| **"Sil / anonimleştir"**: açık siparişi yoksa çalışır; mali sipariş kaydı anonim kalır (§2.8 satır 6 yöntemi). Müşteriye giden SMS kayıtlarında telefon maskelenir ve gövde boşaltılır, kayıt maliyet için kalır (§2.8 satır 19) | `owner`, `manager` | 1 |
 | **"Tüm bildirimleri durdur"** (`opt_out_all`, [02](02-whatsapp-entegrasyonu.md) §6.9) | `owner`, `manager`, `cashier` | 1 |
 | **Başvuru kaydı**: tarih, kanal, talep türü, son tarih (başvuru + 30 gün), durum. Son tarihe 7 gün kala uyarı | `owner`, `manager` | 1 |
 | "Pazarlama iznini geri al" + İYS'ye ret kaydı | `owner`, `manager`, `cashier` | 2 |
@@ -230,7 +235,7 @@ Dayanak: m.11, m.13 ve Başvuru Tebliği (RG 10.03.2018). Cevap süresi en geç 
 
 Yurt dışından **uzaktan erişim** de aktarım sayılır [O]. Canlı ortam zaten yurt dışında (Cloudflare) olduğundan bu aktarım Cloudflare standart sözleşmesinin kapsamındadır; üretim veritabanı container içinde çalışır ve dışarıya açık değildir, operatör erişimi yalnız uygulamanın kendisi (admin paneli, iki adımlı doğrulamalı) ve Cloudflare hesabı üzerindendir [T]. *(İlk plandaki "yalnız Türkiye'deki bastion üzerinden erişim" kuralı 00 §12a madde 10 ile kalktı.)*
 
-**Aktarım envanteri** (admin panelinde ve kamuya açık alt işleyen sayfasında tutulur; kolonlar: ülke, veri kategorisi, m.9 dayanağı, sözleşme tarihi, bildirim tarihi). **Yurt dışı alt işleyen ve araçlar:** Meta, WhatsApp iş çözümü sağlayıcısı (Twilio ya da 360dialog; ortak numaranın bağlandığı yol, 00 §12a madde 8), Anthropic, Cloudflare, Sentry (SaaS seçilirse), e-posta sağlayıcısı (yurt dışı seçilirse), **Google Maps Platform, Web Push servisleri (FCM, APNs, Mozilla), GitHub ve iş araçları**. Bu tablo, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10'un "tam liste 08 §2.11" diye atıf yaptığı kanonik aktarım envanteridir. **Yurt içi alt işleyenler:** SMS sağlayıcısı, PSP, Paraşüt. Barındırma yurt dışındadır (Cloudflare; 00 §12a madde 10).
+**Aktarım envanteri** (admin panelinde ve kamuya açık alt işleyen sayfasında tutulur; kolonlar: ülke, veri kategorisi, m.9 dayanağı, sözleşme tarihi, bildirim tarihi). **Kamuya açık sayfa [Faz 0]:** `/yasal/alt-isleyenler` (`apps/web/app/(marketing)/yasal/alt-isleyenler/page.tsx`). O sayfadaki liste **üründe gerçekten çağrılan** sağlayıcılardan türetilir (Cloudflare, Meta/WhatsApp, Twilio ya da 360dialog, Netgsm, Web Push servisleri, OpenFreeMap harita döşemeleri, Google Haritalar yol tarifi bağlantısı, GitHub); aşağıdaki envanterde yer alıp üründe henüz çağrılmayanlar (Anthropic, Sentry, e-posta sağlayıcısı, PSP, Paraşüt) sayfaya **yazılmaz** — kullanılmayan sağlayıcıyı listelemek yanıltıcı beyandır. Yeni bir alt işleyen devreye alınırken sıra: önce bu envanter, sonra `/yasal/alt-isleyenler`, sonra 30 gün önceden işletme bildirimi (§2.2 madde 5). **Yurt dışı alt işleyen ve araçlar:** Meta, WhatsApp iş çözümü sağlayıcısı (Twilio ya da 360dialog; ortak numaranın bağlandığı yol, 00 §12a madde 8), Anthropic, Cloudflare, Sentry (SaaS seçilirse), e-posta sağlayıcısı (yurt dışı seçilirse), **Google Maps Platform, Web Push servisleri (FCM, APNs, Mozilla), GitHub ve iş araçları**. Bu tablo, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10'un "tam liste 08 §2.11" diye atıf yaptığı kanonik aktarım envanteridir. **Yurt içi alt işleyenler:** SMS sağlayıcısı, PSP, Paraşüt. Barındırma yurt dışındadır (Cloudflare; 00 §12a madde 10).
 
 | Alt işleyen / araç | Amaç | Kişisel veri | Konum | m.9 yaklaşımı | Minimizasyon | Faz |
 |---|---|---|---|---|---|---|
@@ -487,7 +492,26 @@ Dayanak: 6502 sayılı Kanun, Mesafeli Sözleşmeler Yönetmeliği (RG 27.11.201
 
 ### 4.7 Site künyesi ve 5651
 
-- **6563 m.3:** Hizmet sağlayıcı sitede unvan, MERSİS no, adres, e-posta, telefon, meslek odası ve vergi numarasını yayınlar [O]. **Bizim sitemizde [Faz 0]** kendi künyemiz yer alır. **Vitrinde [Faz 1]** işletmenin künyesi yer alır. Onboarding'de zorunlu alanlar: unvan veya ad-soyad, adres, telefon, VKN/TCKN, varsa MERSİS no ve meslek odası. Bu alanlar eksikse vitrin yayına alınmaz.
+- **6563 m.3:** Hizmet sağlayıcı sitede unvan, MERSİS no, adres, e-posta, telefon, meslek odası ve vergi numarasını yayınlar [O]. **Bizim sitemizde [Faz 0]** kendi künyemiz yer alır.
+
+#### Künyenin tek yapılandırma kaynağı (B1, B12)
+
+Platform künyesi koda yazılmaz; `apps/web/lib/site.ts` → `resolveLegalEntity()` ortam değişkenlerinden okur ve `LEGAL_ENTITY` olarak yayar (`/kunye`, `/yasal/*`, altbilgi, `/yasal/dpa`). Eksik zorunlu alan için yer tutucu metin üretilmez; değerin yerine **hangi değişkenin eksik olduğunu söyleyen** bir satır basılır ve `LEGAL_ENTITY.missing` dolar.
+
+| Değişken | Zorunlu | Künye satırı |
+|---|---|---|
+| `LEGAL_ENTITY_NAME` | evet | Unvan |
+| `LEGAL_ENTITY_TYPE` | evet | Şirket türü |
+| `LEGAL_ENTITY_ADDRESS` | evet | Adres (açık adres, ilçe / il) |
+| `LEGAL_SUPPORT_EMAIL` | hayır (boşsa marka adresi) | E-posta |
+| `LEGAL_ENTITY_PHONE` | evet | Telefon |
+| `LEGAL_ENTITY_TAX_OFFICE` | evet | Vergi dairesi |
+| `LEGAL_ENTITY_TAX_NO` | evet | Vergi / T.C. kimlik no |
+| `LEGAL_ENTITY_MERSIS` | hayır (boşsa "Yok") | MERSİS no |
+| `LEGAL_ENTITY_CHAMBER` | hayır (boşsa "Yok") | Meslek odası |
+| `LEGAL_ENTITY_KEP` | hayır (boşsa "Yok") | KEP adresi |
+
+Değerler **gerçek şirket belgelerinden** girilir; tahminle doldurulmaz. Web imajı bu değerleri derleme anında okur, bu yüzden değer değişince web yeniden derlenir (15 §4). Dağıtım kapısı: `node --import tsx scripts/check-legal.ts` eksik alanı listeleyip çıkış kodu 1 verir. **Vitrinde [Faz 1]** işletmenin künyesi yer alır. Onboarding'de zorunlu alanlar: unvan veya ad-soyad, adres, telefon, VKN/TCKN, varsa MERSİS no ve meslek odası. Bu alanlar eksikse vitrin yayına alınmaz.
 - **5651 sayılı Kanun [O]:** İşletme içeriğini (menü, fotoğraf) barındırdığımız için **yer sağlayıcı** sayılabiliriz. Hukuka aykırı içerik bildirildiğinde kaldırma yükümlülüğü doğar; trafik bilgisi saklanır (§2.8 satır 10). Ürün aksiyonu [Faz 1]: kamuya açık içerik bildirim formu ve admin panelinde "içeriği yayından kaldır" aracı ([05](05-admin-paneli-ve-pazarlama-sitesi.md)).
 
 ### 4.8 Nisan 2026 yemek sipariş düzenlemesi ve bize etkisi
@@ -730,6 +754,14 @@ Dayanak: 6769 sayılı Sınai Mülkiyet Kanunu [Y]. Adımlar (A03 §7.4):
 
 **Kabul kriterleri:** Sözleşmenin güncel sürümünü kabul etmemiş `owner` abonelik işlemi yapamaz. Her siparişte en az üç belge sürümü (aydınlatma, ön bilgilendirme, sözleşme) kayıtlıdır. Kabul kayıtları hesap silinse de 10 yıl saklanır (§2.8 satır 14).
 
+#### Üründeki sürüm kapıları (B2, H19)
+
+- **Tek sürüm kaynağı:** `packages/core/src/enums.ts` → `LEGAL_DOCUMENT_VERSION`. Hem kabul kaydına (`legal_acceptances.version`) hem ekrandaki "Sürüm …" satırına aynı sabit gider. Bu sabit bilerek ortam değişkeninden okunmaz: `NEXT_PUBLIC_` olmayan bir değer istemci paketinde boş kalacağı için ekranda görünen sürüm ile kayda yazılan sürüm ayrışırdı.
+- **Taslak tespiti:** `isDraftLegalVersion(version)` — sürümde `taslak` ya da `draft` geçiyorsa metin hukuki inceleme bekliyor demektir. Taslak ibaresi hiçbir sayfada sabit yazılmaz; bu fonksiyondan türetilir, yayın sürümünde kendiliğinden kalkar.
+- **Fail-closed kapı (⚠️ HENÜZ YAZILMADI):** kural şu olmalıdır — taslak sürüm yürürlükteyken müşteriye sözleşme onaylatılmaz; sipariş oluşturma ucu reddeder ve taslak sürümlü kabul kaydı hiç oluşmaz. Kapının yeri `apps/api/src/routes/store/orders.ts` → `POST /:slug/orders`, `tenantOrderingBlocked` kapısının yanı ve **kabul kaydı insert'inden önce**. Bugün bu kapı yoktur: taslak sürüm yürürlükte olmasına rağmen sipariş alınır ve `legal_acceptances`'a taslak sürüm yazılır (denetim B2 hâlâ açık). Bu satır uygulandığında işaret kaldırılır.
+- **İçerik özeti:** `legalDocumentPlainText()` (`apps/web/components/storefront/legal/store-legal.ts`) belgenin kanonik düz metnini üretir; kabul kanıtı **sürüm + bu metnin özeti** ikilisidir. Aynı şablon iki işletmede iki farklı özet verir, çünkü sözleşmenin tarafı işletmedir. `scripts/check-legal.ts` yasal metin kaynaklarının birleşik SHA-256 özetini sürüme sabitler: metin değişip sürüm aynı kalırsa dağıtım durur ("yayınlanmış sürüm değiştirilemez").
+- **Avukat onayından sonraki adımlar, sırayla:** (1) metinlerin son hâli yazılır; (2) `LEGAL_DOCUMENT_VERSION` tarihli yayın sürümüne çevrilir (ör. `2026-10-15`); (3) `node --import tsx scripts/check-legal.ts --ozet` ile yeni özet alınır ve `scripts/check-legal.ts` içindeki `PINNED_TEXT_DIGEST`'e yazılır; (4) `/kunye` ve `components/marketing/legal-page.tsx` üzerindeki sabit taslak bantları kaldırılır; (5) denetim betiği yeşile döner, sipariş ucu açılır.
+
 ---
 
 ## 8. Vergi (maliyet planlaması)
@@ -791,7 +823,9 @@ Belirli parayı içeren imzalı sözleşmelerde oran **binde 9,48**'dir; e-imzal
 - [ ] Şirket kuruluşu (varsayılan Ltd), vergi levhası, banka hesabı, e-Tebligat, e-imza — *Kurucu, Mali müşavir* — §7.1–7.2
 - [ ] Marka araştırması ve başvurusu (9, 35, 38, 42; kelime + logo), alan adları — *Kurucu, Marka vekili* — §7.3
 - [ ] Meta Business Verification ve Tech Provider süreçlerinin başlatılması; gizlilik politikası URL'si hazır — *Kurucu, Teknik lider* — §7.2
-- [ ] Bizim site künyemiz; vitrinde işletme künyesi alanları zorunlu, eksikse yayın kapalı — *Ürün* — §4.7
+- [ ] Bizim site künyemiz: `LEGAL_*` değişkenleri gerçek şirket belgeleriyle dolu, `scripts/check-legal.ts` yeşil; vitrinde işletme künyesi alanları zorunlu, eksikse yayın kapalı — *Kurucu, Ürün* — §4.7
+- [ ] `destek@yemekgelsin.net` posta kutusu gerçekten açık ve okunuyor (KVKK m.13: 30 gün) — *Kurucu* — §2.10
+- [ ] `LEGAL_DOCUMENT_VERSION` yayın sürümüne çevrildi, sabit taslak bantları kaldırıldı, içerik özeti sabitlendi — *Avukat, Teknik lider* — §7.5
 - [ ] Kurumsal aydınlatma metni, gizlilik politikası, çerez politikası ve rıza paneli — *Avukat, Ürün* — §2.4, §2.13
 - [ ] Abonelik sözleşmesi + kullanım koşulları + DPA + alt işleyen listesi (click-wrap, sürümlü, kabul kayıtları DB'de) — *Avukat, Teknik lider* — §2.2, §7.4–7.5
 - [ ] Son müşteri aydınlatma şablonu: vitrin, checkout, takip sayfası ve WhatsApp karşılama satırında — *Avukat, Ürün* — §2.4

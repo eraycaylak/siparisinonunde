@@ -2,7 +2,8 @@
 // Kurallar: yalnız aktif ve silinmemiş kayıtlar; wa_restricted ürünler listelenmez (00 §6.10);
 // sold_out_until > now → soldOut; zorunlu grubu karşılanamayan ürün de tükendi sayılır (04 §6.3).
 
-import { computeOrderingState, DEFAULT_TIMEZONE, isValidSlug, localDateString, sharedPrefillText, type LifecycleStage, type OrderingState } from '@siparis/core';
+import { computeOrderingState, DEFAULT_TIMEZONE, isValidSlug, localDateString, sharedPrefillText, type OrderingState } from '@siparis/core';
+import { isOrderingBlockedStage } from '@siparis/core/admin/lifecycle';
 import type { StorefrontView } from '@siparis/core/menu/contracts';
 import {
   branches,
@@ -21,8 +22,11 @@ import {
 import { and, asc, desc, eq, gte, inArray, isNull } from 'drizzle-orm';
 import { whatsappLinkFor } from '../messaging/shared';
 
-/** Online sipariş kapalı sayılan yaşam döngüsü aşamaları (05 §dunning: askı ve kapanış). */
-export const ORDERING_BLOCKED_STAGES: readonly LifecycleStage[] = ['suspended', 'churned'];
+/**
+ * Online sipariş kapalı sayılan yaşam döngüsü aşamaları (00 §9): salt-okunur (deneme bitişi / dunning G+10),
+ * askı ve kapanış. Tek kaynak `@siparis/core/admin/lifecycle`; buradan yalnız yeniden yayımlanır.
+ */
+export { ORDERING_BLOCKED_STAGES } from '@siparis/core/admin/lifecycle';
 
 export type TenantRow = typeof tenants.$inferSelect;
 export type BranchRow = typeof branches.$inferSelect;
@@ -83,8 +87,10 @@ export async function branchOrderingInfo(db: Database, tenant: TenantRow, branch
     { timezone: tz, hours, specialDays: specials, pausedUntil: branch.pausedUntil, busyExtraMinutes: branch.busyExtraMinutes },
     now,
   );
-  // Canlıya geçmemiş işletme (web_live_at boş) sipariş almaz (04 §3.4.4)
-  const orderingEnabled = tenant.orderingEnabled && !ORDERING_BLOCKED_STAGES.includes(tenant.lifecycleStage) && tenant.webLiveAt != null;
+  // Canlıya geçmemiş işletme (web_live_at boş) sipariş almaz (04 §3.4.4); salt-okunur/askı/kapanış aşamaları da
+  // sipariş almaz (00 §9) — vitrin bunu "Şu an online sipariş alınmıyor. Sipariş için lütfen işletmeyi arayın."
+  // bandıyla gösterir (apps/web/components/storefront/format.ts orderingStatus).
+  const orderingEnabled = tenant.orderingEnabled && !isOrderingBlockedStage(tenant.lifecycleStage) && tenant.webLiveAt != null;
   if (!orderingEnabled) {
     // İşletme düzeyinde kapalı: "paused" gibi davran, açılış zamanı bilinmez
     return { state: 'paused', nextOpenAt: null, closesAt: null, pausedUntil: null, busyExtraMinutes: 0, orderingEnabled: false };

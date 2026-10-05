@@ -103,7 +103,7 @@ describe('zincir (varsayılan politika 15/10 dk)', () => {
       .where(eq(orders.id, o.id));
     await runJobsAt(ctx, 2 * MIN + 1000);
     expect(byOrder('platform.alert', o.id)).toHaveLength(0);
-    const deferred = (await jobsFor(ctx, o.id, 'order.alarm_step')).filter((j) => j.dedupeKey?.includes(':after:'));
+    const deferred = (await jobsFor(ctx, o.id, 'order.alarm_step')).filter((j) => j.dedupeKey?.includes('#g'));
     expect(deferred.length).toBeGreaterThan(0);
     // ret kesinleşir (iş yok; doğrudan geçiş simülasyonu)
     await ctx.request({ method: 'POST', url: `/api/v1/panel/orders/${o.id}/undo-reject`, cookie: s.ownerCookie });
@@ -239,6 +239,60 @@ describe('test siparişleri', () => {
     expect(byOrder('platform.alert', o.id)).toHaveLength(0);
     expect(byOrder('sms.send', o.id)).toHaveLength(0);
     expect(byOrder('order.notify_customer', o.id).filter((p) => p.event === 'approval_delay')).toHaveLength(0);
+  });
+});
+
+describe('yeniden kurulabilen anahtarlar (denetim H-a)', () => {
+  // Kanonik geçiş tablosu (packages/core/src/order-fsm.ts) `awaiting_customer → new` kenarını TANIR: zincir bu
+  // yolla ilk kez kurulur. Tam tekillik bunu engellemez (anahtarlar çıplak = nesil 0), ama regresyon kapısı
+  // gerekiyor: zincir kurulmazsa sipariş sonsuza kadar `new` kalır ve 15 dk `tenant_no_response` iptali hiç olmaz.
+  it('awaiting_customer → new: zincir kurulur (çıplak anahtarlar) ve 15 dk iptali çalışır', async () => {
+    const o = await createHookedOrder(ctx, s, { status: 'awaiting_customer' });
+    expect(await jobsFor(ctx, o.id, 'order.alarm_step')).toHaveLength(0);
+
+    const r = await ctx.request({ method: 'POST', url: `/api/v1/panel/orders/${o.id}/verify`, cookie: s.ownerCookie });
+    expect(r.statusCode, r.body).toBe(200);
+    expect(r.json().order).toMatchObject({ status: 'new' });
+
+    const chain = await jobsFor(ctx, o.id, 'order.alarm_step');
+    expect(chain.map((j) => (j.payload as { step: number }).step).sort()).toEqual([2, 3, 4, 5, 6]);
+    expect(chain.every((j) => j.status === 'pending')).toBe(true);
+    expect(chain.map((j) => j.dedupeKey).sort()).toEqual([2, 3, 4, 5, 6].map((step) => `alarm:${o.id}:${step}`).sort());
+
+    await runJobsAt(ctx, 15 * MIN + 1000);
+    expect(await statusOf(o.id)).toMatchObject({ status: 'cancelled', cancelledBy: 'system', cancelReason: 'tenant_no_response' });
+  });
+
+  // H-a2: erteleme eskiden `alarm:<sipariş>:<adım>:after:<ret zamanı>` anahtarını kullanıyordu. Ret HÂLÂ aynı ana
+  // planlıyken ikinci kez ertelemek gerektiğinde bu, çalışan satırın KENDİ anahtarıydı: çakışma → `enqueueJob`
+  // null → adım buharlaşıyor, sipariş sessizce `new` kalıyordu (kısmi indeks de çözmezdi: `running` yüklemin içinde).
+  it('bekleyen ret: adım ikinci kez ertelenebilir (nesil kendi anahtarını ezmez)', async () => {
+    const o = await createHookedOrder(ctx, s);
+    const rejectionAt = new Date(Date.now() + 2 * MIN - 5_000);
+    await ctx.db
+      .update(orders)
+      .set({ rejectionScheduledAt: rejectionAt, rejectionReason: 'too_busy', rejectionRequestedBy: s.owner.id })
+      .where(eq(orders.id, o.id));
+
+    // 1. erteleme: nesil 1, ret + 31 sn
+    await runJobsAt(ctx, 2 * MIN + 1000);
+    const g1 = (await jobsFor(ctx, o.id, 'order.alarm_step')).filter((j) => j.dedupeKey === `alarm:${o.id}:3#g1`);
+    expect(g1).toHaveLength(1);
+    expect(g1[0]!.status).toBe('pending');
+
+    // 2. erteleme: aynı ret zamanı, nesil 2 (ret + 93 sn) — eski desende bu satır hiç oluşmuyordu
+    await runJobsAt(ctx, 2 * MIN + 40_000);
+    const step3 = (await jobsFor(ctx, o.id, 'order.alarm_step')).filter((j) => (j.payload as { step: number }).step === 3);
+    expect(step3.map((j) => j.dedupeKey).sort()).toEqual([`alarm:${o.id}:3`, `alarm:${o.id}:3#g1`, `alarm:${o.id}:3#g2`]);
+    const g2 = step3.find((j) => j.dedupeKey === `alarm:${o.id}:3#g2`)!;
+    expect(g2.status).toBe('pending');
+    expect((g2.payload as { gen: number }).gen).toBe(2);
+    expect(byOrder('platform.alert', o.id)).toHaveLength(0);
+
+    // Ret geri alınınca zincir kaldığı yerden sürer: ertelenen adım (nesil 2, ret + 93 sn) çalışır
+    await ctx.request({ method: 'POST', url: `/api/v1/panel/orders/${o.id}/undo-reject`, cookie: s.ownerCookie });
+    await runJobsAt(ctx, 3 * MIN + 30_000);
+    expect(byOrder('platform.alert', o.id)).toHaveLength(1);
   });
 });
 

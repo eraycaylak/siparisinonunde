@@ -11,6 +11,7 @@ import {
   backoffMs,
   cancelJobs,
   enqueueJob,
+  generationKey,
   isTransientDbError,
   processDueJobs,
   recoverStaleJobs,
@@ -18,6 +19,7 @@ import {
   registerJobHandler,
   runWorker,
   scheduleCronJobs,
+  STALE_EXHAUSTED_ERROR,
 } from '../src/lib/jobs';
 import { createTestContext, TEST_DATABASE_URL, type TestContext } from './helpers';
 
@@ -63,16 +65,41 @@ describe('jobs', () => {
     expect(count).toBe(1);
   });
 
-  it('dedupe: aynı anahtar ikinci kez eklenmez (bitmiş olsa bile)', async () => {
+  // TAM tekillik (`jobs_dedupe_key_uk`, 0003_jobs_dedupe_key_full_unique): anahtar NİYETİ tanımlar. Satır bir kez
+  // var olduysa — `pending`, `running`, `done`, `failed` — aynı anahtarla İKİNCİSİ EKLENEMEZ. Dış etki üreten
+  // işlerin (push, WhatsApp, paralı SMS, müşteri mesajı) idempotency çiti budur: işleyicilerin kendi kapısı yok
+  // (CLAUDE.md kural 6 ve 8). Anahtarı yalnız `cancelJobs` bırakır — o da iş etkisini ÜRETMEDEN önce.
+  it('dedupe: anahtar bir kez kullanılır; iş BİTTİKTEN sonra da kilitli kalır (çift dış etki olmaz)', async () => {
     registerJobHandler('test.dedupe', async () => {});
-    const a = await enqueueJob(ctx.db, { queue: 'notify', type: 'test.dedupe', dedupeKey: 'alarm:o1:3' });
-    const b = await enqueueJob(ctx.db, { queue: 'notify', type: 'test.dedupe', dedupeKey: 'alarm:o1:3' });
+    const key = 'push:new_order:o1';
+    const a = await enqueueJob(ctx.db, { queue: 'notify', type: 'test.dedupe', dedupeKey: key });
     expect(a).toBeTruthy();
-    expect(b).toBeNull();
+    expect(await enqueueJob(ctx.db, { queue: 'notify', type: 'test.dedupe', dedupeKey: key }), 'bekleyen iş').toBeNull();
     await run();
-    expect(await enqueueJob(ctx.db, { queue: 'notify', type: 'test.dedupe', dedupeKey: 'alarm:o1:3' })).toBeNull();
+    expect((await getJob(a!)).status).toBe('done');
+    expect(await enqueueJob(ctx.db, { queue: 'notify', type: 'test.dedupe', dedupeKey: key }), 'biten iş').toBeNull();
     const rows = await ctx.db.select().from(jobs).where(eq(jobs.type, 'test.dedupe'));
     expect(rows).toHaveLength(1);
+    await ctx.db.delete(jobs).where(eq(jobs.type, 'test.dedupe'));
+  });
+
+  // Kalıcı başarısız iş de anahtarı TUTAR; yeniden kurulabilmesi gereken iş (alarm adımı, bekleyen retin
+  // kesinleşmesi) niyeti aynı tutup NESLİ artırır. Nesil 0 çıplak anahtardır: canlı satırlar değişmez.
+  it('dedupe: kalıcı başarısız iş anahtarı tutar; nesil eki (#g<n>) yeni iş açar', async () => {
+    registerJobHandler('test.dedupe_failed', async () => {
+      throw new PermanentJobError('kalıcı');
+    });
+    const base = 'finalize_rejection:o-kilit';
+    expect(generationKey(base, 0)).toBe(base);
+    expect(generationKey(base, 2)).toBe(`${base}#g2`);
+    const a = await enqueueJob(ctx.db, { queue: 'notify', type: 'test.dedupe_failed', dedupeKey: generationKey(base, 0) });
+    await run();
+    expect((await getJob(a!)).status).toBe('failed');
+    expect(await enqueueJob(ctx.db, { queue: 'notify', type: 'test.dedupe_failed', dedupeKey: base }), 'aynı nesil').toBeNull();
+    const b = await enqueueJob(ctx.db, { queue: 'notify', type: 'test.dedupe_failed', dedupeKey: generationKey(base, 1) });
+    expect(b, 'sonraki nesil taze anahtardır').toBeTruthy();
+    expect((await getJob(b!)).dedupeKey).toBe(`${base}#g1`);
+    await ctx.db.delete(jobs).where(eq(jobs.type, 'test.dedupe_failed'));
   });
 
   it('retry: hata → üstel geri çekilme; deneme sınırında failed', async () => {
@@ -168,8 +195,61 @@ describe('jobs', () => {
 
     const stuck = await enqueueJob(ctx.db, { queue: 'print', type: 'test.stuck' });
     await ctx.db.execute(sql`update jobs set status = 'running', locked_at = now() - interval '10 minutes' where id = ${stuck}`);
-    expect(await recoverStaleJobs(ctx.db)).toBe(1);
+    expect(await recoverStaleJobs(ctx.db)).toMatchObject({ requeued: 1, failed: 0 });
     expect((await getJob(stuck!)).status).toBe('pending');
+  });
+
+  // Dilim doğruluğu SATIRIN KALICILIĞINA dayanır: `failed` dilim yeniden eklenirse günlük iş (ör. cron.retention)
+  // 15 sn'lik zamanlayıcı turunda gün boyu sonsuz döngüye girer. Tam unique + açık varlık kontrolü = çifte kemer.
+  it('cron: başarısız olan dilim 15 sn sonra YENİDEN eklenmez', async () => {
+    registerCron({ name: 'test-fail-daily', type: 'test.cron_fail', queue: 'images', schedule: { dailyAt: '03:00' } });
+    const now = new Date('2026-09-24T10:00:00Z');
+    await scheduleCronJobs(ctx.db, now);
+    const [first] = await ctx.db.select().from(jobs).where(eq(jobs.type, 'test.cron_fail'));
+    expect(first).toBeTruthy();
+    await ctx.db.execute(sql`update jobs set status = 'failed', finished_at = now() where id = ${first!.id}`);
+    await scheduleCronJobs(ctx.db, new Date(now.getTime() + 15_000));
+    expect(await ctx.db.select().from(jobs).where(eq(jobs.type, 'test.cron_fail'))).toHaveLength(1);
+    await ctx.db.delete(jobs).where(eq(jobs.type, 'test.cron_fail'));
+  });
+
+  // Denetim H2: worker sürecini öldüren iş sonsuza kadar yeniden denenmemeli
+  it('takılı iş kurtarma: denemesi tükenmiş iş pending OLMAZ, failed olur ve uyarı gider', async () => {
+    const { log: capture, lines } = captureLog();
+    const dead = (await enqueueJob(ctx.db, { queue: 'print', type: 'test.worker_killer', maxAttempts: 3 }))!;
+    const alive = (await enqueueJob(ctx.db, { queue: 'print', type: 'test.worker_killer', maxAttempts: 3 }))!;
+    await ctx.db.execute(sql`
+      update jobs set status = 'running', locked_at = now() - interval '10 minutes', attempts = 3 where id = ${dead}`);
+    await ctx.db.execute(sql`
+      update jobs set status = 'running', locked_at = now() - interval '10 minutes', attempts = 1 where id = ${alive}`);
+
+    const res = await recoverStaleJobs(ctx.db, 5 * 60_000, { log: capture });
+    expect(res).toMatchObject({ requeued: 1, failed: 1, failedTypes: ['test.worker_killer'] });
+    const deadRow = await getJob(dead);
+    expect(deadRow.status).toBe('failed');
+    expect(deadRow.finishedAt).toBeInstanceOf(Date);
+    expect(deadRow.lockedBy).toBeNull();
+    expect(deadRow.lastError).toContain(STALE_EXHAUSTED_ERROR);
+    expect((await getJob(alive)).status).toBe('pending');
+    // Uyarı kanalı yoksa bile log.error ile görünür (alert.ts her koşulda loglar)
+    await new Promise((r) => setTimeout(r, 10));
+    expect(lines.filter((l) => l.level === 'error' && (l.obj as { alert?: string }).alert === 'job_stale_exhausted')).toHaveLength(1);
+    await ctx.db.delete(jobs).where(eq(jobs.type, 'test.worker_killer'));
+  });
+
+  // Çekme kapısı (attempts < max_attempts) alınamayan satır bırakmamalı: `/health/worker` kalıcı 503 dönerdi
+  it('çekme kapısı: denemesi tükenmiş pending iş alınmaz, kurtarma onu failed yapar', async () => {
+    let calls = 0;
+    registerJobHandler('test.exhausted_pending', async () => {
+      calls++;
+    });
+    const id = (await enqueueJob(ctx.db, { queue: 'notify', type: 'test.exhausted_pending', maxAttempts: 2 }))!;
+    await ctx.db.execute(sql`update jobs set attempts = 2 where id = ${id}`);
+    await run();
+    expect(calls, 'denemesi tükenmiş iş çalıştırılmamalı').toBe(0);
+    expect((await getJob(id)).status).toBe('pending');
+    expect(await recoverStaleJobs(ctx.db)).toMatchObject({ requeued: 0, failed: 1 });
+    expect((await getJob(id)).status).toBe('failed');
   });
 
   it('SKIP LOCKED: iki worker aynı işi iki kez çalıştırmaz', async () => {

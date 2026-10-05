@@ -50,7 +50,7 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { audit, auditActor } from '../../lib/audit';
 import { AppError, conflict, forbidden, notFound } from '../../lib/errors';
-import { cancelJobs, enqueueJob } from '../../lib/jobs';
+import { cancelJobs, enqueueJob, generationKey } from '../../lib/jobs';
 import { trackingUrl } from '../../lib/tracking';
 import { assertBranchAccess, defaultBranchId, requireTenantRole, tenantAuth, type TenantAuth } from '../../plugins/auth';
 import { finalizeRejectionKey } from '../../services/orders/alarm-policy';
@@ -715,7 +715,10 @@ const routes: FastifyPluginAsyncZod = async (app) => {
           type: 'order.finalize_rejection',
           tenantId: auth.tenantId,
           delayMs: REJECTION_UNDO_WINDOW_MS,
-          dedupeKey: finalizeRejectionKey(o.id),
+          // Nesil = siparişin YENİ sürüm numarası: aynı UPDATE'te artırılıyor, kesin monoton ve asla
+          // tekrarlamaz. Ret → geri al → yeniden ret böylece TAZE anahtar alır (zaman damgası kullanılsaydı aynı
+          // milisaniyedeki ikinci ret ya da geriye alınan sistem saati `enqueueJob`'u sessizce null döndürürdü).
+          dedupeKey: generationKey(finalizeRejectionKey(o.id), o.version + 1),
           payload: {
             orderId: o.id,
             tenantId: auth.tenantId,
@@ -754,7 +757,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       const o = await lockOrder(tx, auth, request.params.id);
       if (o.status === 'rejected') throw conflict('rejection_finalized', 'Ret kesinleşti, geri alınamaz.');
       if (o.status !== 'new' || !o.rejectionScheduledAt) throw conflict('no_pending_rejection', 'Bu sipariş için bekleyen bir ret yok.');
-      await cancelJobs(tx, { dedupeKey: finalizeRejectionKey(o.id) });
+      await cancelJobs(tx, { type: 'order.finalize_rejection', orderId: o.id });
       const [u] = await tx
         .update(orders)
         .set({
