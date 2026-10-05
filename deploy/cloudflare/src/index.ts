@@ -22,6 +22,8 @@
 //   - Gelen webhook'u container alamazsa (dağıtım, yeniden başlatma, çökme) ham isteği R2 tamponuna yazar ve sağlayıcıya
 //     200 döner; container ayağa kalkınca kayıtlar sırayla geri verilir (src/webhook-spool.ts). Twilio gelen mesaj
 //     webhook'unu yeniden teslim etmediği için bu tampon olmadan o mesaj kalıcı olarak kayboluyordu.
+//   - 5 dakikalık cron turunda container'ı uyanık tutar, YEDEK YAŞINI yoklar (eskidiyse `yedek_eskidi` uyarısı; saatte
+//     bir, damga Durable Object deposunda) ve webhook tamponunu boşaltır (aşağıda `scheduled`).
 // Ortak numara (WhatsApp) alan adı kipinde (src/whatsapp-env.ts): GitHub secret'ları D360_API_KEY ve WA_PHONE tamsa
 // 360dialog (varsayılan yol, 15 §6.2); META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_APP_SECRET ve WA_PHONE (+ isteğe bağlı
 // META_WA_WABA_ID) tamsa Meta Cloud API doğrudan (15 §6.2b); ikisi birlikte verilirse iş akışı durur. Hiçbiri tam değilse
@@ -38,7 +40,13 @@ import {
   redirectFor,
   requiresAuth,
 } from './access';
-import { uyariGonder } from './alert';
+import {
+  YEDEK_UYARI_SOGUMA_MS,
+  uyariGonder,
+  yedekDurumunuOku,
+  yedekUyariAyrinti,
+  yedekUyarisiGerekir,
+} from './alert';
 import { containerEnv, modeSettings, type ModeSettings } from './mode';
 import { applySecurityHeaders, type SecurityHeaderOptions } from './security-headers';
 import {
@@ -241,6 +249,27 @@ export class AppContainer extends Container<Env> {
     } finally {
       if (this.#drain === tur) this.#drain = null;
     }
+  }
+
+  // --- Yedek gözcüsünün soğuması (denetim 2026-10-05 bulgu B) ----------------------------------------
+  // Cron her 5 dakikada bir koşar ve `scheduled` her turda YENİ bir isolate'te çalışabilir: modül değişkeni dizgin
+  // olarak güvenilmez. Damga bu Durable Object'in deposunda tutulur (tek container örneği "main" olduğu için tek
+  // kapı) — Worker yeniden dağıtılsa bile kaybolmaz.
+  static readonly YEDEK_UYARI_ANAHTARI = 'yedekUyariAnMs';
+
+  /**
+   * Soğuma dolduysa damgayı `simdiMs` ile tazeler ve `true` döner; dolmadıysa `false`. Damga gönderimden ÖNCE
+   * yazılır: uyarı kanalı yavaş/bozuk olsa bile aynı uyarı peş peşe tekrarlanmaz (apps/api `sendAlert` ile aynı
+   * yaklaşım). Karar mantığı saf `yedekUyarisiGerekir`'dedir (src/alert.ts, birim testli).
+   */
+  async yedekUyarisiSirasiMi(simdiMs: number, sogumaMs: number = YEDEK_UYARI_SOGUMA_MS): Promise<boolean> {
+    const anahtar = AppContainer.YEDEK_UYARI_ANAHTARI;
+    const son = await this.ctx.storage.get<number>(anahtar);
+    const sonUyariMs = typeof son === 'number' && Number.isFinite(son) ? son : null;
+    // `eskidi: true` verilir: "eşik aşıldı mı" kararı çağıran tarafta verilmiştir, burada yalnız soğuma sorulur.
+    if (!yedekUyarisiGerekir({ yasSn: null, esikSn: null, eskidi: true }, sonUyariMs, simdiMs, sogumaMs)) return false;
+    await this.ctx.storage.put(anahtar, simdiMs);
+    return true;
   }
 
   async #tur(limit?: number): Promise<DrainOzeti> {
@@ -484,6 +513,12 @@ export default {
    * her istek uyku sayacını (sleepAfter) sıfırlar, container uyumaz. Uyuyorsa uyandırılır (ör. dağıtımdan sonra).
    * Maliyet: basic örnek sürekli açık ≈ 7 $/ay (bellek + disk sağlanan kaynağa, CPU yalnız kullanıma göre; 15 §13).
    * Gizli staging'de çalışmaz (config-modes.mjs tetikleyiciyi de siler).
+   *
+   * Tur ÜÇ iş yapar, her biri kendi try'ında (biri patlayınca diğerleri çalışmalı):
+   *   1. `/api/v1/health` — canlılık; 200 değilse `uyanik_tutma_hatasi`.
+   *   2. `/api/v1/health/worker` — yedek gözcüsü; yedek eşikten eskiyse `yedek_eskidi` (soğuma: saatte bir,
+   *      damga Durable Object deposunda). Yedek yaşını başka hiçbir yoklama görmüyordu (denetim 2026-10-05 bulgu B).
+   *   3. Webhook tamponunu boşaltma (denetim 1.7).
    */
   async scheduled(_controller, env, ctx): Promise<void> {
     if (normalizeDeployMode(env.DEPLOY_MODE) !== 'domain') return;
@@ -507,6 +542,27 @@ export default {
           } catch (err) {
             console.error('uyanık tutma: sağlık yoklaması başarısız', err);
             await uyariGonder(env.ALERT_WEBHOOK_URL, 'uyanik_tutma_hatasi', { hata: String(err).slice(0, 200) });
+          }
+          // Yedek gözcüsü (denetim 2026-10-05 bulgu B): yedek yaşını YALNIZ `/health/worker` görür, yukarıdaki
+          // canlılık yoklaması ise sade `/health`'e gider. Bu ikinci yoklama olmadan "günlerce yazılamayan yedek"in
+          // hiçbir haber yolu yoktu. Kendi try'ındadır: patlasa bile aşağıdaki tampon boşaltma çalışır.
+          // Durum kodu BİLEREK sorgulanmaz: bu yoklamanın işi yalnız yedek yaşıdır, gövde 503'te de aynı alanları
+          // taşır. `ok:false` (veritabanı düştü, kuyruk gecikti, iş takıldı) burada uyarıya ÇEVRİLMEZ; o sinyalin
+          // haber yolu dış izlemedir (docs/17 §1 E-2).
+          // AÇIK KÖR NOKTA (denetim 2026-10-04, "uyanık tutma cron'u yalnız /health'i çağırıyor"; E-2 kurulana
+          // kadar açık): worker DÖNGÜSÜ asılırsa süreç ölmediği için `/health` 200 kalır ve yukarıdaki canlılık
+          // uyarısı üretilmez, `/health/worker` 503 döner ama bu tur onu okumaz. Süreç gerçekten ölürse
+          // entrypoint.sh `wait -n` container'ı düşürür ve hâl U-13/U-14'e düşer; asılma o ağa takılmaz.
+          try {
+            const res = await app.fetch(switchPort(new Request('http://container/api/v1/health/worker'), API_PORT));
+            const okuma = yedekDurumunuOku(await res.json().catch(() => null));
+            // Soğuma Durable Object deposundadır: aynı uyarı her 5 dakikada bir değil, en çok saatte bir gider.
+            if (okuma.eskidi && (await app.yedekUyarisiSirasiMi(Date.now()))) {
+              await uyariGonder(env.ALERT_WEBHOOK_URL, 'yedek_eskidi', yedekUyariAyrinti(okuma));
+            }
+          } catch (err) {
+            // Yedek yaşı okunamadı: uyarı ÜRETİLMEZ (bilinmeyen durum alarm değildir), yalnız günlüğe düşer
+            console.error('yedek gözcüsü: /api/v1/health/worker okunamadı', err);
           }
           // Dağıtım/çökme penceresinde tamponlanan webhook'lar: container ayaktayken sırayla geri verilir (denetim 1.7).
           // En kötü durumda kayıt bir sonraki turu (5 dk) bekler; kaybolmaz.

@@ -4,15 +4,17 @@
 //  - cron.jobs_dlq_watch (denetim H21/H26): kalıcı başarısız iş birikmesi uyarısı. `failed` iş saklaması bu
 //    cron'da DEĞİL, `jobs/system` içindeki `cron.retention` koşusundadır (retention.test.ts).
 
-import { jobs, orders } from '@siparis/db';
+import { jobs, orders, tenants } from '@siparis/db';
 import { eq, sql } from 'drizzle-orm';
 import type { FastifyBaseLogger } from 'fastify';
 import pino from 'pino';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
   DLQ_ALERT_THRESHOLD,
+  DLQ_ALERT_WINDOW_MS,
   ORDER_NEW_WATCH_MAX_JOBS_PER_STEP,
   ORDER_NEW_WATCH_WINDOW_MS,
+  countFailedJobs,
   registerCronJobs,
   watchNewOrders,
 } from '../src/jobs/cron/index';
@@ -89,6 +91,81 @@ describe('cron kayıtları', () => {
     expect(watch?.schedule).toEqual({ everyMinutes: 1 });
     const dlq = registeredCrons().find((c) => c.type === 'cron.jobs_dlq_watch');
     expect(dlq?.schedule).toEqual({ everyMinutes: 15 });
+  });
+
+  // Denetim 04.10.2026 (A): iş yazılmıştı ama `registerCronJobs` içinde KAYIT yoktu, yani deneme bitişi canlıda
+  // hiç uygulanmıyordu. Kayıt burada sabitlenir — kayıt silinirse test kırılır, iş sessizce ölmez.
+  it('trial_watch günlük 04:00 kayıtlı (deneme bitişi canlıda uygulanır)', () => {
+    const trial = registeredCrons().find((c) => c.type === 'cron.trial_watch');
+    expect(trial, 'cron.trial_watch kaydı').toBeTruthy();
+    expect(trial!.name).toBe('trial_watch');
+    // docs/14 cron tablosundaki saat: günlük 04:00 (Europe/Istanbul varsayılanı)
+    expect(trial!.schedule).toEqual({ dailyAt: '04:00' });
+  });
+});
+
+describe('cron.trial_watch', () => {
+  /** Denemesi `days` gün önce bitmiş `trial` işletme (kayıttaki gibi hem tenant hem abonelik satırı yazılır). */
+  async function withExpiredTrial(tenantId: string, days: number) {
+    await ctx.db.update(tenants).set({ trialEndsAt: new Date(Date.now() - days * 86_400_000) }).where(eq(tenants.id, tenantId));
+  }
+  const stageOf = async (tenantId: string) => {
+    const [row] = await ctx.db.select({ stage: tenants.lifecycleStage }).from(tenants).where(eq(tenants.id, tenantId));
+    return row!.stage;
+  };
+
+  it('tur uyarı bandı dolmuş denemeyi read_only yapar, bandı sürenlere dokunmaz ve uyarı kanalına bildirir', async () => {
+    const dusen = await ctx.createTenantWithOwner({ name: 'Cron Deneme Bitti' });
+    const bandi_suren = await ctx.createTenantWithOwner({ name: 'Cron Uyari Bandi' });
+    await withExpiredTrial(dusen.tenantId, 5);
+    await withExpiredTrial(bandi_suren.tenantId, 1);
+
+    const posts: unknown[] = [];
+    savedWebhook = process.env.ALERT_WEBHOOK_URL;
+    process.env.ALERT_WEBHOOK_URL = 'https://uyari.ornek/hook';
+    setHttpFetch(async (_url, init) => {
+      posts.push(JSON.parse(String(init?.body ?? '{}')));
+      return new Response('ok', { status: 200 });
+    });
+
+    const { log: capture, lines } = captureLog();
+    // Cron işini doğrudan kuyruğa atarız: kayıtlı `dailyAt` dilimi bugün çoktan geçmiş olabilir
+    await enqueueJob(ctx.db, { queue: 'cron', type: 'cron.trial_watch' });
+    await processDueJobs({ db: ctx.db, config: ctx.config, log: capture, queues: ['cron'] });
+    await new Promise((r) => setTimeout(r, 30));
+
+    expect(await stageOf(dusen.tenantId)).toBe('read_only');
+    expect(await stageOf(bandi_suren.tenantId)).toBe('trial');
+
+    // Operasyon görsün: log satırı slug'ı taşır, uyarı gövdesi yalnız sayı + kimlik (kişisel veri yok)
+    const line = lines.find((l) => l.msg.startsWith('deneme bitişi uygulandı'));
+    expect(line, 'deneme bitişi log satırı').toBeTruthy();
+    expect(line!.level).toBe('warn');
+    expect((line!.obj as { slugs: string[] }).slugs).toContain(dusen.slug);
+
+    const uyari = posts.find((x) => (x as { kind?: string }).kind === 'trial_ended') as
+      | { severity: string; data: { tenants: number; tenantIds: string[] } }
+      | undefined;
+    expect(uyari, 'trial_ended uyarısı').toBeTruthy();
+    expect(uyari!.severity).toBe('warning');
+    expect(uyari!.data.tenantIds).toContain(dusen.tenantId);
+    expect(JSON.stringify(uyari)).not.toContain(dusen.slug);
+  });
+
+  it('ikinci tur aynı işletmeyi tekrar düşürmez ve uyarı üretmez (idempotent)', async () => {
+    const t2 = await ctx.createTenantWithOwner({ name: 'Cron Deneme Idempotent' });
+    await withExpiredTrial(t2.tenantId, 9);
+    const run = async () => {
+      const { log: capture, lines } = captureLog();
+      await enqueueJob(ctx.db, { queue: 'cron', type: 'cron.trial_watch' });
+      await processDueJobs({ db: ctx.db, config: ctx.config, log: capture, queues: ['cron'] });
+      return lines.filter((l) => l.msg.startsWith('deneme bitişi uygulandı'));
+    };
+    expect(await run()).toHaveLength(1);
+    expect(await stageOf(t2.tenantId)).toBe('read_only');
+    // İkinci turda düşürülecek işletme yok → ne log ne uyarı
+    expect(await run()).toHaveLength(0);
+    expect(await stageOf(t2.tenantId)).toBe('read_only');
   });
 });
 
@@ -261,6 +338,11 @@ describe('cron.order_new_watch', () => {
 });
 
 describe('cron.jobs_dlq_watch', () => {
+  /**
+   * DLQ uyarısı neden PENCERELİ (denetim 2026-10-05 MEDIUM B): `failed` satırlar saklama kuralı gereği 90 gün
+   * durur, eşik ise tüm tabloyu sayıyordu. 11 eski hata, sayı bir daha eşiğin altına inmediği için SONSUZA DEK
+   * saat başı kritik uyarı üretiyordu (uyarı yorgunluğu). Aşağıdaki iki test pencerenin iki yanını kanıtlar.
+   */
   /** Verilen yaşta kalıcı başarısız iş satırı (yükünde kişisel veri ile). */
   async function failedJob(opts: { daysAgo: number; type?: string; payload?: Record<string, unknown> }) {
     const [row] = (await ctx.db.execute<{ id: string }>(sql`
@@ -273,6 +355,73 @@ describe('cron.jobs_dlq_watch', () => {
     return row!.id;
   }
 
+  /** Gözcüyü bir tur koşturur; dönen uyarı log satırlarıyla webhook gövdeleri test içinde karşılaştırılır. */
+  async function runWatch() {
+    const { log: capture, lines } = captureLog();
+    // YALNIZ bu iş koşsun: `processDueJobs` turun başında `scheduleCronJobs`'u çağırıp kendi dilim işini de
+    // ekliyor; ikisi birden işlenince gözcü iki kez koşar ve (soğuma webhook'u sussa da) iki log satırı yazılır.
+    const jobId = await enqueueJob(ctx.db, { queue: 'cron', type: 'cron.jobs_dlq_watch' });
+    await processDueJobs({ db: ctx.db, config: ctx.config, log: capture, where: sql`id = ${jobId}` });
+    // `alert()` ateşle-ve-unut: webhook gönderimi bir sonraki tura kalmasın
+    await new Promise((r) => {
+      setTimeout(r, 30);
+    });
+    return lines.filter((l) => (l.obj as { alert?: string }).alert === 'jobs_dlq_threshold');
+  }
+
+  it('sayım PENCERELİ: pencere dışındaki eski `failed` satırlar eşiğe sayılmaz', async () => {
+    await ctx.db.delete(jobs);
+    expect(DLQ_ALERT_WINDOW_MS).toBe(24 * 60 * 60_000);
+
+    // Eşiği aşacak kadar ama 30+ gün önce başarısız olmuş işler: tabloda görünür, eşiğe sayılmaz
+    for (let i = 0; i < DLQ_ALERT_THRESHOLD + 2; i++) await failedJob({ daysAgo: 30 + i, type: 'wa.send' });
+    const onlyOld = await countFailedJobs(ctx.db);
+    expect(onlyOld.total).toBe(DLQ_ALERT_THRESHOLD + 2);
+    expect(onlyOld.recent).toBe(0);
+
+    // Pencerenin iki yanı: 2 gün önceki sayılmaz, bugünkü sayılır
+    await failedJob({ daysAgo: 2, type: 'sms.send' });
+    await failedJob({ daysAgo: 0, type: 'sms.send' });
+    const mixed = await countFailedJobs(ctx.db);
+    expect(mixed.recent).toBe(1);
+    expect(mixed.total).toBe(DLQ_ALERT_THRESHOLD + 4);
+    await ctx.db.delete(jobs);
+  });
+
+  it('eski yığın KALICI alarm üretmez; taze yığın üretir (pencere + gövde alanları)', async () => {
+    await ctx.db.delete(jobs);
+    savedWebhook = process.env.ALERT_WEBHOOK_URL;
+    process.env.ALERT_WEBHOOK_URL = 'https://uyari.example.test/kanca';
+    const posts: Record<string, unknown>[] = [];
+    setHttpFetch(async (_url, init) => {
+      posts.push(JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>);
+      // 204 gövdesiz bir durumdur: `new Response('', {status:204})` TypeError atar, sahte fetch çöker ve
+      // `alert()` ikinci bir log satırı (webhook'a ulaşılamadı) yazar — sayım yanıltır.
+      return new Response(null, { status: 204 });
+    });
+
+    // 1) Yalnız ESKİ hatalar: eşiğin iki katı satır olsa bile gözcü SUSAR (eski davranışta kalıcı alarm verirdi)
+    const oldCount = DLQ_ALERT_THRESHOLD + 2;
+    for (let i = 0; i < oldCount; i++) await failedJob({ daysAgo: 30 + i, type: 'wa.send' });
+    expect(await runWatch()).toHaveLength(0);
+    expect(posts).toHaveLength(0);
+
+    // 2) Pencere içinde eşiği aşan TAZE yığın: uyarı gider. Sayı yalnız tazeleri kapsar, `total` bağlam olarak gider.
+    resetAlertCooldown();
+    const freshCount = DLQ_ALERT_THRESHOLD + 1;
+    for (let i = 0; i < freshCount; i++) await failedJob({ daysAgo: 0, type: 'sms.send', payload: { orderId: `o-${i}` } });
+    const alerts = await runWatch();
+    expect(alerts, 'taze yığın uyarısı').toHaveLength(1);
+    expect(posts).toHaveLength(1);
+    const data = (posts[0] as { data: { failed: number; total: number; windowHours: number; types: string[] } }).data;
+    expect(data.failed).toBe(freshCount);
+    expect(data.total).toBe(oldCount + freshCount);
+    expect(data.windowHours).toBe(24);
+    // Tür dökümü de pencereli: eski `wa.send` yığını listeye GİRMEZ, yoksa nöbetçi yanlış türü kovalar
+    expect(data.types).toEqual([`sms.send=${freshCount}`]);
+    await ctx.db.delete(jobs);
+  });
+
   it('eşik aşılınca kritik uyarı gider, altında gitmez', async () => {
     await ctx.db.delete(jobs);
     savedWebhook = process.env.ALERT_WEBHOOK_URL;
@@ -280,32 +429,24 @@ describe('cron.jobs_dlq_watch', () => {
     const posts: Record<string, unknown>[] = [];
     setHttpFetch(async (_url, init) => {
       posts.push(JSON.parse(String(init?.body ?? '{}')) as Record<string, unknown>);
-      return new Response('', { status: 204 });
+      // 204 gövdesiz bir durumdur: `new Response('', {status:204})` TypeError atar, sahte fetch çöker ve
+      // `alert()` ikinci bir log satırı (webhook'a ulaşılamadı) yazar — sayım yanıltır.
+      return new Response(null, { status: 204 });
     });
 
-    // Cron işini doğrudan kuyruğa atarız: `scheduleCronJobs` aynı 15 dk dilimini ikinci kez eklemez (dilim tekilliği)
-    const handler = async () => {
-      const { log: capture, lines } = captureLog();
-      await enqueueJob(ctx.db, { queue: 'cron', type: 'cron.jobs_dlq_watch' });
-      await processDueJobs({ db: ctx.db, config: ctx.config, log: capture, queues: ['cron'] });
-      await new Promise((r) => setTimeout(r, 30));
-      return lines;
-    };
-
-    // Eşiğin altında: uyarı yok
+    // Eşiğin altında: uyarı yok (cron işi doğrudan kuyruğa atılır; `scheduleCronJobs` aynı 15 dk dilimini
+    // ikinci kez eklemez — dilim tekilliği)
     for (let i = 0; i < DLQ_ALERT_THRESHOLD; i++) await failedJob({ daysAgo: 0, type: 'wa.send', payload: { orderId: `o-${i}` } });
-    let lines = await handler();
-    expect(lines.filter((l) => (l.obj as { alert?: string }).alert === 'jobs_dlq_threshold')).toHaveLength(0);
+    expect(await runWatch()).toHaveLength(0);
     expect(posts).toHaveLength(0);
 
     // Eşiğin üstünde: kritik uyarı + webhook; gövdede iş türü sayıları, YÜK YOK
     await ctx.db.delete(jobs);
     resetAlertCooldown();
     for (let i = 0; i < DLQ_ALERT_THRESHOLD + 2; i++) await failedJob({ daysAgo: 0, type: 'wa.send', payload: { orderId: `o-${i}` } });
-    lines = await handler();
-    const alertLine = lines.find((l) => (l.obj as { alert?: string }).alert === 'jobs_dlq_threshold');
-    expect(alertLine, 'eşik aşımı uyarısı').toBeTruthy();
-    expect(alertLine!.level).toBe('error');
+    const alerts = await runWatch();
+    expect(alerts, 'eşik aşımı uyarısı').toHaveLength(1);
+    expect(alerts[0]!.level).toBe('error');
     expect(posts).toHaveLength(1);
     expect(posts[0]).toMatchObject({ kind: 'jobs_dlq_threshold', severity: 'critical' });
     const data = (posts[0] as { data: { failed: number; types: string[] } }).data;

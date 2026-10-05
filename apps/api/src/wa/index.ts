@@ -1,7 +1,15 @@
 // WhatsApp katmanı: sağlayıcılar (mock | cloud | d360 | twilio), Cloud gövde üretici, webhook ayrıştırıcı, imza, hata eşlemesi.
 export type * from './types';
 export { clip, interactiveBody, recipientFields, templateBody, textBody, type CloudMessageBody } from './cloud-body';
-export { WaSendError, classifyWaErrorCode, isWaSendError, waErrorSummary, type WaErrorAction } from './errors';
+export {
+  MESSAGING_LIMIT_CODE,
+  WaSendError,
+  classifyWaErrorCode,
+  isMessagingLimitCode,
+  isWaSendError,
+  waErrorSummary,
+  type WaErrorAction,
+} from './errors';
 export { fetchWithTimeout, httpFetch, setHttpFetch, type FetchLike } from './http';
 export { parseCloudWebhook, waIdToE164 } from './parse';
 export { getWaProvider, maskApiKey, numberSlotKey, platformAccountRef, providerForAccount, toAccountRef, encryptorFor, type WaAccountRow } from './registry';

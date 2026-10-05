@@ -559,9 +559,13 @@ export const savingsReportSchema = z.object({
   month: z.string(),
   orderCount: z.number().int(),
   basketTotalKurus: z.number().int(),
-  commissionBp: z.number().int(),
-  avoidedCommissionKurus: z.number().int(),
-  avoidedCommissionWithVatKurus: z.number().int(),
+  /**
+   * İşletmenin girdiği pazaryeri kesinti oranı (baz puan). 04 §11.3: oran girilmemişse **varsayılan uydurulmaz**;
+   * bu alan ve tasarruf tutarları `null` döner, kart yerine "Oranınızı girin" çağrısı gösterilir.
+   */
+  commissionBp: z.number().int().nullable(),
+  avoidedCommissionKurus: z.number().int().nullable(),
+  avoidedCommissionWithVatKurus: z.number().int().nullable(),
   byChannel: z.array(z.object({ channel: orderChannelSchema, count: z.number().int(), basketKurus: z.number().int() })),
   includesPhoneOrders: z.boolean(),
   headline: z.string(),

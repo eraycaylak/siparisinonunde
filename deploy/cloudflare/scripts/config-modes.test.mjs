@@ -96,3 +96,27 @@ test('secrets.mjs --no-whatsapp (staging): WhatsApp secret\'ları ortamda olsa d
   const domain = spawnSync(process.execPath, [script, '/yok.json'], { env, encoding: 'utf8' });
   assert.equal(JSON.parse(domain.stdout).META_WA_TOKEN, 'EAAG-token');
 });
+
+// Künye, canary ve kota değişkenleri wrangler.jsonc vars'ta durur ve container'a src/mode.ts containerEnv ile geçer
+// (15 §13 "beyaz liste"). buildConfig bunlara dokunmamalı: kip üretimi sırasında düşerlerse canlı ortamda künye
+// eksik kalır ve sipariş ucu sessizce 503 döner (duman testi sipariş ucunu denemez). İKİ kipte de korunmalı.
+test('kip üretimi künye/canary/kota değişkenlerini DÜŞÜRMEZ (her iki kipte de vars\'ta kalır)', () => {
+  const ADLAR = [
+    'LEGAL_ENTITY_NAME', 'LEGAL_ENTITY_TYPE', 'LEGAL_ENTITY_ADDRESS', 'LEGAL_ENTITY_PHONE',
+    'LEGAL_ENTITY_TAX_OFFICE', 'LEGAL_ENTITY_TAX_NO', 'LEGAL_ENTITY_MERSIS', 'LEGAL_ENTITY_CHAMBER',
+    'LEGAL_ENTITY_KEP', 'LEGAL_SUPPORT_EMAIL', 'CANARY_ENABLED', 'CANARY_STALE_ALERT',
+    'WABA_CONVERSATION_CAP', 'WABA_SHED_NONCRITICAL',
+  ];
+  // Dolu değerlerle: üretim sonrası birebir aynı kalmalı (operatör wrangler.jsonc'ye yazdığı değeri geri alır)
+  const dolu = Object.fromEntries(ADLAR.map((n) => [n, `deger-${n}`]));
+  for (const [mode, url] of [['domain', 'https://yemekgelsin.net'], ['staging', STAGING_URL]]) {
+    const c = buildConfig({ ...base(), vars: { ...base().vars, ...dolu } }, { url, mode });
+    for (const n of ADLAR) assert.equal(c.vars[n], `deger-${n}`, `${mode} kipinde düştü ya da değişti: ${n}`);
+  }
+  // Gerçek wrangler.jsonc'de anahtarlar tanımlı (operatör nereye yazacağını bulur) ve DEĞERLERİ boş (depoya yazılmaz)
+  const gercek = buildConfig(base(), { url: 'https://yemekgelsin.net' });
+  for (const n of ADLAR) {
+    assert.ok(n in gercek.vars, `wrangler.jsonc vars içinde eksik: ${n}`);
+    assert.equal(gercek.vars[n], '', `${n} değeri depoda tutulmamalı (şirket belgesinden / operatörden gelir)`);
+  }
+});

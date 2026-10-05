@@ -8,15 +8,31 @@
 # üretimde `node --import tsx` ile çalıştığı için tür hatası derlemede yakalanmıyor, ilk istekte patlıyor (docs/15 §13).
 #
 # Ne koşar (hepsi gerçek PostgreSQL 16 servisine karşı, sırayla):
-#   1. pnpm typecheck                     — packages/core, packages/db, apps/api, apps/web + e2e ve scripts tsconfig'leri
-#   2. ALLOW_DB_RESET=1 pnpm test         — core + db + api (api testleri siparis_test veritabanını sırayla sıfırlar)
-#   3. pnpm --filter @siparis/web test    — web birim testleri (lib/*, components/*; tarayıcı gerekmez)
-#   4. pnpm test:vps                      — dağıtım betikleri (env-merge, cloudflare-dns, deploy.sh günlük süzgeci)
-#   5. node --test .github/workflows/deploy-gate.test.mjs — bu kapının kendisi sökülmemiş mi (değişmez denetimi)
-#   6. pnpm check:legal                   — künye dolu mu, yasal metin sürümü yayınlanmış mı, yer tutucu kalmış mı
+#   1. pnpm lint                          — ESLint (eslint.config.js): beklenmeyen promise, React kanca ihlali,
+#                                           resmi olmayan WhatsApp kütüphanesi yasağı, import düzeni
+#                                           (ŞİMDİLİK YALNIZ UYARI: continue-on-error; adımın başındaki nota bakın)
+#   2. pnpm typecheck                     — packages/core, packages/db, apps/api, apps/web + e2e ve scripts tsconfig'leri
+#   3. ALLOW_DB_RESET=1 pnpm test         — core + db + api (api testleri siparis_test veritabanını sırayla sıfırlar)
+#   4. pnpm --filter @siparis/web test    — web birim testleri (lib/*, components/*; tarayıcı gerekmez)
+#   5. pnpm test:vps                      — dağıtım betikleri (env-merge, cloudflare-dns, deploy.sh günlük süzgeci)
+#   6. node --test .github/workflows/deploy-gate.test.mjs — bu kapının kendisi sökülmemiş mi (değişmez denetimi)
+#   7. pnpm check:legal                   — künye dolu mu, yasal metin sürümü yayınlanmış mı, yer tutucu kalmış mı
 #                                           (ŞİMDİLİK YALNIZ UYARI: continue-on-error; adımın başındaki nota bakın)
 # Ne koşmaz (bilinçli): Playwright e2e (9 senaryo) — kendi veritabanı (*_e2e_test), derlenmiş web ve tarayıcı indirmesi
 # gerekir; dağıtım kapısını ~10 dk uzatır. Ayrı bir iş akışına alınması FAZ 2 işidir (docs/09).
+# Ne koşmaz (bilinçli, 2): KAPSAM ÖLÇÜMÜ (`pnpm test:coverage`). Eşikler `vitest.config.ts` içinde yapılandırıldı
+# ama HENÜZ ÖLÇÜLMEMİŞ hedef değerlerdir; ölçülmemiş bir sayıyı kapıya bağlamak kapıyı ilk koşuda kırmızı yakar.
+# Eray ilk ölçümü yapıp eşikleri gerçek değerlere çektikten sonra buraya şu adım eklenecek (kök vitest.config.ts
+# başındaki nota bakın):
+#     - name: Kapsam eşiği
+#       env: { KAPSAM_ESIK: '1' }
+#       run: pnpm test:coverage
+# NOT 1: o adım `pnpm test` ile AYNI veritabanını kullanır, yani `pnpm test` adımının YERİNE geçmelidir — iki kez
+# koşarsa kapı ~2 kat uzar.
+# NOT 2 (ÖNEMLİ — yoksa kapı kırmızı yanar): `deploy-gate.test.mjs` "core+db+api testleri koşuyor mu" değişmezini
+# `/run:\s*pnpm test\s*$/` ile arar. `run: pnpm test` satırı `run: pnpm test:coverage` olursa o çapa EŞLEŞMEZ ve
+# son adım ("Dağıtım kapısı değişmezleri") kırmızı yanar, dağıtım hiç başlamaz. Değişiklik TEK commit'te ikisini
+# birlikte yapmalıdır: bu adımı değiştir + `deploy-gate.test.mjs`teki çapayı `pnpm test(:coverage)?` yap.
 #
 # Veritabanı: apps/api/test/helpers.ts'teki TEST_DATABASE_URL varsayılanıyla BİREBİR aynı olmalı
 # (postgres://siparis:siparis@localhost:5432/siparis_test). Değişirse deploy-gate.test.mjs kırmızı yanar.
@@ -126,6 +142,62 @@ jobs:
       - name: Bağımlılıklar
         run: pnpm install --frozen-lockfile
 
+      # ───────────────────────────────────────────────────────────────────────────────────────────────────────────
+      # LINT (denetim 2026-10-04 madde 4.6 · FAZ 4) — kural seti ve gerekçeleri `eslint.config.js` başındadır.
+      # Veritabanı GEREKMEZ, bu yüzden testlerden önce: ~15 sn sürer ve kırmızıysa 50+ test beklenmeden görünür.
+      # (NOT: `services:` sağlık kontrolü İŞİN başlamasını geciktirir, adımları değil — bu adım çalışırken
+      #  PostgreSQL zaten hazırdır. "Beklemeden önce biter" diye okunmasın.)
+      #
+      # `error` seviyesi YALNIZ gerçek hata/güvenlik kurallarına ayrıldı (beklenmeyen promise, React kanca ihlali,
+      # `target="_blank"` + `noopener` eksikliği, resmi olmayan WhatsApp kütüphanesi yasağı). Geri kalan her şey
+      # `warn`. ESLint yalnız HATA varken sıfırdan farklı çıkış kodu verir — yani uyarılar bu adımı kırmaz.
+      #
+      # 2026-10-05 ÖLÇÜMÜ: 0 hata, 247 uyarı (101 dosya, ~13 sn). Yani adım bugün ZATEN YEŞİL.
+      #
+      # ⚠️ `continue-on-error: true` NEDEN VAR: kural seti bu depoda ilk kez koşuyor ve ölçüm yalnız macOS'ta,
+      #    sıcak bir `node_modules` ile yapıldı. CI'daki Linux + temiz kurulumda `eslint-plugin-import-x`in doğal
+      #    (native) çözümleyicisi (`unrs-resolver`) başka davranabilir; yeni kurulan bir kapının ilk turda canlı
+      #    dağıtımı engellemesini istemiyoruz.
+      #    BU SATIR, kapı birkaç yeşil tur attıktan sonra KALDIRILACAK. O andan sonra lint hatası dağıtımı durdurur.
+      #    Uyarıları da kademe kademe çivilemek için: `run: pnpm lint --max-warnings 247` (bugünkü sayı; her
+      #    temizlikte düşürün, böylece uyarı sayısı bir daha artamaz).
+      # ───────────────────────────────────────────────────────────────────────────────────────────────────────────
+      - name: Lint (ESLint)
+        id: lint
+        continue-on-error: true
+        shell: bash
+        run: pnpm lint 2>&1 | tee "$RUNNER_TEMP/lint.log"
+
+      # `if` yalnız lint'in GERÇEKTEN koştuğu turları kapsar. `always()` tek başına yazılırsa, kurulum adımı
+      # (checkout / setup-node / `pnpm install`) kırmızı yandığında lint `skipped` olur ve aşağıdaki `!= success`
+      # dalı "ESLint HATA bildirdi" diye YALAN ALARM basar — arızayı gören satır, arızayı yanlış yere yazar.
+      - name: Lint özeti (iş akışı özetine)
+        if: always() && (steps.lint.outcome == 'success' || steps.lint.outcome == 'failure')
+        shell: bash
+        run: |
+          # ESLint özet satırı: "✖ 259 problems (0 errors, 259 warnings)". Baştaki işaret çok baytlı olduğu için
+          # satır başına çapa ATILMAZ (byte tabanlı grep tek bayt sayar ve eşleşme kaçar).
+          son="$(grep -oE '[0-9]+ problems? \([0-9]+ errors?, [0-9]+ warnings?\)' "$RUNNER_TEMP/lint.log" | tail -1 || true)"
+          {
+            echo "### Lint (ESLint)"
+            echo ""
+            if [ "${{ steps.lint.outcome }}" = "success" ]; then
+              echo "Hata yok. ${son:-(uyarı yok)}"
+            else
+              echo "**ESLint HATA bildirdi** — \`continue-on-error\` yüzünden dağıtım durmadı."
+              echo ""
+              echo "Kural seti ve her kuralın gerekçesi: \`eslint.config.js\`. Yerelde: \`pnpm lint\`,"
+              echo "makineyle düzeltilebilenler için \`pnpm lint:fix\`."
+              echo ""
+              echo '```'
+              tail -40 "$RUNNER_TEMP/lint.log" 2>/dev/null || echo "(lint günlüğü okunamadı; adım günlüğüne bakın)"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.lint.outcome }}" != "success" ]; then
+            echo "::warning title=Lint hatası::ESLint hata bildirdi; kapı şimdilik continue-on-error ile geçiyor. İş akışı özetine bakın."
+          fi
+
       # Servis sağlık kontrolü yeterli olmalı; bu adım yine de açık bir Türkçe hata verir (sessiz 50 test hatası yerine).
       - name: PostgreSQL hazır mı
         run: |
@@ -227,9 +299,10 @@ jobs:
             echo "### Dağıtım kapısı: ${{ job.status == 'success' && 'YEŞİL' || 'KIRMIZI' }}"
             echo ""
             echo "- Sürüm: \`${DEPLOY_SHA:0:12}\`"
-            echo "- Koşanlar: tür denetimi, core+db+api testleri, web birim testleri, dağıtım betikleri, kapı değişmezleri."
+            echo "- Koşanlar: lint, tür denetimi, core+db+api testleri, web birim testleri, dağıtım betikleri, kapı değişmezleri."
+            echo "- Lint: ${{ steps.lint.outcome == 'success' && 'hata yok' || (steps.lint.outcome == 'failure' && 'HATA VAR (uyarı; dağıtımı durdurmuyor)' || 'koşmadı (önceki adım kırmızı)') }}"
             echo "- Yasal metin denetimi: ${{ steps.yasal.outcome == 'success' && 'temiz' || 'BULGU VAR (uyarı; dağıtımı durdurmuyor)' }}"
-            echo "- Koşmayanlar (bilinçli): Playwright e2e (9 senaryo; kendi veritabanı ve tarayıcısı gerekir)."
+            echo "- Koşmayanlar (bilinçli): Playwright e2e (9 senaryo; kendi veritabanı ve tarayıcısı gerekir); kapsam ölçümü (eşikler henüz ölçülmedi)."
             if [ "${{ job.status }}" != "success" ]; then
               echo "- **Dağıtım başlatılmadı.** Yukarıdaki kırmızı adımı düzeltip yeniden çalıştırın."
             fi

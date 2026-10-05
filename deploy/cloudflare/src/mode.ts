@@ -54,20 +54,104 @@ export interface ContainerInputs {
   ALERT_WEBHOOK_URL?: string;
   /** Dış kanala gönderilecek en düşük uyarı ağırlığı: info | warning | critical (varsayılan warning). */
   ALERT_MIN_SEVERITY?: string;
+
+  // --- Künye: 6563 m.3 (08 §4.7, §7.5; 15 §4) --------------------------------------------------------
+  // Adlar apps/web/lib/site.ts LEGAL_ENTITY_FIELDS ve apps/api/src/services/orders/legal-gate.ts
+  // REQUIRED_LEGAL_ENTITY_ENVS ile BİREBİR aynıdır; sapmayı scripts/mode.test.mjs "beyaz liste kapısı" yakalar.
+  // GİZLİ DEĞİLLER (kanunen kamuya açık) → Worker secret'ı değil wrangler.jsonc vars.
+  // Zorunlu altısı eksikken canlı dağıtımda (DEPLOY_ENV=production) sipariş ucu KALICI 503 döner (fail-closed).
+  /** Künye unvanı; şirket belgesindeki unvanla birebir aynı (tahminle doldurulmaz). */
+  LEGAL_ENTITY_NAME?: string;
+  /** Şirket türü (ör. "Şahıs şirketi"). */
+  LEGAL_ENTITY_TYPE?: string;
+  /** Açık adres (mahalle, sokak, no, ilçe / il). */
+  LEGAL_ENTITY_ADDRESS?: string;
+  /** Künye telefonu. */
+  LEGAL_ENTITY_PHONE?: string;
+  /** Vergi dairesi. */
+  LEGAL_ENTITY_TAX_OFFICE?: string;
+  /** VKN ya da TCKN. */
+  LEGAL_ENTITY_TAX_NO?: string;
+  /** MERSİS no — isteğe bağlı (şahıs şirketinde yoksa boş; künyede "Yok" yazar). */
+  LEGAL_ENTITY_MERSIS?: string;
+  /** Üye olunan meslek odası — isteğe bağlı. */
+  LEGAL_ENTITY_CHAMBER?: string;
+  /** KEP adresi — isteğe bağlı. */
+  LEGAL_ENTITY_KEP?: string;
+  /** Künyede ve KVKK başvurusunda gösterilen e-posta; boşsa marka adresi kullanılır (site.ts fallback). */
+  LEGAL_SUPPORT_EMAIL?: string;
+
+  // --- Sentetik canary (06 §7.10) --------------------------------------------------------------------
+  /** "1": şube açıkken 15 dk'da bir gerçek yoldan test_kind='canary' sipariş geçer. Boş/0 = hiç üretilmez. */
+  CANARY_ENABLED?: string;
+  /** "1": "bayat panel" uyarısı açık. Panel sessiz ack'i gelene kadar BOŞ bırakılır (yanlış alarm üretir). */
+  CANARY_STALE_ALERT?: string;
+
+  // --- WhatsApp oturum kotası (02; apps/api/src/services/messaging/waba-quota.ts) -------------------
+  /** Aylık ücretsiz oturum tavanı (pozitif tam sayı); geçersiz değer yok sayılır, varsayılan kullanılır. */
+  WABA_CONVERSATION_CAP?: string;
+  /** "1": tavana yaklaşıldığında ÖNEMSİZ durum mesajları düşürülür (sipariş mesajları düşmez). */
+  WABA_SHED_NONCRITICAL?: string;
+}
+
+/**
+ * Container'a OLDUĞU GİBİ geçirilen değişkenlerin tam listesi (Worker'ın vars ve secret'larından).
+ *
+ * containerEnv KAPALI bir beyaz listedir: burada (ya da aşağıdaki gövdede) yazmayan hiçbir Worker değişkeni
+ * container'a ULAŞMAZ. Bir değişken apps/api tarafında okunup bu listeye eklenmediğinde canlıda sessizce tanımsız
+ * kalır ve `wrangler secret put` ile değer vermek bile işe yaramaz — Faz 0–4'te künye, canary ve kota değişkenleri
+ * tam olarak bu yüzden hiç devreye girmemişti (duman testi sipariş ucunu denemediği için dağıtım yeşil yanıyordu).
+ * Sapmayı scripts/mode.test.mjs içindeki "beyaz liste kapısı" vakaları yakalar.
+ */
+const PASSTHROUGH_KEYS: readonly (keyof ContainerInputs)[] = [
+  'ALERT_WEBHOOK_URL',
+  'ALERT_MIN_SEVERITY',
+  'LEGAL_ENTITY_NAME',
+  'LEGAL_ENTITY_TYPE',
+  'LEGAL_ENTITY_ADDRESS',
+  'LEGAL_ENTITY_PHONE',
+  'LEGAL_ENTITY_TAX_OFFICE',
+  'LEGAL_ENTITY_TAX_NO',
+  'LEGAL_ENTITY_MERSIS',
+  'LEGAL_ENTITY_CHAMBER',
+  'LEGAL_ENTITY_KEP',
+  'LEGAL_SUPPORT_EMAIL',
+  'CANARY_ENABLED',
+  'CANARY_STALE_ALERT',
+  'WABA_CONVERSATION_CAP',
+  'WABA_SHED_NONCRITICAL',
+];
+
+/**
+ * Beyaz listedeki değişkenlerden yalnız DEĞER VERİLMİŞ olanları yazar (boşluklar kırpılır). Boş dizgeyi yazmak
+ * değişkeni "tanımlı ama geçersiz" yapar: adres/e-posta benzeri alanlarda API'nin üretim açılış denetimini
+ * (loadConfig) ilerde kırabilir, künyede de "" ile "hiç verilmedi" ayrımını siler.
+ *
+ * `String(...)` bilerek yazıldı, tür zaten `string` olsa da: bu değişkenlerin değerleri wrangler.jsonc `vars`'a
+ * ELLE girilir ve JSON tırnaksız sayıyı kabul eder (ör. `"WABA_CONVERSATION_CAP": 1000` → Worker'da number).
+ * Çıplak `.trim()` o durumda Durable Object yapıcısında TypeError atar, yani container HİÇ açılmaz: tek bir
+ * eksik tırnak tüm siteyi indirirdi. Değer metne çevrilir ve kapı ilgili yerde (waba-quota.ts) işler.
+ */
+function passthroughEnv(env: ContainerInputs): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const key of PASSTHROUGH_KEYS) {
+    const value = String(env[key] ?? '').trim();
+    if (value) out[key] = value;
+  }
+  return out;
 }
 
 /**
  * Container'ın ortam değişkenleri (API, worker, web ve entrypoint.sh okur). waEnv: ortak numara ortamı
  * (src/whatsapp-env.ts whatsappContainerEnv().env; staging'de her zaman mock). Saf fonksiyon: kip ayarları
- * (modeSettings) WhatsApp ortamından SONRA yazılır, yani WhatsApp yapılandırması geliştirici araçlarını açamaz.
+ * (modeSettings) hem WhatsApp ortamından hem beyaz listeden SONRA yazılır, yani ne WhatsApp yapılandırması ne de
+ * elle verilmiş bir vars/secret geliştirici araçlarını açabilir ya da 2FA'yı kapatabilir.
  * apps/api/test/production-env.test.ts bu çıktının API'nin üretim açılış denetiminden (loadConfig) geçtiğini sınar.
  */
 export function containerEnv(mode: DeployMode, env: ContainerInputs, waEnv: Record<string, string>): Record<string, string> {
   const settings = modeSettings(mode);
   const staging = mode === 'staging';
   const seedMode = env.SEED_MODE === 'demo' || env.SEED_MODE === 'admin' ? env.SEED_MODE : staging ? 'demo' : 'admin';
-  const alertUrl = (env.ALERT_WEBHOOK_URL ?? '').trim();
-  const alertMin = (env.ALERT_MIN_SEVERITY ?? '').trim();
   return {
     NODE_ENV: 'production',
     APP_VERSION: env.APP_VERSION ?? '',
@@ -92,6 +176,9 @@ export function containerEnv(mode: DeployMode, env: ContainerInputs, waEnv: Reco
     // PLATFORM_WA_PROVIDER (+ 360dialog'da PLATFORM_WA_API_KEY, PLATFORM_WA_DISPLAY_PHONE; Meta doğrudan yolda ayrıca
     // PLATFORM_WA_PHONE_NUMBER_ID, PLATFORM_WA_WABA_ID, WA_APP_SECRET)
     ...waEnv,
+    // Olduğu gibi geçen değişkenler (uyarı kanalı, künye, canary, WhatsApp kotası): yalnız değer verilmişse yazılır.
+    // Kip ayarlarından ÖNCE gelir ki elle verilmiş bir vars/secret DEV_TOOLS ya da 2FA'yı ezmeye çalışamasın.
+    ...passthroughEnv(env),
     // Geliştirici araçları (WhatsApp simülatörü, /api/v1/dev/*): canlı ortamda her zaman kapalı
     DEV_TOOLS: settings.devTools,
     SMS_PROVIDER: 'mock',
@@ -108,9 +195,5 @@ export function containerEnv(mode: DeployMode, env: ContainerInputs, waEnv: Reco
     VAPID_SUBJECT: env.APP_BASE_URL,
     UPLOAD_DIR: '/data/uploads',
     LOG_LEVEL: 'info',
-    // Uyarı kanalı (apps/api/src/lib/alert.ts): yalnız değer verildiyse yazılır. Boş dizge yazmak, adresi "tanımlı
-    // ama geçersiz" yapıp API'nin üretim açılış denetimini (loadConfig) ilerde kırabilir.
-    ...(alertUrl ? { ALERT_WEBHOOK_URL: alertUrl } : {}),
-    ...(alertMin ? { ALERT_MIN_SEVERITY: alertMin } : {}),
   };
 }

@@ -13,6 +13,7 @@ import {
   toWaMeDigits,
   type WaMode,
 } from '@siparis/core';
+import { ORDERING_BLOCKED_STAGES, isOrderingBlockedStage } from '@siparis/core/admin/lifecycle';
 import { branches, tenants, waAccounts, type Database } from '@siparis/db';
 import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, notInArray, sql } from 'drizzle-orm';
 import { platformDisplayPhone, type Config } from '../../config';
@@ -21,8 +22,13 @@ import type { WaAccountRow } from '../../wa/registry';
 
 type TenantRow = typeof tenants.$inferSelect;
 
-/** Ortak numara listesinde görünmeyen (sipariş almayan) yaşam döngüsü aşamaları. */
-const NOT_SELECTABLE_STAGES = ['suspended', 'read_only', 'churned'] as const;
+/**
+ * Ortak numara listesinde görünmeyen (sipariş almayan) yaşam döngüsü aşamaları. TEK KAYNAK: 00 §9
+ * `ORDERING_BLOCKED_STAGES`. Denetim 04.10.2026 (D) öncesinde liste burada elle kopyalanmıştı; kopya,
+ * 00 §9 değiştiğinde dükkan seçicinin vitrinden ayrışmasına (sipariş almayan dükkanın listede kalmasına)
+ * yol açardı. `tenantSelectableReason` türetilmiş `isOrderingBlockedStage()`'i, SQL süzgeci aynı listeyi kullanır.
+ */
+const NOT_SELECTABLE_STAGES = ORDERING_BLOCKED_STAGES;
 
 
 /** İşletmenin varsayılan şubesi (Faz 1: tek şube). */
@@ -157,7 +163,7 @@ export function tenantSelectableReason(t: Pick<TenantRow, 'waMode' | 'orderingEn
   if (t.waMode !== 'shared') return 'İşletme kendi WhatsApp numarasını kullanıyor.';
   if (!t.webLiveAt) return 'Canlıya geçince ortak numaradaki dükkan listesinde görünürsünüz.';
   if (!t.orderingEnabled) return 'Online sipariş kapalı olduğu için dükkan listesinde görünmüyorsunuz.';
-  if (t.suspensionReason || (NOT_SELECTABLE_STAGES as readonly string[]).includes(t.lifecycleStage)) {
+  if (t.suspensionReason || isOrderingBlockedStage(t.lifecycleStage)) {
     return 'Hesap askıda ya da salt-okunur olduğu için dükkan listesinde görünmüyorsunuz.';
   }
   return null;

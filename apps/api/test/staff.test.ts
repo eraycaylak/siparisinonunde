@@ -1,7 +1,7 @@
 // Dilim 4 — personel ve kuryeler: ekleme (mevcut kullanıcıya üyelik), rol, parola sıfırlama, devre dışı,
 // kaldırma (son sahip korunur), kurye giriş bağlantısı + /auth/courier/exchange uyumu; yetki ve yalıtım.
 
-import { auditLog, courierLoginLinks, memberships, sessions } from '@siparis/db';
+import { auditLog, courierLoginLinks, memberships, sessions, tenants } from '@siparis/db';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { cookieFrom, createTestContext, expectError, type TestContext, type TestTenant } from './helpers';
@@ -171,5 +171,58 @@ describe('kuryeler ve giriş bağlantısı', () => {
     expectError(await req('POST', `/couriers/${courierId}/login-link`, b.ownerCookie), 404, 'not_found');
     await req('PATCH', `/staff/${courierId}`, a.ownerCookie, { disabled: true });
     expectError(await req('POST', `/couriers/${courierId}/login-link`, a.ownerCookie), 409, 'courier_disabled');
+  });
+});
+
+// Abonelik yazma kapısı (00 §9, 05 §A.2.1, 08 §6.3; denetim 04.10.2026 (C)): doküman salt-okunur modda
+// "personel ekleme" kapalı diyordu; kod yalnız menüyü kapatıyordu, personel uçları açıktı.
+describe('salt-okunur abonelikte personel düzenleme kapalı (tenantWritable)', () => {
+  let ro: TestTenant;
+  let staffUserId: string;
+  let courierId: string;
+
+  beforeAll(async () => {
+    ro = await ctx.createTenantWithOwner({ name: 'Salt Okunur Personel' });
+    // Kayıtlar yazılabilir aşamada oluşturulur: kapı sonradan kapanınca güncelleme/kaldırma da reddedilmeli
+    const created = await req('POST', '/staff', ro.ownerCookie, { name: 'Zeki Kasa', phone: '0532 600 10 20', role: 'cashier', password: 'kasa12345' });
+    expect(created.statusCode, created.body).toBe(201);
+    staffUserId = created.json().staff.userId as string;
+    const kurye = await req('POST', '/staff', ro.ownerCookie, { name: 'Kemal Kurye', phone: '0532 600 10 21', role: 'courier', password: 'kurye12345' });
+    expect(kurye.statusCode, kurye.body).toBe(201);
+    courierId = kurye.json().staff.userId as string;
+    await ctx.db.update(tenants).set({ lifecycleStage: 'read_only' }).where(eq(tenants.id, ro.tenantId));
+  });
+
+  it('ekleme, düzenleme ve kaldırma 403 tenant_read_only döner; kayıt değişmez', async () => {
+    const c = ro.ownerCookie;
+    expectError(await req('POST', '/staff', c, { name: 'Olmaz', phone: '0532 600 10 22', role: 'cashier', password: 'olmaz12345' }), 403, 'tenant_read_only');
+    expectError(await req('PATCH', `/staff/${staffUserId}`, c, { role: 'manager' }), 403, 'tenant_read_only');
+    expectError(await req('DELETE', `/staff/${staffUserId}`, c), 403, 'tenant_read_only');
+
+    const rows = await ctx.db.select({ userId: memberships.userId, role: memberships.role }).from(memberships).where(eq(memberships.tenantId, ro.tenantId));
+    expect(rows.find((r) => r.userId === staffUserId)?.role).toBe('cashier');
+    expect(rows).toHaveLength(3);
+  });
+
+  it('okuma ve kurye oturum aksiyonları açık kalır (yoldaki siparişler tamamlanabilsin)', async () => {
+    const c = ro.ownerCookie;
+    expect((await req('GET', '/staff', c)).statusCode).toBe(200);
+    expect((await req('GET', '/couriers', c)).statusCode).toBe(200);
+    // Giriş bağlantısı ve çıkış personel KAYDINI değiştirmez; kapı bunları kapatsa kuryesi düşen işletme
+    // hâlihazırda alınmış siparişleri teslim edemezdi ve oturum güvenlik gerekçesiyle kapatılamazdı
+    const link = await req('POST', `/couriers/${courierId}/login-link`, c);
+    expect(link.statusCode, link.body).toBe(201);
+    const out = await req('POST', `/couriers/${courierId}/logout`, c);
+    expect(out.statusCode, out.body).toBe(200);
+  });
+
+  it('askı ve kapanış da kapatır; ödeme alınınca personel düzenleme geri açılır', async () => {
+    for (const stage of ['suspended', 'churned'] as const) {
+      await ctx.db.update(tenants).set({ lifecycleStage: stage }).where(eq(tenants.id, ro.tenantId));
+      expectError(await req('PATCH', `/staff/${staffUserId}`, ro.ownerCookie, { role: 'manager' }), 403, 'tenant_read_only');
+    }
+    await ctx.db.update(tenants).set({ lifecycleStage: 'active' }).where(eq(tenants.id, ro.tenantId));
+    const ok = await req('PATCH', `/staff/${staffUserId}`, ro.ownerCookie, { role: 'manager' });
+    expect(ok.statusCode, ok.body).toBe(200);
   });
 });

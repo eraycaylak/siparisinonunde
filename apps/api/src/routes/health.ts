@@ -1,20 +1,30 @@
 // GET /api/v1/health — süreç ve veritabanı durumu (Docker sağlık denetimi).
-// GET /api/v1/health/worker — arka plan işlerinin gecikmesi + son yedeğin yaşı + disk/bellek baskısı; dış izleme
-// (Uptime Kuma vb.) bunu izler: worker takılırsa (süreç ayakta olsa bile), son başarılı yedek çok eskiyse ya da
-// disk/bellek eşiği aşılmışsa 503 döner ve nöbetçiye bildirim gider (sipariş kaçmaz: alarm zinciri işlerdedir).
+// GET /api/v1/health/worker — arka plan işlerinin gecikmesi + son yedeğin yaşı + disk/bellek baskısı.
 //
-// Yedek ve kaynak eşikleri neden `/health`'te DEĞİL (denetim 2026-10-04 madde 1.5 ve H23): `/api/v1/health` üç yerin
-// canlılık probudur — docker-compose `api` healthcheck'i, Worker'ın uyanık tutma cron'u (deploy/cloudflare/src/index.ts)
-// ve dağıtımın duman testi (sürüm kapısı). Orada 503 dönmek container'ı yeniden başlatır (beklenmedik çökme son
-// yedekten sonraki ~2 dakikayı kaybettirir) ve dağıtımı bloke eder; "disk doluyor" gibi bir durumda yeniden başlatma
-// döngüsü sorunu büyütür. Bu yüzden yeni alanlar ve eşikler yalnız dış izlemenin ucunda (`/health/worker`) alarm
-// üretir; `/health`'in alanları ve anlamları DEĞİŞMEDİ (duman testi onlara bakıyor).
+// "ÇALIŞIYOR MU" İLE "SAĞLIKLI MI" AYRI SİNYALLERDİR (denetim 2026-10-05 bulgu A). `/health/worker` iki şey söyler:
+//   - `ok` + durum kodu: hizmet GERÇEKTEN verilebiliyor mu. `ok:false` + **503** yalnız veritabanı düştüyse, vadesi
+//     gelmiş bekleyen iş 300 sn'den fazla geciktiyse ya da takılı `running` iş varsa üretilir. Dış izleme ve
+//     dağıtımın duman testi buna bakar.
+//   - `degraded` + `warnings[]`: ölçülebilir bir eşik aşıldı (yedek eskidi, disk azaldı, bellek tavana yaklaştı)
+//     ama hizmet sürüyor → durum kodu **200** kalır, haber yolu uyarı kanalıdır (`alert()`, lib/alert.ts).
+//
+// Neden ayrıldı: bu eşikler ilk yazıldığında `ok:false` + 503 üretiyordu. Dağıtımın duman testi `/health/worker`'dan
+// 200 bekler ve kırmızıysa son adım `wrangler rollback` çalıştırır (.github/workflows/deploy-dev-cloudflare.yml) —
+// yani SAĞLAM bir dağıtım, yalnızca son yedek biraz eski diye otomatik geri alınıyordu. Yedek eskimesi, dolan disk ve
+// yüksek bellek bir dağıtım hatası DEĞİLDİR; geri alma onları düzeltmez, üstüne yeni container açılışı son yedekten
+// sonraki ~2 dakikayı kaybettirir. Eşik aşımı artık dağıtımı ve container'ı değil NÖBETÇİYİ rahatsız eder.
+//
+// Eşikler neden `/health`'te DEĞİL (denetim 2026-10-04 madde 1.5 ve H23): `/api/v1/health` üç yerin canlılık probudur —
+// docker-compose `api` healthcheck'i, Worker'ın uyanık tutma cron'u (deploy/cloudflare/src/index.ts) ve dağıtımın
+// sürüm kapısı. Orada 503 dönmek container'ı yeniden başlatır ve dağıtımı bloke eder; "disk doluyor" halinde yeniden
+// başlatma döngüsü sorunu büyütür. `/health`'in alanları ve anlamları DEĞİŞMEDİ (duman testi onlara bakıyor).
 
 import { sql } from 'drizzle-orm';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { readFile, statfs } from 'node:fs/promises';
 import { getHeapStatistics } from 'node:v8';
 import { z } from 'zod';
+import { alert, type AlertInput, type AlertSeverity } from '../lib/alert';
 
 const healthResponse = z.object({
   ok: z.boolean(),
@@ -25,8 +35,20 @@ const healthResponse = z.object({
   version: z.string().nullable(),
 });
 
+/**
+ * `/health/worker` uyarı kodları: eşiği aşan ölçümün makine tarafından okunan adı. Aynı ad `alert()` `kind`'ı olarak
+ * da gider, yani runbook'ta (docs/17 §1.1) tek satırla izlenir.
+ */
+export const HEALTH_WARNINGS = ['backup_stale', 'disk_low', 'memory_high'] as const;
+export type HealthWarning = (typeof HEALTH_WARNINGS)[number];
+
 const workerHealthResponse = z.object({
+  /** Hizmet verilebiliyor mu: yalnız db düştüyse, kuyruk geciktiyse ya da takılı iş varsa false (→ 503). */
   ok: z.boolean(),
+  /** Eşik aşan bir ölçüm var mı (yedek/disk/bellek). true olsa bile durum kodu 200'dür: hizmet sürüyor. */
+  degraded: z.boolean(),
+  /** Aşılan eşiklerin kodları; `degraded` bu dizinin boş olmamasıdır. */
+  warnings: z.array(z.enum(HEALTH_WARNINGS)),
   db: z.enum(['up', 'down']),
   /** Vadesi gelmiş en eski bekleyen işin gecikmesi (sn); kuyruk boşsa 0. */
   jobLagSec: z.number().int().nullable(),
@@ -35,7 +57,7 @@ const workerHealthResponse = z.object({
   maxLagSec: z.number().int(),
   /**
    * Son başarılı yedeğin üzerinden geçen süre (sn); durum dosyasının `lastSuccessUnix` alanından. Dosya yoksa,
-   * okunamazsa ya da hiç başarılı tur yoksa null — null alarm üretmez.
+   * okunamazsa ya da hiç başarılı tur yoksa null — null uyarı üretmez.
    */
   lastBackupAgeSec: z.number().int().nullable(),
   maxBackupAgeSec: z.number().int(),
@@ -55,7 +77,7 @@ export const WORKER_MAX_LAG_SEC = 300;
 
 /**
  * Yedek ve kaynak eşiklerinin varsayılanları (docs/15 §10). Her biri aynı adlı ortam değişkeniyle ezilir ve
- * **0 = o eşik kapalı** demektir: alan yine raporlanır, ama alarm (503) üretmez.
+ * **0 = o eşik kapalı** demektir: alan yine raporlanır, ama uyarı üretmez.
  */
 export const HEALTH_LIMIT_DEFAULTS = {
   /** `HEALTH_MAX_BACKUP_AGE_SEC`: 120 sn'lik yedek turunun ~7 kez kaçırılması (docs/15 §8, §13). */
@@ -67,18 +89,32 @@ export const HEALTH_LIMIT_DEFAULTS = {
 } as const;
 
 /**
+ * Aynı uyarı kodu için iki `alert()` arasındaki en kısa süre. Bu uç dışarıdan **dakikada bir** yoklanır ve
+ * `sendAlert` soğumadan ÖNCE log satırı yazar: burada dizginlemezsek düzelmeyen tek bir arıza günde ~1400
+ * `log.error` satırı üretir. Eşik aşımı 30 dakikada bir haber verir.
+ *
+ * İKİ KATMAN VARDIR, ikisi de 30 dk: (1) buradaki `dueWarnings` — log satırını da dizginler, uyarı düzelince kodu
+ * hafızadan siler; (2) `lib/alert.ts` `sendAlert`'in kendi soğuması (varsayılan 10 dk, `healthWarningAlert` bunu
+ * `cooldownMs` ile aynı 30 dk'ya çeker) — yalnız **webhook** gönderimini dizginler ve düzelmeyle SIFIRLANMAZ.
+ * Sonuç: eşik aşımı düzelip 30 dk içinde tekrarlarsa log satırı hemen yazılır, ama webhook o pencerenin sonunu
+ * bekler. İstenen davranış "tekrarda hemen webhook" olursa `healthWarningAlert`'teki `cooldownMs` 0'a çekilir
+ * (o zaman tek dizgin `dueWarnings` olur).
+ */
+export const HEALTH_ALERT_COOLDOWN_MS = 30 * 60_000;
+
+/**
  * Yedek döngüsünün bıraktığı durum dosyası. Yolu yazan tarafla AYNI değişken belirler: `BACKUP_STATE_FILE`
  * (`deploy/cloudflare/entrypoint.sh` `backup_state_write`); `BACKUP_STATUS_FILE` yalnız geriye dönük addır.
  *
  * Sözleşme (yazan taraf: entrypoint.sh, aynı dosyayı yalnız o betik yazar) — tek satır JSON, atomik (mktemp + mv):
  * `{"lastSuccessUnix":1759600000,"lastAttemptUnix":…,"consecutiveFailures":0,"lastResult":"ok","note":"yuklendi",…}`
  *   - yaş **`lastSuccessUnix`**'ten hesaplanır: dosya her TURDA (hata turunda da) yazılır, ama `lastSuccessUnix`
- *     yalnız başarılı turda tazelenir — yani `pg_dump`/yükleme hatası yaşı büyütür ve eşiği aşınca alarm olur;
+ *     yalnız başarılı turda tazelenir — yani `pg_dump`/yükleme hatası yaşı büyütür ve eşiği aşınca uyarı olur;
  *     "değişiklik yok, yüklemedim" turu başarılıdır ve yaşı sıfırlar (yoksa siparişsiz bir gece yanlış alarm);
  *   - hiç başarılı tur olmamışsa yazan taraf `lastSuccessUnix: 0` yazar (taze açılış, `lastResult:"bos"`): yaş
- *     `null` sayılır, alarm üretilmez;
- *   - container diski geçici olduğu için dosya her açılışta yoktur: o durumda da alan `null` döner ve 503 verilmez
- *     (dağıtım duman testi ilk yedek turundan önce kırmızıya düşmesin).
+ *     `null` sayılır, uyarı üretilmez;
+ *   - container diski geçici olduğu için dosya her açılışta yoktur: o durumda da alan `null` döner ve uyarı
+ *     üretilmez (ilk yedek turundan önce nöbetçi boşuna uyandırılmasın).
  */
 export const BACKUP_STATE_FILE_DEFAULT = '/tmp/yedek-durum.json';
 
@@ -88,7 +124,7 @@ export interface HealthLimits {
   maxMemUsedPct: number;
 }
 
-/** Bilinmeyen (null) ya da eşiği kapalı (0) olan ölçümler alarm üretmez. */
+/** Bilinmeyen (null) ya da eşiği kapalı (0) olan ölçümler uyarı üretmez. */
 export interface HealthResources {
   lastBackupAgeSec: number | null;
   diskFreePct: number | null;
@@ -118,7 +154,7 @@ export function healthLimits(env: Env = process.env): HealthLimits {
 
 /**
  * Durum dosyasının içeriğinden son başarılı yedeğin yaşını (sn) çıkarır: `lastSuccessUnix` (yazan tarafın alanı),
- * yoksa `ts` (eski/VPS biçimi). Bozuk JSON, eksik ya da geçersiz alan → null (bilinmiyor; alarm üretmez). Hiç
+ * yoksa `ts` (eski/VPS biçimi). Bozuk JSON, eksik ya da geçersiz alan → null (bilinmiyor; uyarı üretmez). Hiç
  * başarılı tur yoksa alan `0` gelir ve bu da null sayılır. İleri tarihli değer (saat sapması) 0'a kırpılır.
  */
 export function backupAgeSecFrom(raw: string, nowMs: number = Date.now()): number | null {
@@ -176,12 +212,86 @@ async function readResources(env: Env): Promise<Omit<HealthResources, 'lastBacku
   };
 }
 
-/** Yedek yaşı ve kaynak ölçümleri eşiklerin içinde mi? Bilinmeyen (null) ve kapalı (0) eşik alarm üretmez. */
-export function resourcesWithinLimits(r: HealthResources, limits: HealthLimits): boolean {
-  if (limits.maxBackupAgeSec > 0 && r.lastBackupAgeSec !== null && r.lastBackupAgeSec > limits.maxBackupAgeSec) return false;
-  if (limits.minDiskFreePct > 0 && r.diskFreePct !== null && r.diskFreePct < limits.minDiskFreePct) return false;
-  if (limits.maxMemUsedPct > 0 && r.memUsedPct !== null && r.memUsedPct > limits.maxMemUsedPct) return false;
-  return true;
+/**
+ * Eşiği aşan ölçümlerin kodları. Bilinmeyen (null) ölçüm ve kapalı (0) eşik uyarı üretmez. Dönen dizi BOŞSA
+ * `degraded:false`'tur. Bu işlev hizmet durumunu (`ok`) HİÇ etkilemez: 503 kararı yalnız db + kuyruktandır.
+ */
+export function resourceWarnings(r: HealthResources, limits: HealthLimits): HealthWarning[] {
+  const out: HealthWarning[] = [];
+  if (limits.maxBackupAgeSec > 0 && r.lastBackupAgeSec !== null && r.lastBackupAgeSec > limits.maxBackupAgeSec) out.push('backup_stale');
+  if (limits.minDiskFreePct > 0 && r.diskFreePct !== null && r.diskFreePct < limits.minDiskFreePct) out.push('disk_low');
+  if (limits.maxMemUsedPct > 0 && r.memUsedPct !== null && r.memUsedPct > limits.maxMemUsedPct) out.push('memory_high');
+  return out;
+}
+
+/**
+ * Uyarı kodunun ağırlığı. Yedek zinciri kopması ve OOM'a giden bellek geri alınamaz veri kaybı riskidir (critical);
+ * azalan disk hâlâ zaman tanır (warning, 06 §14.1 "Disk > %85 → P2").
+ */
+const WARNING_SEVERITY: Record<HealthWarning, AlertSeverity> = {
+  backup_stale: 'critical',
+  disk_low: 'warning',
+  memory_high: 'critical',
+};
+
+/**
+ * Uyarı kodunu `alert()` gövdesine çevirir. Kişisel veri yoktur: yalnız ölçüm, eşik ve runbook atfı
+ * (CLAUDE.md kural 7).
+ */
+export function healthWarningAlert(code: HealthWarning, r: HealthResources, limits: HealthLimits): AlertInput {
+  const base = { kind: code, severity: WARNING_SEVERITY[code], dedupeKey: code, cooldownMs: HEALTH_ALERT_COOLDOWN_MS };
+  if (code === 'backup_stale') {
+    return {
+      ...base,
+      message: `Son başarılı veritabanı yedeği ${r.lastBackupAgeSec} sn önce alındı (eşik ${limits.maxBackupAgeSec} sn): yedek zinciri kopmuş olabilir, canlı veri yalnız geçici container diskinde. docs/17 §2.2`,
+      data: { lastBackupAgeSec: r.lastBackupAgeSec, maxBackupAgeSec: limits.maxBackupAgeSec },
+    };
+  }
+  if (code === 'disk_low') {
+    return {
+      ...base,
+      message: `Boş disk %${r.diskFreePct} (${r.diskFreeMb} MiB; eşik %${limits.minDiskFreePct}): veritabanı ve görseller aynı diski paylaşıyor. docs/17 §2.6`,
+      data: { diskFreePct: r.diskFreePct, diskFreeMb: r.diskFreeMb, minDiskFreePct: limits.minDiskFreePct },
+    };
+  }
+  return {
+    ...base,
+    message: `API sürecinin yığın kullanımı %${r.memUsedPct} (RSS ${r.memRssMb} MiB; eşik %${limits.maxMemUsedPct}): OOM'a yakın, süreç ölürse işler yarıda kalır. docs/17 §2.6`,
+    data: { memUsedPct: r.memUsedPct, memRssMb: r.memRssMb, maxMemUsedPct: limits.maxMemUsedPct },
+  };
+}
+
+/** Uyarı kodu başına son `alert()` anı. Süreç belleğindedir: yeniden başlatma dizgini sıfırlar (zararsız). */
+const warnedAt = new Map<string, number>();
+
+/** Testler için dizgin belleğini boşaltır (uç testleri birbirinin soğumasını miras almasın). */
+export function resetHealthWarningCooldown(): void {
+  warnedAt.clear();
+}
+
+/**
+ * Soğumayı geçen, yani gerçekten `alert()`'e verilecek uyarı kodlarını seçer ve `seen`'i günceller. Artık
+ * görülmeyen kod hafızadan SİLİNİR: arıza düzelip tekrarlarsa bu katman dizgin uygulamaz (log satırı hemen yazılır).
+ * Webhook gönderimi `sendAlert`'in kendi soğumasına da tabidir ve O düzelmeyle sıfırlanmaz — bkz.
+ * `HEALTH_ALERT_COOLDOWN_MS` açıklaması.
+ */
+export function dueWarnings(
+  warnings: readonly HealthWarning[],
+  seen: Map<string, number>,
+  nowMs: number,
+  cooldownMs: number = HEALTH_ALERT_COOLDOWN_MS,
+): HealthWarning[] {
+  for (const code of [...seen.keys()]) {
+    if (!warnings.includes(code as HealthWarning)) seen.delete(code);
+  }
+  const due: HealthWarning[] = [];
+  for (const code of warnings) {
+    const prev = seen.get(code);
+    if (cooldownMs > 0 && prev !== undefined && nowMs - prev < cooldownMs) continue;
+    seen.set(code, nowMs);
+    due.push(code);
+  }
+  return due;
 }
 
 const healthRoutes: FastifyPluginAsyncZod = async (app) => {
@@ -223,9 +333,14 @@ const healthRoutes: FastifyPluginAsyncZod = async (app) => {
     const limits = healthLimits();
     const [lastBackupAgeSec, usage] = await Promise.all([readBackupAgeSec(process.env), readResources(process.env)]);
     const resources: HealthResources = { lastBackupAgeSec, ...usage };
-    const ok = db === 'up' && lag !== null && lag <= WORKER_MAX_LAG_SEC && stuck === 0 && resourcesWithinLimits(resources, limits);
+    const warnings = resourceWarnings(resources, limits);
+    // `ok` YALNIZ hizmet verilemiyorsa false: veritabanı düştü, kuyruk gecikti ya da iş takıldı. Yedek/disk/bellek
+    // eşikleri buraya GİRMEZ (dosya başındaki gerekçe: duman testi bu uca bakıyor ve kırmızısı geri alma tetikliyor).
+    const ok = db === 'up' && lag !== null && lag <= WORKER_MAX_LAG_SEC && stuck === 0;
     const body = {
       ok,
+      degraded: warnings.length > 0,
+      warnings,
       db,
       jobLagSec: lag,
       stuckJobs: stuck,
@@ -240,6 +355,11 @@ const healthRoutes: FastifyPluginAsyncZod = async (app) => {
       maxMemUsedPct: limits.maxMemUsedPct,
       time: new Date().toISOString(),
     };
+    // Eşik aşımının tek haber yolu budur (durum kodu 200 kaldığı için dış izleme görmez). `alert()` ateşle-ve-unut:
+    // yanıtı bekletmez, hata atmaz; kanal yoksa yalnız log satırı kalır.
+    for (const code of dueWarnings(warnings, warnedAt, Date.now())) {
+      alert({ log: app.log, config: app.config }, healthWarningAlert(code, resources, limits));
+    }
     return reply.status(ok ? 200 : 503).send(body);
   });
 };

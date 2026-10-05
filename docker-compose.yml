@@ -131,7 +131,7 @@ services:
     build:
       context: .
       dockerfile: docker/web.Dockerfile
-      # NEXT_PUBLIC_* ve API_INTERNAL_URL derleme anında gömülür (değişince: docker compose build web)
+      # NEXT_PUBLIC_*, API_INTERNAL_URL ve KÜNYE (LEGAL_*) derleme anında gömülür (değişince: docker compose build web)
       args:
         NEXT_PUBLIC_SITE_URL: https://${DOMAIN:?DOMAIN .env içinde zorunlu}
         NEXT_PUBLIC_ROOT_DOMAIN: ${DOMAIN}
@@ -142,6 +142,23 @@ services:
         NEXT_PUBLIC_DEMO_BANNER: ${DEMO_BANNER:-0}
         NEXT_PUBLIC_SUPPORT_WHATSAPP: ${SUPPORT_WHATSAPP:-}
         API_INTERNAL_URL: http://api:4000
+        # Künye (6563 m.3; .env → docker/env.production.example). api servisi bunları `env_file` ile ÇALIŞMA
+        # zamanında okur, web ise DERLEME anında okumak zorundadır: /kunye ve /yasal/* dinamik API kullanmayan
+        # sunucu bileşenleridir, `next build` bunları statik HTML'e çevirir ve çalışma zamanı değişkeni o HTML'i
+        # değiştiremez. Bu yüzden web'e `environment:` ile verilmez (ayrışma üretirdi); Dockerfile aynı
+        # argümanları çalışma imajına da ENV olarak yazar. Künye değişirse: docker compose build web && up -d web.
+        # Eksik bırakılırsa sayfada "Eksik yapılandırma: <değişken>" görünür; `pnpm check:legal` çıkış kodu 1 verir
+        # ama CI adımı künye girilene kadar `continue-on-error: true` (testler.yml), yani dağıtımı HENÜZ durdurmaz.
+        LEGAL_ENTITY_NAME: ${LEGAL_ENTITY_NAME:-}
+        LEGAL_ENTITY_TYPE: ${LEGAL_ENTITY_TYPE:-}
+        LEGAL_ENTITY_ADDRESS: ${LEGAL_ENTITY_ADDRESS:-}
+        LEGAL_ENTITY_PHONE: ${LEGAL_ENTITY_PHONE:-}
+        LEGAL_ENTITY_TAX_OFFICE: ${LEGAL_ENTITY_TAX_OFFICE:-}
+        LEGAL_ENTITY_TAX_NO: ${LEGAL_ENTITY_TAX_NO:-}
+        LEGAL_ENTITY_MERSIS: ${LEGAL_ENTITY_MERSIS:-}
+        LEGAL_ENTITY_CHAMBER: ${LEGAL_ENTITY_CHAMBER:-}
+        LEGAL_ENTITY_KEP: ${LEGAL_ENTITY_KEP:-}
+        LEGAL_SUPPORT_EMAIL: ${LEGAL_SUPPORT_EMAIL:-}
     environment:
       NODE_ENV: production
       PORT: "3000"

@@ -16,3 +16,4 @@ export * from './sms-send';
 export * from './template-bodies';
 export * from './text';
 export * from './views';
+export * from './waba-quota';

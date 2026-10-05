@@ -139,7 +139,7 @@ Cloudflare Worker + **TEK container** (PostgreSQL + API + worker + web), yedek 2
 | H11 | `/delivered` ödeme yöntemini hiç doğrulamıyor: `online_card`, `pay_at_counter`, **markasız yemek kartı** kabul ediliyor · ✅ **kapatıldı (2.3):** şema 3 değere daraldı (`courierCollectedPaymentMethodSchema`), sunucu yöntemin şubede açık olduğunu `validatePayment` ile doğruluyor, online/kasada ödenen siparişte 422 `payment_method_locked`; kurye ekranı seçenekleri sunucudan gelen `allowedPaymentMethods` ile çiziyor | `routes/courier/index.ts:134` |
 | H12 | ✅ düzeltildi — Checkout butonu quote'a bağlı değil (B11'in operasyonel yüzü): CGNAT arkasında 120/dk limitine takılan müşteri eksik toplam onaylıyor | `checkout-page.tsx:177` |
 | H13 | "Teslim edilemedi" akışı **kodda hiç yok** → kurye kapıda müşteri yokken yanlış biçimde "Teslim ettim"e basıyor, müşteriye M10 + değerlendirme isteği gidiyor · ✅ **kapatıldı (3.5):** `POST /courier/orders/:id/undeliverable` + sebep çipleri; sipariş durum değiştirmez (`order_delivery_attempts` + `order_events.delivery_failed` + panel SSE olayı), müşteriye mesaj gitmez. Teslimde 5 sn "Geri al" şeridi eklendi | `courier-orders.tsx:126` |
-| H14 | Sepet değişikliği müşteriye hiç gösterilmiyor (K10/K12 fark listesi yok); tükenen ürünle checkout çıkmaz sokak · 🟡 **ekran yazıldı:** `components/orders/cart-change-notice.tsx` + `cart-change.ts` (409 `cart_changed` / 422 `cart_invalid` ayrıntısını fark listesine çevirir, S-06B/C'de bağlı); checkout'un 409 dalını bu bileşene bağlamak **2.2'nin işi** | `checkout-page.tsx:268` |
+| H14 | Sepet değişikliği müşteriye hiç gösterilmiyor (K10/K12 fark listesi yok); tükenen ürünle checkout çıkmaz sokak · 🟡 **ekran yazıldı:** `components/orders/cart-change-notice.tsx` + `cart-change.ts` (409 `cart_changed` / 422 `cart_invalid` ayrıntısını fark listesine çevirir, S-06B/C'de bağlı); checkout'un 409 dalını bu bileşene bağlamak **2.2'nin işi** · ✅ **kapatıldı (2026-10-05 MEDIUM A):** 2.2'de checkout 409 dalını KENDİ akışına bağladı (taze quote + yeni tutar + yeniden onay; kabul = onaya yeniden basmak, ayrı uç yok), ama S-06B/C'de kalan [Güncel sepetle devam] düğmesi hiç yazılmamış `POST /store/track/:token/accept-changes` ucunu çağırıyordu — her tıklama 404, müşteri çıkmaz sokakta. Uç **yazılmadı** (sipariş tutarı snapshot'tır, sipariş sonrası değişiklik onayı K11 → Faz 2 M14, yeni tutar ikinci bir yasal kabul kaydı gerektirir — 08 §4.4): ölü çağrı kaldırıldı, ekran fark listesi + [İşletmeyi ara] / [Vazgeçtim, siparişi iptal et]'e indirildi. Regresyon kapısı: `apps/web/components/orders/verification-screen.test.ts` ekranın çağırdığı her storefront yolunun sunucuda kayıtlı olduğunu kanıtlar. `cart-change-notice.tsx` artık hiçbir ekrana bağlı değil (Faz 2'yi bekler) | `checkout-page.tsx:268` |
 
 ### Ortak numara / yalıtım
 | # | Ne | Dosya |
@@ -158,7 +158,7 @@ Cloudflare Worker + **TEK container** (PostgreSQL + API + worker + web), yedek 2
 ### Operasyon / altyapı
 | # | Ne | Dosya |
 |---|---|---|
-| H21 | DLQ (`failed`) için uyarı yok **ve hiç temizlenmiyor** → müşteri telefonu + düz metin OTP süresiz kalıyor, tablo sınırsız büyüyor | `jobs/system/index.ts:176,178` |
+| H21 | DLQ (`failed`) için uyarı yok **ve hiç temizlenmiyor** → müşteri telefonu + düz metin OTP süresiz kalıyor, tablo sınırsız büyüyor · ✅ **gözcü + saklama yapıldı**, uyarı 2026-10-05'te (MEDIUM B) **pencereye bağlandı:** eşik tüm tabloyu sayıyordu, satırlar ise 90 gün durduğu için 11 eski hata sonsuza dek saat başı kritik uyarı üretiyordu (uyarı yorgunluğu). Artık yalnız son `DLQ_ALERT_WINDOW_MS` (24 saat) içinde başarısız olanlar sayılır (`coalesce(finished_at, updated_at)`, tür dökümü de pencereli); `total` bağlam olarak uyarı gövdesinde gider. Tek tek hata kaybolmaz: her kalıcı başarısızlık anında `job_failed_permanent` uyarısı gönderir | `jobs/system/index.ts:176,178` · `jobs/cron/index.ts` DLQ bölümü |
 | H22 | Worker sağlık ucunu üretimde kimse yoklamıyor (Worker cron yalnız `/health` çağırıyor) | `deploy/cloudflare/src/index.ts:311` |
 | H23 | 1 GiB container'da yalnız Node yığın tavanları **704 MiB** → OOM = tam kesinti + veri kaybı; disk/bellek hiç izlenmiyor | `entrypoint.sh:216`, `routes/health.ts:40` |
 | H24 | Rollback mekanizması hiç yok; **aşağı migration da yok** → migrate hata verirse sonsuz yeniden başlatma, çıkış yolu `DATA_EPOCH` artırıp veriyi feda etmek | `workflow:328`, `migrate.ts` |
@@ -219,15 +219,15 @@ Cloudflare Worker + **TEK container** (PostgreSQL + API + worker + web), yedek 2
 | # | Soru | Durum |
 |---|---|---|
 | 1 | **Ortak WhatsApp numarası onaylı mı?** | ❓ **Doğrulanamadı** — yukarıdaki blok. Admin ekranından 30 sn'de öğrenilir. |
-| 2 | 24 saatlik konuşma kotası / kalite derecesi / Meta işletme doğrulaması | ❌ Hiç izlenmiyor. Kodda yalnız saniye başına kota (20/sn). Ortak numarada **tüm kiracılar tek WABA kotasını paylaşıyor** → yeni numaranın iş-kaynaklı konuşma tavanı (250/1K) platform genelinde tükenince hiçbir dükkanın durum mesajı gitmez. Kiracı payı/tavan uyarısı yok. |
+| 2 | 24 saatlik konuşma kotası / kalite derecesi / Meta işletme doğrulaması | ⚠️ **Ölçü ve uyarı yapıldı (2026-10-05); hesap işi Eray'da.** Platform geneli kayan 24 saatlik tekil iş-kaynaklı konuşma ölçüsü mevcut kayıtlardan **türetiliyor** (yeni tablo yok): `services/messaging/waba-quota.ts`, gözcü `cron.waba_quota_watch` (5 dk) → %70 warning / %90 critical / tavan dolu ACİL + kiracı payı; kalite derecesi saatte bir `testConnection` ile **çekiliyor** (webhook alanı kodda hiç işlenmiyor, `wa_phone_numbers` tablosu yok); sağlayıcı `131048` dönerse kritik uyarı. Ayrıntı: [02 §7.6a](02-whatsapp-entegrasyonu.md), runbook [17](17-olay-mudahale-runbook.md) U-20…U-22. **Kalan:** Meta Business Verification (kodla yapılamaz) ve cloud/d360'ta basamağın okunamaması → tavan `WABA_CONVERSATION_CAP` ile elle verilir. |
 | 3 | 55 API test dosyası + 9 Playwright senaryosu gerçekten geçiyor mu? | ❓ **Burada koşturulamadı** (yerel PostgreSQL yok). Son dağıtım iş akışında yeşil ama o iş akışı bunları **koşmuyor** (B4). |
 | 4 | Yabancı telefonlu müşteri | ❌ `normalizePhone` yalnız +90 kabul ediyor → başka ülke numarası `null` → sipariş düşer. Ortak numaraya yazan yabancı numaralı müşteri çıkmaz sokakta. |
-| 5 | Kapasite: kaç işletme, kaç eşzamanlı panel, kaç sipariş/dk? | ❌ Ölçülmüş cevabı hiçbir yerde yok. 1/4 vCPU + 1 GiB, `shared_buffers=48MB`, `max_connections=40`, SSE bağlantısı için üst sınır yok. |
+| 5 | Kapasite: kaç işletme, kaç eşzamanlı panel, kaç sipariş/dk? | ⚠️ **Yarım.** SSE için üst sınır KONDU (şube 8 / işletme 24, `plugins/sse-limit.ts`; aşımda en eski bağlantı kapanır + `sse_connection_limit` uyarısı — 14 §7.1) ve bağlantı havuzu hesabı doğrulandı: API 10 + `LISTEN` 1, worker ayrı süreçte 5, geçici göç/yedek istemcileri 1-2 → tepe ≈ 18, `max_connections=40` (eksi 3 superuser) içinde. Akış başına DB bağlantısı ayrılmıyor. **Kalan:** gerçek yük testi (sipariş/dk, eşzamanlı panel) hâlâ ölçülmedi; `statement_timeout` hiçbir yerde ayarlı değil. |
 | 6 | Panelin açılacağı gerçek cihaz | ❓ Test edilmedi. Tailwind 4 → Chrome 111+/Safari 16.4+ şartı; restoranın eski Android tableti/iPad'inde panel bozuk açılabilir ve bunu yakalayan hiçbir test yok. |
 | 7 | Olay yönetimi (SEV1–4, runbook, postmortem, destek SLA, P1 nöbet hattı) | ❌ docs/10 §5–§9 yazılı, kodda ve işletim listesinde **karşılığı yok**. docs/10 §1 madde 3 "ikinci VM + PITR + kurucuların P1 telefon hattı eksikse pilot başlamaz" diyor; üçü de yok. |
 | 8 | Panel ve admin erişilebilirliği | ❌ Hiç denetlenmedi. Sipariş alan ekranın klavye/odak/kontrast/ekran okuyucu durumu bilinmiyor. |
 | 9 | Türkiye VPS yolu (`deploy-production.yml`) | ⚠️ Denetim "kullanılmıyor" sayıp geçti ama canlı bir iş akışı; split-brain riski (`APP_BASE_URL` tek) ve root parolalı SSH + TOFU host anahtarı var. |
-| 10 | Toplu müşteri/sipariş dışa aktarma | ❌ Kullanım koşullarında taahhüt var, kodda yalnız **tek müşteri** KVKK JSON'u var. |
+| 10 | Toplu müşteri/sipariş dışa aktarma | ✅ **Yapıldı** — `GET /panel/exports/{orders,customers}.{csv,json}` (yalnız owner/manager, tarih aralıklı, akışlı, hız sınırlı + eşzamanlılık kapılı, denetim kayıtlı; telefon varsayılan maskeli, `includePersonal=1` destek oturumunda reddedilir; `customer_erasures` ve `test_kind` hariç). Kod: `routes/panel/exports.ts`, `services/reports/export*.ts`; doküman 04 §11.6, 14 §6.3. |
 
 ---
 
@@ -305,10 +305,22 @@ Düzeltme `routes/auth.ts`'i (ve mevcut satırlar için bir geri dolum göçün�
 | 4.3 | İkinci webhook alım düğümü (docs/00 §11 pilot şartı) | L |
 | 4.4 | SMS: Netgsm secret'ları + `SMS_PROVIDER` türetmesi — ya da SMS basamağının çalışmadığını yazılı kabul et | M |
 | 4.5 | 5651 erişim kaydı (Cloudflare Logpush → R2, 1 yıl, maskeli) | M |
-| 4.6 | ESLint + coverage eşiği + otomatik IDOR taraması + axe | M |
+| 4.6 | ESLint + coverage eşiği + otomatik IDOR taraması + axe | M · ⚠️ **3/4 yapıldı** — ayrıntı aşağıda |
 | 4.7 | Migration numaralandırmasını tek artan diziye çevir + drizzle-kit yolunu kapat + şema sapma testi | M |
 | 4.8 | E-posta kanalı (lead bildirimi, KVKK başvurusu, fatura) + SPF/DKIM/DMARC | M |
 | 4.9 | `instance_type: standard-1` ve bellek tavanlarını gerçek bütçeye indir | S |
+
+#### 4.6 durumu (2026-10-05)
+
+Kalite kapıları kuruldu; dördüncü parça (otomatik IDOR taraması) **yapılmadı**. Ayrıntılı işletim notu:
+[15 §15](15-kurulum-ve-isletim.md#15-kalite-kapıları-lint-kapsam-erişilebilirlik).
+
+| Parça | Durum | Nerede |
+|-------|-------|--------|
+| ESLint | ✅ **yapıldı** — flat config, `pnpm lint` / `pnpm lint:fix`; ölçüm **0 hata, 247 uyarı** (101 dosya, ~13 sn). Dağıtım kapısına eklendi (`continue-on-error: true`, birkaç yeşil turdan sonra kaldırılacak). | `eslint.config.js`, `.github/workflows/testler.yml` |
+| Kapsam eşiği | ⚠️ **yapılandırıldı, ÖLÇÜLMEDİ** — `pnpm test:coverage` + `@vitest/coverage-v8`; eşikler `packages/core` / `packages/db` / `apps/api` / `apps/web` için AYRI AYRI tanımlı ama yazılı sayılar hedeftir. `KAPSAM_ESIK=1` verilmedikçe uygulanmaz (ölçülmemiş sayıyı kapıya bağlamak kapıyı ilk turda kırmızı yakar). Ölçüm `pnpm test`i koşmayı, o da paylaşılan `siparis_test`i sıfırlamayı gerektirdiği için bu turda yapılmadı → **Eray'ın yapacağı adım**, 15 §15.2. | `vitest.config.ts`, `apps/web/vitest.config.ts` |
+| axe | ✅ **yapıldı (bir ekran)** — `apps/web/test/a11y.tsx` yardımcısı (jsdom + `createRoot`/`act`, WCAG 2.2 AA) ve checkout denetimi; 3 test yeşil, biri denetimin kendisinin sökülmediğini sınar. Panel ve admin ekranları ile gerçek tarayıcıda tam tarama (Playwright) **FAZ 5**. | `apps/web/components/storefront/checkout/checkout-a11y.test.tsx` |
+| Otomatik IDOR taraması | ❌ **yapılmadı** — rota listesinden türetilen çapraz-tenant tarayıcı, `apps/api` sahipliğindeki bir iştir (rota kaydı ve test yardımcılarına dokunur); bu turda o alana girilmedi. Bugünkü durum değişmedi: `isolation.test.ts` kendi kurduğu örnek rotayı sınıyor. | `apps/api/test/isolation.test.ts` |
 
 ---
 
@@ -351,7 +363,7 @@ Panel = siparişin duyulduğu ekran. Hangi cihazda çalıştığı hiç sorulmam
 | # | Boşluk | Nereye bakılacak |
 |---|--------|------------------|
 | 9 | **Numara onayı kodda görünmez, canlı durumdur — ve hiç çalıştırılmamış.** Tek doğrulama yolu: Admin › WhatsApp › "Bağlantıyı test et". `ready` koşulu: gönderici var + webhook + durum webhook'u + `ONLINE`/`ONLINE:UPDATING`. `PENDING_VERIFICATION`/`VERIFYING` dönerse numara onaylı değildir. **Üretime çıkmadan bu uç `ready:true` dönmeli.** | `apps/api/src/services/admin/wa-setup-twilio.ts:152-155,368,378`; ekran `apps/web/app/admin/whatsapp/page.tsx` |
-| 10 | **24 saatlik konuşma kotası / kalite derecesi / Meta işletme doğrulaması hiç izlenmiyor.** Kodda yalnız saniye başına kota var (`NUMBER_RATE_PER_SEC = 20`). Ortak numarada **tüm kiracılar tek WABA kotasını paylaşıyor**: yeni numaranın iş-kaynaklı konuşma tavanı (250/1K) platform genelinde tükenir ve o anda hiçbir işletmenin durum mesajı gitmez. Kiracı başına pay, tavan uyarısı, kalite düşüşü alarmı yok. | `apps/api/src/wa/throttle.ts:5`, `apps/api/src/services/messaging/budget.ts` |
+| 10 | ⚠️ **Yapıldı (2026-10-05), hesap işi kaldı.** Eskiden kodda yalnız saniye başına kota vardı (`NUMBER_RATE_PER_SEC = 20`) ve ortak numaranın paylaşılan 24 saatlik tavanını gören hiçbir ölçü/uyarı yoktu. Artık ölçü mevcut kayıtlardan türetiliyor (`messages` + `notifications`, yeni tablo yok), kiracı payı tutuluyor, eşik/tavan/kalite uyarıları üretiliyor ve tavana yaklaşınca önemsiz durum mesajlarını kısan kapı (varsayılan KAPALI, `WABA_SHED_NONCRITICAL`) var. **Kalan:** Meta Business Verification + basamak yükseltmesi Eray'da; cloud/d360'ta basamak okunamıyor. | `apps/api/src/services/messaging/waba-quota.ts`, `apps/api/src/jobs/cron/index.ts` (`cron.waba_quota_watch`), `apps/api/src/wa/errors.ts:59`; eski durum `apps/api/src/wa/throttle.ts:5` |
 | 11 | **Ortak numara +1 850 (ABD).** TR müşterisinin yabancı numaraya yazması: güven/spam algısı, müşterinin uluslararası mesaj algısı ve "bu kim" sorusu hiç değerlendirilmemiş; TR numarasına geçiş planı yok. | `packages/core/src/shared-wa.ts`, `docs/16-twilio-whatsapp.md` |
 | 12 | **Yabancı telefon numaralı müşteri sipariş veremiyor.** `normalizePhone` yalnız +90 kabul ediyor; başka ülke numarası `null` → sipariş düşer. Ortak numaraya yazan yabancı/geçici numaralı müşteri çıkmaz sokakta kalır. | `packages/core/src/phone.ts:12-24` |
 

@@ -140,8 +140,8 @@ describe('GET /panel/reports/savings', () => {
     expect(r.avoidedCommissionKurus).toBe(35000);
     expect(r.avoidedCommissionWithVatKurus).toBe(42000);
     expect(r.headline).toContain('4 sipariş');
-    expect(r.headline).toContain('350,00 TL');
-    expect(r.note).toContain('Tahmindir');
+    expect(r.headline).toContain('yaklaşık 350,00 TL');
+    expect(r.note).toContain('Yaklaşık bir tahmindir');
 
     const withPhone = (await req('/reports/savings?month=2026-09&includePhone=1', a.ownerCookie)).json();
     expect(withPhone.orderCount).toBe(5);
@@ -151,5 +151,24 @@ describe('GET /panel/reports/savings', () => {
     expect(other.orderCount).toBe(1);
     expectError(await req('/reports/savings?month=2026-13', a.ownerCookie), 400, 'validation_error');
     expectError(await req('/reports/savings', cashier.cookie), 403, 'forbidden');
+  });
+
+  // 04 §11.3: "Girilmezse kart 'Oranınızı girin' der; varsayılan uydurulmaz."
+  it('oran girilmemişse tutar yerine oranı ister', async () => {
+    await ctx.db.update(tenants).set({ marketplaceCommissionBp: 0 }).where(eq(tenants.id, a.tenantId));
+    try {
+      const r = (await req('/reports/savings?month=2026-09', a.ownerCookie)).json();
+      // Sipariş ve sepet olduğu gibi görünür; uydurulan tek şey orandı, o yüzden yalnız oran ve tutarlar null.
+      expect(r.orderCount).toBe(4);
+      expect(r.basketTotalKurus).toBe(140000);
+      expect(r.commissionBp).toBeNull();
+      expect(r.avoidedCommissionKurus).toBeNull();
+      expect(r.avoidedCommissionWithVatKurus).toBeNull();
+      expect(r.headline).not.toContain('TL');
+      expect(r.headline).toContain('4 sipariş');
+      expect(r.note).toContain('oranınız girilmemiş');
+    } finally {
+      await ctx.db.update(tenants).set({ marketplaceCommissionBp: 2500 }).where(eq(tenants.id, a.tenantId));
+    }
   });
 });

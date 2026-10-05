@@ -17,7 +17,7 @@
 # kapanmadan başlatmaz, bu yüzden düzgün kapanış veri kaybettirmez. Bir süreç düşerse de son yedek alınıp çıkılır.
 # Beklenmedik çökmede (container'ın zorla sonlanması) son yedekten sonraki en çok ~2 dakikalık veri kaybolabilir.
 #
-# Veri kaybına karşı üç kapı (docs/denetim-2026-10-04-uretim-hazirlik.md B6/B7/B14):
+# Veri kaybına karşı dört kapı (docs/denetim-2026-10-04-uretim-hazirlik.md B6/B7/B14 + dört mercek turu):
 #   1) TEK YAZICI: her döküm kendi mktemp dosyasına yazılır ve aynı anda iki yedek çalışmaz (flock; kapanışta döngü
 #      ÖNCE durdurulur, süren yedeğin bitmesi beklenir). Eskiden ikisi de /tmp/yedek.dump'a yazıyordu.
 #   2) YÜKLEMEDEN ÖNCE DOĞRULAMA: döküm `pg_restore --list`, görsel arşivi `tar -tzf` ile okunuyor mu diye denetlenir;
@@ -26,6 +26,11 @@
 #   3) TAZE AÇILIŞ SİLAHSIZDIR: yedek bulunamazsa gerçek veri (işletme/sipariş/lead/2FA) gelene kadar R2'ye hiçbir şey
 #      yazılmaz, kapanış yedeği (force) bile; dolu veritabanının üzerine de geri yükleme/seed gitmez (satır sayısı
 #      kapısı). Yanlış verilmiş bir DATA_EPOCH ya da R2'nin boş 404'ü canlı veriyi ezemez.
+#   4) YARIM GERİ YÜKLEME ZİNCİRİ DONDURUR: pg_restore'dan önce PGDATA'nın yanına (kalıcı birim; /tmp container yerinde
+#      yeniden başlarken silinebilir) "geri yükleme sürüyor" izi yazılır, başarıda silinir. Açılışta iz duruyorsa satır
+#      sayısına BAKILMADAN "yarım" kabul edilir: R2'ye yazma kalıcı olarak durdurulur (BACKUP_FROZEN), [ERROR] satırı
+#      yazılır ve ALERT_WEBHOOK_URL'e uyarı gider. Önceki davranışta yarım veritabanı "gerçek veri" sanılıp 120 saniye
+#      içinde R2'deki iyi son.dump'ın ve o günün kopyasının üzerine yazılıyordu. Çözüm: docs/17 §2.8.
 # Hata sessiz kalmaz: stderr'e `[ERROR]` satırı + BACKUP_STATE_FILE (/tmp/yedek-durum.json) tek satır JSON durum
 # dosyası; sağlık ucu lastBackupAgeSec'i buradan hesaplar (alanlar ve note sözcükleri: docs/15 §13).
 set -Eeuo pipefail
@@ -45,6 +50,10 @@ BACKUP_STOP_FILE="${BACKUP_STOP_FILE:-/tmp/yedek-dongu.dur}"
 # Kilit beklemesi + kapanışta döngünün bitmesini bekleme; toplamı platformun 15 dk'lık kapanış penceresinin altında
 BACKUP_LOCK_WAIT_SEC="${BACKUP_LOCK_WAIT_SEC:-120}"
 BACKUP_QUIESCE_SEC="${BACKUP_QUIESCE_SEC:-120}"
+# "Geri yükleme sürüyor" işareti: pg_restore'dan ÖNCE yazılır, başarıda silinir. /tmp'ye KONAMAZ — container yerinde
+# yeniden başlarsa /tmp silinebilirken yarım veritabanı PGDATA'da ayakta kalır; işaret veriyle AYNI ömürde olmalı,
+# bu yüzden PGDATA'nın yanına (kalıcı birim) konur.
+RESTORE_FLAG_FILE="${RESTORE_FLAG_FILE:-$(dirname "$PGDATA")/geri-yukleme-suruyor}"
 DATA_EPOCH="${DATA_EPOCH:-}"
 DB_NAME=siparis
 export PGHOST=127.0.0.1 PGPORT PGUSER=siparis PGPASSWORD=siparis
@@ -54,6 +63,25 @@ export UPLOAD_DIR
 log() { echo "[baslat] $(date -u +%H:%M:%S) $*"; }
 # Yedek ve açılış hataları sessiz kalmaz: stderr'e belirgin `[ERROR]` ile yazılır (container logunda aranabilir).
 log_error() { echo "[ERROR] [baslat] $(date -u +%H:%M:%S) $*" >&2; }
+
+# Açılış uyarısı (ALERT_WEBHOOK_URL tanımlıysa). Gövde apps/api/src/lib/alert.ts ile AYNI alanları taşır
+# (service/env/kind/severity/message/data/at) ki alıcı köprü tek biçim görsün; kaynağı `service` ayırır. Kanal yoksa
+# ya da http/https değilse sessizce vazgeçilir: uyarı kanalının yokluğu açılışı DURDURMAZ (ateşle-ve-unut).
+# Kişisel veri GÖNDERİLMEZ — yalnız dönem, satır sayısı ve işaret yolu gider (CLAUDE.md kural 7).
+# $1 = kind, $2 = tek satır Türkçe mesaj (çift tırnak ve ters bölü kullanmayın), $3 = JSON nesnesi (varsayılan {}).
+send_alert() {
+  local kind="$1" message="$2" data="${3:-}" url="${ALERT_WEBHOOK_URL:-}"
+  [ -n "$data" ] || data='{}'
+  case "$url" in
+    http://*|https://*) ;;
+    '') return 0 ;;
+    *) log_error "ALERT_WEBHOOK_URL http/https değil: uyarı gönderilmedi ($kind)"; return 0 ;;
+  esac
+  printf '{"service":"yemekgelsin-container","env":"%s","kind":"%s","severity":"critical","message":"%s","data":%s,"at":"%s"}' \
+    "${DEPLOY_ENV:-}" "$kind" "$message" "$data" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" |
+    curl -fsS --max-time 5 -X POST -H 'content-type: application/json' --data-binary @- "$url" >/dev/null 2>&1 ||
+    log_error "uyarı gönderilemedi (ALERT_WEBHOOK_URL, $kind): uyarı yalnız günlükte kaldı"
+}
 
 # Yedek yolu dönemi taşır: DATA_EPOCH=2 → http://yedek.internal/e2/db; boşsa ilk dönemin öneksiz yolu (/db)
 if [ -n "$DATA_EPOCH" ]; then
@@ -72,6 +100,10 @@ DB_READY=0
 SHUTTING_DOWN=0
 # R2'ye yazma izni: 1 = yaz, 0 = silahsız (taze açılış; gerçek veri gelince backup_run kendiliğinden 1'e çeker)
 BACKUP_ARMED=1
+# Yedek zincirinin DONDURULMASI: 1 olduğunda R2'ye hiçbir şey yazılmaz ve bu bayrak container ömrü boyunca geri
+# alınmaz (silahsız kipin aksine gerçek veri görülünce kendiliğinden açılmaz). Yarım kalmış bir geri yüklemeden
+# sonra kullanılır: yarım veritabanı da "gerçek veri" gibi göründüğü için satır sayısı kapısı burada yetmez.
+BACKUP_FROZEN=0
 # flock util-linux'tan gelir ve imajda vardır; yoksa mkdir atomikliğine dayanan yedek kilide düşülür
 HAVE_FLOCK=0
 if command -v flock >/dev/null 2>&1; then HAVE_FLOCK=1; fi
@@ -146,7 +178,8 @@ backup_state_prev() {
 
 # Tek satır JSON, atomik yazılır (mktemp + mv): iki süreç yazarken dosya hiç yarım görünmez. result: ok|hata|bos|
 # atlandi. note (ASCII tek sözcük): yuklendi, degismedi, acilista-geri-yuklendi, taze-acilis-veri-yok,
-# kilit-alinamadi, yedek-hatasi, veri-sayisi-okunamadi. Sağlık ucu: lastBackupAgeSec = now - lastSuccessUnix.
+# kilit-alinamadi, yedek-hatasi, veri-sayisi-okunamadi, yarim-geri-yukleme.
+# Sağlık ucu: lastBackupAgeSec = now - lastSuccessUnix.
 backup_state_write() {
   local result="$1" note="${2:-}" now="" prev="" ok_at="" fails="" tmp=""
   now=$(date -u +%s)
@@ -209,6 +242,16 @@ backup_unlock() {
 # doğrulanır. Kilidi backup_now tutar; doğrudan çağrılmaz.
 backup_run() {
   local force="${1:-}" dump="" tarball="" fp="" rows="" uploaded=0 failed=0
+  # Donmuş kip (yarım geri yükleme): satır sayısına BAKILMAZ, force da yazamaz. Elle müdahale edilip container yeni
+  # bir diskle açılana kadar R2'deki iyi son.dump ve o günün kopyası korunur. Her turda loglanır ve durum dosyasına
+  # işlenir. HABER YOLU: send_alert (açılışta bir kez) + bu [ERROR] satırı. Sağlık ucuna GÜVENİLMEZ: yedek yaşı
+  # eşiği 503 ÜRETMEZ (yalnız degraded + warnings; apps/api/src/routes/health.ts:211) ve /tmp süpürülmüş bir
+  # açılışta lastSuccessUnix 0 kalır → health.ts:163 bunu null'a çevirir → ne backup_stale ne U-28 üretilir.
+  if [ "$BACKUP_FROZEN" = 1 ]; then
+    log_error "yedek zinciri DONDURULDU (yarım geri yükleme): R2'ye yazılmıyor, iyi yedek korunuyor — docs/17 §2.8"
+    backup_state_write atlandi yarim-geri-yukleme
+    return 1
+  fi
   # Silahsız kip (taze açılış): gerçek veri gelene kadar R2'ye hiçbir şey yazılmaz, force bile yazamaz
   if [ "$BACKUP_ARMED" = 0 ]; then
     rows=$(real_data_rows)
@@ -313,11 +356,39 @@ backup_loop() {
 
 # --- Geri yükleme (R2 → veritabanı) -----------------------------------------------------------------
 
+# Geri yükleme izini KOY. Bu satırdan sonra container zorla sonlanırsa (platform öldürür, OOM) veritabanı yarım kalır
+# ve PGDATA ile birlikte ayakta kalır; iz de aynı birimde durduğu için sonraki açılış yarımı tanır. `sync` izi diske
+# indirir: düğüm çökmesinde de kalır. İz yazılamazsa korumadan vazgeçmeyiz, R2'ye yazmayı DONDURURUZ (fail-closed).
+restore_flag_set() {
+  if printf 'baslangic=%s epoch=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "${DATA_EPOCH:-}" >"$RESTORE_FLAG_FILE" 2>/dev/null; then
+    sync 2>/dev/null || true
+    return 0
+  fi
+  BACKUP_FROZEN=1
+  log_error "geri yükleme izi yazılamadı ($RESTORE_FLAG_FILE): yarım geri yükleme korumasız kalmasın diye R2'ye yazma DONDURULDU — docs/17 §2.8"
+  send_alert geri_yukleme_izi_yazilamadi \
+    "Geri yukleme izi yazilamadi: yarim geri yukleme korumasi kurulamadi, R2 yedek zinciri donduruldu (docs/17 2.8)" \
+    "{\"epoch\":\"${DATA_EPOCH:-}\",\"isaret\":\"$RESTORE_FLAG_FILE\"}"
+}
+
+# Geri yükleme izini KALDIR (geri yükleme tamamlandı). pg_restore bittikten sonra bu satıra gelinene kadarki birkaç
+# milisaniyede ölürsek sonraki açılış "yarım" sanar: yanlış alarm bilerek kabul edilir (fail-closed), çözümü docs/17 §2.8.
+restore_flag_clear() {
+  rm -f "$RESTORE_FLAG_FILE" 2>/dev/null || log_error "geri yükleme izi silinemedi ($RESTORE_FLAG_FILE): sonraki açılış yarım sanabilir"
+}
+
 # Geri yükleme yarıda kaldıysa yarım veritabanıyla AÇILMAYIZ: veritabanını düşür, PostgreSQL'i kapat, sıfır dışı çık —
 # platform yeniden başlatır, sonraki deneme temiz başlar. Yarım veriyle açılmak, döngünün 2 dakika içinde R2'deki iyi
 # yedeğin üzerine yarım veri yazması demektir.
 restore_abort() {
   dropdb --if-exists "$DB_NAME" >/dev/null 2>&1 || true
+  # Yarım veritabanı GERÇEKTEN düştüyse iz de kalkar: sonraki açılış temiz başlar, boşuna donmaz. Düşmediyse (bağlantı
+  # takılı, PostgreSQL hasta) iz bilerek BIRAKILIR — yarım veri hâlâ orada ve R2 korunmalı.
+  if psql -d postgres -Atc "select 1 from pg_database where datname = '$DB_NAME'" 2>/dev/null | grep -q 1; then
+    log_error "yarım veritabanı düşürülemedi: geri yükleme izi bırakıldı, sonraki açılışta yedek zinciri DONDURULUR ($RESTORE_FLAG_FILE)"
+  else
+    restore_flag_clear
+  fi
   pg_ctl -D "$PGDATA" -m fast -w stop >/dev/null 2>&1 || true
   exit 1
 }
@@ -337,12 +408,16 @@ restore_from_backup() {
         restore_abort
       fi
       log "son yedek geri yükleniyor ($(du -h "$dump" | cut -f1))"
+      # İz pg_restore'dan ÖNCE konur: buradan sonra container zorla ölürse yarım veritabanı "gerçek veri" sanılıp
+      # 120 saniye içinde R2'deki iyi yedeğin üzerine yazılıyordu (04.10.2026 denetimi, dört mercek turu).
+      restore_flag_set
       if ! pg_restore --no-owner --no-privileges --exit-on-error -d "$DB_NAME" "$dump"; then
         rm -f "$dump"
         log_error "geri yükleme başarısız (pg_restore): container yeniden denenecek; sürerse R2'deki gun-<0-6> kopyasını yeni döneme yükleyin (docs/15 §13)"
         restore_abort
       fi
       rm -f "$dump"
+      restore_flag_clear
       # R2 ile veritabanı şu an eşit: sağlık ucu ilk 2 dakikada "yedek hiç alınmadı" sanmasın
       backup_state_write ok acilista-geri-yuklendi
       ;;
@@ -429,14 +504,34 @@ pg_ctl -D "$PGDATA" -w -l /tmp/postgres.log \
 log "PostgreSQL çalışıyor (veri dönemi: ${DATA_EPOCH:-öneksiz})"
 
 # Taze açılış kapısı: "taze" dala YALNIZ gerçekten veri yokken girilir. Veritabanı duruyor ve içinde gerçek veri varsa
-# üzerine ne geri yükleme ne seed gider; varken boşsa (önceki açılışta geri yükleme yarıda kalmış olabilir) geri yükleme
-# yeniden denenir. Yedek hiç bulunamazsa R2'ye yazma kapanır (BACKUP_ARMED=0): yanlış bir DATA_EPOCH veriyi ezemez.
+# üzerine ne geri yükleme ne seed gider; varken boşsa (gerçek veri olmadığı KANITLI) veritabanı sıfırdan kurulup geri
+# yükleme yeniden denenir. Yedek hiç bulunamazsa R2'ye yazma kapanır (BACKUP_ARMED=0): yanlış bir DATA_EPOCH veriyi ezemez.
 fresh=0
-if psql -d postgres -Atc "select 1 from pg_database where datname = '$DB_NAME'" | grep -q 1; then
+# ÖNCE yarım geri yükleme izi: varsa satır sayısı HİÇBİR ŞEY KANITLAMAZ (yarım döküm de "gerçek veri" gibi görünür,
+# çok erken kesilmişse boş görünür). Bu yüzden sayıya bakılmadan "yarım" kabul edilir, yedek zinciri DONDURULUR,
+# uyarı gönderilir ve elle müdahale beklenir (docs/17 §2.8). Geri yükleme YENİDEN DENENMEZ, ama migration ve seed
+# aşağıda olduğu gibi çalışır (akış bilerek değiştirilmedi): yarım şema değişebilir, R2 ise her durumda korunur.
+if [ -e "$RESTORE_FLAG_FILE" ]; then
+  BACKUP_FROZEN=1
+  rows=$(real_data_rows)
+  log_error "YARIM GERİ YÜKLEME: önceki açılışta geri yükleme tamamlanmadı ($RESTORE_FLAG_FILE duruyor: $(tr -d '\n' <"$RESTORE_FLAG_FILE" 2>/dev/null || echo okunamadi)). Veritabanı YARIM olabilir (gerçek veri sayısı: ${rows:-okunamadi}); R2'ye yazma DONDURULDU, iyi yedek korunuyor. Elle müdahale gerekiyor — docs/17 §2.8"
+  send_alert yarim_geri_yukleme \
+    "Yarim geri yukleme izi acilista bulundu: veritabani yarim olabilir, R2 yedek zinciri donduruldu, elle mudahale gerekiyor (docs/17 2.8)" \
+    "{\"epoch\":\"${DATA_EPOCH:-}\",\"gercekVeriSatiri\":\"${rows:-okunamadi}\",\"isaret\":\"$RESTORE_FLAG_FILE\"}"
+  backup_state_write atlandi yarim-geri-yukleme
+elif psql -d postgres -Atc "select 1 from pg_database where datname = '$DB_NAME'" | grep -q 1; then
   rows=$(real_data_rows)
   case "$rows" in
     0)
       log "veritabanı var ama gerçek veri yok: yedekten geri yükleme deneniyor"
+      # Şeması kurulu boş bir veritabanına `pg_restore --exit-on-error` çakışma hatası verir ("zaten var") ve
+      # restore_abort bir tur kesinti yazardı. Gerçek veri olmadığı kanıtlı olduğundan (rows=0) veritabanını düşürüp
+      # boşundan kuruyoruz: tek turda temiz geri yükleme, container boşuna çökmez.
+      if dropdb --if-exists "$DB_NAME" >/dev/null 2>&1 && createdb "$DB_NAME"; then
+        log "boş veritabanı sıfırdan kuruldu (önceki turun şema kalıntısı silindi)"
+      else
+        log_error "boş veritabanı sıfırdan kurulamadı: geri yükleme yine de denenecek (çakışırsa container yeniden başlar)"
+      fi
       restore_from_backup
       ;;
     '')

@@ -9,13 +9,23 @@ import type { FastifyBaseLogger } from 'fastify';
 import type { Config } from '../../config';
 import { enqueueJob } from '../../lib/jobs';
 import { interactiveBody, templateBody, textBody } from '../../wa/cloud-body';
-import { WaSendError, isWaSendError, waErrorSummary } from '../../wa/errors';
+import { WaSendError, isMessagingLimitCode, isWaSendError, waErrorSummary } from '../../wa/errors';
 import { numberSlotKey, providerForAccount, toAccountRef } from '../../wa/registry';
 import { acquireNumberSlot } from '../../wa/throttle';
 import type { WaAccountRef, WaRecipient, WhatsAppProvider } from '../../wa/types';
+import { releaseStatusBudget } from './budget';
+import { windowOpen } from './customers';
 import type { OutboundPayload, OutboundSpec } from './outbound';
 import { rememberSharedTenant } from './shared-router';
 import { renderTemplateBody } from './template-bodies';
+import {
+  alertWabaMessagingLimit,
+  getQuotaGauge,
+  isCriticalOutbound,
+  recipientAlreadyBilled,
+  resolveQuotaConfig,
+  shouldShedNonCritical,
+} from './waba-quota';
 
 export interface SendContext {
   db: Database;
@@ -98,6 +108,45 @@ async function pauseAccount(db: Database, account: typeof waAccounts.$inferSelec
   });
 }
 
+/** Mesajın düşürüldüğü kaydedilir (`messages.error_code`): panelde "gönderilemedi" rozeti ve teşhis için sabit. */
+export const WABA_QUOTA_SHED_CODE = 'waba_quota_shed';
+
+/**
+ * Tavana yaklaşıldığında ÖNEMSİZ durum mesajını düşürür (denetim açık soru 2 madde 4). Yeni bir öncelik sistemi
+ * kurulmaz: kritiklik `OutboundPayload.statusMessage` + `orderEvent` işaretlerinden okunur (bütçe altyapısı) ve
+ * düşürülen mesajın bütçesi `releaseStatusBudget` ile GERİ VERİLİR — siparişin kalan durum mesajı hakkı yanmasın.
+ *
+ * Varsayılan KAPALIDIR (`WABA_SHED_NONCRITICAL`): türetilen sayaç tam tavanda düşük okuyabildiği için ölçüm bir
+ * süre izlenmeden gönderim yoluna karışmaz (Eray'ın yapacağı adım: ortam değişkenini açmak).
+ */
+async function shedIfQuotaTight(
+  ctx: SendContext,
+  msg: { id: string; conversationId: string; orderId: string | null },
+  payload: OutboundPayload,
+  account: { provider: string },
+  conv: { lastInboundAt: Date | null },
+  now: Date,
+): Promise<boolean> {
+  const { shedEnabled } = resolveQuotaConfig(ctx.config);
+  const shed = shouldShedNonCritical({
+    gauge: getQuotaGauge(),
+    now,
+    shared: account.provider === 'shared',
+    opensConversation: !windowOpen(conv.lastInboundAt, now),
+    critical: isCriticalOutbound(payload),
+    shedEnabled,
+  });
+  if (!shed) return false;
+  // Tavan TEKİL ALICI sayar: bu kişiye son 24 saatte zaten mesaj gittiyse bu mesaj tavana bir şey EKLEMEZ.
+  // Böyle bir mesajı düşürmek kotadan yer kazandırmaz, yalnız müşteriyi sessiz bırakır (sipariş onayı kritik
+  // olduğu için her koşulda gider ve alıcıyı zaten saydırır → sonraki durum mesajları bedavadır).
+  if (await recipientAlreadyBilled(ctx.db, msg.conversationId, now)) return false;
+  await markFailed(ctx.db, msg.id, payload, WABA_QUOTA_SHED_CODE, 'Ortak numaranın 24 saatlik konuşma tavanı doldu: önemsiz durum mesajı gönderilmedi');
+  if (payload.statusMessage && msg.orderId) await releaseStatusBudget(ctx.db, msg.orderId);
+  ctx.log.warn({ messageId: msg.id, orderEvent: payload.orderEvent ?? null, code: payload.code ?? null }, 'WABA kotası: önemsiz durum mesajı düşürüldü');
+  return true;
+}
+
 /** Kuyruktaki giden mesajı gönderir. Geçici hatada (son deneme değilse) hata fırlatır → iş yeniden denenir. */
 export async function performWaSend(ctx: SendContext, messageId: string): Promise<SendOutcome> {
   const { db, config, log } = ctx;
@@ -124,6 +173,9 @@ export async function performWaSend(ctx: SendContext, messageId: string): Promis
     await markFailed(db, msg.id, payload, 'no_recipient', 'Alıcı telefonu ya da BSUID yok');
     return 'failed';
   }
+
+  // Kota kapısı sağlayıcıya gitmeden ÖNCE: tavan dolmuşken doomed gönderim denenmez, yer kritik mesaja kalır
+  if (await shedIfQuotaTight(ctx, msg, payload, account, conv, new Date())) return 'failed';
 
   const provider = providerForAccount(account, config);
   const ref = toAccountRef(account, config);
@@ -160,6 +212,11 @@ export async function performWaSend(ctx: SendContext, messageId: string): Promis
   } catch (err) {
     if (!isWaSendError(err)) throw err;
     log.warn({ code: err.code, action: err.action, messageId: msg.id }, 'WhatsApp gönderim hatası');
+    // 131048: numaranın mesaj sınırı doldu ya da kısıtlandı. Türetilen sayaç tam tavanda düşük okuduğu için
+    // tavanın GERÇEĞİ budur; ortak numarada tüm dükkanlar birden susar → nöbetçiye kritik uyarı (açık soru 2).
+    if (isMessagingLimitCode(err.code)) {
+      alertWabaMessagingLimit({ log, config }, { code: err.code, shared: account.provider === 'shared', provider: config.PLATFORM_WA_PROVIDER });
+    }
     switch (err.action) {
       case 'window_closed': {
         if (payload.templateFallback && payload.spec.type !== 'template') {

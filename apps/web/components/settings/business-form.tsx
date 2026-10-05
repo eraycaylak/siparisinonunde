@@ -13,6 +13,7 @@ import { logoBrandColor } from '@/lib/dominant-color';
 import { currentRole, useMe } from '@/lib/auth';
 import { cn } from '@/lib/cn';
 import { useTenantSettings, useUpdateTenant } from './api';
+import { commissionRateInput, parseCommissionRate } from './commission-rate';
 import { BrandColorPicker } from './brand-color-picker';
 import { ImageField } from './image-field';
 import { SaveBar, Section, SettingsError, SettingsLoading, issuesOf } from './settings-shell';
@@ -48,7 +49,7 @@ function fromTenant(t: TenantSettings): FormState {
     logoUrl: t.logoUrl,
     coverUrl: t.coverUrl,
     slug: t.slug,
-    commissionPct: String(t.marketplaceCommissionBp / 100).replace('.', ','),
+    commissionPct: commissionRateInput(t.marketplaceCommissionBp),
   };
 }
 
@@ -74,11 +75,8 @@ function toPatch(f: FormState, t: TenantSettings): TenantPatch {
   if (f.logoUrl !== t.logoUrl) patch.logoUrl = f.logoUrl;
   if (f.coverUrl !== t.coverUrl) patch.coverUrl = f.coverUrl;
   if (f.slug.trim().toLowerCase() !== t.slug) patch.slug = f.slug.trim().toLowerCase();
-  const pct = Number(f.commissionPct.replace(',', '.'));
-  if (Number.isFinite(pct)) {
-    const bp = Math.round(pct * 100);
-    if (bp !== t.marketplaceCommissionBp) patch.marketplaceCommissionBp = bp;
-  }
+  const rate = parseCommissionRate(f.commissionPct);
+  if (rate.kind !== 'invalid' && rate.bp !== t.marketplaceCommissionBp) patch.marketplaceCommissionBp = rate.bp;
   return patch;
 }
 
@@ -103,7 +101,8 @@ export function BusinessForm({ embedded = false, onSaved }: { embedded?: boolean
   if (!form) return <SettingsLoading />;
 
   const set = <K extends keyof FormState>(k: K, v: FormState[K]) => setForm((f) => (f ? { ...f, [k]: v } : f));
-  const pctInvalid = !Number.isFinite(Number(form.commissionPct.replace(',', '.'))) || Number(form.commissionPct.replace(',', '.')) > 60;
+  const commissionRate = parseCommissionRate(form.commissionPct);
+  const pctInvalid = commissionRate.kind === 'invalid';
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -217,11 +216,11 @@ export function BusinessForm({ embedded = false, onSaved }: { embedded?: boolean
 
       <Section
         title="Tasarruf raporu oranı"
-        description="Pazaryerinin sizden aldığı ortalama kesinti (KDV hariç). Raporlardaki tasarruf hesabı bu oranı kullanır."
+        description="Pazaryerinin sizden aldığı ortalama kesinti (KDV hariç). Raporlardaki tasarruf hesabı bu oranı kullanır. Boş bırakırsanız tasarruf tutarı hesaplanmaz; rapor oranı sizden ister — varsayılan bir oran uydurulmaz."
       >
         <div className="flex flex-wrap items-end gap-2">
           {COMMISSION_CHIPS.map((c) => {
-            const active = Number(form.commissionPct.replace(',', '.')) === c;
+            const active = commissionRate.kind === 'valid' && commissionRate.bp === c * 100;
             return (
               <button
                 key={c}
@@ -237,7 +236,23 @@ export function BusinessForm({ embedded = false, onSaved }: { embedded?: boolean
               </button>
             );
           })}
-          <Field label="Diğer (%)" className="w-32" error={pctInvalid ? '0–60 arası' : errors.marketplaceCommissionBp}>
+          <button
+            type="button"
+            onClick={() => set('commissionPct', '')}
+            aria-pressed={commissionRate.kind === 'empty'}
+            className={cn(
+              'min-h-hit rounded-full border px-4 text-base font-semibold',
+              commissionRate.kind === 'empty' ? 'border-primary bg-primary text-primary-fg' : 'border-border-strong bg-surface-raised text-fg hover:bg-accent',
+            )}
+          >
+            Bilmiyorum
+          </button>
+          <Field
+            label="Diğer (%)"
+            className="w-32"
+            hint="Pazaryeri panelinizdeki aylık kesinti toplamı ÷ ciro"
+            error={pctInvalid ? '0–60 arası bir oran yazın ya da boş bırakın' : errors.marketplaceCommissionBp}
+          >
             <Input value={form.commissionPct} onChange={(e) => set('commissionPct', e.target.value.replace(/[^\d,.]/g, ''))} inputMode="decimal" />
           </Field>
         </div>

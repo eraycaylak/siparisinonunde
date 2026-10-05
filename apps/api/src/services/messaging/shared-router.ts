@@ -50,7 +50,7 @@ import { randomUUID } from 'node:crypto';
 import { and, desc, eq, inArray, isNotNull, ne, or, sql } from 'drizzle-orm';
 import { enqueueJob } from '../../lib/jobs';
 import { clip, LIMITS } from '../../wa/cloud-body';
-import { isWaSendError, WaSendError, waErrorSummary } from '../../wa/errors';
+import { isMessagingLimitCode, isWaSendError, WaSendError, waErrorSummary } from '../../wa/errors';
 import { getWaProvider, platformAccountRef, type WaAccountRow } from '../../wa/registry';
 import { acquireNumberSlot } from '../../wa/throttle';
 import type { NormalizedWaEvent, WaInteractiveMessage, WaRecipient, WaSender } from '../../wa/types';
@@ -69,6 +69,7 @@ import {
   type SharedShop,
 } from './shared';
 import { bareText, isOptIn, isOptOut, matchOrderCode } from './text';
+import { alertWabaMessagingLimit } from './waba-quota';
 
 /** Güncel dükkanla kodsuz devam süresi (son yönlendirmeden). */
 export const SHARED_ROUTE_ACTIVE_MS = 24 * 60 * 60_000;
@@ -713,6 +714,8 @@ export async function performSharedSend(ctx: SendContext, messageId: string): Pr
     log.warn({ code: e.code, action: e.action, messageId: msg.id }, 'ortak numara gönderim hatası');
     // Kimlik / hesap hatası PLATFORM arızasıdır (tüm dükkanlar susar): nöbetçiye kritik uyarı (denetim H8 / iş 3.4)
     alertSharedAccountError({ log, config }, e, config.PLATFORM_WA_PROVIDER);
+    // 131048: ortak numaranın mesaj sınırı doldu/kısıtlandı — aynı şekilde PLATFORM arızası (açık soru 2)
+    if (isMessagingLimitCode(e.code)) alertWabaMessagingLimit({ log, config }, { code: e.code, shared: true, provider: config.PLATFORM_WA_PROVIDER });
     if (e.action === 'retry' && !ctx.lastAttempt) throw err;
     await markSharedFailed(db, msg.id, payload, e.code, waErrorSummary(e));
     return 'failed';

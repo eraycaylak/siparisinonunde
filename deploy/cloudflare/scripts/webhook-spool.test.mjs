@@ -1,8 +1,16 @@
-// src/webhook-spool.ts + src/alert.ts: gelen webhook tamponu ve sırayla geri verme (denetim 2026-10-04 madde 1.7/B8).
+// src/webhook-spool.ts + src/alert.ts: gelen webhook tamponu ve sırayla geri verme (denetim 2026-10-04 madde 1.7/B8)
+// + yedek gözcüsü (denetim 2026-10-05 bulgu B: yedek ölürse haber veren kanal yoktu).
 // Çalıştır: npm test (node --test; Node .ts dosyasındaki türleri ayıklar).
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { uyariGonder, uyariGovdesi } from '../src/alert.ts';
+import {
+  YEDEK_UYARI_SOGUMA_MS,
+  uyariGonder,
+  uyariGovdesi,
+  yedekDurumunuOku,
+  yedekUyariAyrinti,
+  yedekUyarisiGerekir,
+} from '../src/alert.ts';
 import {
   DRAIN_HEADER,
   MAX_SPOOL_BYTES,
@@ -330,5 +338,118 @@ test('uyarı gövdesi: kaynak/olay/zaman; adres yoksa gönderilmez, hata akış�
     olay: 'container_baslatilamadi',
     zaman: '2023-11-14T22:13:20.000Z',
     ayrinti: { durum: 503 },
+  });
+});
+
+// --- Yedek gözcüsü (src/alert.ts; denetim 2026-10-05 bulgu B) ------------------------------------------
+// Worker'ın 5 dakikalık turu artık yedek yaşını GÖREN uca (/api/v1/health/worker) de yoklama yapar. Aşağıdakiler o
+// turun saf karar mantığıdır: gövdeyi okuma, soğuma ve uyarı gövdesi.
+
+/** `/api/v1/health/worker` yanıtının ilgili alanları (apps/api/src/routes/health.ts sözleşmesi). */
+const ucGovdesi = (over = {}) => ({
+  ok: true,
+  degraded: false,
+  warnings: [],
+  db: 'up',
+  jobLagSec: 0,
+  stuckJobs: 0,
+  maxLagSec: 300,
+  lastBackupAgeSec: 48,
+  maxBackupAgeSec: 900,
+  ...over,
+});
+
+test('yedek okuması: eşik kararının kaynağı ucun warnings dizisidir', () => {
+  const taze = yedekDurumunuOku(ucGovdesi());
+  assert.deepEqual(taze, { yasSn: 48, esikSn: 900, eskidi: false });
+
+  const eski = yedekDurumunuOku(ucGovdesi({ degraded: true, warnings: ['backup_stale'], lastBackupAgeSec: 11_000 }));
+  assert.deepEqual(eski, { yasSn: 11_000, esikSn: 900, eskidi: true });
+
+  // Başka bir uyarı (disk/bellek) yedek uyarısı DEĞİLDİR
+  const disk = yedekDurumunuOku(ucGovdesi({ degraded: true, warnings: ['disk_low'], lastBackupAgeSec: 11_000 }));
+  assert.equal(disk.eskidi, false);
+
+  // Uç 503 dönse de (kuyruk takılı) gövde okunur: iki arıza aynı anda olabilir
+  const takili = yedekDurumunuOku(ucGovdesi({ ok: false, stuckJobs: 3, degraded: true, warnings: ['backup_stale'] }));
+  assert.equal(takili.eskidi, true);
+});
+
+test('yedek okuması: warnings yoksa (eski API sürümü) yaş/eşik karşılaştırmasına düşer', () => {
+  const govde = ucGovdesi({ lastBackupAgeSec: 11_000 });
+  delete govde.warnings;
+  delete govde.degraded;
+  assert.equal(yedekDurumunuOku(govde).eskidi, true);
+
+  const sinirda = ucGovdesi({ lastBackupAgeSec: 900 });
+  delete sinirda.warnings;
+  assert.equal(yedekDurumunuOku(sinirda).eskidi, false, 'eşiğin tam üstü uyarı değil');
+
+  // Eşik 0 = kapalı: yaş ne olursa olsun uyarı yok
+  const kapali = ucGovdesi({ lastBackupAgeSec: 99_999, maxBackupAgeSec: 0 });
+  delete kapali.warnings;
+  assert.equal(yedekDurumunuOku(kapali).eskidi, false);
+});
+
+test('yedek okuması: bilinmeyen/bozuk gövde uyarı ÜRETMEZ (yanlış alarm kanalı güvenilmez yapar)', () => {
+  for (const govde of [null, undefined, '', 'yedek yazildi', 42, [], {}]) {
+    const okuma = yedekDurumunuOku(govde);
+    assert.equal(okuma.eskidi, false, `beklenmedik gövde uyarı üretti: ${JSON.stringify(govde)}`);
+  }
+  // Durum dosyası yok (ilk yedek turundan önce): yaş null, uyarı yok
+  const taze = yedekDurumunuOku(ucGovdesi({ lastBackupAgeSec: null }));
+  assert.deepEqual(taze, { yasSn: null, esikSn: 900, eskidi: false });
+  // Metin olarak gelen sayı okunmaz (uydurulmaz)
+  assert.equal(yedekDurumunuOku(ucGovdesi({ lastBackupAgeSec: '11000' })).yasSn, null);
+});
+
+test('yedek uyarısı soğuması: her 5 dakikada bir aynı uyarı gitmez', () => {
+  const eskidi = { yasSn: 11_000, esikSn: 900, eskidi: true };
+  const saglam = { yasSn: 48, esikSn: 900, eskidi: false };
+  assert.equal(YEDEK_UYARI_SOGUMA_MS, 60 * 60_000, 'soğuma bir saat (cron 5 dk)');
+
+  // Eşik aşılmadıysa hiç gönderilmez
+  assert.equal(yedekUyarisiGerekir(saglam, null, 0), false);
+  // İlk kez: hemen
+  assert.equal(yedekUyarisiGerekir(eskidi, null, 0), true);
+  // Cron'un sonraki üç turu (5/10/55 dk) sessiz
+  for (const dk of [5, 10, 55]) {
+    assert.equal(yedekUyarisiGerekir(eskidi, 0, dk * 60_000), false, `${dk}. dakikada tekrar uyarı gitti`);
+  }
+  // Soğuma dolunca yeniden (düzelmeyen arıza sessizleşmez)
+  assert.equal(yedekUyarisiGerekir(eskidi, 0, YEDEK_UYARI_SOGUMA_MS), true);
+  // Soğuma 0 = kapalı
+  assert.equal(yedekUyarisiGerekir(eskidi, 0, 1, 0), true);
+  // İleri tarihli damga dizgini süresiz kilitlemez
+  assert.equal(yedekUyarisiGerekir(eskidi, 10_000, 0), true);
+});
+
+test('yedek uyarısının gövdesinde yedek yaşı vardır; bilinmeyen alan yazılmaz', () => {
+  assert.deepEqual(yedekUyariAyrinti({ yasSn: 11_000, esikSn: 900, eskidi: true }), {
+    kaynak: 'yedek_gozcusu',
+    yasSn: 11_000,
+    esikSn: 900,
+  });
+  assert.deepEqual(yedekUyariAyrinti({ yasSn: null, esikSn: null, eskidi: true }), { kaynak: 'yedek_gozcusu' });
+});
+
+test('yedek_eskidi uyarısı ayrı bir olay türüdür ve yaşı taşır', async () => {
+  let gonderilen = null;
+  const okuma = yedekDurumunuOku(ucGovdesi({ degraded: true, warnings: ['backup_stale'], lastBackupAgeSec: 11_000 }));
+  assert.equal(
+    await uyariGonder('https://ornek.gecersiz/uyari', 'yedek_eskidi', yedekUyariAyrinti(okuma), {
+      fetchImpl: async (url, init) => {
+        gonderilen = { url, init };
+        return new Response(null, { status: 204 });
+      },
+      now: 1_700_000_000_000,
+    }),
+    true,
+  );
+  assert.deepEqual(JSON.parse(gonderilen.init.body), {
+    kaynak: 'worker',
+    olay: 'yedek_eskidi',
+    zaman: '2023-11-14T22:13:20.000Z',
+    ayrinti: { kaynak: 'yedek_gozcusu', yasSn: 11_000, esikSn: 900 },
   });
 });

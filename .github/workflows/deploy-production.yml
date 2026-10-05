@@ -353,6 +353,9 @@ jobs:
             echo "https://$1$2 → $3 (VPS)"
           }
           expect "$DOMAIN" /api/v1/health 200
+          # 200 = hizmet verilebiliyor (veritabanı + kuyruk). Yedek yaşı, disk ve bellek eşikleri bu kodu
+          # DEĞİŞTİRMEZ; `degraded` + `warnings` alanlarında raporlanır ve uyarı kanalına gider
+          # (apps/api/src/routes/health.ts dosya başı, docs/15 §10). Yani eski bir yedek DNS geçişini bloke etmez.
           expect "$DOMAIN" /api/v1/health/worker 200
           for path in / /panel/giris /admin/giris /panel/kayit; do expect "$DOMAIN" "$path" 200; done
           expect "www.$DOMAIN" /fiyatlar "301 https://$DOMAIN/fiyatlar"
@@ -389,6 +392,12 @@ jobs:
             [ "$code" = "200" ] || fail "$path 200 dönmedi ($code)"
             echo "$path → 200"
           done
+          # Eşik aşımı (yedek/disk/bellek) duman testini kırmaz; görünür kalsın diye uyarı basılır (docs/17 §2.2, §2.6)
+          wbody="$(curl -sS --max-time 30 "$SITE_URL/api/v1/health/worker" 2>/dev/null || true)"
+          if [ "$(printf '%s' "$wbody" | jq -r 'try .degraded catch false' 2>/dev/null)" = "true" ]; then
+            uyarilar="$(printf '%s' "$wbody" | jq -r 'try ((.warnings // []) | join(", ")) catch ""' 2>/dev/null || true)"
+            echo "::warning::Sağlık ucu degraded: ${uyarilar:-bilinmiyor}. Dağıtım sağlam; işletim sorunu — docs/17 §2.2 (yedek) / §2.6 (disk, bellek)."
+          fi
           # Kayıt açık (canlı ortam): form görünür, "çok yakında" bilgisi yok
           curl -sS --max-time 30 "$SITE_URL/panel/kayit" | grep -q 'İşletme hesabını aç' || fail "/panel/kayit kayıt formunu göstermiyor (signup_open kapalı mı?)"
           # Geliştirici araçları canlı ortamda kapalı

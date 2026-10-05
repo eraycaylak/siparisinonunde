@@ -1,5 +1,9 @@
 // Panel ayarlar (14 §6.3 Ayarlar) — dilim 4: tenant, şubeler, saatler, özel günler, duraklat/yoğun, bölgeler.
 // Yetki (04 §2.3–§2.4): ayar yazma owner/manager; sipariş alma durumu (pause/busy) cashier dahil.
+// Abonelik kapısı (00 §9, 05 §A.2.1, 08 §6.3; denetim 04.10.2026 (C)): salt-okunur/askıda/kapanmış işletmede
+// AYAR YAZMA kapalıdır (403 `tenant_read_only`) — doküman "menü, ayar, personel düzenleme kapalı" diyordu, kod
+// yalnız menüyü kapatıyordu. Duraklat/yoğun operasyoneldir ve açık kalır ("tükendi" ile aynı gerekçe): zaten
+// alınmış siparişler ve çalışma saati dışı bilgisi yönetilebilsin.
 
 import type { TenantRole } from '@siparis/core';
 import {
@@ -45,6 +49,7 @@ import {
   updateSpecialDay,
 } from '../../services/settings/branch';
 import { loadTenant, patchTenant, toTenantSettings } from '../../services/settings/tenant';
+import { tenantWritable } from './menu-guards';
 import { checkZone, createZone, deleteZone, findZone, listZones, toZoneDto, updateZone } from '../../services/settings/zones';
 
 const OM: readonly TenantRole[] = ['owner', 'manager'];
@@ -55,6 +60,12 @@ const dayParams = z.object({ id: z.uuid(), dayId: z.uuid() });
 const okSchema = z.object({ ok: z.literal(true) });
 
 const settingsRoutes: FastifyPluginAsyncZod = async (app) => {
+  /** Ayar YAZMA: owner/manager + yazılabilir oturum (impersonation) + yazılabilir abonelik. */
+  const edit = {
+    preValidation: requireTenantRole(OM),
+    preHandler: tenantWritable(app.db, 'Aboneliğiniz şu an salt-okunur durumda; ayarlar değiştirilemez. Ödeme alındığında yeniden açılır.'),
+  };
+
   // ------------------------------------------------------------------ İşletme
   app.get('/tenant', { preValidation: requireTenantRole(OM), schema: { response: { 200: tenantSettingsSchema } } }, async (request) => {
     const auth = tenantAuth(request);
@@ -66,7 +77,7 @@ const settingsRoutes: FastifyPluginAsyncZod = async (app) => {
 
   app.patch(
     '/tenant',
-    { preValidation: requireTenantRole(OM), schema: { body: tenantPatchSchema, response: { 200: tenantSettingsSchema } } },
+    { ...edit, schema: { body: tenantPatchSchema, response: { 200: tenantSettingsSchema } } },
     async (request) => {
       const auth = tenantAuth(request);
       const row = await app.db.transaction(async (tx) => {
@@ -109,7 +120,7 @@ const settingsRoutes: FastifyPluginAsyncZod = async (app) => {
 
   app.patch(
     '/branches/:id',
-    { preValidation: requireTenantRole(OM), schema: { params: idParams, body: branchPatchSchema, response: { 200: branchSettingsSchema } } },
+    { ...edit, schema: { params: idParams, body: branchPatchSchema, response: { 200: branchSettingsSchema } } },
     async (request) => {
       const auth = tenantAuth(request);
       await assertBranchAccess(app.db, auth, request.params.id);
@@ -134,7 +145,7 @@ const settingsRoutes: FastifyPluginAsyncZod = async (app) => {
   app.put(
     '/branches/:id/hours',
     {
-      preValidation: requireTenantRole(OM),
+      ...edit,
       schema: {
         params: idParams,
         body: hoursPutSchema,
@@ -169,7 +180,7 @@ const settingsRoutes: FastifyPluginAsyncZod = async (app) => {
   app.post(
     '/branches/:id/special-days',
     {
-      preValidation: requireTenantRole(OM),
+      ...edit,
       schema: { params: idParams, body: specialDayCreateSchema, response: { 201: z.object({ items: z.array(specialDayDtoSchema), state: branchStateSchema }) } },
     },
     async (request, reply) => {
@@ -195,7 +206,7 @@ const settingsRoutes: FastifyPluginAsyncZod = async (app) => {
 
   app.patch(
     '/branches/:id/special-days/:dayId',
-    { preValidation: requireTenantRole(OM), schema: { params: dayParams, body: specialDayPatchSchema, response: { 200: specialDayDtoSchema } } },
+    { ...edit, schema: { params: dayParams, body: specialDayPatchSchema, response: { 200: specialDayDtoSchema } } },
     async (request) => {
       const auth = tenantAuth(request);
       await assertBranchAccess(app.db, auth, request.params.id);
@@ -212,7 +223,7 @@ const settingsRoutes: FastifyPluginAsyncZod = async (app) => {
 
   app.delete(
     '/branches/:id/special-days/:dayId',
-    { preValidation: requireTenantRole(OM), schema: { params: dayParams, response: { 200: okSchema } } },
+    { ...edit, schema: { params: dayParams, response: { 200: okSchema } } },
     async (request) => {
       const auth = tenantAuth(request);
       await assertBranchAccess(app.db, auth, request.params.id);
@@ -293,7 +304,7 @@ const settingsRoutes: FastifyPluginAsyncZod = async (app) => {
 
   app.post(
     '/zones',
-    { preValidation: requireTenantRole(OM), schema: { body: zoneCreateSchema, response: { 201: zoneDtoSchema } } },
+    { ...edit, schema: { body: zoneCreateSchema, response: { 201: zoneDtoSchema } } },
     async (request, reply) => {
       const auth = tenantAuth(request);
       const branch = await resolveBranch(auth, request.body.branchId);
@@ -309,7 +320,7 @@ const settingsRoutes: FastifyPluginAsyncZod = async (app) => {
 
   app.patch(
     '/zones/:id',
-    { preValidation: requireTenantRole(OM), schema: { params: idParams, body: zonePatchSchema, response: { 200: zoneDtoSchema } } },
+    { ...edit, schema: { params: idParams, body: zonePatchSchema, response: { 200: zoneDtoSchema } } },
     async (request) => {
       const auth = tenantAuth(request);
       const zone = await findZone(app.db, auth.tenantId, request.params.id);
@@ -325,7 +336,7 @@ const settingsRoutes: FastifyPluginAsyncZod = async (app) => {
 
   app.delete(
     '/zones/:id',
-    { preValidation: requireTenantRole(OM), schema: { params: idParams, response: { 200: okSchema } } },
+    { ...edit, schema: { params: idParams, response: { 200: okSchema } } },
     async (request) => {
       const auth = tenantAuth(request);
       const zone = await findZone(app.db, auth.tenantId, request.params.id);

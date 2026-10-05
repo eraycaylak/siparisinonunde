@@ -29,15 +29,25 @@ export function canTransitionLifecycle(from: LifecycleStage, to: LifecycleStage)
 }
 
 /**
- * Online sipariş alınmayan aşamalar (00 §9, 05 §A.2.1): `read_only` (deneme bitti ya da dunning G+10),
- * `suspended` (askı), `churned` (kapanış). Bu liste **tek kaynaktır**: vitrin
- * (`services/storefront/load.ts`), sipariş ucu ve WhatsApp kanalı aynı listeyi kullanır — kanallar arasında
- * fark olmaz. `read_only`'de panel ve veriler okunabilir kalır (dışa aktarma, 90 gün dönüş hakkı), yalnız
- * yeni online sipariş alınmaz; vitrin "şu an online sipariş alınmıyor, lütfen arayın" moduna geçer.
+ * Sipariş alınmayan aşamalar (00 §9, 05 §A.2.1): `read_only` (deneme bitti ya da dunning G+10),
+ * `suspended` (askı), `churned` (kapanış). Bu liste **tek kaynaktır**; `read_only`'de panel ve veriler
+ * okunabilir kalır (dışa aktarma, 90 gün dönüş hakkı), yalnız yeni sipariş alınmaz: vitrin "şu an online
+ * sipariş alınmıyor, lütfen arayın" moduna geçer.
+ *
+ * **Listeyi KOPYALAMAYIN** — `isOrderingBlockedStage()` çağırın. Denetim 04.10.2026 (D) bulgusunda liste üç ayrı
+ * dosyada elle yazılıydı (`messaging/context.ts`, `messaging/shared.ts`, `panel/menu-guards.ts`); üçü o gün
+ * AYNI üç aşamayı içeriyordu, yani kanallar arasında fark henüz oluşmamıştı. Bulgu da zarar değil YOLDU: dört
+ * kopyadan biri 00 §9 güncellenirken atlanırsa vitrin düğmeyi gizlerken aynı işletme başka kanaldan sipariş
+ * almaya devam eder ve bunu hiçbir test yakalamaz. Tüketiciler (hepsi bu fonksiyonu çağırır): vitrin
+ * `services/storefront/load.ts`, sipariş ucu
+ * `services/orders/store-context.ts`, WhatsApp kanalı `services/messaging/context.ts`, ortak numara dükkan
+ * seçici `services/messaging/shared.ts`, panel yazma kapısı `routes/panel/menu-guards.ts`.
+ * Listenin uzunluğu `packages/core/test/lifecycle.test.ts` ile sabitlenmiştir: yeni bir aşama eklenince test
+ * kırılır ve kararın 00 §9'a yazılması gerekir.
  */
 export const ORDERING_BLOCKED_STAGES: readonly LifecycleStage[] = ['read_only', 'suspended', 'churned'];
 
-/** Aşama online siparişi kapatıyor mu (00 §9). */
+/** Aşama sipariş almayı kapatıyor mu (00 §9). Tek kaynak: `ORDERING_BLOCKED_STAGES`. */
 export function isOrderingBlockedStage(stage: LifecycleStage): boolean {
   return ORDERING_BLOCKED_STAGES.includes(stage);
 }

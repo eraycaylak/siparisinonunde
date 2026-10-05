@@ -1,0 +1,22 @@
+-- DİLİM: ORTAK NUMARA (0900–0999). `wa_content_templates` bu dilimde, 0902_wa_content_templates.sql içinde
+-- oluşturuldu; bu dosya o tablonun ŞEMADA VAR OLAN ama veritabanında HİÇ KURULMAMIŞ indeksini yakınsatır.
+--
+-- NEDEN BU DOSYA VAR (denetim 2026-10-04, FAZ 4.7 · bulgu "3 indekste şema↔DB sapması"): Drizzle şeması
+-- packages/db/src/schema/wa-content-ext.ts `index('wa_content_templates_kind_idx').on(t.kind)` diyor, 0902 ise
+-- yalnız `wa_content_templates_name_uk`'i kuruyordu. Şema ile veritabanı sessizce ayrışmıştı; yeni
+-- packages/db/test/schema-drift.test.ts bu sınıfı artık makineyle yakalar.
+--
+-- Düzeltme yönü ŞEMA DEĞİL VERİTABANI: `drizzle-kit generate` yolu 0000'da donmuş (meta/_journal.json), uygulanmış
+-- bir migration'ın içeriği de değiştirilmez (migrate.ts değişen dosyayı yeniden UYGULAMAZ, yalnız uyarır) —
+-- bu yüzden yakınsayan göç yeni adla eklenir. Aynı kalıp: 0003_jobs_dedupe_key_full_unique.sql.
+--
+-- DÜRÜST NOT — bu indeksi BUGÜN hiçbir sorgu kullanmıyor: apps/api/src/wa/twilio-content-store.ts yalnız
+-- (provider, friendly_name) ile okur/yazar/siler, `kind` yalnız yazılır. Yön olarak yine de veritabanı seçildi
+-- (şemadaki satırı silmek değil), çünkü depo kuralı budur: 0903_wa_provider_twilio_check.sql'in dediği gibi
+-- "kısıt yine de şemayla birebir tutulur ki şema ile veritabanı ayrışmasın". Tablo on-yirmi satırlıktır; indeks
+-- pratikte bedavadır ve `kind` ile süzen bir sorgu eklendiğinde zaten yerindedir. Tersi karar (şemadan
+-- `index('wa_content_templates_kind_idx')` satırını kaldırmak) de sapmayı kapatır; ortak numara dilimi sahibi
+-- isterse bu dosya ve o satır birlikte geri alınabilir.
+--
+-- IF NOT EXISTS: elle kurulmuş geliştirici veritabanlarında da güvenle koşar (üretimde indeks yok, kurulur).
+CREATE INDEX IF NOT EXISTS "wa_content_templates_kind_idx" ON "wa_content_templates" USING btree ("kind");

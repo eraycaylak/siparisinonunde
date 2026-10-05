@@ -18,6 +18,7 @@ import { useMe } from '@/lib/auth';
 import { cn } from '@/lib/cn';
 import { formatMoney, formatRelative, parseTlToKurus, searchKey } from '@/lib/format';
 import { ETA_CHIPS } from './labels';
+import { outOfZoneFeeError, outOfZoneFeeKurus, parseOutOfZoneFee } from './out-of-zone-fee';
 
 type Product = ManualMenuResponse['categories'][number]['products'][number];
 
@@ -113,8 +114,12 @@ export function PhoneOrder() {
   }, [slug, itemsKey, fulfillment, neighborhood]);
 
   const outOfZone = fulfillment === 'delivery' && Boolean(quote?.problems.some((p) => p.code === 'out_of_delivery_area'));
-  const overrideKurus = Math.round(Number(overrideFee.replace(',', '.') || '0') * 100);
-  const previewTotal = (quote?.subtotalKurus ?? lines.reduce((n, l) => n + l.unitPriceKurus * l.quantity, 0)) + (outOfZone ? (override ? overrideKurus : 0) : (quote?.deliveryFeeKurus ?? 0));
+  // Türkçe yazım: "1.000" bin liradır. Kendi ayrıştırmamız yok; tek kaynak parseOutOfZoneFee.
+  const overrideResult = parseOutOfZoneFee(overrideFee);
+  const overrideKurus = outOfZoneFeeKurus(overrideResult);
+  const deliveryPreviewKurus = outOfZone ? (override ? overrideKurus : 0) : (quote?.deliveryFeeKurus ?? 0);
+  const previewTotal =
+    deliveryPreviewKurus == null ? null : (quote?.subtotalKurus ?? lines.reduce((n, l) => n + l.unitPriceKurus * l.quantity, 0)) + deliveryPreviewKurus;
   const suggestedEta = m ? Math.max(5, Math.ceil(((fulfillment === 'delivery' ? (quote?.zone?.etaMinutes ?? 0) : 0) + m.branch.prepMinutes + m.branch.busyExtraMinutes) / 5) * 5) : 20;
   const payOptions: PaymentMethod[] = m
     ? [
@@ -179,6 +184,10 @@ export function PhoneOrder() {
     if (!lines.length) e.items = 'En az bir ürün ekleyin.';
     if (fulfillment === 'delivery' && addressLine.trim().length < 3) e.addressLine = 'Adresi yazın.';
     if (outOfZone && !override) e.override = 'Bölge dışı: "Yine de kaydet" kutusunu işaretleyin ya da gel-al seçin.';
+    if (outOfZone && override) {
+      const feeError = outOfZoneFeeError(overrideResult);
+      if (feeError) e.outOfZoneFeeKurus = feeError;
+    }
     if (!payment) e.paymentMethod = 'Ödeme yöntemini seçin.';
     if (payment === 'meal_card_on_delivery' && !mealBrand) e.mealCardBrand = 'Markayı seçin.';
     // Türkçe yazım: "1.000" bin liradır (parseTlToKurus)
@@ -195,7 +204,7 @@ export function PhoneOrder() {
           items: lines.map((l) => ({ productId: l.productId, quantity: l.quantity, optionIds: l.optionIds })),
           fulfillmentType: fulfillment,
           ...(fulfillment === 'delivery' ? { neighborhood: neighborhood || undefined, addressLine: addressLine.trim(), directions: directions.trim() || undefined } : {}),
-          ...(outOfZone && override ? { outOfZoneFeeKurus: overrideKurus } : {}),
+          ...(outOfZone && override && overrideKurus != null ? { outOfZoneFeeKurus: overrideKurus } : {}),
           customerName: name.trim(),
           customerPhone: phone,
           paymentMethod: payment,
@@ -348,8 +357,13 @@ export function PhoneOrder() {
                   <Alert variant="warning" title="Bu adres teslimat bölgesi dışında">
                     <Checkbox label="Yine de kaydet (özel ücret)" checked={override} onChange={(e) => setOverride(e.target.checked)} error={errors.override} />
                     {override ? (
-                      <Field label="Özel teslimat ücreti (TL)">
-                        <Input inputMode="decimal" value={overrideFee} onChange={(e) => setOverrideFee(e.target.value)} />
+                      <Field label="Özel teslimat ücreti (TL)" hint="Boş bırakırsanız ücretsiz kaydedilir." error={errors.outOfZoneFeeKurus}>
+                        <Input
+                          inputMode="decimal"
+                          value={overrideFee}
+                          onChange={(e) => setOverrideFee(e.target.value.replace(/[^\d,.]/g, ''))}
+                          aria-invalid={outOfZoneFeeError(overrideResult) ? true : undefined}
+                        />
                       </Field>
                     ) : null}
                     <p className="mt-1 text-xs">İstisna denetim kaydına yazılır.</p>
@@ -416,11 +430,11 @@ export function PhoneOrder() {
             {fulfillment === 'delivery' ? (
               <>
                 <dt className="text-fg-muted">Teslimat</dt>
-                <dd className="text-end tabular-nums">{formatMoney(outOfZone ? (override ? overrideKurus : 0) : (quote?.deliveryFeeKurus ?? 0))}</dd>
+                <dd className="text-end tabular-nums">{deliveryPreviewKurus == null ? '—' : formatMoney(deliveryPreviewKurus)}</dd>
               </>
             ) : null}
             <dt className="font-bold">Toplam (önizleme)</dt>
-            <dd className="text-end font-bold tabular-nums">{formatMoney(previewTotal)}</dd>
+            <dd className="text-end font-bold tabular-nums">{previewTotal == null ? '—' : formatMoney(previewTotal)}</dd>
           </dl>
           {quote?.problems.filter((p) => p.code !== 'out_of_delivery_area').map((p, i) => (
             <p key={i} className="text-sm text-warning">
@@ -444,8 +458,12 @@ export function PhoneOrder() {
             onChange={(e) => setNotifyWa(e.target.checked)}
           />
           {formError ? <Alert variant="danger">{formError}</Alert> : null}
+          {/*
+            Tutar hesaplanamıyorsa (geçersiz bölge dışı ücreti) düğmede UYDURMA bir toplam yazmayız. Düğme pasif de
+            değil: basınca ücret alanı hatasını gösterir ve sipariş oluşmaz — kasiyer çıkışsız kalmaz (B11 ilkesi).
+          */}
           <Button size="xl" block onClick={save} loading={saving}>
-            Siparişi kaydet · {formatMoney(previewTotal)}
+            Siparişi kaydet{previewTotal == null ? '' : ` · ${formatMoney(previewTotal)}`}
           </Button>
         </aside>
       </div>

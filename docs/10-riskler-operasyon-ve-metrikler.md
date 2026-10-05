@@ -591,10 +591,26 @@ Meta'nın kararları şeffaf değildir ve destek süreleri garanti değildir (A0
 | **E3 Solution Partner** | İmzalı ön anlaşma varsa partner'ın Meta ilişkisi üzerinden eskalasyon; gerekirse tenant'ın `WaTransport`'u partner'a alınır ([02](02-whatsapp-entegrasyonu.md) §7.10) | Kurucu-İş | Anlaşmadaki süre |
 | **Paralel kol** | İşletme WhatsApp'sız moda: storefront + telefon + manuel sipariş; Akış B doğrulaması SMS OTP'ye geçer; durum bilgisi takip sayfasından ve kritik durumlarda SMS ile ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7) | L1 + işletme | ≤ 30 dk |
 
+#### 5.8a Ortak numaranın 24 saatlik konuşma kotası doldu **[Faz 1]**
+
+Uyarı: `waba_conversation_quota` (level `exhausted`) ya da `waba_messaging_limit` (sağlayıcı 131048 döndü). **Etki platform genelidir:** ortak numaradaki hiçbir dükkanın 24 saat içinde kendisine yazmamış müşteriye mesajı gitmez. Sipariş AKIŞI durmaz (storefront ve panel çalışır, gelen mesajlara yanıt verilebilir — pencere içi mesaj kotaya girmez); duran şey **yeni müşteriye açılan konuşmadır**. Varsayılan **SEV2**; akşam yoğun saatinde (19:00–22:00) **SEV1**.
+
+| Süre | Adım |
+|---|---|
+| 0–5 dk | Uyarı bağlamındaki `total/cap` ve kiracı payına bak. Tek işletme payı > %50 ise sebep büyük olasılıkla o işletmedir (toplu/kampanya mesajı, hatalı entegrasyon döngüsü, sahte sipariş seli) → işletmeyi ara, gönderimini durdur. Pay dağınıksa gerçekten büyümedir: basamak yükseltme adımına geç |
+| 5–10 dk | Kritik mesajların gittiğini doğrula: `messages` içinde `error_code = 'waba_quota_shed'` satırları **yalnız önemsiz** durum mesajları olmalı ([02](02-whatsapp-entegrasyonu.md) §7.6a). `131048` kritik bir mesajda (accepted/rejected/cancelled) görünüyorsa SMS yedeğini aç (`sms_fallback` kill-switch açık olmalı) ve etkilenen siparişleri telefonla teyit et |
+| 10–15 dk | Kota kayan penceredir: en eski konuşmalar düştükçe yer açılır, elle "sıfırlama" yoktur. Basamak yükseltme ön koşulları: kalite `GREEN` + Meta işletme doğrulaması tamam (aşağıdaki Eray maddesi) + son 7 günde tavana dayanma. Yükseltme ~6 saatte etkir. Geçici önlem: `WABA_SHED_NONCRITICAL=1` (önemsiz mesajları düşürerek son %10'u kritiklere saklar) |
+
+**Eray'ın yapacağı adımlar (kod değil, hesap işi):** (1) Meta Business Manager'da **işletme doğrulamasını** (Business Verification) tamamlamak — basamağın 250'nin üstüne çıkmasının ön koşuludur ve kodla yapılamaz; (2) basamak yükselince `WABA_CONVERSATION_CAP` değerini güncellemek (Twilio'da sağlayıcı basamağı okunduğu için gerekmez, Meta Cloud'da gerekir); (3) tavana düzenli dayanılıyorsa ikinci numara / kendi numarasına geçiş kararını açmak ([02](02-whatsapp-entegrasyonu.md) §9.4 "Numara sınırı").
+
 - Her Meta vakası `root_cause = meta` ile kaydedilir: hata kodu, Meta kayıt no, açılış/yanıt/çözüm zamanları. Çeyrek sonunda Meta yanıt süreleri özetlenir; Plan B kararına veri olur.
 - **Meta değişiklik takibi:** Kurucu-İş her ay Meta geliştirici changelog'unu, fiyat (rate card) duyurularını ve politika sayfalarını kontrol eder; etkileri risk kaydına (R16, R24) ve [02](02-whatsapp-entegrasyonu.md)'ye işler. Bilinen yaklaşan tarihler: 30.09.2026 ödeme yöntemi son günü, 01.10.2026 service mesajlarının ücretli olması, 08.10.2026 ES v2'nin kalkması (A06 §3.3).
 
 ### 5.9 Nöbet (on-call) düzeni
+
+> **Gerçeklik notu (05.10.2026):** Aşağıdaki tablo **hedef** düzendir ve birden fazla kişi varsayar. Bugün ekip tek
+> kişidir (proje sahibi): rotasyon, ikincil nöbetçi, "20. dk'da tüm ekip aranır" eskalasyonu ve dinlenme politikası
+> **uygulanmıyor**. Bugün geçerli olan tek kişilik düzen: [17](17-olay-mudahale-runbook.md) §5.
 
 | Konu | Pilot (Hafta 10–20) | Faz 2+ |
 |---|---|---|
@@ -610,6 +626,11 @@ Meta'nın kararları şeffaf değildir ve destek süreleri garanti değildir (A0
 ---
 
 ## 6. Olay yönetimi (incident management) **[Faz 1–2]**
+
+> **Nöbetteyken bu bölümü değil [17 — Olay Müdahale Runbook'u](17-olay-mudahale-runbook.md)'nu aç.** Bu bölüm süreci
+> tasarlar (SEV tanımları, roller, iletişim şablonları, postmortem); docs/17 bugün gerçekten üretilen uyarıları,
+> komutları ve sınırları listeler. SEV tanımları (§6.1) ve duyuru metinleri (§6.3) ikisinde de geçerlidir;
+> §6.2 rolleri ve §6.6 runbook adımları için docs/17 önceliklidir (gerekçe: o bölümlerin gerçeklik notları).
 
 ### 6.1 Önem dereceleri (SEV1–SEV4) **[Faz 1]**
 
@@ -635,9 +656,9 @@ Meta'nın kararları şeffaf değildir ve destek süreleri garanti değildir (A0
 | **İletişim sorumlusu** | İşletmelere duyuru (§6.3), panel bandı, durum sayfası; P1 hattını karşılar | Diğer kurucu / `support_agent` |
 | **Kayıtçı** | Zaman çizelgesini tutar (saat, olay, karar, kişi) | İletişim sorumlusu ile birleşebilir |
 
-- SEV1'de en az iki kişi çalışır: IC/iletişim ve teknik müdahale ayrı kişilerdir. Tek kişi varsa önce ikinci kişi aranır, sonra müdahaleye başlanır (en fazla 5 dk).
+- SEV1'de en az iki kişi çalışır: IC/iletişim ve teknik müdahale ayrı kişilerdir. Tek kişi varsa önce ikinci kişi aranır, sonra müdahaleye başlanır (en fazla 5 dk). **Bugün uygulanmıyor** (ekip tek kişi): tek kişilik sıra ve "sınırlama tanıdan önce gelir" kuralı [17](17-olay-mudahale-runbook.md) §5'tedir.
 - Her olayın tek bir yazılı kanalı vardır (ekip sohbetinde `#olay-AAAAGG-kısa-ad`); karar ve komutlar oraya yazılır.
-- Her olay admin panelinde `incidents` kaydı olarak açılır (`sev`, zamanlar, IC, özet, postmortem bağlantısı); etkilenen işletmeler `incident_tenants`'ta (etki, bildirim zamanı, SLA kredisi) tutulur. Kişisel veri ihlali ise `data_breach_incidents` kaydı bağlanır ([07](07-veri-modeli-ve-api.md) §3.6–3.7). Sağlık skorunun "SEV1/SEV2'den etkilenme" tetikleyicisi bu kayıttan okunur (§5.6).
+- **[Faz 2 — tablolar henüz yok]** Her olay admin panelinde `incidents` kaydı olarak açılır (`sev`, zamanlar, IC, özet, postmortem bağlantısı); etkilenen işletmeler `incident_tenants`'ta (etki, bildirim zamanı, SLA kredisi) tutulur. Bugün olay kaydı yalnız postmortem dosyasıdır (§6.5) ve "WhatsApp'sız modu olay kaydından toplu aç/kapat" adımları (§6.6 RB-2, RB-5) **elle** yapılır. Kişisel veri ihlali ise `data_breach_incidents` kaydı bağlanır ([07](07-veri-modeli-ve-api.md) §3.6–3.7). Sağlık skorunun "SEV1/SEV2'den etkilenme" tetikleyicisi bu kayıttan okunur (§5.6).
 
 ```mermaid
 flowchart LR
@@ -751,9 +772,24 @@ Ne oldu, kimi ne kadar etkiledi, nasıl düzeldi.
 
 ### 6.6 Runbook'lar: ilk 15 dakika **[Faz 1]**
 
-Runbook'ların tam hâli `infra/runbooks/` altında tutulur ve her alarm kendi runbook bağlantısını taşır ([06](06-teknik-mimari.md) §14.4). Aşağıdaki "ilk 15 dakika" bölümleri nöbetçinin ezbere bilmesi gereken kısımdır. Her runbook'ta ortak ilk adım: **olay aç, SEV belirle, IC ol veya IC çağır.**
+> **Gerçeklik notu (05.10.2026) — önce [17](17-olay-mudahale-runbook.md)'yi aç.** Aşağıdaki RB-1…RB-11, planlanan
+> mimariye göre yazılmıştır ve bugün var olmayan parçalara dayanır. Canlı ortam **tek** Cloudflare container'ıdır
+> (PostgreSQL + API + worker + web aynı kutuda), kabuk erişimi yoktur. Bu bölümdeki şu adımlar **uygulanamaz**:
+>
+> | Burada yazan | Bugünkü gerçek |
+> |---|---|
+> | `infra/runbooks/` dizini | Yok. Uygulanabilir runbook [17](17-olay-mudahale-runbook.md)'dir |
+> | `/ready` ucu | Yok. `/api/v1/health` ve `/api/v1/health/worker` (docs/15 §10) |
+> | Redis / Valkey | Yok. Kuyruk PostgreSQL `jobs` tablosu + `LISTEN/NOTIFY` (CLAUDE.md stack) |
+> | İki ayrı ingress sunucusu/VM'i, "trafiği ikinci sunucuya ver" | Tek düğüm. Container alamadığında gelen webhook **R2 tamponuna** yazılır ve kaybolmaz (docs/15 §13; [17](17-olay-mudahale-runbook.md) U-15) |
+> | `ingress_spool_pending` ölçütü | Yok. Karşılığı R2 `e3/webhook-tampon/` nesne sayısı |
+> | "worker kopya sayısını artır", "api/worker ölçekle" | `max_instances: 1`. Tek hamle yeniden dağıtımdır |
+> | PITR / standby promote | Yok (denetim FAZ 4.2). Tek dönüş yolu dönem (epoch) değiştirmedir: [17](17-olay-mudahale-runbook.md) §4 |
+> | "canary başarısız" tetikleyicisi (RB-1) | Canary **kapalı** (`CANARY_ENABLED` hiçbir ortamda açık değil) → bu sinyal hiç gelmez |
 
-**RB-1 · Webhook durdu** (platform geneli; 11:00–23:00 arasında 5 dk hiç webhook yok, ya da canary başarısız) — varsayılan **SEV1**
+Runbook'ların tam hâli [17](17-olay-mudahale-runbook.md)'de tutulur ve her alarm kendi satırını taşır (orada §1). Aşağıdaki "ilk 15 dakika" bölümleri hedef mimarinin ezbere bilinmesi gereken kısmıdır. Her runbook'ta ortak ilk adım: **olay aç, SEV belirle, IC ol veya IC çağır.**
+
+**RB-1 · Webhook durdu** (platform geneli; 11:00–23:00 arasında 5 dk hiç webhook yok, ya da canary başarısız) — varsayılan **SEV1** · *bugünkü hâli: [17](17-olay-mudahale-runbook.md) §2.4 (WhatsApp sustu) + §2.1 (container)*
 - **0–5 dk:** `hooks` GET doğrulaması ve harici uptime sonucunu kontrol et (her iki ingress sunucusu/VM'i için ayrı); `wa_webhook_events` son `received_at`; ingress 5xx ve imza hatası oranları. Canary sonucu ve Meta'nın durum sayfası (adres teyit edilmeli). Son deploy ve App Secret değişikliği var mı?
 - **5–10 dk:** Ingress sunucularımızdan birinde çökmüşse trafiği ikinci sunucu/VM'deki sağlıklı ingress'e ver ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11: webhook alımı en az iki ayrı sunucu/VM'de) / son sağlam imaja geri dön. İmza hatası patlaması varsa App Secret uyuşmazlığını kontrol et (rotasyon sonrası mı?). Ingress sağlamsa örnek tenant'ta `GET /{waba_id}/subscribed_apps` ile abonelik kontrol et. Sorun Meta tarafındaysa RB-2'ye geç.
 - **10–15 dk:** Etkilenen işletmelere ilk duyuru (§6.3 #1/#4). Meta 200 dışı yanıtlarda 7 güne kadar yeniden dener; olaylar kaybolmaz, gecikir (A01 §9.3). Toparlanınca ham olayların sırayla işlendiğini, `new` siparişlerin alarm zincirine girdiğini ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §10) doğrula.
@@ -763,12 +799,12 @@ Runbook'ların tam hâli `infra/runbooks/` altında tutulur ve her alarm kendi r
 - **5–10 dk:** **WhatsApp'sız moda geç ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4, §7; SMS OTP yedeği Faz 1):** mod admin olay kaydından (`incidents`) etkilenen tenant'lar için toplu açılır (bağlantısı yok/190/131042 olan tenant'larda zaten otomatik devrededir). Akış B doğrulaması SMS OTP'ye geçer (tabloları `otp_verifications`, `sms_messages`, [07](07-veri-modeli-ve-api.md) §3.3); bunun için `sms_fallback` kill-switch'i açık (varsayılan) kalmalıdır, kapalıysa SMS yedeği tamamen durur ve Akış B yalnız WhatsApp ile çalışır; müşteriye durum bilgisi takip sayfasından, kritik durumlarda (onaylandı/ret/iptal) SMS ile verilir; storefront'ta bilgi bandı; alarm zincirinin t = 2 dk basamağında platform WhatsApp yerine **SMS** gönderilir (platform WABA basamağı `platform_wa_alerts` bayrağıyla kapatılır, [07](07-veri-modeli-ve-api.md) §3.7); giden WhatsApp mesajları outbox'ta bekler.
 - **10–15 dk:** İşletmelere **SMS + e-posta** duyurusu (§6.3 #3). Toparlanınca outbox boşaltılırken artık anlamsız durum mesajları atlanır (ör. teslim edilmiş siparişin "yolda" mesajı); WhatsApp'sız mod olay kaydından toplu kapatılır ve `platform_wa_alerts` bayrağı geri açılır.
 
-**RB-3 · Veritabanı arızası** (`/ready` başarısız, DB bağlantı hatası, disk > %95) — varsayılan **SEV1**
+**RB-3 · Veritabanı arızası** (`/ready` başarısız, DB bağlantı hatası, disk > %95) — varsayılan **SEV1** · *bugünkü hâli: [17](17-olay-mudahale-runbook.md) §2.1 + §2.6 (disk/bellek) + §2.2 (yedek zinciri); tetikleyici `/api/v1/health` `db:"down"` ve `/api/v1/health/worker` `diskFreePct` < 15*
 - **0–5 dk:** PostgreSQL süreci, disk doluluğu, bağlantı sayısı, replikasyon (Faz 2) kontrolü. Ingress düğümleri olayı yerel kalıcı spool'a yazıp 200 döner; spool da yazılamıyorsa 503 döner ve Meta yeniden dener (kayıp yok; [06](06-teknik-mimari.md) §13.3). `ingress_spool_pending` izlenir. Storefront sipariş gönderimi başarısız → işletmeler telefonla sipariş almalı: ilk duyuru hazırla.
 - **5–10 dk:** Disk doluysa: log/geçici dosya temizliği, hacim büyütme; **WAL dosyalarını elle silme.** Süreç çökmüşse yeniden başlat; bozulma belirtisi varsa yeniden başlatmayı zorlamadan PITR kararına geç. Faz 2'de standby'ı promote et.
 - **10–15 dk:** 15 dk içinde düzelmeyecekse PITR ile yeni sunucuya geri yükleme başlat (hedef RTO ≤ 1 sa, [06](06-teknik-mimari.md) §13.5–13.6); işletmelere §6.3 #4 SMS'i. Toparlanınca süpürücülerin ham olay ve outbox'ı kuyruğa aldığını, sipariş sayılarının tutarlı olduğunu doğrula.
 
-**RB-4 · Kuyruk birikti** (`wa-inbound` veya `notify` en eski iş > 60 sn) — varsayılan **SEV2**
+**RB-4 · Kuyruk birikti** (`wa-inbound` veya `notify` en eski iş > 60 sn) — varsayılan **SEV2** · *bugünkü hâli: [17](17-olay-mudahale-runbook.md) §2.3; tetikleyici `/api/v1/health/worker` `jobLagSec` > 300 ya da `stuckJobs` > 0 (kuyruk adları doğrudur: `packages/core/src/enums.ts:331`), Redis adımları geçersizdir*
 - **0–5 dk:** Worker süreçleri canlı mı, Redis/Valkey bellek ve bağlantı; hangi kuyruk, hangi iş tipi takılı; tek bir "zehirli" iş sürekli mi başarısız oluyor?
 - **5–10 dk:** Worker'ı yeniden başlat veya kopya sayısını artır; düşük öncelikli kuyrukları (`images`, kritik olmayan `cron`; Faz 2'de POS aktarımı yapan `integrations` — hatası sipariş akışını durdurmaz, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5, [07](07-veri-modeli-ve-api.md) §7.2) geçici durdur; zehirli işi DLQ'ya al. Redis kaybolduysa yeniden başlat; süpürücüler outbox ve ham olaylardan kuyruğu yeniden kurar.
 - **10–15 dk:** `notify` gecikiyorsa alarm zinciri ve müşteri gecikme bilgisi geç gidiyor demektir: `new` durumundaki siparişleri listele, gerekirse işletmeleri telefonla ara. Kuyruk yaşı < 10 sn'ye inince izlemeye devam et.
@@ -796,8 +832,8 @@ Runbook'ların tam hâli `infra/runbooks/` altında tutulur ve her alarm kendi r
 
 **Ek runbook'lar (kısa):**
 - **RB-9 · Cloudflare kesintisi:** DNS-only moda geçiş ve origin TLS ([06](06-teknik-mimari.md) §13.4); storefront erişimi kontrol; SEV1/SEV2.
-- **RB-10 · Deploy sonrası gerileme:** Otomatik geri dönüş çalışmadıysa önceki imaja elle dön; migration geri alınmaz, ileri düzeltme yapılır ([06](06-teknik-mimari.md) §16.5).
-- **RB-11 · SMS sağlayıcısı arızası:** Alarm zincirinin t = 5 dk SMS basamağı ve WhatsApp'sız moddaki SMS OTP kör olur; yedek SMS sağlayıcısına geçiş (öneri: ikinci sağlayıcıyla hazır hesap [T]); arıza sürerken nöbetçi `new` > 5 dk siparişleri izler.
+- **RB-10 · Deploy sonrası gerileme:** Otomatik geri dönüş çalışmadıysa önceki imaja elle dön; migration geri alınmaz, ileri düzeltme yapılır ([06](06-teknik-mimari.md) §16.5). **Bugünkü komutlar ve sınırlar:** [17](17-olay-mudahale-runbook.md) §2.5 + §3 — `wrangler rollback` yalnız Worker sürümünü döndürür, **container imajını geri almaz**; tam geri alış `ref` girdisiyle yeniden dağıtımdır.
+- **RB-11 · SMS sağlayıcısı arızası:** Alarm zincirinin t = 5 dk SMS basamağı ve WhatsApp'sız moddaki SMS OTP kör olur; yedek SMS sağlayıcısına geçiş (öneri: ikinci sağlayıcıyla hazır hesap [T]); arıza sürerken `new` > 5 dk siparişler izlenir. **Bugün SMS sağlayıcısı hiç bağlı değil** (`SMS_PROVIDER` canlıda mock, denetim FAZ 4.4): bu runbook'un tetiklenecek bir sağlayıcısı yok, SMS basamağı **zaten** kördür ([17](17-olay-mudahale-runbook.md) §2.4 madde 6).
 
 ---
 
@@ -838,6 +874,15 @@ Operasyonel tanım iki parçalıdır; ikisi ayrı sahiplere ve ayrı aksiyonlara
 "Geç onay" (sipariş `new` durumunda 2 dk'dan uzun kaldı, yani t = 2 dk basamağı çalıştı) kaçırma değildir, **erken uyarı** sinyalidir (R05 KRI): oranı §8.4'te izlenir. Müşterinin 30 dk içinde doğrulamadığı Akış B siparişi (`awaiting_customer` → `cancelled`, `customer_timeout`) de kaçan sipariş sayılmaz; huni metriğidir (§8.4 Akış B doğrulama oranı).
 
 ### 7.3 Sentetik canary **[Faz 1]** (pilot öncesi zorunlu paket)
+
+> **Gerçeklik notu (05.10.2026):** Canary kodu yazıldı (`apps/api/src/services/canary/`, cron `cron.canary` dakikada bir)
+> ama **kapalıdır**: sentetik sipariş üretilmesi için `CANARY_ENABLED` ortam değişkeni (varsayılan kapalı,
+> `services/canary/order.ts:54`) açık olmalı — hiçbir dağıtım yapılandırmasında yok. Veritabanındaki `canary`
+> anahtarı engel değildir: kaydı yoksa AÇIK sayılır ve yalnız acil durdurma içindir (`feature_flags`'e satır
+> yazılarak; `KILL_SWITCHES` listesinde olmadığı için `/admin/bayraklar`'da görünmez).
+> "Bayat panel" sinyali ayrıca `CANARY_STALE_ALERT`'e bağlıdır (panelin sessiz ack yolu gelene kadar bilerek kapalı).
+> Sonuç: aşağıdaki ölçütler **bugün ölçülmüyor** ve "olay kapanışında canary yeşil" doğrulaması (§6.2 akışı)
+> yapılamıyor. Açılması [17](17-olay-mudahale-runbook.md) §6'da eksik olarak kayıtlıdır.
 
 [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11'deki "sentetik canary sipariş (her tenant için periyodik uçtan uca test)" tanımının uygulamasıdır. Canary siparişi `orders.test_kind = 'canary'` ile işaretlenir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §5; [07](07-veri-modeli-ve-api.md) §4.1). İki katmanlıdır. Chatwoot vakasındaki gibi "webhook 200 dönüyor ama mesaj arayüzde yok" durumunu (A06 §6.1) yalnız uçtan uca kontrol yakalar.
 
@@ -955,7 +1000,9 @@ Sahip: Operasyon lideri (sistem metrikleri için teknik lider).
 | **Onboarding süresi** | Kapı 1 ve Kapı 2 tamamlanma süresi (medyan) | `tenants.web_live_at` (Kapı 1), `tenants.live_at` (Kapı 2), `tenant_onboarding_steps`, `wa_onboarding_sessions` | Kapı 1 aynı gün; Kapı 2 ≤ 1 gün | Haftalık |
 | **ES terk oranı** | `CANCEL`/`ERROR` ile biten ES / başlatılan ES; `current_step` kırılımı | `wa_onboarding_sessions` (`status` = `cancelled`/`failed`; `current_step` `es_events` içinde) | < %30 | Haftalık |
 | **Meta ödeme hatası oranı** | 131042 durumundaki canlı tenant / canlı tenant | `wa_accounts.sending_paused_reason = payment_missing`, `messages.error_code` | 0 | Günlük |
-| **Kalite uyarısı** | YELLOW/RED numara sayısı | `wa_phone_numbers.quality_rating` | 0 | Günlük |
+| **Kalite uyarısı** | YELLOW/RED numara sayısı | **[Faz 1]** `cron.waba_quota_watch` saatte bir sağlayıcıdan çeker (`services/admin/wa-setup` `testConnection`); `wa_phone_numbers` tablosu açılmadı, webhook alanı kodda işlenmiyor → uyarı `waba_quality_rating` | 0 | Günlük |
+| **Ortak numara 24 saatlik konuşma kotası** | Platform geneli tekil iş-kaynaklı konuşma / messaging limit basamağı | **[Faz 1]** `services/messaging/waba-quota.ts` `measureWabaQuota`: `messages` (provider `shared`, giden, öncesinde 24 sa gelen mesaj yok) + `notifications` (`channel = 'platform_wa'`, `sent`); tavan `WABA_CONVERSATION_CAP` ya da sağlayıcının bildirdiği basamak ([02](02-whatsapp-entegrasyonu.md) §7.6a) | < %70. ≥ %70 uyarı, ≥ %90 kritik, %100 = **P1** (hiçbir dükkanın yeni müşteriye mesajı gitmiyor) | **5 dakikada bir** (cron); haftalık gözden geçirme |
+| **Kotayı en çok tüketen işletme payı** | En çok konuşma açan işletmenin konuşması / platform toplamı | Aynı ölçü, kiracı kırılımı (uyarı bağlamında `tenants` listesi) | Tek işletme ≤ %50; aşarsa o işletme aranır (kampanya/toplu mesaj şüphesi) | Haftalık; uyarı anında |
 | **Sahte sipariş oranı** | `cancel_reason = suspected_fake` / sipariş | `orders` | < %1 [T] | Haftalık |
 | **Sağlık skoru dağılımı** | Yeşil / sarı / kırmızı işletme sayısı; kırmızıda ortalama kalış süresi | `tenant_health_scores` (`band`), `tenants.health_band` (§5.6) | Kırmızı ≤ %10 [T] | Haftalık |
 

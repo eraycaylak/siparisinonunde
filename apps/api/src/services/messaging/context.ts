@@ -11,6 +11,7 @@ import {
   type MessageItem,
   type OrderingStateResult,
 } from '@siparis/core';
+import { isOrderingBlockedStage } from '@siparis/core/admin/lifecycle';
 import {
   branches,
   deliveryZones,
@@ -47,11 +48,16 @@ export async function loadBranch(db: Database, tenantId: string, branchId: strin
   return b;
 }
 
-/** Askı / salt-okunur / sipariş kapalı → WhatsApp'tan online sipariş alınamaz (M33). */
+/**
+ * Askı / salt-okunur / sipariş kapalı → WhatsApp'tan online sipariş alınamaz (M33).
+ *
+ * Aşama listesi TEK KAYNAKTAN gelir (`isOrderingBlockedStage`, 00 §9): denetim 04.10.2026 (D) öncesinde burada
+ * üç aşama elle yazılıydı, yani liste 00 §9'da değişirse WhatsApp kanalı vitrinden sessizce ayrışırdı.
+ */
 export function tenantUnavailable(t: TenantRow): boolean {
   if (!t.orderingEnabled) return true;
   if (t.suspensionReason) return true;
-  return t.lifecycleStage === 'suspended' || t.lifecycleStage === 'read_only' || t.lifecycleStage === 'churned';
+  return isOrderingBlockedStage(t.lifecycleStage);
 }
 
 export interface BranchSchedule extends OrderingStateResult {

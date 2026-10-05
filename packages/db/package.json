@@ -12,7 +12,8 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
-    "generate": "drizzle-kit generate",
+    "_generate_notu": "drizzle-kit generate KAPALI (denetim 2026-10-04 H27, docs/14 §2 madde 3): migrations/meta/_journal.json 0000'da donmuştur; üretilen dosya el yazması 0001+ ile çakışır ve göç geçmişini bozar. Bilerek kullanmak gerekirse DRIZZLE_GENERATE_ONAY=1 verin.",
+    "generate": "node -e \"if(process.env.DRIZZLE_GENERATE_ONAY!=='1'){console.error('drizzle-kit generate KAPALI: migrations/meta/_journal.json 0000\\u0027da donmus, uretilen dosya el yazmasi 0001+ ile cakisir (docs/14 SS2 madde 3). Migration\\u0027lari elle yazin. Bilerek kosmak icin: DRIZZLE_GENERATE_ONAY=1 pnpm generate');process.exit(1)}\" && drizzle-kit generate",
     "migrate": "tsx --env-file-if-exists=../../.env src/migrate.ts",
     "seed": "tsx --env-file-if-exists=../../.env src/seed.ts",
     "reset": "tsx --env-file-if-exists=../../.env src/reset.ts"

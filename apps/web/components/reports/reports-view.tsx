@@ -16,7 +16,7 @@ import {
 } from '@siparis/core';
 import type { DailyReport, SavingsReport, SummaryReport } from '@siparis/core/settings/contracts';
 import { Section, SettingsError, SettingsLoading } from '@/components/settings/settings-shell';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { PageHeader } from '@/components/ui/page-header';
 import { Switch } from '@/components/ui/switch';
 import { TBody, TD, TH, THead, TR, Table } from '@/components/ui/table';
@@ -297,27 +297,55 @@ function SavingsSection() {
       ) : q.isError ? (
         <SettingsError error={q.error} onRetry={() => void q.refetch()} />
       ) : (
-        <div className="flex flex-col gap-3 rounded-lg bg-surface p-4">
-          <div className="flex items-center gap-3">
-            <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-success text-success-fg">
-              <PiggyBank aria-hidden className="size-6" />
-            </span>
-            <span className="text-5xl font-semibold tabular-nums text-fg">{formatMoney(q.data.avoidedCommissionKurus)}</span>
-          </div>
-          <p className="text-lg font-semibold text-fg">{q.data.headline}</p>
-          <p className="text-sm text-fg">
-            {q.data.orderCount} siparişin sepet tutarı {formatMoney(q.data.basketTotalKurus)} × pazaryeri oranı %{formatNumber(q.data.commissionBp / 100)} (KDV dahil nakit
-            etkisi {formatMoney(q.data.avoidedCommissionWithVatKurus)}).{' '}
-            <Link href="/panel/ayarlar/isletme" className="font-semibold underline">
-              Oranı değiştir
-            </Link>
-          </p>
-          <p className="flex items-start gap-2 text-sm text-fg-muted">
-            <Info aria-hidden className="mt-0.5 size-4 shrink-0" />
-            {q.data.note}
-          </p>
-        </div>
+        <SavingsCard data={q.data} />
       )}
     </Section>
+  );
+}
+
+/**
+ * Tasarruf kartı (04 §11.3). Oran girilmemişse (`commissionBp === null`) **tutar gösterilmez**: varsayılan bir
+ * oran uydurup somut TL yazmak doküman gereği yasak. Bu durumda kart oranın girilmesini ister.
+ */
+function SavingsCard({ data }: { data: SavingsReport }) {
+  const rateMissing = data.commissionBp == null;
+  return (
+    <div className="flex flex-col gap-3 rounded-lg bg-surface p-4">
+      <div className="flex items-center gap-3">
+        <span
+          className={`flex size-12 shrink-0 items-center justify-center rounded-full ${rateMissing ? 'bg-warning-bg text-warning' : 'bg-success text-success-fg'}`}
+        >
+          <PiggyBank aria-hidden className="size-6" />
+        </span>
+        {rateMissing ? (
+          <span className="text-2xl font-semibold text-fg">Oranınızı girin</span>
+        ) : (
+          <span className="text-5xl font-semibold tabular-nums text-fg">{formatMoney(data.avoidedCommissionKurus ?? 0)}</span>
+        )}
+      </div>
+      <p className="text-lg font-semibold text-fg">{data.headline}</p>
+      {rateMissing ? (
+        <p className="text-sm text-fg">
+          {data.orderCount} siparişin sepet tutarı {formatMoney(data.basketTotalKurus)}. Tasarrufu hesaplamak için pazaryerinin sizden aldığı kesinti oranı gerekiyor.
+        </p>
+      ) : (
+        <p className="text-sm text-fg">
+          {data.orderCount} siparişin sepet tutarı {formatMoney(data.basketTotalKurus)} × pazaryeri oranı %{formatNumber((data.commissionBp ?? 0) / 100)} (KDV dahil nakit
+          etkisi {formatMoney(data.avoidedCommissionWithVatKurus ?? 0)}).{' '}
+          <Link href="/panel/ayarlar/isletme" className="font-semibold underline">
+            Oranı değiştir
+          </Link>
+        </p>
+      )}
+      <p className="flex items-start gap-2 text-sm text-fg-muted">
+        <Info aria-hidden className="mt-0.5 size-4 shrink-0" />
+        {data.note}
+      </p>
+      {rateMissing ? (
+        <Link href="/panel/ayarlar/isletme" className={buttonVariants({ variant: 'primary', size: 'lg', className: 'self-start' })}>
+          Oranı gir
+        </Link>
+      ) : null}
+    </div>
   );
 }

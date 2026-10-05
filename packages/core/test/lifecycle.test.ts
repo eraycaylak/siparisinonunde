@@ -18,6 +18,18 @@ describe('sipariş alma kapısı (00 §9)', () => {
     expect([...ORDERING_BLOCKED_STAGES].sort()).toEqual([...BLOCKED].sort());
   });
 
+  // Denetim 04.10.2026 (D): liste üç dosyada elle kopyalanmıştı (kopyalar o gün aynı içerikteydi; risk
+  // gelecekteki ayrışmaydı). Uzunluk burada SABİTLENİR: yeni bir aşama eklenip listeye girince bu test kırılır,
+  // yani karar 00 §9'a yazılmadan ve `isOrderingBlockedStage()` çağıran tüm kanallar (vitrin, sipariş ucu,
+  // WhatsApp, ortak numara, panel yazma kapısı) birlikte gözden geçirilmeden liste büyüyemez.
+  // NOT: aşağıdaki eşitlik bir KOPYA listeyi yakalamaz (kopya başka dosyadadır, bu modül onu görmez); yalnız
+  // `isOrderingBlockedStage`'in listeden TÜRETİLMİŞ kalmasını, yani kendi içinde ikinci bir liste tutmamasını
+  // sabitler. Kopyaya karşı koruma kod incelemesi ve bu dosyadaki uzunluk kapısıdır.
+  it('liste üç aşamadır ve yalnız tek kaynaktan okunur', () => {
+    expect(ORDERING_BLOCKED_STAGES).toHaveLength(3);
+    expect(LIFECYCLE_STAGES.filter(isOrderingBlockedStage).sort()).toEqual([...ORDERING_BLOCKED_STAGES].sort());
+  });
+
   it('her aşama için tek karar: yalnız read_only/suspended/churned sipariş almaz', () => {
     for (const stage of LIFECYCLE_STAGES) {
       expect(isOrderingBlockedStage(stage), stage).toBe(BLOCKED.includes(stage));

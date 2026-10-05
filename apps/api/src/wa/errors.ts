@@ -48,6 +48,20 @@ export function classifyWaErrorCode(code: string | number | null | undefined, ht
   return 'fail';
 }
 
+/**
+ * "Mesaj sınırı" hatası mı (131048). Meta bu kodu İKİ durumda döndürür: numaranın spam kısıtı ve numaranın
+ * 24 saatlik MESSAGING LIMIT tavanının dolması. Sınıflandırma `fail` olarak KALIR (docs/02 §10.1 "yeniden dene:
+ * hayır" — spam kısıtına körlemesine yeniden denemek kaliteyi daha da düşürür), ama ortak numarada bu kod
+ * PLATFORM arızasıdır: tüm dükkanların yeni müşteriye giden mesajları durur. Eskiden yalnız `markFailed` +
+ * `log.warn` üretiyordu, kimse görmüyordu (denetim açık soru 2). Artık `services/messaging/waba-quota.ts`
+ * kritik uyarı gönderir.
+ */
+export const MESSAGING_LIMIT_CODE = '131048';
+
+export function isMessagingLimitCode(code: string | number | null | undefined): boolean {
+  return code != null && String(code) === MESSAGING_LIMIT_CODE;
+}
+
 export class WaSendError extends Error {
   readonly code: string;
   readonly httpStatus: number | null;
@@ -84,6 +98,7 @@ export function waErrorSummary(err: WaSendError): string {
     case 'retry':
       return `Geçici hata (${err.code})`;
     default:
+      if (isMessagingLimitCode(err.code)) return 'Numaranın mesaj sınırı doldu ya da kısıtlandı (131048)';
       return `Gönderim hatası (${err.code}): ${err.message}`.slice(0, 300);
   }
 }

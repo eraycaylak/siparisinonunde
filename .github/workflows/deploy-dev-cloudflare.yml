@@ -418,6 +418,7 @@ jobs:
               code=$(code_of "$SITE_URL$path" 60)
               [ "$code" = "401" ] || fail "Staging $path parolasız 401 dönmedi ($code)"
             done
+            # 200 = hizmet verilebiliyor; yedek/disk/bellek eşikleri `degraded` alanındadır ve kapıyı kırmaz
             code=$(code_of "$SITE_URL/api/v1/health/worker" 60)
             [ "$code" = "200" ] || fail "Staging /api/v1/health/worker parolasız 200 dönmedi ($code)"
             for path in / /s/bozok-pide /s/camlik-doner /panel/giris /admin/giris /yasal/gizlilik /dev/whatsapp /api/v1/dev/wa/accounts; do
@@ -441,11 +442,26 @@ jobs:
 
           # --- Canlı ortam (alan adı kipi): herkese açık, gerçek veri, üretim kipi, demo verisi yok ---
           # Duman testi canlı veriye YAZMAZ: lead ucunu yalnız bal küpüyle dener (sessiz 204, kayıt oluşmaz).
+          # `/api/v1/health/worker` 200 demek "hizmet verilebiliyor" (veritabanı ayakta, kuyruk takılı değil).
+          # Yedek yaşı, disk ve bellek eşikleri bu kodu DEĞİŞTİRMEZ; `degraded` + `warnings` alanlarında raporlanır
+          # (aşağıda uyarı olarak basılır). Gerekçe: apps/api/src/routes/health.ts dosya başı — eşik `ok`'i düşürseydi
+          # SAĞLAM bir dağıtım yalnızca son yedek biraz eski diye aşağıdaki `wrangler rollback` adımını tetiklerdi.
           for path in / /panel/giris /admin/giris /panel/kayit /demo /yasal/gizlilik /yasal/kvkk-aydinlatma /api/v1/health/worker /robots.txt; do
             code=$(code_of "$SITE_URL$path" 60)
             echo "$path → HTTP $code"
             [ "$code" = "200" ] || fail "$path 200 dönmedi ($code)"
           done
+          # Eşik aşımı dağıtımı kırmızı YAPMAZ ama sessiz de kalmaz: iş akışı uyarısı + özet satırı. (Asıl haber yolu
+          # uyarı kanalıdır: API `alert()` ile, Worker turu `yedek_eskidi` ile — docs/17 §1.)
+          wbody=$(curl -s --max-time 60 "$SITE_URL/api/v1/health/worker" || true)
+          if [ "$(printf '%s' "$wbody" | jq -r 'try .degraded catch false' 2>/dev/null)" = "true" ]; then
+            uyarilar=$(printf '%s' "$wbody" | jq -r 'try ((.warnings // []) | join(", ")) catch ""' 2>/dev/null || true)
+            echo "::warning::Canlı ortam çalışıyor ama eşik aşımı var (degraded): ${uyarilar:-bilinmiyor}. Dağıtım geri ALINMADI; işletim sorunu — docs/17 §2.2 (yedek) / §2.6 (disk, bellek)."
+            {
+              echo ""
+              echo "> ⚠️ Sağlık ucu \`degraded\`: **${uyarilar:-bilinmiyor}**. Dağıtım sağlamdır, bu bir **işletim** uyarısıdır: yedek yaşı docs/17 §2.2, disk/bellek §2.6."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
           # Demo verisi yok: demo vitrinleri 404, "Demo ortamı" uyarısı ve demo vitrin bağlantısı yok
           for path in /s/bozok-pide /s/camlik-doner; do
             code=$(code_of "$SITE_URL$path" 60)

@@ -2,7 +2,9 @@
 // geçmemiş işletme `read_only` aşamasına düşer → vitrin ve WhatsApp "şu an online sipariş alınmıyor, lütfen
 // arayın" moduna geçer; panel, veriler ve dışa aktarma açık kalır (90 gün dönüş hakkı).
 // Karar saf fonksiyonda: @siparis/core/admin/lifecycle trialEnforcementTarget. Burada yalnız veritabanı tarafı var.
-// Cron kaydı: `cron.trial_watch` (bkz. docs/14 §cron tablosu) → enforceTrialEnds(db).
+// Cron kaydı: `cron.trial_watch`, günlük 04:00 — `apps/api/src/jobs/cron/index.ts` → `registerCronJobs`
+// (14 §cron tablosu). Kaydı eklemeden önce (denetim 04.10.2026 (A)) bu fonksiyon yalnız testten çağrılıyordu,
+// yani deneme bitişi canlıda hiç uygulanmıyordu; kayıt `apps/api/test/jobs-cron.test.ts` ile sabitlenmiştir.
 
 import { STAGE_TO_SUBSCRIPTION_STATUS, TRIAL_GRACE_DAYS, trialEnforcementTarget } from '@siparis/core/admin/lifecycle';
 import { subscriptions, tenants, type Database } from '@siparis/db';

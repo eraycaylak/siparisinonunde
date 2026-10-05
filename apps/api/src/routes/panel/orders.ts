@@ -79,6 +79,7 @@ import { buildReceipt, renderReceiptHtml, resolveReceiptSettings } from '../../s
 import { emitOrderUpdated, findOrder, type OrderRow } from '../../services/orders/summary';
 import { transitionOrder } from '../../services/orders/transition';
 import { isUniqueViolation } from '../../services/settings/common';
+import { tenantWritable } from './menu-guards';
 
 const STAFF: readonly TenantRole[] = ['owner', 'manager', 'cashier'];
 const READERS: readonly TenantRole[] = ['owner', 'manager', 'cashier', 'kitchen'];
@@ -194,6 +195,28 @@ function decodeCursor(c: string): { placedAt: Date; id: string } | null {
 const routes: FastifyPluginAsyncZod = async (app) => {
   const readers = { preHandler: requireTenantRole(READERS) };
   const staff = { preHandler: requireTenantRole(STAFF) };
+  /**
+   * Telefon siparişi KAYDI (Akış E) — abonelik/aşama kapısı (00 §9, 05 §A.2.1; denetim 04.10.2026 (B)).
+   *
+   * `read_only`/`suspended`/`churned` işletme bu uçtan sipariş yazmaya devam ediyordu: vitrin "şu an online
+   * sipariş alınmıyor, lütfen arayın" derken talebin tamamı kapısız yoldan akıyordu, yani iş modeli kapısı
+   * tamamen atlanabiliyordu. `read_only` tanımı gereği panelin YAZMA tarafını kapatır (menü, ayar, personel —
+   * 04 §7.13, 05 §A.2.1 tablosu); yeni sipariş kaydı panelin en ağır yazma işlemidir ve aynı kapıya girer.
+   * Hâlihazırda alınmış siparişler etkilenmez: onay/ret, durum ilerletme, fiş, kurye atama ve müşteri mesajları
+   * açık kalır — kapı yüzünden hiçbir tüketici ortada bırakılmaz.
+   *
+   * Kasıtlı olarak UYGULANMAYAN iki vitrin kapısı (`services/orders/store-context.ts` → `tenantOrderingBlocked`):
+   *  - `ordering_enabled`: işletmenin ONLINE sipariş kill-switch'i. Kapatan işletme telefonla sipariş almaya
+   *    devam eder; buraya bağlanırsa "online siparişi kapat" düğmesi kasayı da kilitlerdi.
+   *  - `web_live_at`: künye tamamlanmadan vitrin yayına alınmaz (6563 m.3). Telefon siparişinde vitrin yok;
+   *    kurulum/pilot aşamasındaki işletme ilk gününden telefon siparişi girebilmelidir (04 §3.6 "WhatsApp'sız mod").
+   */
+  const manualOrderGate = {
+    preHandler: [
+      requireTenantRole(STAFF),
+      tenantWritable(app.db, 'Aboneliğiniz şu an salt-okunur durumda; yeni sipariş kaydedilemez. Ödeme alındığında yeniden açılır.'),
+    ],
+  };
 
   // -------------------------------------------------------------------------
   // GET /panel/orders/active — açık siparişler + bugün tamamlananlar (45 sn emniyet sorgusu, 14 §7.1)
@@ -479,7 +502,22 @@ const routes: FastifyPluginAsyncZod = async (app) => {
   });
 
   // POST /panel/orders/manual — telefon siparişi: kanal manual, verification_method staff; isteğe bağlı new → accepted
-  app.post('/orders/manual', { ...staff, schema: { body: manualOrderRequestSchema, response: { 200: cardResponse } } }, async (request) => {
+  //
+  // TASLAK SÖZLEŞME KAPISI (`services/orders/legal-gate.ts`) BU UCA UYGULANMAZ — bilinçli karar (denetim (B)):
+  //  1. Kapının kendi müşteri mesajı "Lütfen işletmeyi telefonla arayarak siparişinizi verebilirsiniz." diyor,
+  //     yani telefon kanalı kapının TASARLANMIŞ yedeğidir. Aynı kapıyı buraya da koymak, kapıyı kendi kendini
+  //     çürüten bir kapı yapar: hiçbir kanaldan sipariş alınamaz hâle gelir.
+  //  2. Kapının gerekçeleri (taslak metin sürümü, eksik künye 6563 m.3, sabitlenmemiş içerik özeti) BİZİM
+  //     elektronik ortamda SUNDUĞUMUZ metinle ilgilidir. B2 bulgusunun gerçek zararı "tüketiciye taslak metin
+  //     onaylatmak ve kabul kaydına `…-taslak` sürümü yazmak"tı. Telefon siparişinde tüketiciye platform metni
+  //     GÖSTERİLMEZ ve `legal_acceptances` satırı YAZILMAZ (bu işleyicide yok; storefront ucunda var) — yani
+  //     taslak metinle kurulmuş bir sözleşme kaydı üretilmez.
+  //  3. 6502 m.48 anlamında telefon siparişi de mesafeli sözleşmedir; fakat orada sözleşme tüketiciyle İŞLETME
+  //     arasında telefonda kurulur, ön bilgilendirme yükümlülüğü görüşme sırasında işletmededir (6563 kapsamındaki
+  //     "elektronik ticaret" ve künye yükümlülüğü platforma vitrin üzerinden doğar). Panel bu kaydı yalnız
+  //     DEFTERE geçirir; kayıt `channel='manual'`, `verification_method='staff'` ile zaten ayırt edilir.
+  // Karar docs/08 §7.5'e ve docs/04 §4.13'e yazıldı. Değişirse ikisi birlikte güncellenir.
+  app.post('/orders/manual', { ...manualOrderGate, schema: { body: manualOrderRequestSchema, response: { 200: cardResponse } } }, async (request) => {
     const auth = tenantAuth(request);
     const body = request.body;
     const branchId = await resolveBranchId(app, auth);

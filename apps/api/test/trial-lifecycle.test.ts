@@ -1,8 +1,9 @@
-// İş modeli kapıları (00 §9, 05 §A.2.1): deneme bitişi uygulanıyor mu, salt-okunur işletme sipariş alıyor mu,
-// kayıt kapısı kapalıyken kayıt reddediliyor mu (denetim 04.10.2026 B10 + B13).
+// İş modeli kapıları (00 §9, 05 §A.2.1): deneme bitişi uygulanıyor mu, salt-okunur işletme sipariş alıyor mu
+// (vitrin ucu VE telefon siparişi ucu), kayıt kapısı kapalıyken kayıt reddediliyor mu (denetim 04.10.2026
+// B10 + B13, ardından çekişmeli son denetim (B)).
 
 import type { StorefrontView } from '@siparis/core/menu/contracts';
-import { auditLog, featureFlags, subscriptions, tenants } from '@siparis/db';
+import { auditLog, featureFlags, orders, subscriptions, tenants } from '@siparis/db';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { enforceTrialEnds } from '../src/services/admin/trial';
@@ -90,6 +91,86 @@ describe('salt-okunur işletme sipariş almaz (00 §9)', () => {
     await ctx.db.update(tenants).set({ lifecycleStage: 'trial' }).where(eq(tenants.id, s.tenantId));
     const ok = await placeOrder(ctx, s.slug, orderBody(s));
     expect(ok.statusCode, ok.body).toBe(200);
+  });
+});
+
+// Denetim 04.10.2026 çekişmeli son denetim (B): vitrin "lütfen arayın" derken telefon siparişi ucu kapısızdı,
+// yani talebin tamamı kapısız yoldan akabiliyordu ve iş modeli kapısı tamamen atlanabiliyordu.
+describe('salt-okunur işletmede telefon siparişi (Akış E) de kaydedilemez', () => {
+  it('POST /panel/orders/manual → 403 tenant_read_only; ödeme alınınca aynı sipariş geçer', async () => {
+    const s = await setupStore(ctx, { wa: 'connected', slug: 'salt-okunur-telefon' });
+    const cashier = (await ctx.createStaff(s.tenantId, 'cashier')).cookie;
+    const body = () => ({
+      items: [{ productId: s.pideId, quantity: 1, optionIds: [s.acisizId] }],
+      fulfillmentType: 'delivery',
+      neighborhood: 'Tekke',
+      customerName: 'Telefon Müşteri',
+      customerPhone: '0532 700 10 20',
+      addressLine: 'Kale Sk. 4',
+      paymentMethod: 'cash_on_delivery',
+    });
+    const manual = () => ctx.request({ method: 'POST', url: '/api/v1/panel/orders/manual', cookie: cashier, body: body() });
+
+    await ctx.db.update(tenants).set({ lifecycleStage: 'read_only' }).where(eq(tenants.id, s.tenantId));
+    expectError(await manual(), 403, 'tenant_read_only');
+    // Kapı yazmayı GERÇEKTEN engelledi mi (403 dönüp satır yazmak en kötüsü olurdu)
+    const yazilan = await ctx.db.select({ id: orders.id }).from(orders).where(eq(orders.tenantId, s.tenantId));
+    expect(yazilan).toHaveLength(0);
+
+    // Askı ve kapanış aşamaları da kapalı
+    for (const stage of ['suspended', 'churned'] as const) {
+      await ctx.db.update(tenants).set({ lifecycleStage: stage }).where(eq(tenants.id, s.tenantId));
+      expectError(await manual(), 403, 'tenant_read_only');
+    }
+
+    // Ödeme alınıp aşama geri açılınca aynı sipariş geçer (kapının tek sebebi aşamadır)
+    await ctx.db.update(tenants).set({ lifecycleStage: 'trial' }).where(eq(tenants.id, s.tenantId));
+    const ok = await manual();
+    expect(ok.statusCode, ok.body).toBe(200);
+  });
+
+  it('ödeme gecikmesi (past_due) telefon siparişini durdurmaz — dunning G..G+10', async () => {
+    const s = await setupStore(ctx, { wa: 'connected', slug: 'gecikmis-telefon' });
+    const cashier = (await ctx.createStaff(s.tenantId, 'cashier')).cookie;
+    await ctx.db.update(tenants).set({ lifecycleStage: 'past_due' }).where(eq(tenants.id, s.tenantId));
+    const res = await ctx.request({
+      method: 'POST',
+      url: '/api/v1/panel/orders/manual',
+      cookie: cashier,
+      body: {
+        items: [{ productId: s.pideId, quantity: 1, optionIds: [s.acisizId] }],
+        fulfillmentType: 'pickup',
+        customerName: 'Gel-al Müşteri',
+        customerPhone: '0532 700 10 21',
+        paymentMethod: 'pay_at_counter',
+      },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+  });
+
+  // Vitrin kapıları (`ordering_enabled`, `web_live_at`) telefon siparişine BİLEREK uygulanmaz: online siparişi
+  // kapatan ya da henüz canlıya geçmemiş (kurulum/pilot) işletme kasadan sipariş girmeye devam eder (04 §3.6).
+  it('online sipariş kapalı ve canlı değilken telefon siparişi çalışmaya devam eder', async () => {
+    const s = await setupStore(ctx, { wa: 'connected', slug: 'vitrini-kapali-telefon' });
+    const cashier = (await ctx.createStaff(s.tenantId, 'cashier')).cookie;
+    await ctx.db.update(tenants).set({ orderingEnabled: false, webLiveAt: null }).where(eq(tenants.id, s.tenantId));
+    // Vitrin kapalı
+    const { body: vitrin } = await getStore(s.slug);
+    expect(vitrin.orderingEnabled).toBe(false);
+    // Kasa açık
+    const res = await ctx.request({
+      method: 'POST',
+      url: '/api/v1/panel/orders/manual',
+      cookie: cashier,
+      body: {
+        items: [{ productId: s.pideId, quantity: 1, optionIds: [s.acisizId] }],
+        fulfillmentType: 'pickup',
+        customerName: 'Kurulum Müşterisi',
+        customerPhone: '0532 700 10 22',
+        paymentMethod: 'pay_at_counter',
+      },
+    });
+    expect(res.statusCode, res.body).toBe(200);
   });
 });
 

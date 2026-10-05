@@ -1,8 +1,10 @@
 // Zamanlanmış işler (registerCron ile). Temel bakım işleri jobs/system'dedir.
-// Buradaki işler: duraklatma bitişi, panel çevrimdışı dedektörü, alarm zinciri emniyet ağı (`order_new_watch`,
-// 06 §7.6/§8.5), DLQ gözcüsü (`jobs_dlq_watch`: kalıcı başarısız iş birikmesi uyarısı; saklama/maskeleme
-// `jobs/system` içindeki `cron.retention` koşusundadır) ve sentetik canary (`cron.canary` + adımları
-// `canary.run` / `canary.verify`, 06 §7.10 — iş mantığı services/canary'dedir).
+// Buradaki işler: duraklatma bitişi, panel çevrimdışı dedektörü, deneme bitişi (`trial_watch`: 00 §9 iş modeli
+// kapısı; iş mantığı services/admin/trial.ts), alarm zinciri emniyet ağı (`order_new_watch`,
+// 06 §7.6/§8.5), WABA kota gözcüsü (`waba_quota_watch`: ortak numaranın 24 saatlik konuşma tavanı + kalite
+// derecesi; iş mantığı services/messaging/waba-quota.ts), DLQ gözcüsü (`jobs_dlq_watch`: SON 24 SAATTE kalıcı
+// başarısız olan iş birikmesi uyarısı; saklama/maskeleme `jobs/system` içindeki `cron.retention` koşusundadır) ve sentetik canary
+// (`cron.canary` + adımları `canary.run` / `canary.verify`, 06 §7.10 — iş mantığı services/canary'dedir).
 // Burada: registerJobHandler(type, handler), registerCron({...}) ve onOrderTransition/onOrderCreated abonelikleri.
 // Bu fonksiyon hem API hem worker sürecinde çağrılır; kayıtlar ada göre tekildir (tekrar çağrı güvenli).
 
@@ -10,7 +12,10 @@ import { branches, orders, type Database } from '@siparis/db';
 import { and, eq, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import { alert, type AlertContext } from '../../lib/alert';
 import { enqueueJob, generationKey, registerCron, registerJobHandler } from '../../lib/jobs';
+import { enforceTrialEnds } from '../../services/admin/trial';
+import { testConnection } from '../../services/admin/wa-setup';
 import { CANARY_RUN_JOB, CANARY_VERIFY_JOB, createCanaryOrder, runCanaryTick, verifyCanaryOrder } from '../../services/canary/index';
+import { detectWabaQuotaPressure, parseMessagingLimit } from '../../services/messaging/waba-quota';
 import { alarmDedupeKey, normalizeAlarmPolicy, planAlarmSteps } from '../../services/orders/alarm-policy';
 import { detectOfflinePanels } from '../../services/push/presence';
 import { emitBranchState } from '../../services/settings/branch';
@@ -208,23 +213,59 @@ export async function watchNewOrders(db: Database, now: Date = new Date(), ctx?:
 // ---------------------------------------------------------------------------
 // DLQ gözcüsü — kalıcı başarısız iş birikmesi (denetim H21, H26 / iş 1.9)
 
-/** Kalıcı başarısız (`failed`) iş sayısı bunu aşarsa uyarı gider. */
+/** Pencere içinde kalıcı başarısız olan iş sayısı bunu aşarsa uyarı gider. */
 export const DLQ_ALERT_THRESHOLD = 10;
 /** DLQ uyarısı en sık bu aralıkla tekrarlanır. */
 export const DLQ_ALERT_COOLDOWN_MS = 60 * 60_000;
 
 /**
- * DLQ'da bekleyen (`failed`) iş sayısı.
+ * Eşik YALNIZ bu pencerede başarısız olan işleri sayar (denetim 2026-10-05 MEDIUM B).
+ *
+ * NEDEN PENCERE: eşik tablodaki TÜM `failed` satırları sayıyordu, satırlar ise saklama kuralı gereği 90 gün duruyor
+ * (`retention.technical.jobs.failed`). 11 hata 90 güne yayılmış olsa bile sayı bir daha eşiğin altına inmediği için
+ * gözcü SONSUZA DEK saat başı kritik uyarı üretiyordu: nöbetçi "zaten hep kırmızı" diyip kanalı kapatır ve gerçek
+ * yığılma görülmez (uyarı yorgunluğu). Pencere, uyarıyı "şu an biriken iş var" bilgisine geri döndürür.
+ *
+ * TEK TEK HATA KAYBOLMAZ: her kalıcı başarısızlık zaten düştüğü anda `job_failed_permanent` kritik uyarısı
+ * gönderir (`lib/jobs.ts`, iş türü başına soğumalı). Bu gözcü tek hatayı değil YIĞILMAYI arar.
+ *
+ * Ölçü `coalesce(finished_at, updated_at)`: `failed` yapan iki yol da (`processDueJobs` ve `recoverStaleJobs`)
+ * `finished_at = now()` yazar; `cron.retention` de aynı ifadeyi kullandığı için eski bir satır (örneğin elle
+ * yazılmış, `finished_at` boş) "az önce başarısız oldu" sayılmaz.
+ */
+export const DLQ_ALERT_WINDOW_MS = 24 * 60 * 60_000;
+
+/** Pencerenin başlangıcı: bu andan ÖNCE başarısız olmuş satırlar eşiğe sayılmaz. */
+export function dlqWindowStart(now: Date = new Date()): Date {
+  return new Date(now.getTime() - DLQ_ALERT_WINDOW_MS);
+}
+
+/** `failed` ifadesinin pencere koşulu (sayım ve tür dökümü AYNI koşulu kullanır). */
+const dlqWindowFilter = (since: Date) => sql`coalesce(finished_at, updated_at) >= ${since.toISOString()}::timestamptz`;
+
+export interface FailedJobCounts {
+  /** Pencere içinde başarısız olan iş sayısı — eşik BUNU okur. */
+  recent: number;
+  /** Tablodaki tüm `failed` satırlar (saklama penceresi dolana kadar durur); yalnız uyarı gövdesinde bağlam. */
+  total: number;
+}
+
+/**
+ * DLQ'da bekleyen (`failed`) işler: pencere içindeki sayı + toplam.
  *
  * Saklama ve maskeleme BURADA YAPILMAZ: `failed` işin yükündeki kişisel veriyi maskeleyen (30 gün) ve satırı silen
  * (90 gün) adımlar `jobs/system` içindeki `cron.retention` koşusundadır — `retention.technical.jobs.failed_payload`
  * ve `retention.technical.jobs.failed` (07 §9, 08 §2.8 satır 22, süreler `RETENTION_DAYS`). Aynı satırlar için
  * burada ikinci bir saklama penceresi açılmaz: kısa olan pencere operatörün yapılandırdığı süreyi sessizce
- * geçersiz kılar ve imha tutanağında (`retention_runs`) aynı iş iki ayrı adla görünürdü.
+ * geçersiz kılar ve imha tutanağında (`retention_runs`) aynı iş iki ayrı adla görünürdü. Uyarı penceresi (24 saat)
+ * saklama penceresi DEĞİLDİR: satırı silmez, yalnız eşiğe neyin sayıldığını belirler.
  */
-export async function countFailedJobs(db: Database): Promise<number> {
-  const [row] = (await db.execute<{ n: number }>(sql`select count(*)::int as n from jobs where status = 'failed'`)) as unknown as { n: number }[];
-  return Number(row?.n ?? 0);
+export async function countFailedJobs(db: Database, now: Date = new Date()): Promise<FailedJobCounts> {
+  const since = dlqWindowStart(now);
+  const [row] = (await db.execute<{ recent: number; total: number }>(sql`
+    select count(*) filter (where ${dlqWindowFilter(since)})::int as recent, count(*)::int as total
+      from jobs where status = 'failed'`)) as unknown as { recent: number; total: number }[];
+  return { recent: Number(row?.recent ?? 0), total: Number(row?.total ?? 0) };
 }
 
 export function registerCronJobs(): void {
@@ -250,29 +291,97 @@ export function registerCronJobs(): void {
   });
   registerCron({ name: 'order_new_watch', type: 'cron.order_new_watch', schedule: { everyMinutes: 1 } });
 
-  // DLQ gözcüsü (denetim H21/H26): kalıcı başarısız iş birikmesi uyarısı (saklama `cron.retention`'dadır)
+  // WABA kota gözcüsü (denetim açık soru 2): ortak numaranın 24 SAATLİK iş-kaynaklı konuşma tavanı. Ölçü mevcut
+  // kayıtlardan türetilir (yeni tablo yok, `services/messaging/waba-quota.ts`); %70 uyarı, %90 kritik, tavan dolunca
+  // ACİL. Saatte bir de sağlayıcıdan kalite derecesi + basamak okunur (`testConnection`; okunamazsa yalnız loglanır).
+  // 5 dakikalık tur: kota kayan 24 saatlik penceredir, dakikalık ölçüme gerek yok; gönderim kapısının göstergesi de
+  // bu turda tazelenir (bayatlarsa kapı kendiliğinden devre dışı kalır, mesaj akar).
+  // Eşik logu `detectWabaQuotaPressure` içindedir (kiracı payıyla birlikte): burada tekrar edilmez, yoksa her
+  // tur iki neredeyse-aynı `log.error` satırı üretirdi ve log tabanlı sayım eşikleri iki kat okurdu.
+  registerJobHandler('cron.waba_quota_watch', async (_payload, { db, config, log }) => {
+    await detectWabaQuotaPressure(
+      { db, config, log },
+      {
+        readQuality: async () => {
+          const t = await testConnection(config);
+          const raw = t.phone.throughputLevel;
+          return {
+            readable: true,
+            qualityRating: t.phone.qualityRating,
+            messagingLimitRaw: raw,
+            // Cloud'da bu alan throughput'tur (STANDARD/HIGH) ve BASAMAK DEĞİLDİR → parseMessagingLimit null döner
+            messagingLimitCap: parseMessagingLimit(raw),
+            ready: t.ready,
+          };
+        },
+      },
+    );
+  });
+  registerCron({ name: 'waba_quota_watch', type: 'cron.waba_quota_watch', schedule: { everyMinutes: 5 } });
+
+  // DLQ gözcüsü (denetim H21/H26): kalıcı başarısız iş birikmesi uyarısı (saklama `cron.retention`'dadır).
+  // Eşik PENCERELİDİR (DLQ_ALERT_WINDOW_MS): eski satırlar uyarı üretmez, gerekçe sabitin başındadır.
   registerJobHandler('cron.jobs_dlq_watch', async (_payload, { db, config, log }) => {
-    const failed = await countFailedJobs(db);
-    if (failed <= DLQ_ALERT_THRESHOLD) return;
-    // Hangi iş türleri birikti: tür adı kişisel veri değildir, yük GÖNDERİLMEZ
+    const now = new Date();
+    const { recent, total } = await countFailedJobs(db, now);
+    if (recent <= DLQ_ALERT_THRESHOLD) return;
+    // Hangi iş türleri birikti: tür adı kişisel veri değildir, yük GÖNDERİLMEZ. Döküm de PENCERELİ: aksi halde
+    // uyarı "son 24 saatte 12 iş" derken 90 günün türlerini sayar ve nöbetçi yanlış türü kovalar.
+    const since = dlqWindowStart(now);
     const types = (await db.execute<{ type: string; n: number }>(sql`
-      select type, count(*)::int as n from jobs where status = 'failed' group by type order by n desc limit 10`)) as unknown as {
+      select type, count(*)::int as n from jobs
+       where status = 'failed' and ${dlqWindowFilter(since)}
+       group by type order by n desc limit 10`)) as unknown as {
       type: string;
       n: number;
     }[];
+    const windowHours = Math.round(DLQ_ALERT_WINDOW_MS / 3_600_000);
     alert(
       { log, config },
       {
         kind: 'jobs_dlq_threshold',
         severity: 'critical',
-        message: `${failed} iş kalıcı olarak başarısız durumda (DLQ eşiği ${DLQ_ALERT_THRESHOLD}).`,
-        data: { failed, types: types.map((t) => `${t.type}=${t.n}`) },
+        message: `Son ${windowHours} saatte ${recent} iş kalıcı olarak başarısız oldu (DLQ eşiği ${DLQ_ALERT_THRESHOLD}; tabloda toplam ${total} satır).`,
+        data: { failed: recent, total, windowHours, types: types.map((t) => `${t.type}=${t.n}`) },
         dedupeKey: 'jobs_dlq_threshold',
         cooldownMs: DLQ_ALERT_COOLDOWN_MS,
       },
     );
   });
   registerCron({ name: 'jobs_dlq_watch', type: 'cron.jobs_dlq_watch', schedule: { everyMinutes: 15 } });
+
+  // -------------------------------------------------------------------------
+  // Deneme bitişi (00 §9, 05 §A.2.1; 14 §cron tablosu: günlük 04:00). Denetim 04.10.2026 (A): iş yazılmıştı ama
+  // KAYDEDİLMEMİŞTİ — `enforceTrialEnds` yalnız testten çağrıldığı için deneme bitişi CANLIDA uygulanmıyordu ve
+  // hiçbir işletme `read_only`'ye düşmüyordu (ücretli iş modelinin yarısı fiilen yoktu).
+  // Günlük tur yeterlidir: karar gün hassasiyetindedir (`trial_ends_at` + 3 gün) ve 04:00 sipariş trafiğinin en
+  // düşük olduğu saattir — bir işletmenin sipariş alması gün ortasında durmaz. İş idempotenttir (koşullu update
+  // + satır kilidi), yani yeniden denenen tur ikinci kez düşürme yapmaz.
+  // TEK İSTİSNA — ilk tur: `scheduleCronJobs` günlük dilimi "bugünün 04:00'ı geçtiyse hemen" kuyruğa atar, yani
+  // bu kaydın CANLIYA ÇIKTIĞI dağıtım 04:00'tan sonraysa birikmiş denemeler o anda düşer (gün ortası olabilir).
+  // Sonraki turların hepsi 04:00'tadır. Dağıtımdan önce admin panosundan bandı dolmuş işletme listesine bakılır.
+  // Düşen işletme operasyonun gözünden kaçmasın: log satırı + uyarı kanalı (tahsilat araması, 05 dunning panosu).
+  // Uyarı gövdesinde kişisel veri yoktur (CLAUDE.md kural 7): yalnız sayı ve tenant kimlikleri gider, işletme adı
+  // ve slug GİTMEZ — log satırı sunucuda kalır ve slug'ı taşır.
+  registerJobHandler('cron.trial_watch', async (_payload, { db, config, log }) => {
+    const applied = await enforceTrialEnds(db);
+    if (!applied.length) return;
+    log.warn(
+      { tenants: applied.length, slugs: applied.map((a) => a.slug), stage: 'read_only' },
+      'deneme bitişi uygulandı: işletmeler salt-okunur aşamaya düştü, online sipariş alma durdu',
+    );
+    alert(
+      { log, config },
+      {
+        kind: 'trial_ended',
+        severity: 'warning',
+        message: `${applied.length} işletmenin denemesi bitti; aşama salt-okunur (read_only) oldu ve online sipariş alma durdu.`,
+        data: { tenants: applied.length, tenantIds: applied.map((a) => a.tenantId).slice(0, 10) },
+        dedupeKey: 'trial_ended',
+      },
+    );
+  });
+  registerCron({ name: 'trial_watch', type: 'cron.trial_watch', schedule: { dailyAt: '04:00' } });
 
   // -------------------------------------------------------------------------
   // Sentetik canary (06 §7.10; denetim H4 / iş 3.6). Tur dakikada bir koşar ama şube başına dilim 15 dk'dır

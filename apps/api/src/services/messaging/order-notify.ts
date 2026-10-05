@@ -62,6 +62,7 @@ import {
 } from './context';
 import { upsertConversation, windowOpen, type ConversationRow } from './customers';
 import { draftToSpec, queueOutbound, type OutboundSpec, type TemplateSpec } from './outbound';
+import { CRITICAL_ORDER_EVENTS } from './waba-quota';
 
 export interface NotifyDeps {
   db: Database;
@@ -86,7 +87,12 @@ export interface NotifyCustomerPayload {
 }
 
 export const RECEIVED_DEBOUNCE_MS = 60_000;
-const SMS_CRITICAL: ReadonlySet<OrderStatus> = new Set(['accepted', 'rejected', 'cancelled']);
+/**
+ * Kritik durumlar: WhatsApp'sız modda SMS yedeği bunlara gider ve WABA kotası tavana dayandığında yer bunlara
+ * saklanır. Küme TEK yerde tanımlıdır (`waba-quota.ts` CRITICAL_ORDER_EVENTS): iki liste ayrışırsa "kritik" sayılan
+ * mesaj SMS alır ama kota kapısında düşürülebilirdi.
+ */
+const SMS_CRITICAL: ReadonlySet<OrderStatus> = CRITICAL_ORDER_EVENTS;
 /** Bütçeye sayılan durumlar */
 const BUDGETED: ReadonlySet<OrderStatus> = new Set(['new', 'accepted', 'preparing', 'ready', 'on_the_way', 'delivered']);
 const PROGRESS_RANK: Partial<Record<OrderStatus, number>> = { new: 0, accepted: 1, preparing: 2, ready: 3, on_the_way: 4, delivered: 5 };

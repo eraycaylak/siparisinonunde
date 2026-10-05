@@ -501,8 +501,16 @@ Kasiyer **[+ Telefon siparişi]** der; hedef: sık müşteride 60 sn'nin altınd
 | 6 Süre ve bildirim | Süre çipleri (varsayılan onay süresi); **"Müşteri WhatsApp'tan bilgilendirilmeyi kabul etti"** kutusu (varsayılan **işaretsiz**; yanında sorulacak cümle: "Siparişinizin durumunu WhatsApp'tan bildirelim mi?") | Kutu işaretsizse şablon gitmez (D02 §9.1) |
 | 7 Kaydet | **[Siparişi kaydet · 485,00 TL]** | Sipariş tek transaction'da `new` → `accepted` olur (alarm çalmaz); kanal `manual`, `verification_method = staff`; bildirim açıksa ayrı "alındı" gitmez, tek "onaylandı + takip linki" mesajı gider (pencere açıksa serbest mesaj, kapalıysa `siparis_onaylandi_v2` şablonu) |
 
+**Özel teslimat ücreti girdisi (FAZ 2.5, adım 4):** tutar Türkçe yazımla okunur — "1.000" **bin liradır**, "1.250,50" bin iki yüz elli lira elli kuruştur; ayrıştırma repo'nun kendi `parseTlToKurus` yardımcısıyla yapılır (kendi `Number(...)` çevirimi yasak: `Number('1.000') === 1` olduğu için kasiyer 1.000 TL yazarken siparişe 1,00 TL ücret giriyordu). Alan boş bırakılırsa istisna **ücretsiz** kaydedilir. Geçersiz tutarda (harf, eksi, bozuk ayırıcı) alan hata gösterir ve **önizlemedeki teslimat ile toplam "—" olur**; düğmede uydurma bir toplam yazmaz. Düğme **pasifleşmez**: basıldığında ücret alanının hatası gösterilir ve sipariş oluşmaz, yani kasiyer bilmediği bir tutarı onaylamadan da çıkışsız kalmaz (B11 ile aynı ilke). Panelde üst sınır 10.000 TL'dir (kuruş toplamları `int4`; sınırsız serbest alan taşma yoludur) — bu sınır bugün **yalnız istemcide** uygulanır, `outOfZoneFeeKurus` sözleşmesi (`nonNegativeKurusSchema`) hâlâ üst sınırsızdır; sunucu tarafı sınır ayrı bir maddedir.
+
 - **"Bu sohbetten sipariş oluştur"** (gelen kutusundan) aynı ekranı müşteri ve varsa son konum pini dolu açar (§5.6).
 - Kabul: kayıtlı müşteride "Aynısını ekle" ile sipariş 4 dokunuşta kaydedilir; kaydedilen sipariş diğer cihazlarda 3 sn içinde "Hazırlanıyor" sütununda görünür.
+
+**Abonelik kapısı (00 §9, 05 §A.2.1; denetim 04.10.2026 (B)):** aşama `read_only`, `suspended` ya da `churned` ise telefon siparişi de **kaydedilemez** — uç 403 `tenant_read_only` döner ve ekranda "Aboneliğiniz şu an salt-okunur durumda; yeni sipariş kaydedilemez. Ödeme alındığında yeniden açılır." görünür. Gerekçe: salt-okunur mod panelin YAZMA tarafını kapatır (menü, ayar, personel — §7.13) ve yeni sipariş kaydı panelin en ağır yazma işlemidir; kapı telefon yolunu açık bıraksa vitrindeki "lütfen arayın" bandı talebin tamamını kapısız yola taşır, yani iş modeli kapısı tamamen atlanabilir olurdu. Hâlihazırda alınmış siparişler etkilenmez: onay/ret, durum ilerletme, fiş, kurye atama ve müşteri mesajları açık kalır.
+
+**Vitrin kapıları telefon siparişine UYGULANMAZ (bilinçli):** "online sipariş kapalı" (`ordering_enabled`) ve "canlıya geçilmedi" (`web_live_at`) kapıları yalnız storefront ve WhatsApp içindir. Online siparişi kapatan işletme telefonla sipariş almaya devam eder; kurulum/pilot aşamasındaki işletme ilk gününden kasadan sipariş girebilir (§3.6 "WhatsApp'sız mod").
+
+**Taslak sözleşme kapısı da uygulanmaz (bilinçli):** gerekçesi [08](08-mevzuat-kvkk-odeme-fatura.md) §7.5'tedir — kapının kendi müşteri mesajı telefon kanalını yedek olarak gösterir, telefon siparişinde tüketiciye platform metni gösterilmez ve taslak sürümlü bir kabul kaydı yazılmaz.
 
 ### 4.14 Yazdırma
 - **[Faz 1] Tarayıcıdan yazdırma** (D06 §9.1–9.2): 80 mm ve 58 mm şablon, iki fiş türü:
@@ -576,7 +584,7 @@ Kurallar [12](12-marka-tasarim-ve-kullanilabilirlik.md) §11.1'dedir; burada can
 | **Kontrast** (WCAG 1.4.3, 1.4.11) | Sipariş ekranında yan yana duran 21 çift iki temada ölçülür: metin ≥ 4,5:1, arayüz öğesi ve odak halkası ≥ 3:1. Ölçüm token'ın gerçek değerinden yapılır, teste renk kopyalanmaz. **Dar nokta:** açık temada odak halkası kırmızı bandın üstünde 3,10:1 — eşiğin 0,10 üstü; `--band-alarm` ya da `--ring` değişirse bu çift ilk düşer | `components/panel/panel-contrast.test.ts` |
 | **Yanıp sönme** (WCAG 2.3.1) | Kart çerçevesi 1 Hz; `prefers-reduced-motion: reduce` açıkken `animation-duration: 0ms` | `components/panel/panel-contrast.test.ts` |
 
-**Henüz yapılmayan:** axe/otomatik erişilebilirlik taraması hiçbir katmanda yok ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §11.1 "Test" satırı); buradaki testler yalnız yukarıdaki sözleşmeyi kilitler. "Geri al · 30 sn" geri sayımına `aria-live="polite"` eklenmedi: metin saniyede bir değiştiği için ekran okuyucu her saniye konuşurdu.
+**Henüz yapılmayan:** axe/otomatik erişilebilirlik taraması **panelde** yok ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §11.1 "Test" satırı); buradaki testler yalnız yukarıdaki sözleşmeyi kilitler. 2026-10-05'te axe altyapısı kuruldu ama yalnız checkout ekranına uygulandı (`apps/web/test/a11y.tsx`, [15 §15.3](15-kurulum-ve-isletim.md#153-erişilebilirlik-axe-core)); paneli denetlemek aynı yardımcıyı bu ekranlara bağlamakla olur. "Geri al · 30 sn" geri sayımına `aria-live="polite"` eklenmedi: metin saniyede bir değiştiği için ekran okuyucu her saniye konuşurdu.
 
 ---
 
@@ -849,7 +857,7 @@ Salt-okunur abonelik modunda (G+10) menü, fiyat, ayar, bölge, personel ekranla
 - **[Faz 1]** Plan adı, durum (Deneme · 9 gün kaldı / Pilot · 3 ay ücretsiz / Kurucu üye · %30 indirim oranı, 12 ay; liste fiyatı TÜFE ile güncellenebilir), liste fiyatı KDV hariç ve dahil, "Paket seç" (Faz 1'de havale/EFT veya ekip üzerinden), fatura profili (unvan, VKN/TCKN, vergi dairesi, adres, fatura e-postası), **SMS kotası göstergesi** ("Bu ay SMS: 64 / 100 · Esnaf"; Esnaf 100, Pro 300, Zincir şube başına 300 SMS/ay; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4; bu dokümanda §3.6).
 - **[Faz 2]** Ek SMS paketi satın alma (kota aşımında).
 - **[Faz 2]** Kartla otomatik ödeme, fatura listesi ve indirme (e-Arşiv/e-Fatura, Paraşüt), plan değişikliği (kıst hesap), ödeme bilgisi güncelleme.
-- **Deneme bitişi** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9): 14. günden sonra plan seçilmediyse **3 gün uyarı bandı** ("Deneme süreniz bitti. 3 gün içinde paket seçmezseniz online sipariş alma durur.") → `trial_ends_at` + 3 gün dolunca aşama **`read_only`** olur (`cron.trial_watch`): storefront ve bot "şu an online sipariş alınmıyor, lütfen arayın" moduna geçer, panel ve geçmiş okunabilir kalır, menü/ayar/personel düzenleme kapanır → 90 gün içinde plan seçilirse veriler aynen döner, sonra silinir.
+- **Deneme bitişi** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9): 14. günden sonra plan seçilmediyse **3 gün uyarı bandı** ("Deneme süreniz bitti. 3 gün içinde paket seçmezseniz online sipariş alma durur.") → `trial_ends_at` + 3 gün dolunca aşama **`read_only`** olur (`cron.trial_watch`): storefront ve bot "şu an online sipariş alınmıyor, lütfen arayın" moduna geçer, panel ve geçmiş okunabilir kalır, menü/ayar/personel düzenleme **ve telefon siparişi kaydı** kapanır (§4.13) → 90 gün içinde plan seçilirse veriler aynen döner, sonra silinir.
 - **Dunning bantları** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9, [08](08-mevzuat-kvkk-odeme-fatura.md) §6.3): G (ödeme günü) ve G+1/G+3 yeniden denemelerinde sarı "Kartınızı güncelleyin", G+7 (son yeniden deneme) kırmızı + "Havale ile öde" referans kodu, **G+10 salt-okunur** ("Online sipariş alma durdu. Ödeme yapınca dakikalar içinde açılır." — `read_only`, panel okunur kalır), **G+21 askı** (`suspended`, panel de kapanır), G+45 kapanış ön bildirimi (hesap G+75'te kapanır): panelde yalnız "Öde ve devam et" + "Verilerimi dışa aktar" (30 günlük dışa aktarma penceresi), **G+75** hesap kapatma ve veri silme süreci.
 
 ### 7.14 Yasal metinler, KVKK ve veri (P-28)
@@ -1023,8 +1031,19 @@ Y (net tasarruf) = Cp×k − Teşvik − Kart maliyeti − Ek kurye − U − M
 ```
 
 **Kart metni:** "Bu ay kendi kanalınızdan **180 sipariş** aldınız. Pazaryerinden gelseydi yaklaşık **15.750 TL** komisyon ödeyecektiniz. Abonelik ve diğer giderler düşünce **net tasarruf: 6.872,50 TL**." (Örnek: [01](01-vizyon-pazar-is-modeli.md) §6.7 senaryo B: Cp = 63.000 TL, k = %25, t = %10, kartla ödeme payı %50 × %2,5, U = 1.790, M ≈ 0.)
-- Alt not (her zaman): "Tahmindir. Bu siparişlerin tamamının pazaryerinden geleceği varsayılır; gerçek tasarruf daha düşük olabilir. Oranı sözleşmenize göre güncelleyin."
+- Alt not (her zaman): "**Yaklaşık bir tahmindir.** Bu siparişlerin tamamının pazaryerinden geleceği varsayılır; gerçek tasarruf daha düşük olabilir. Oranı sözleşmenize göre güncelleyin."
 - Y negatifse dürüstçe negatif gösterilir ve "Teşviki düşürmeyi veya kanal duyurusunu artırmayı deneyin" önerisi çıkar. Kart aylık özet e-postasında ve ay sonu panel bildiriminde de yer alır.
+
+**Uygulanan hâli (FAZ 2.5; `GET /panel/reports/savings`):**
+
+| Durum | Kartta ne görünür |
+|---|---|
+| Oran girilmiş (`commissionBp` dolu) | Büyük tutar + başlık "… **yaklaşık** Y TL tasarruf" + "sepet × oran (KDV dahil nakit etkisi …)" satırı + "Oranı değiştir" bağlantısı + alt not |
+| **Oran girilmemiş** (`commissionBp: null`) | Tutar **hiç gösterilmez**; "Oranınızı girin" başlığı, sipariş sayısı ve sepet toplamı (bunlar ölçülmüş veridir, tahmin değil), alt not yerine "Tasarruf tutarı gösterilmiyor: pazaryeri kesinti oranınız girilmemiş…" ve **"Oranı gir"** düğmesi (→ `/panel/ayarlar/isletme`) |
+
+- Yanıttaki `commissionBp`, `avoidedCommissionKurus` ve `avoidedCommissionWithVatKurus` **nullable**'dır. Oran yoksa bu alanlar `0` değil `null` döner: "tasarruf yok" ile "oranı bilmiyoruz" aynı şey değildir.
+- Oranı işletme **Ayarlar › İşletme › Tasarruf raporu oranı**'nda girer. Alan boş bırakılabilir (ya da "Bilmiyorum" çipiyle temizlenir); boş oran "girilmedi" demektir. Girdi Türkçe yazımla okunur (%25,5 → 2550 baz puan), 0–60 dışı değer kaydedilmez.
+- Kaçınılan komisyon kuruş tamsayısında, repo'nun `roundHalfUp`'ı ile hesaplanır; KDV çarpanı hesaplayıcının kendi yapılandırmasından (`DEFAULT_CALCULATOR_CONFIG.vatRate`) gelir, kodda `1.2` sabiti yoktur.
 
 ### 11.4 Meta'ya tahmini WhatsApp ödemesi (P-34) **[Faz 1]**
 - "Bu ay Meta'ya tahmini ödeme: **≈ 152 TL (3,15 $)**" + kategori kırılımı (service / utility / marketing [Faz 2] / authentication) + "Ücretsiz 1.000 service mesajının 1.000'i kullanıldı" + sipariş başı ortalama maliyet.
@@ -1036,6 +1055,22 @@ Y (net tasarruf) = Cp×k − Teşvik − Kart maliyeti − Ek kurye − U − M
 - Puan listesi ([gülen yüz ikonu] Harika / [nötr yüz ikonu] İdare eder / [üzgün yüz ikonu] Beğenmedim), müşterinin kısa yorumu, olumsuz cevaplarda sebep kırılımı (Geç geldi · Soğuk geldi · Eksik/yanlış ürün · Lezzet · Kurye · Diğer), siparişe ve sohbete bağlantı.
 - Olumsuz değerlendirme panelde **anlık uyarı** (ayrı ses); [Faz 2] sahibin telefonuna da.
 - **[Faz 2]** Herkese açık yayınlama (isimle yayında açık rıza) ve işletme yanıtı; sohbetten cevap şablonu, Google değerlendirme linki **herkese eşit** gösterilir (yalnız memnun müşteriyi yönlendirmek yok, A05 §3.12).
+
+### 11.6 Toplu veri dışa aktarma **[Faz 1]**
+Kullanım koşullarındaki "verilerinizi dışa aktarabilirsiniz" taahhüdünün karşılığı. Tek müşterinin KVKK dosyası (§8, `POST /panel/customers/:id/export`) yerinde kalır; bu rapor işletmenin **kendi sipariş ve müşteri listesini bütün olarak** verir.
+
+| Dosya | Uç | Kapsam |
+|---|---|---|
+| Siparişler | `GET /panel/exports/orders.csv` · `…/orders.json` | Tarih aralığı (varsayılan son 30 gün, en çok 366 gün) |
+| Müşteriler | `GET /panel/exports/customers.csv` · `…/customers.json` | Tarih aralığı **isteğe bağlı** (verilmezse tüm kayıtlar) |
+
+- **Yetki:** yalnız `owner` ve `manager`. Kasiyer ve mutfak toplu kişisel veri indirmez ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4). Şube kısıtlı üyelik yalnız kendi şubesinin siparişlerini ve o şubede siparişi olan müşterileri görür.
+- **Kişisel veri kademeli:** varsayılan dosyada telefon maskelidir (`0*** *** 22 33`), açık adres / yol tarifi / koordinat **hiç yoktur**. Tam veri yalnız `?includePersonal=1` ile gelir ve denetim kaydına bu bayrakla yazılır (CLAUDE.md kural 7). Destek görünümünde (impersonation) `includePersonal` **reddedilir** (403 `impersonation_export_blocked`): platform personeli işletmenin tüm telefon ve adres dosyasını tek istekle indiremez ([05](05-admin-paneli-ve-pazarlama-sitesi.md) A-09).
+- **Maskeli dosya "kişisel verisiz" demek DEĞİLDİR:** `musteri_adi`, `mahalle` ve serbest metin `musteri_notu` her iki kademede de dosyada durur — işletmenin kendi müşteri kaydıdır. Serbest not pratikte kapı/kat/tarif taşır, yani `includePersonal` kapalıyken de dolaylı adres bilgisi çıkabilir. Destek görünümünde yalnız `includePersonal` reddedilir; maskeli dosya (ad + not dâhil) indirilebilir. Daha katı bir destek kademesi gerekirse ayrı bir maddedir.
+- **KVKK silmesi kalıcıdır:** silinmiş müşteri (`customer_erasures`) toplu dosyada görünmez ([08](08-mevzuat-kvkk-odeme-fatura.md) §2.10). Test siparişleri (`test_kind`) hiçbir dosyada yoktur.
+- **Biçim:** CSV menü dosyasıyla aynı dildedir (UTF-8 BOM, `;` ayraç, Türkçe ondalık virgül; §6.6). Formülle başlayan hücre (`=`, `+`, `@`) tek tırnakla metne çevrilir — dosya muhasebeciye de gidiyor. JSON tek belgedir: üstbilgi + `rows` + `rowCount`/`truncated`.
+- **Kapasite:** yanıt akıştır; satırlar 1.000'lik öbeklerle okunur, sunucuda hiçbir an tüm veri bellekte tutulmaz. İşletme **ve dosya türü** başına 10 dakikada 5 dosya (sipariş ile müşteri kovaları ayrıdır); süreç genelinde — yani **tüm işletmeler için toplam** — aynı anda 2 dışa aktarma (aşılırsa 429 + `Retry-After`). Tek dosyada en çok 200.000 satır; kırpılırsa dosyanın içinde `# KIRPILDI` satırı görünür (sessiz eksik veri yok).
+- Her istek istek anında `audit_log`'a yazılır (`export.orders` / `export.customers`; biçim, aralık, şube, `includePersonal`). Akış yarıda kopsa bile kim ne istedi kayıtlıdır.
 
 ---
 
@@ -1219,7 +1254,7 @@ Toplam: Faz 1'de 41 panel + 3 kurye ekranı; Faz 2'de 6 yeni panel ekranı (P-42
 | Deneme bitti | "Deneme süreniz bitti. 3 gün içinde paket seçmezseniz online sipariş alma durur. [Paketimi seç]" |
 | SMS kotası | "Bu ay SMS: {kullanilan} / {kota}" · "SMS kotanızın %80'i kullanıldı. WhatsApp'ı bağlayarak SMS ihtiyacını azaltabilirsiniz." · "Bu ayki SMS kotanız doldu. [Ayrıntılar]" |
 | Kurye oturumu doldu | "Oturum süreniz doldu. İşletmenizden yeni giriş linki isteyin." |
-| Tasarruf kartı | "Bu ay kendi kanalınızdan {X} sipariş aldınız. Net tasarruf: {Y} TL. (Tahmindir)" |
+| Tasarruf kartı | Oran girilmişse: "Bu ay kendi kanalınızdan {X} sipariş aldınız. Net tasarruf: {Y} TL." + alt not "Yaklaşık bir tahmindir. …" · **oran girilmemişse** tutar yerine: "Oranınızı girin" + "Tasarruf tutarı gösterilmiyor: pazaryeri kesinti oranınız girilmemiş…" (§11.3) |
 | Meta maliyeti | "Bu ay Meta'ya tahmini ödeme: ≈ {TL} TL ({USD} $). Kesin tutar Meta faturanızdadır." |
 | Destek erişimi bandı | "Destek ekibi hesabınızı görüntülüyor: Can · 14.05–14.35. Yalnız okuyabilir, hiçbir değişiklik yapamaz." (erişim kapandıktan sonra 24 saat sarı bant: "Destek erişimi sona erdi (Can, …). Beklemediğiniz bir erişimse destek ekibine yazın.") |
 | Parola sıfırlandı bandı | "Parolanız destek ekibi tarafından sıfırlandı (Can, …). Beklemediğiniz bir erişimse destek ekibine yazın." |

@@ -132,6 +132,9 @@ export const messages = pgTable(
   (t) => [
     uniqueIndex('messages_wamid_uk').on(t.wamid),
     index('messages_conversation_idx').on(t.tenantId, t.conversationId, t.createdAt),
+    // migrations/0300_whatsapp_bot_state.sql'de kuruldu ama şemaya yazılmamıştı (şema sapması, FAZ 4.7):
+    // tenant_id olmadan konuşma listesi ve dev simülatörü sorguları.
+    index('messages_conversation_created_idx').on(t.conversationId, t.createdAt),
     index('messages_order_idx').on(t.orderId).where(sql`order_id is not null`),
     enumCheck('messages_direction_ck', t.direction, MESSAGE_DIRECTIONS),
     enumCheck('messages_kind_ck', t.kind, MESSAGE_KINDS),
@@ -177,6 +180,9 @@ export const smsMessages = pgTable(
   (t) => [
     index('sms_messages_tenant_created_idx').on(t.tenantId, t.createdAt),
     index('sms_messages_created_idx').on(t.createdAt),
+    // migrations/0300_whatsapp_bot_state.sql'de kuruldu ama şemaya yazılmamıştı (şema sapması, FAZ 4.7):
+    // telefona göre gönderim geçmişi (kota ve saklama/maskeleme sorguları).
+    index('sms_messages_to_phone_idx').on(t.toPhone, t.createdAt),
     enumCheck('sms_messages_purpose_ck', t.purpose, SMS_PURPOSES),
     enumCheck('sms_messages_status_ck', t.status, SMS_STATUSES),
   ],

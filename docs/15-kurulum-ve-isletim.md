@@ -1,6 +1,7 @@
 # 15 — Kurulum ve İşletim Rehberi (geliştirici / operatör)
 
 > **Kime:** Sunucuyu kuran, güncelleyen ve nöbet tutan kişi (00 §12a: sistemi Claude yazar ve bakımını yapar, proje sahibi ürün/saha tarafını yürütür). Esnafa dönük değildir.
+> **Bir şey bozulduysa bu dosyayı değil [17 — Olay Müdahale Runbook'u](17-olay-mudahale-runbook.md)'nu aç:** uyarı türleri ve ilk 5 dakika (§1), sık senaryolar (§2), geri alma (§3), yedekten dönüş provası (§4). Bu dosya kurulum ve referanstır, olay anı için fazla uzundur.
 > **Bağlayıcı kaynaklar:** [00](00-kararlar-ve-sozluk.md) §10, §12a · [14](14-uygulama-sartnamesi.md) §1, §3, §11 · [08](08-mevzuat-kvkk-odeme-fatura.md) §9 · [13](13-varsayim-ve-teyit-kaydi.md) §2.
 > **Dağıtım dosyaları:** canlı ortam `deploy/cloudflare/` (Worker + container + R2) ve `.github/workflows/deploy-dev-cloudflare.yml` (§13); isteğe bağlı VPS yolu `docker-compose.yml`, `Caddyfile`, `docker/*.Dockerfile`, `docker/env.production.example`, `scripts/*`, `.github/workflows/deploy-production.yml` ve `scripts/vps/*` (§14).
 > **Canlı ortam (00 §12a madde 10, 27.09.2026):** tamamen **Cloudflare**'de (Worker + tek container + R2; §13), gerçek verilerle, demo verisi yok; kurulum ve güncelleme GitHub Actions ile ("Canlı ortam (Cloudflare)"). Kişisel veri yurt dışındadır: KVKK m.9 standart sözleşmesi + Kurum bildirimi (08 §2.11–§2.12). Türkiye VPS'i yalnız isteğe bağlı alternatiftir ve planlanmıyor (§14); §1–§12'deki Docker Compose / VPS ayrıntıları o yolun ve elle kurulumun başvurusudur.
@@ -22,6 +23,7 @@
 12. [Canlıya çıkış kontrol listesi](#12-canlıya-çıkış-kontrol-listesi)
 13. [Canlı ortam: Cloudflare (Worker + container + R2)](#13-canlı-ortam-cloudflare-worker--container--r2)
 14. [İsteğe bağlı: Türkiye VPS'i GitHub Actions ile (planlanmıyor)](#14-isteğe-bağlı-türkiye-vpsi-github-actions-ile-planlanmıyor)
+15. [Kalite kapıları: lint, kapsam, erişilebilirlik](#15-kalite-kapıları-lint-kapsam-erişilebilirlik)
 
 ---
 
@@ -120,10 +122,12 @@ Alan adı `yemekgelsin.net` Cloudflare'de (Registrar + DNS) yönetilir (00 §10:
 | `DEV_TOOLS` | evet | **Üretimde `0`**: `/dev/whatsapp` ve `/api/v1/dev/*` kapalı. Web'e derleme anında gömülür (değişince `docker compose build web`) | `0` |
 | `ADMIN_TOTP_REQUIRED` | (compose kurar) | Platform yöneticilerine iki adımlı doğrulama (TOTP) zorunlu. Compose `api` servisinde `true` sabittir; `.env` ile kapatılamaz. Yerelde boşsa kapalıdır (00 §12a madde 7) | `true` |
 | `LOG_LEVEL` | hayır | `info` (sorun ararken `debug`) | `info` |
-| `ALERT_WEBHOOK_URL` | **önerilir** | Operasyon uyarılarının gittiği tek dış kanal (`apps/api/src/lib/alert.ts`): kalıcı iş hatası (`job_failed_permanent`), denemesi tükenmiş takılı iş (`job_stale_exhausted`), DLQ eşiği (`jobs_dlq_threshold`), alarm zinciri eksikliği (`order_new_watch`), canary (`canary_stale_panel`, `canary_create_failed`). JSON gövdeli POST (`{service, env, kind, severity, message, data, at}`), 5 sn zaman aşımı, aynı uyarı için 10 dk soğuma. **Boşsa uyarı yalnız loga yazılır, uygulama çalışmaya devam eder.** Kişisel veri gönderilmez (telefon benzeri rakam dizileri maskelenir). Slack/Telegram köprüsü ya da Better Stack gibi bir uç nokta olabilir; yalnız `http`/`https` kabul edilir | `openssl` gerekmez — sağlayıcının verdiği adres |
+| `ALERT_WEBHOOK_URL` | **önerilir** | Operasyon uyarılarının gittiği tek dış kanal (`apps/api/src/lib/alert.ts`): kalıcı iş hatası, takılı iş, DLQ eşiği, alarm zinciri eksikliği, imza/numara uyuşmazlığı, ortak numara hesap hatası ve kotası, görsel işleyici, yasal metin kapısı, canary… **Türlerin tamamı, anlamları ve ilk 5 dakikası [17](17-olay-mudahale-runbook.md) §1'dedir** (burada kopyası tutulmaz: iki liste ayrışırsa nöbette yanlış olana bakılır). JSON gövdeli POST (`{service, env, kind, severity, message, data, at}`), 5 sn zaman aşımı, aynı uyarı için 10 dk soğuma. **Boşsa uyarı yalnız loga yazılır, uygulama çalışmaya devam eder.** Kişisel veri gönderilmez (telefon benzeri rakam dizileri maskelenir). Slack/Telegram köprüsü ya da Better Stack gibi bir uç nokta olabilir; yalnız `http`/`https` kabul edilir | `openssl` gerekmez — sağlayıcının verdiği adres |
 | `ALERT_MIN_SEVERITY` | hayır | Webhook'a gönderilecek en düşük ağırlık: `info` \| `warning` \| `critical`. Varsayılan `warning`. Log'a her ağırlık yazılır, süzgeç yalnız dış kanalı ilgilendirir | `warning` |
 | `CANARY_ENABLED` | pilot öncesi **evet** | Sentetik canary (06 §7.10): şubenin açık saatlerinde 15 dk'da bir `test_kind='canary'` sipariş gerçek yoldan geçer, panelde görünmez, ack'te ya da en geç 10 dk'da kalıcı silinir. **Boş/0 = hiç sipariş üretilmez** (yalnız süresi geçmiş kayıtlar temizlenir); paylaşılan geliştirme ve test veritabanlarında kapalı bırakılır. Acil durdurma için `feature_flags` tablosundaki `canary` anahtarı (deploy gerekmez) | `1` (canlı), yerelde boş |
 | `CANARY_STALE_ALERT` | hayır | "Bayat panel" uyarısı (`canary_stale_panel`): çevrimiçi panel varken 2 ardışık canary siparişi 60 sn içinde görülmezse uyarı gider. **Panel tarafı sessiz ack eklenene kadar `0`/boş bırakılır** (06 §7.10 "bilinçli sapmalar"), yoksa her turda yanlış alarm üretir. Kapalıyken bayat panel sinyalinin tamamı susar (uyarı + SSE `resync` + hata logu): panel ack atmadığı sürece sonuç kesindir, ölçüm değil gürültü olur. Sipariş üretme yolunun ölçümü (fiyat → DB → olay → SSE; `canary.run` kalıcı hatası → `job_failed_permanent`) bu değişkenden bağımsız sürer | boş |
+| `WABA_CONVERSATION_CAP` | hayır | WhatsApp'ın aylık ücretsiz hizmet oturumu tavanı (pozitif tam sayı; `apps/api/src/services/messaging/waba-quota.ts`). Tavana yaklaşınca uyarı gider. **Geçersiz değer (0, negatif, sayı değil) yok sayılır** ve koddaki varsayılan kullanılır: yanlış yapılandırma kotayı sınırsız göstermesin | koddaki varsayılan |
+| `WABA_SHED_NONCRITICAL` | hayır | `1`: tavana yaklaşıldığında **yalnız önemsiz** durum mesajları düşürülür (sipariş mesajları düşmez; CLAUDE.md kural 8 mesaj bütçesi). Varsayılan kapalı | boş |
 | `DEMO_STORE_SLUG` | hayır | Pazarlama sitesindeki "Demo menüyü aç" vitrini. **Canlı ortamda boş** (demo işletme yok; kart gizlenir) | boş |
 | `DEMO_BANNER` | hayır | "Demo ortamı" uyarısı (`NEXT_PUBLIC_DEMO_BANNER`); canlı ortamda `0` | `0` |
 | `SUPPORT_WHATSAPP` | önerilir | Platform destek hattı (WhatsApp), rakamlarla. Giriş ekranındaki "Parolamı unuttum" işletme sahibine bu numarayı (WhatsApp + arama) gösterir; boşsa iletişim formuna yönlendirir. Web'e derleme anında gömülür | `905321234567` |
@@ -142,9 +146,10 @@ Alan adı `yemekgelsin.net` Cloudflare'de (Registrar + DNS) yönetilir (00 §10:
 | `LEGAL_ENTITY_CHAMBER` | hayır | Üye olunan meslek odası; yoksa boş | — |
 | `LEGAL_ENTITY_KEP` | hayır | KEP adresi; yoksa boş | — |
 | `LEGAL_SUPPORT_EMAIL` | hayır | Künyede ve KVKK başvurusunda gösterilen e-posta. Boşsa marka adresi (`destek@yemekgelsin.net`) kullanılır; **posta kutusu açık olmalıdır** | — |
-| `BACKUP_STATUS_FILE` | hayır | Yedek betiğinin her başarılı turda yazdığı tek satır JSON (`{"ts":<unix sn>}`); `/api/v1/health/worker` `lastBackupAgeSec`'i buradan okur. Dosya yoksa alan `null`, alarm yok | `/tmp/yedek-durum.json` (§10) |
-| `HEALTH_MAX_BACKUP_AGE_SEC` | hayır | Son başarılı yedek bu süreden eskiyse `/api/v1/health/worker` **503**. `0` = eşik kapalı | `900` (§10) |
-| `HEALTH_MIN_DISK_FREE_PCT`, `HEALTH_MAX_MEM_USED_PCT` | hayır | Disk/bellek eşikleri (`/api/v1/health/worker` 503). `0` = ilgili eşik kapalı | `15` / `95` (§10) |
+| `BACKUP_STATE_FILE` | hayır | Yedek döngüsünün **her** turda (hata turunda da) yazdığı tek satır JSON durum dosyası; `/api/v1/health/worker` `lastBackupAgeSec`'i `lastSuccessUnix` alanından hesaplar. Dosya yok, bozuk ya da hiç başarılı tur yoksa alan `null` ve uyarı üretmez. Alanların tamamı §13 "Yedek durumu", sağlık ucu sözleşmesi §10. `BACKUP_STATUS_FILE` yalnız geriye dönük addır (kod ikisini de okur, yenisi önce) | `/tmp/yedek-durum.json` (§10) |
+| `RESTORE_FLAG_FILE` | hayır | **Yalnız canlı container.** "Geri yükleme sürüyor" işaretinin yolu. `entrypoint.sh` `pg_restore`'dan **önce** yazar, başarıda siler; açılışta duruyorsa geri yükleme yarıda kalmış demektir (§13 "Yarım geri yükleme"). Varsayılan **bilerek `/tmp` değildir**: `/tmp` yerinde yeniden başlatmada silinebilirken yarım veritabanı `PGDATA` ile ayakta kalır, işaret veriyle **aynı ömürde** olmalıdır. Elle değiştirmeniz gerekmez | `$(dirname $PGDATA)/geri-yukleme-suruyor` (canlıda `/data/geri-yukleme-suruyor`) |
+| `HEALTH_MAX_BACKUP_AGE_SEC` | hayır | Son başarılı yedek bu süreden eskiyse `/api/v1/health/worker` yanıtına `degraded:true` + `warnings:["backup_stale"]` yazar ve uyarı kanalına haber verir — **durum kodu 200 kalır** (503 dağıtımı geri aldırıyordu, §10). `0` = eşik kapalı | `900` (§10) |
+| `HEALTH_MIN_DISK_FREE_PCT`, `HEALTH_MAX_MEM_USED_PCT` | hayır | Disk/bellek eşikleri (`/api/v1/health/worker` `warnings`: `disk_low`, `memory_high`; durum kodu 200 kalır). `0` = ilgili eşik kapalı | `15` / `95` (§10) |
 | `HEALTH_DISK_PATH` | hayır | Boş alanı ölçülecek yol; verilmezse `UPLOAD_DIR`, o da yoksa `/data`. Compose yolunda PostgreSQL **ayrı birimdedir**: veritabanı diskini izlemek için onun yolunu verin | `/data` (§10) |
 
 Tüm gizli anahtarları bir kerede üretmek için:
@@ -166,7 +171,18 @@ docker compose run --rm --no-deps api npx web-push generate-vapid-keys
 
 Web derleme argümanları (`NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_ROOT_DOMAIN`, `NEXT_PUBLIC_DEV_TOOLS`, `NEXT_PUBLIC_SUPPORT_WHATSAPP`, `API_INTERNAL_URL`) compose'da `.env`'den türetilir ve **derleme anında** imaja gömülür; `DOMAIN`, `DEV_TOOLS` ya da `SUPPORT_WHATSAPP` değişirse `docker compose build web && docker compose up -d web` gerekir.
 
-**Künye değişkenleri (`LEGAL_*`) de derleme anında okunur.** Künye, pazarlama sitesinin statik sayfalarına (`/kunye`, `/yasal/*`, altbilgi) basıldığı için değerlerin `next build` sırasında ortamda bulunması gerekir: web imajını üreten Dockerfile'ların `ARG`/`ENV` listesine ve canlı ortamın yapılandırmasına eklenir. Künye değişirse web yeniden derlenir. Doğrulama:
+**Künye değişkenleri (`LEGAL_*`) iki yerde birden gerekir.**
+
+| Nereye | Ne zaman okunur | Nasıl verilir | Verilmezse |
+|---|---|---|---|
+| **API** (sipariş kapısı) | çalışma zamanı | VPS: `.env` → `env_file` (api/worker/migrate); Cloudflare: `wrangler.jsonc` `vars` → `deploy/cloudflare/src/mode.ts` `containerEnv` beyaz listesi | canlı dağıtımda **sipariş ucu kalıcı 503** (`apps/api/src/services/orders/legal-gate.ts`; fail-closed, 08 §7.5) — vitrin hiç sipariş almaz |
+| **Web** (`/kunye`, `/yasal/*`, altbilgi) | **derleme** (`next build`) | VPS: `docker-compose.yml` `web.build.args` → `docker/web.Dockerfile` `ARG`/`ENV` | sayfalarda `Eksik yapılandırma: LEGAL_ENTITY_*` satırı |
+
+Web tarafı derleme anında okunur çünkü bu sayfalar dinamik API kullanmayan sunucu bileşenleridir: `next build` bunları **statik HTML**'e çevirir ve çalışma zamanında verilen bir ortam değişkeni o HTML'i değiştiremez. Bu yüzden `web` servisine `environment:` ile künye verilmez (yalnız sessiz bir ayrışma üretirdi); `docker/web.Dockerfile` aynı derleme argümanlarını çalışma imajına da `ENV` olarak yazar. **Künye değişirse `docker compose build web && docker compose up -d web` gerekir.**
+
+> ⚠️ **Cloudflare yolunda web tarafı henüz bağlanmadı.** `vars`'a girilen künye container'a (dolayısıyla API kapısına) geçer, ama container imajını üreten `deploy/cloudflare/Dockerfile` künye `ARG`'larını tanımadığı için `/kunye` ve `/yasal/*` sayfaları "Eksik yapılandırma" basmaya devam eder. Kapatmak için ya o Dockerfile'a `ARG`/`ENV` satırları + `wrangler.jsonc` `containers[].image_vars`'a karşılıkları eklenir, ya da `apps/web` bu sayfaları çalışma zamanında okuyacak biçime (dinamik) çevrilir — ikincisi künyeyi yeniden derleme gerektirmeyen tek kaynağa indirir.
+
+Doğrulama:
 
 ```bash
 # Üretim ortam değişkenleriyle: künye tam mı, sürüm yayınlanmış mı, metinlerde yer tutucu var mı?
@@ -591,7 +607,7 @@ SMS OTP (WhatsApp'sız mod), kritik durum SMS'leri ve 5. dakika alarm SMS'i plat
 
 ## 8. Yedekleme ve geri yükleme
 
-> **Canlı ortam (Cloudflare, §13):** yedek R2'dedir ve otomatiktir: container veritabanını **2 dakikada bir (yalnız değişiklik varsa)**, her düzgün kapanışta (uyku, yeniden dağıtım) ve bir süreç düştüğünde `pg_dump` ile R2'ye yazar; görseller de değiştikçe. Anahtarlar `e<dönem>/db/son.dump` (son) ve `e<dönem>/db/gun-<0–6>.dump` (haftanın her günü için bir kopya, 7 gün). Container her açılışta son yedekten geri yüklenir. Yedek döngüsü her **başarılı** turda `BACKUP_STATUS_FILE`'a (varsayılan `/tmp/yedek-durum.json`) tek satır JSON yazar — `{"ts":<unix sn>}` —; `/api/v1/health/worker` `lastBackupAgeSec`'i buradan okur ve yedek 15 dakikadır yazılamıyorsa dış izlemeye **503** verir (§10). Hata olan turda dosya tazelenmez; "değişiklik yok" turu tazeler. Düzgün kapanış veri kaybettirmez; beklenmedik çökme son ~2 dakikayı kaybettirebilir. Elle geri dönüş ve tatbikat için §13 "Yedekten geri dönüş". Aşağısı isteğe bağlı VPS yolu içindir.
+> **Canlı ortam (Cloudflare, §13):** yedek R2'dedir ve otomatiktir: container veritabanını **2 dakikada bir (yalnız değişiklik varsa)**, her düzgün kapanışta (uyku, yeniden dağıtım) ve bir süreç düştüğünde `pg_dump` ile R2'ye yazar; görseller de değiştikçe. Anahtarlar `e<dönem>/db/son.dump` (son) ve `e<dönem>/db/gun-<0–6>.dump` (haftanın her günü için bir kopya, 7 gün). Container her açılışta son yedekten geri yüklenir. Yedek döngüsü **her** turda (hata turunda da) `BACKUP_STATE_FILE`'a (varsayılan `/tmp/yedek-durum.json`) tek satır JSON yazar; `lastSuccessUnix` alanı yalnız **başarılı** turda tazelenir ve `/api/v1/health/worker` `lastBackupAgeSec`'i buradan hesaplar — yedek 15 dakikadır yazılamıyorsa uyarı kanalına `backup_stale` / `yedek_eskidi` uyarısı gider ve uç `degraded:true` döner — **durum kodu 200 kalır** (sözleşmenin tamamı §10'da). "Değişiklik yok" turu başarılıdır ve yaşı sıfırlar; `pg_dump`/yükleme hatası yaşı büyütür. Düzgün kapanış veri kaybettirmez; beklenmedik çökme son ~2 dakikayı kaybettirebilir. Elle geri dönüş ve tatbikat için §13 "Yedekten geri dönüş", adım adım prova ve kayıp tablosu için [17](17-olay-mudahale-runbook.md) §4. Aşağısı isteğe bağlı VPS yolu içindir.
 
 **Otomatik kurulumda (§14)** yedek cron'unu iş akışı kurar: `/etc/cron.d/yemekgelsin-backup`, root, **her gece 03:30 (Europe/Istanbul)** → `/opt/yemekgelsin/backups` (izin 700/600, 14 gün), günlük `/var/log/yemekgelsin-backup.log` (haftalık döndürülür). Ayrıca her dağıtımdan önce (veritabanı varsa) **yalnız veritabanının** bir dökümü alınır (`backup.sh --pre-deploy` → `pre-deploy-db-*.dump`; yaşa göre değil sayıya göre, **son 5** saklanır; ikinci konuma kopyalanmaz, `BACKUP_PING_URL` çağrılmaz); alınamazsa dağıtım durur. Böylece sık dağıtım diski doldurmaz (dağıtım ayrıca %15'ten az boş yerde durur, §14.3). **Yedekler Türkiye'deki bu sunucuda kalır**; henüz ikinci bir konum yoktur. Sunucu kaybına karşı ikinci bir Türkiye lokasyonu (aşağıda "İkinci konum") en kısa sürede eklenmelidir. Aşağıdaki `siparis` kullanıcılı düzen elle kurulum içindir.
 
@@ -648,11 +664,14 @@ docker compose ps && curl -fsS https://yemekgelsin.net/api/v1/health
 
 ## 10. İzleme
 
+> **Hangi satır hangi ortamda?** Canlı ortam Cloudflare'dir (§13) ve **container'a kabuk erişimi yoktur**: aşağıdaki `docker compose …` / `psql` komutları yalnız yerel geliştirme ile isteğe bağlı VPS yolunda (§14) çalışır. Canlıda karşılıkları şunlardır: günlükler `npx wrangler tail siparisinonunde-dev`, kuyruk ve DLQ `/admin/isler` (`GET /api/v1/admin/jobs?status=failed`), sağlık uçları aynı adreslerde, yedek nesneleri Cloudflare > R2 > `siparisinonunde-dev-yedek`. Uyarı geldiğinde ne yapılacağı [17](17-olay-mudahale-runbook.md)'dedir.
+
 | Ne | Nasıl |
 |---|---|
+| Operasyon uyarıları | `ALERT_WEBHOOK_URL` (Worker secret'ı, §13 madde 5) — API ve Worker kritik olayları buraya JSON POST eder; tanımsızsa uyarılar **yalnız günlüğe** düşer. Üretilen uyarı türlerinin tamamı ve her biri için ilk 5 dakika: [17](17-olay-mudahale-runbook.md) §1 |
 | Servis durumu | `docker compose ps` — `api`, `web`, `worker` (vadesi 5 dk'yı geçmiş bekleyen iş varsa sağlıksız, `scripts/worker-health.ts`), `postgres` sağlık denetimleri |
-| Sağlık ucu | `GET /api/v1/health` → `{"ok":true,"db":"up"}`; veritabanı yoksa 503. Dışarıdan (ikinci VPS'te Uptime Kuma vb.) 1 dk aralıkla izlenir, P1 nöbetçiye bildirim gider |
-| Worker sağlık ucu | `GET /api/v1/health/worker` → `{"ok":true,"jobLagSec":0,"stuckJobs":0,"lastBackupAgeSec":48,"diskFreePct":63,"memUsedPct":21,…}`. **503** koşulları: vadesi gelmiş bekleyen iş 300 sn'den fazla gecikmiş · 10 dk'dan uzun `running` iş var · son başarılı yedek `HEALTH_MAX_BACKUP_AGE_SEC`'ten (900 sn) eski · boş disk `HEALTH_MIN_DISK_FREE_PCT`'in (%15) altında · yığın kullanımı `HEALTH_MAX_MEM_USED_PCT`'i (%95) aşmış. Worker süreci ayakta ama takılıysa, yedek yazılamıyorsa ya da container OOM'a/disk doluya gidiyorsa yalnız bu uç yakalar (alarm zinciri, WhatsApp/SMS gönderimi işlerdedir); dış izlemeye `/api/v1/health` ile birlikte eklenir, P1. Ayrıntı: aşağıdaki "Yedek yaşı ve kaynak eşikleri" |
+| Sağlık ucu | `GET /api/v1/health` → `{"ok":true,"db":"up"}`; veritabanı yoksa 503. Dışarıdan (Uptime Kuma vb.) 1 dk aralıkla izlenir ve P1 bildirimi gönderir. **Nöbet ekibi yoktur**, bildirim tek kişiye (proje sahibi) gider: [17](17-olay-mudahale-runbook.md) §5 |
+| Worker sağlık ucu | `GET /api/v1/health/worker` → `{"ok":true,"degraded":false,"warnings":[],"jobLagSec":0,"stuckJobs":0,"lastBackupAgeSec":48,"diskFreePct":63,"memUsedPct":21,…}`. **İKİ AYRI SİNYAL:** `ok` + durum kodu "hizmet verilebiliyor mu", `degraded` + `warnings` "bir eşik aşıldı mı". **503** (`ok:false`) yalnız şu üç durumda: veritabanı düşmüş · vadesi gelmiş bekleyen iş 300 sn'den fazla gecikmiş · 10 dk'dan uzun `running` iş var. Yedek yaşı, disk ve bellek eşikleri **200 döndürür** ve `warnings` ile uyarı kanalına gider (`backup_stale`, `disk_low`, `memory_high`). Worker süreci ayakta ama takılıysa yalnız bu uç yakalar (alarm zinciri, WhatsApp/SMS gönderimi işlerdedir); dış izlemeye `/api/v1/health` ile birlikte eklenir, P1. Ayrıntı: aşağıdaki "Yedek yaşı ve kaynak eşikleri" |
 | Loglar | `docker compose logs -f --since 15m api worker` (JSON; telefon/adres maskeli). Konteyner logları 5×20 MB ile sınırlıdır |
 | Erişim logları | Caddy her isteği JSON olarak iki yere yazar: `docker compose logs caddy` (son günler, sorun giderme) ve `caddy_logs` birimindeki `/var/log/caddy/access.log` (100 MB'ta döner, **366 gün** saklanır; 5651 trafik kaydı, 08 §2.8 satır 10). Okuma: `docker compose exec caddy tail -f /var/log/caddy/access.log`. Yoldaki gizli belirteçler (webhook, takip linki, kurye girişi `?t=`) `***` olarak yazılır; çerez ve `Authorization` başlıkları maskelidir. Disk: 1 yılda birkaç GB; `docker system df -v` ile izleyin |
 | Admin paneli | `Özet` (lifecycle'a göre işletmeler, bugünkü sipariş, açık alarm, başarısız iş, **saklama işi**: son koşu 48 saatten eskiyse "Gecikti", hatalıysa "Hata"), `İşler` (`/admin/isler`: başarısız işler = DLQ, tek tıkla yeniden dene), `WhatsApp` (hesap sağlığı; kırmızılar üstte), `Bayraklar` (kill-switch'ler), `Denetim` (audit log) |
@@ -661,20 +680,26 @@ docker compose ps && curl -fsS https://yemekgelsin.net/api/v1/health
 | Saklama ve imha (08 §2.8) | `cron.retention` her gün 03:00'te (İstanbul) çalışır; her adım `retention_runs`'a bir satır yazar (iş adı, tenant, etkilenen kayıt sayısı, süre, hata; imha tutanağı, ≥ 3 yıl, silinmez). Son koşu: `docker compose exec postgres psql -U siparis -c "select job_name, tenant_id, affected_count, duration_ms, error from retention_runs where started_at > now() - interval '1 day' order by started_at"`. Hatalı adım diğerlerini durdurmaz; iş yeniden denenir, denemeler biterse `Admin > İşler`'de görünür |
 
 **Yedek yaşı ve kaynak eşikleri (`/api/v1/health/worker`).** Yedek yazılamaması, dolan disk ve OOM'a giden bellek
-eskiden hiçbir yerde görünmüyordu; artık bu uç raporlar ve eşik aşılınca `ok:false` + **503** döner:
+eskiden hiçbir yerde görünmüyordu; artık bu uç raporlar. Eşik aşımı `degraded:true` + `warnings:[…]` üretir ve
+**durum kodu 200 kalır** — haber yolu uyarı kanalıdır:
 
-| Alan | Ne ölçer | Eşik (ortam değişkeni, varsayılan) |
-|---|---|---|
-| `lastBackupAgeSec` | Son **başarılı** yedek turunun üzerinden geçen süre (sn). Durum dosyası yoksa `null` — ilk yedek turundan önce alarm üretmez | `HEALTH_MAX_BACKUP_AGE_SEC` = `900` (2 dk'lık turun ~7 kez kaçırılması) |
-| `diskFreePct`, `diskFreeMb` | `HEALTH_DISK_PATH` (varsayılan `UPLOAD_DIR`, yoksa `/data`) yolundaki boş alan; yol okunamazsa `null` | `HEALTH_MIN_DISK_FREE_PCT` = `15` (§14.3 dağıtım kapısı ve 06 §14.1 "Disk > %85 → P2" ile aynı) |
-| `memUsedPct`, `memRssMb` | API sürecinin yığın kullanımının kendi tavanına (`--max-old-space-size`) oranı ve yerleşik belleği | `HEALTH_MAX_MEM_USED_PCT` = `95` |
+| Alan | Ne ölçer | `warnings` kodu | Eşik (ortam değişkeni, varsayılan) |
+|---|---|---|---|
+| `lastBackupAgeSec` | Son **başarılı** yedek turunun üzerinden geçen süre (sn). Durum dosyası yoksa `null` — ilk yedek turundan önce uyarı üretmez | `backup_stale` (critical) | `HEALTH_MAX_BACKUP_AGE_SEC` = `900` (2 dk'lık turun ~7 kez kaçırılması) |
+| `diskFreePct`, `diskFreeMb` | `HEALTH_DISK_PATH` (varsayılan `UPLOAD_DIR`, yoksa `/data`) yolundaki boş alan; yol okunamazsa `null` | `disk_low` (warning) | `HEALTH_MIN_DISK_FREE_PCT` = `15` (§14.3 dağıtım kapısı ve 06 §14.1 "Disk > %85 → P2" ile aynı) |
+| `memUsedPct`, `memRssMb` | API sürecinin yığın kullanımının kendi tavanına (`--max-old-space-size`) oranı ve yerleşik belleği | `memory_high` (critical) | `HEALTH_MAX_MEM_USED_PCT` = `95` |
 
-- **Eşiği `0` yapmak o eşiği kapatır** (alan yine raporlanır, alarm üretmez): yanlış alarm veren bir eşik dağıtım beklemeden susturulabilir.
+- **"Çalışıyor mu" ile "sağlıklı mı" ayrıdır (denetim 2026-10-05 bulgu A).** Bu eşikler ilk yazıldığında `ok:false` + 503 üretiyordu; dağıtımın duman testi bu uca 200 bekliyor ve kırmızısı `wrangler rollback` tetikliyor (§13 madde 6) — yani **sağlam bir dağıtım, yalnızca son yedek biraz eski diye otomatik geri alınıyordu**. Yedek eskimesi bir dağıtım hatası değildir, geri alma onu düzeltmez, üstüne yeni container açılışı son yedekten sonraki ~2 dakikayı kaybettirir. Artık eşik aşımı dağıtımı ve container'ı değil **nöbetçiyi** rahatsız eder: `warnings` + uyarı kanalı.
+- **Eşik aşımının haber yolu uyarı kanalıdır** (`ALERT_WEBHOOK_URL`), iki katmandan:
+  - **API:** `/health/worker` her yoklandığında eşik aşımı varsa `alert()` çalışır (`kind` = `warnings` kodu, aynı kod için **30 dk** soğuma — iki katman: log satırının dizgini eşik düzelince sıfırlanır, **webhook gönderiminin dizgini sıfırlanmaz**, yani 30 dk içinde düzelip tekrarlayan arıza günlükte hemen görünür ama webhook pencerenin sonunu bekler). Runbook satırları [17](17-olay-mudahale-runbook.md) §1.1 **U-25…U-27**.
+  - **Worker:** 5 dakikalık uyanık tutma turu artık `/health/worker`'ı da yoklar (yalnız `/health`'i yokluyordu, yani yedek yaşını **hiçbir yoklama görmüyordu**) ve yedek eskiyse `yedek_eskidi` uyarısı gönderir; soğuma **1 saat**, damga Durable Object deposunda (cron her turda yeni isolate'te koşabilir). Runbook: [17](17-olay-mudahale-runbook.md) §1.2 **U-28**.
+- **Dış izlemede eşik aşımını görmek için gövdeye bakın:** durum kodu 200 kaldığı için yalnız HTTP koduna bakan bir monitör eşik aşımını göremez. Uptime Kuma'da `/api/v1/health/worker` için **ikinci** bir monitör açıp "Keyword" tipiyle `"degraded":true` arayın (ters eşleşme) ya da uyarı kanalına güvenin.
+- **Eşiği `0` yapmak o eşiği kapatır** (alan yine raporlanır, uyarı üretmez): yanlış alarm veren bir eşik dağıtım beklemeden susturulabilir.
 - Bellek oranı cgroup'un `memory.current`'ından **değil** V8 yığın tavanından hesaplanır: `memory.current` geri kazanılabilir sayfa önbelleğini de sayar, dolu önbellekli container'da sürekli yanlış alarm olurdu. 1 GiB container'da üç sürecin yığın tavanı toplamı 704 MiB'dır (§13), yani OOM'u önce bu oran haber verir.
-- **Bu eşikler bilerek `/api/v1/health`'te değildir:** o uç container healthcheck'i, Worker'ın uyanık tutma cron'u ve dağıtımın duman testidir; orada 503 dönmek container'ı yeniden başlatır (çökme son ~2 dakikayı kaybettirir) ve dağıtımı bloke eder. "Disk doluyor" halinde yeniden başlatma döngüsü sorunu büyütür. `/health`'in alanları ve anlamları değişmemiştir.
-- **Dış izleme:** `/api/v1/health` ve `/api/v1/health/worker` **1 dakika** aralıkla yoklanır, **3 ardışık hatada** nöbetçinin telefonu çalar (P1). `/health/worker` dağıtımın duman testinde de 200 beklenir: yedek yazılamıyorsa ya da disk/bellek kritikse dağıtım bilerek durur.
+- **Bu eşikler bilerek `/api/v1/health`'te değildir:** o uç container healthcheck'i, Worker'ın canlılık cron'u ve dağıtımın sürüm kapısıdır; orada 503 dönmek container'ı yeniden başlatır (çökme son ~2 dakikayı kaybettirir) ve dağıtımı bloke eder. "Disk doluyor" halinde yeniden başlatma döngüsü sorunu büyütür. `/health`'in alanları ve anlamları değişmemiştir.
+- **Dış izleme:** `/api/v1/health` ve `/api/v1/health/worker` **1 dakika** aralıkla yoklanır, **3 ardışık hatada** telefon çalar (P1 — tek kişi, [17](17-olay-mudahale-runbook.md) §5). `/health/worker` dağıtımın duman testinde de 200 beklenir; eşik aşımı 200'ü bozmadığı için dağıtımı **durdurmaz**, yalnız iş akışı özetine `degraded` uyarısı basılır.
 - Bu eşik **container yolunun** (§13, 2 dakikada bir yedek) eşiğidir. VPS yolundaki gecelik yedeğin karşılığı `BACKUP_PING_URL` + 26 saatlik push monitörüdür (§8, 06 §14.1); ikisi birbirinin yerine geçmez.
-- **Yedek durum dosyası (sözleşme):** yedek betiği her **başarılı** turda tek satır JSON yazar — `{"ts":1759600000}`, `ts` = unix saniye. Yol `BACKUP_STATUS_FILE` (varsayılan `/tmp/yedek-durum.json`; container diski geçicidir, dosya her açılışta yeniden doğar). "Değişiklik yok, yüklemedim" turu da başarılıdır ve dosyayı tazeler (yoksa siparişsiz bir gece yanlış alarm verir); `pg_dump`/yükleme hatasında dosya **tazelenmez**, böylece yazamayan yedek yaş olarak görünür. Bozuk içerik `null` sayılır (503 üretmez).
+- **Yedek durum dosyası (sözleşme):** yolu **`BACKUP_STATE_FILE`** belirler (varsayılan `/tmp/yedek-durum.json`; `BACKUP_STATUS_FILE` yalnız geriye dönük addır). Dosyayı **yalnız** `deploy/cloudflare/entrypoint.sh` (`backup_state_write`) yazar — **her** turda, hata turunda da; yaş `lastSuccessUnix` alanından hesaplanır ve o alan yalnız **başarılı** turda tazelenir. "Değişiklik yok, yüklemedim" turu başarılıdır ve yaşı sıfırlar (yoksa siparişsiz bir gece yanlış alarm verir); `pg_dump`/doğrulama/yükleme hatasında tazelenmez, böylece yazamayan yedek yaş olarak görünür. Dosya yok, bozuk ya da hiç başarılı tur olmamış (`lastSuccessUnix: 0`) → `null`, uyarı üretmez. **Alanların tamamı ve anlamları §13 "Yedek durumu" maddesindedir** (tek kaynak orası; burada yalnız sağlık ucunun okuduğu kadarı var). Kabuk erişimi olmadığı için dosya elle okunamaz: gözlenebilir sinyaller `lastBackupAgeSec` ve container günlüğüdür.
 
 **Panel dışı uyarılar (00 §10 alarm zinciri).** Panelde ses ve kırmızı bant (t=0, 60 sn) dışında şu halkalar sunucu tarafında çalışır; hepsi worker işleridir:
 
@@ -749,7 +774,7 @@ docker compose exec postgres psql -U siparis -c "select b.name, p.last_seen_at, 
 - [ ] Platform yöneticileri `create-admin.ts` ile açıldı ve her biri **iki adımlı doğrulamayı (TOTP) kurdu** (00 §12a madde 7, 14 §5): girişte `/admin/guvenlik` → QR'ı okut → 6 haneli kodla aç → 8 kurtarma kodunu kaydet (§5). Kontrol: `docker compose exec api printenv ADMIN_TOTP_REQUIRED` → `true`; `select email from users where is_platform_admin and totp_enabled_at is null` boş; kurtarma kodlarıyla giriş bir kez denendi (kullanılan kod yenilenerek yerine konur).
 - [ ] Yedek cron'u `siparis` kullanıcısının crontab'ında kurulu, ilk elle çalıştırmada `backups/` altında `600` izinli döküm oluştu, `BACKUP_REMOTE` ikinci Türkiye lokasyonuna kopyalıyor, `BACKUP_PING_URL` dış izlemede 26 saatlik push monitörüne bağlı, bir geri yükleme tatbikatı (`restore.sh --target`) başarıyla yapıldı; PITR (WAL arşivleme) kuruldu (00 §11).
 - [ ] Caddy erişim logu dosyaya yazılıyor: `docker compose exec caddy ls -l /var/log/caddy/` (5651, 1 yıl).
-- [ ] Dış izleme `GET /api/v1/health` ve `GET /api/v1/health/worker`'ı 1 dk aralıkla izliyor, 3 ardışık hatada P1 bildirimi nöbetçiye gidiyor; `Admin > İşler`'de başarısız iş yok. `/health/worker` yanıtında `lastBackupAgeSec` **sayı** (yedek betiği durum dosyasını yazıyor; `null` ise yedek yaşı hâlâ kör), `diskFreePct` ve `memUsedPct` eşiklerin içinde (§10).
+- [ ] Dış izleme `GET /api/v1/health` ve `GET /api/v1/health/worker`'ı 1 dk aralıkla izliyor, 3 ardışık hatada P1 bildirimi nöbetçiye gidiyor; `Admin > İşler`'de başarısız iş yok. `/health/worker` yanıtında `lastBackupAgeSec` **sayı** (yedek betiği durum dosyasını yazıyor; `null` ise yedek yaşı hâlâ kör), `degraded` **false** ve `warnings` **boş** (§10). Eşik aşımı 503 ÜRETMEZ: ikinci bir "Keyword" monitörü `"degraded":true` arıyor ya da `ALERT_WEBHOOK_URL` tanımlı (§10).
 - [ ] Sağlayıcılar gerçek: `docker compose exec worker printenv SMS_PROVIDER PLATFORM_WA_PROVIDER WA_DEFAULT_PROVIDER` çıktısında `mock` yok (§4).
 - [ ] Web Push açık: `VAPID_*` dolu, açılış logunda `Web Push kapalı` uyarısı yok; bir Android tablette ve ana ekrana eklenmiş bir iPhone'da "Siparişleri almaya başla" → izin → `Ayarlar › Bu cihazda bildirimler › Test bildirimi gönder` geldi; panel sekmesi kapalıyken verilen deneme siparişinde "Yeni sipariş #…" bildirimi geldi (§10).
 - [ ] Panel çevrimdışı uyarısı denendi: açık saatte paneli kapatıp 5 dk bekleyince sahibin telefonuna `isletme_panel_cevrimdisi_v1` geldi (`notifications` tablosunda `kind = 'panel_offline'`).
@@ -762,8 +787,8 @@ docker compose exec postgres psql -U siparis -c "select b.name, p.last_seen_at, 
 
 - [ ] Şirket, vergi levhası, e-Tebligat; marka başvurusu ve alan adları (V-002).
 - [ ] Kurumsal aydınlatma metni, gizlilik ve çerez politikası; abonelik sözleşmesi + kullanım koşulları + DPA + alt işleyen listesi (click-wrap, sürümlü); son müşteri aydınlatma, ön bilgilendirme ve mesafeli satış şablonları avukat onaylı ve `/yasal/*` sayfalarındaki "Hukuki inceleme bekliyor" etiketleri kaldırıldı.
-- [ ] Site künyesi gerçek bilgilerle dolduruldu: `LEGAL_ENTITY_*` değişkenleri şirket belgelerinden girildi, web bu değerlerle derlendi, `node --import tsx scripts/check-legal.ts` **çıkış kodu 0** verdi (`/kunye` sayfasında "Eksik yapılandırma" satırı yok); vitrinde işletme künyesi alanları zorunlu.
-- [ ] `LEGAL_DOCUMENT_VERSION` tarihli yayın sürümüne çevrildi ve içerik özeti `scripts/check-legal.ts` içinde sabitlendi. ⚠️ Taslak sürümde sipariş ucunu kapatan fail-closed kapı **henüz yazılmadı** (08 §7.5): sürüm taslak kaldığı sürece sipariş alınmaya devam eder, bu yüzden yayına çıkışta bu madde atlanamaz.
+- [ ] Site künyesi gerçek bilgilerle dolduruldu: `LEGAL_ENTITY_*` değişkenleri şirket belgelerinden girildi **hem API'nin okuduğu yere** (VPS: `.env`; Cloudflare: `wrangler.jsonc` `vars`) **hem de web derlemesine** (VPS: `docker compose build web`), `node --import tsx scripts/check-legal.ts` **çıkış kodu 0** verdi, `/kunye` sayfasında "Eksik yapılandırma" satırı yok **ve** canlı adreste bir vitrinden gerçek bir sipariş geçti (503 `ordering_unavailable` dönmüyor — zorunlu künye alanı eksikse sipariş ucu kapalıdır, §4); vitrinde işletme künyesi alanları zorunlu.
+- [ ] `LEGAL_DOCUMENT_VERSION` tarihli yayın sürümüne çevrildi ve içerik özeti **iki yere birden** sabitlendi: `scripts/check-legal.ts` `PINNED_TEXT_DIGEST` ve `apps/api/src/services/orders/legal-gate.ts` `LEGAL_TEXT_DIGESTS` (`node --import tsx scripts/check-legal.ts --ozet` çıktısı). Fail-closed kapı **çalışır durumdadır** (08 §7.5): taslak sürüm, eksik künye ya da sabitlenmemiş içerik özetinden biri varsa canlı dağıtımda sipariş ucu 503 `ordering_unavailable` döner. Yani bu madde atlanırsa vitrin sessizce sipariş almaz — dağıtım yine yeşil yanar.
 - [ ] `/yasal/dpa` (11 madde) ve `/yasal/alt-isleyenler` yayında; alt işleyen listesi üründe gerçekten kullanılan sağlayıcılarla birebir (08 §2.11).
 - [ ] `LEGAL_SUPPORT_EMAIL` (ya da `destek@yemekgelsin.net`) posta kutusu gerçekten açık: deneme e-postası gönderildi ve okundu (KVKK m.13, 30 gün).
 - [ ] **Cloudflare aktarımı (00 §12a madde 10; 08 §2.12):** Cloudflare ile KVKK standart sözleşmesi imzalandı, **5 iş günü içinde Kurum'a bildirildi**; VERBİS gerekiyorsa/varsa güncellendi; aktarım envanteri (Cloudflare, 360dialog/Meta, Netgsm …) ve Meta aktarımı için yazılı risk değerlendirmesi (V-026).
@@ -807,11 +832,17 @@ Worker her yanıta `x-yg-ortam: cloudflare` başlığını ekler (isteğe bağl�
 - Container diski geçicidir. `entrypoint.sh` her açılışta boş bir veritabanı kurar, son yedeği R2'den (Worker'ın `yedek.internal` çıkış işleyicisiyle) geri yükler, migration'ları uygular ve seed'i `SEED_MODE` ile çalıştırır. Seed idempotenttir: admin kipinde var olan yöneticinin parolasını `DEV_PASSWORD`'e eşitler (iki adımlı doğrulamasına dokunmaz), bayrakları üretim varsayılanlarıyla garanti eder (var olana dokunmaz; yalnız hiç elle değiştirilmemiş `signup_open` ve `sms_fallback` ortamın varsayılanını izler — önceki dönemden kalan "kayıt kapalı" değeri böylece açılır); demo kipinde var olan demo işletmeyi atlar.
 - **Veri dönemi (`DATA_EPOCH`):** R2 anahtarları dönemle öneklenir (`e3/db/son.dump`, `e3/uploads/son.tar.gz`, `e3/db/gun-<0–6>.dump`). Dönem container **açılırken** alınır ve ömrü boyunca sabittir (`entrypoint.sh` yedek yoluna yazar, Worker anahtarı yoldan kurar: `src/access.ts` `parseBackupPath`); yeniden dağıtımda kapanan eski container'ın son yedeği yeni döneme düşmez. `"3"` canlı verinin dönemidir; `e2/…` ve öncesi eski demo verisidir (R2'den silinebilir). Staging kendi dönemini kullanır (`e901/…`). Geçersiz değer dağıtımdan önce reddedilir.
 - **Yedek ve dayanıklılık:** `entrypoint.sh` **2 dakikada bir** (`BACKUP_INTERVAL_SEC=120`) veritabanında ya da görsellerde değişiklik olup olmadığına bakar ve **yalnız değiştiyse** yükler (iz: `pg_stat_user_tables` sayaçları — worker'ın her dakika yazdığı `jobs` tablosu sayılmaz — ve görsel dosya listesi); boştaki ortam R2'ye yazmaz. Düzgün kapanışta (SIGTERM: uyku, yeniden dağıtım) ve bir süreç düştüğünde yedek **her durumda** alınır. Haftanın her günü için bir kopya tutulur (7 gün). R2'ye ulaşılamazsa container boş veritabanıyla açılmaz, çıkar. Dağıtımda Cloudflare eski container'a SIGTERM gönderir, çıkmasını bekler (en çok 15 dk) ve yenisini **ondan sonra** başlatır; yeni container eski container'ın son yedeğinden açılır. **Sınırlar:** düzgün kapanış ve dağıtım veri kaybettirmez; beklenmedik çökmede (container'ın zorla sonlanması) **son ~2 dakikalık** değişiklik (istatistik gecikmesiyle birkaç saniye fazlası) kaybolabilir. Tek container tek hata noktasıdır; saniye hassasiyetinde dönüş (PITR) yoktur.
-- **Yedek zincirinin üç kapısı (04.10.2026 denetimi, B6/B7/B14):**
+- **Yedek zincirinin dört kapısı (04.10.2026 denetimi, B6/B7/B14 + dört mercekli son denetim):**
   1. **Tek yazıcı.** Her döküm kendi geçici dosyasına yazılır (`mktemp`) ve aynı anda iki yedek çalışmaz (`flock`; yoksa `mkdir` kilidi). Kapanışta döngü **önce** durdurulur ve süren yedeğin bitmesi beklenir (en çok `BACKUP_QUIESCE_SEC`=120 sn), ancak ondan sonra kapanış yedeği alınır. Öncesinde kapanış yedeği ile döngü yedeği aynı `/tmp/yedek.dump` dosyasına yazıyordu. Açılışta önceki turdan kalan geçici dökümler ve takılı kilit süpürülür (yerinde yeniden başlatmada `/tmp` ayakta kalabilir); durum dosyası korunur.
   2. **Yüklemeden önce doğrulama.** Döküm `pg_restore --list`, görsel arşivi `tar -tzf` ile okunuyor mu diye denetlenir; okunmuyorsa **R2'ye yazılmaz** ve `[ERROR]` ile loglanır. Worker aynı gövdeyi hem `son.dump` hem `gun-<0–6>.dump` olarak yazdığı için, doğrulanmamış bir döküm iki kopyayı birden bozardı. Geri yüklemede de **indirilen** döküm önce doğrulanır; `pg_restore` artık `--exit-on-error` ile çalışır (sessizce atlanan nesne kalmaz) ve başarısız olursa yarım veritabanı düşürülüp container sıfır dışı kodla çıkar (platform yeniden başlatır, sonraki deneme temiz başlar). **Migration hatası da ölümcüldür:** yarım şemayla açılmak, döngünün 2 dakika içinde R2'deki iyi yedeğin üzerine yarım veri yazması demektir.
   3. **Taze açılış "silahsız"dır.** Yedek bulunamazsa (404) container açılır ama **R2'ye hiçbir şey yazmaz** — kapanış yedeği (`force`) bile yazamaz. Yazma ancak gerçek veri gelince açılır; ölçü `tenants + orders + leads + 2FA'sını kurmuş kullanıcı` sayısıdır (seed'in admin kipinde kurduğu tek yönetici ve bayraklar **sayılmaz**). Veritabanı duruyor ve içinde gerçek veri varsa üzerine ne geri yükleme ne seed gider; sorgu okunamazsa "veri var" sayılır. Böylece yanlış verilmiş bir `DATA_EPOCH` ya da R2'nin boş 404'ü canlı veriyi **ezemez**: doğru döneme geri dönmek yeter. Taze açılışta eskiden hemen alınan zorlamalı ilk yedek kaldırıldı.
-- **Yedek durumu (`/tmp/yedek-durum.json`):** her denemeden sonra container içinde tek satırlık JSON yazılır (atomik: `mktemp` + `mv`; sahibi `postgres`, 0600 — API aynı kullanıcıyla çalıştığı için okur). Alanlar: `lastSuccessUnix` (son **başarılı** yedek, 0 = hiç), `lastAttemptUnix`, `consecutiveFailures`, `lastResult` (`ok` | `hata` | `bos` | `atlandi`), `note` (`yuklendi`, `degismedi`, `acilista-geri-yuklendi`, `taze-acilis-veri-yok`, `kilit-alinamadi`, `yedek-hatasi`, `veri-sayisi-okunamadi`), `epoch`. Sağlık ucu `lastBackupAgeSec = now - lastSuccessUnix` olarak hesaplar. **Değişiklik yoksa da `ok` yazılır** (`note: degismedi`): R2 veritabanıyla eşit olduğu için boştaki ortamda yedek yaşı boşuna büyümez. `lastResult: bos` "henüz yedek yok, gerçek veri de yok" demektir (taze açılış) — alarm değil, ama bir işletme kaydolduktan sonra sürüyorsa alarmdır. Yedek hataları ayrıca container günlüğüne `[ERROR] [baslat] …` satırı olarak düşer.
+  4. **Yarım geri yükleme zinciri DONDURUR.** `pg_restore`'dan **önce** kalıcı bir "geri yükleme sürüyor" işareti yazılır (`RESTORE_FLAG_FILE`, varsayılan `PGDATA`'nın yanı — `/tmp` **olmaz**, çünkü container yerinde yeniden başlarken `/tmp` silinebilirken yarım veritabanı ayakta kalır), başarıda silinir. Açılışta işaret duruyorsa **satır sayısına bakılmadan** "yarım" kabul edilir: R2'ye yazma container ömrü boyunca durdurulur (`BACKUP_FROZEN`; gerçek veri görülse de açılmaz), `[ERROR] … YARIM GERİ YÜKLEME` satırı yazılır, durum dosyasına `note: yarim-geri-yukleme` işlenir ve `ALERT_WEBHOOK_URL`'e `yarim_geri_yukleme` uyarısı gider; geri yükleme **yeniden denenmez**. Migration ve seed akışı bilerek değiştirilmedi, yani yarım şema üzerinde çalışmaya devam ederler (seed hatası açılışı durdurmaz) — korunan şey veritabanı değil, **R2'deki döküm**. Öncesinde `pg_restore` sürerken ölen container açılışta yarım veritabanını "gerçek veri" sanıyor ve 120 saniye içinde R2'deki iyi `son.dump`'ın **ve** o günün kopyasının üzerine **sessizce** yazıyordu. Nasıl anlaşılır ve nasıl çözülür: aşağıdaki "Yarım geri yükleme" maddesi + [17](17-olay-mudahale-runbook.md) §2.8. Ayrıca "veritabanı var ama 0 satır" dalında veritabanı artık `dropdb` + `createdb` ile sıfırdan kurulup geri yüklenir: şema kalıntısı `--exit-on-error` ile çakışıp container'ı bir tur çökertmez.
+- **Yedek durumu (`/tmp/yedek-durum.json`):** her denemeden sonra container içinde tek satırlık JSON yazılır (atomik: `mktemp` + `mv`; sahibi `postgres`, 0600 — API aynı kullanıcıyla çalıştığı için okur). Alanlar: `lastSuccessUnix` (son **başarılı** yedek, 0 = hiç), `lastAttemptUnix`, `consecutiveFailures`, `lastResult` (`ok` | `hata` | `bos` | `atlandi`), `note` (`yuklendi`, `degismedi`, `acilista-geri-yuklendi`, `taze-acilis-veri-yok`, `kilit-alinamadi`, `yedek-hatasi`, `veri-sayisi-okunamadi`, `yarim-geri-yukleme`), `epoch`. Sağlık ucu `lastBackupAgeSec = now - lastSuccessUnix` olarak hesaplar. **Değişiklik yoksa da `ok` yazılır** (`note: degismedi`): R2 veritabanıyla eşit olduğu için boştaki ortamda yedek yaşı boşuna büyümez. `lastResult: bos` "henüz yedek yok, gerçek veri de yok" demektir (taze açılış) — alarm değil, ama bir işletme kaydolduktan sonra sürüyorsa alarmdır. Yedek hataları ayrıca container günlüğüne `[ERROR] [baslat] …` satırı olarak düşer.
+- **Yarım geri yükleme (nasıl anlaşılır, nasıl çözülür):** `pg_restore` sürerken container zorla sonlanırsa (platform öldürür, OOM, düğüm arızası) veritabanı **yarım** kalır ve yerinde yeniden başlatmada `PGDATA` ile birlikte ayakta kalır. Yarım veritabanının satır sayısı **hiçbir şey kanıtlamaz**: yarım döküm "gerçek veri" gibi görünür, çok erken kesilmişse boş görünür. Bu yüzden ölçü satır sayısı değil, `pg_restore`'dan önce yazılan kalıcı işarettir (`RESTORE_FLAG_FILE`).
+  - **Belirtiler (üçü birlikte gelir):** container günlüğünde (`npx wrangler tail siparisinonunde-dev`) `[ERROR] [baslat] … YARIM GERİ YÜKLEME: önceki açılışta geri yükleme tamamlanmadı …` satırı; her yedek turunda (2 dk) `yedek zinciri DONDURULDU (yarım geri yükleme)` satırı; `ALERT_WEBHOOK_URL` tanımlıysa `kind: yarim_geri_yukleme` uyarısı. Durum dosyasında `lastResult: atlandi`, `note: yarim-geri-yukleme` kalır. **Sağlık ucu bu arızanın haber yolu DEĞİLDİR:** yedek yaşı eşiği 503 üretmez (yalnız `degraded:true` + `warnings:["backup_stale"]`, §10) ve `/tmp` süpürülmüş bir açılışta `lastSuccessUnix` 0 kaldığı için `lastBackupAgeSec` **`null`** döner (`apps/api/src/routes/health.ts:163`) — o durumda ne `backup_stale` uyarısı ne Worker'ın `yedek_eskidi`'si (`deploy/cloudflare/src/alert.ts:117`) üretilir, uç 200 + `degraded:false` kalır. Yani donmuş zincirin tek güvenilir haber yolu **uyarı kanalı + container günlüğüdür**; `ALERT_WEBHOOK_URL` tanımsızsa arıza yalnız `wrangler tail`'de görünür ([17](17-olay-mudahale-runbook.md) §1 E-1).
+  - **Bu durumda sistem ne yapar:** R2'ye **hiçbir şey yazmaz** — kapanış yedeği (`force`) bile. Yani R2'deki `e3/db/son.dump` ve `e3/db/gun-<0–6>.dump` **el sürülmemiş** durumdadır; dondurmanın tek amacı budur. Geri yükleme **yeniden denenmez**; buna karşılık migration ve seed akışı değişmedi ve yarım şema üzerinde çalışırlar (migration patlarsa açılış durur, seed hatası yalnız loglanır). Yani yarım **veritabanı** dokunulmaz değildir; dokunulmaz olan R2'deki dökümdür. Site bu sırada **eksik ya da boş** görünebilir ve migration yarım şemada patlarsa container çökme döngüsüne girer — bu da bilerek böyledir, R2 her durumda korunur.
+  - **Çözüm (kabuk erişimi gerekmez):** işaret container diskinde durur, container diski ise **geçicidir** — yani çözüm **yeni bir container başlatmaktır**: GitHub > Actions > "Canlı ortam (Cloudflare)" > Run workflow (ya da herhangi bir push). Yeni container temiz diskle açılır, işaret yoktur, R2'deki iyi `son.dump` baştan ve tek seferde geri yüklenir. **Doğrulama:** günlükte `son yedek geri yükleniyor` var, `YARIM GERİ YÜKLEME` **yok**; birkaç dakika içinde `veritabanı yedeği R2'ye yazıldı` satırı ve `/api/v1/health/worker` 200.
+  - **Kayıp:** yarım veritabanındaki değişiklikler zaten R2'ye hiç gitmemişti; kayıp, son **başarılı** yedekten sonraki süredir (normalde ≤ 2 dk). Yeniden açılışta `geri yükleme başarısız (pg_restore)` tekrarlıyorsa `son.dump`'ın kendisi bozuktur: "Yedekten geri dönüş" yöntemiyle `gun-<0–6>.dump` kopyasını yeni bir döneme yükleyin ([17](17-olay-mudahale-runbook.md) §4). **İşareti elle silmeye çalışmayın** (container'a kabuk erişimi yoktur) ve çözülmeden `DATA_EPOCH`'u artırmayın: dondurulmuş zincir zaten tek koruma katmanıdır.
 - **Gelen webhook tamponu (container erişilemezken):** Container kapanıp yenisi R2'den geri yükleme + migration ile açılırken (dağıtım, yeniden başlatma, çökme; ~20–60 sn) gelen WhatsApp webhook'u daha önce kalıcı olarak kayboluyordu — **Twilio gelen mesaj webhook'unu yeniden teslim etmez** ve kaybın kaydı da kalmıyordu (docs/06 §2 ilke 2 "önce kalıcı yaz"ın Cloudflare'deki karşılığı). Artık Worker, container'a iletemediği **webhook isteklerini** (`POST /api/v1/webhooks/**`; yalnız bu yollar, her istek değil) R2'ye yazar ve sağlayıcıya **200** döner (`deploy/cloudflare/src/webhook-spool.ts`).
   - Tampona düşme sebepleri: container başlatılamadı, container 5xx döndü, istek hiç gidemedi. **401 (imza geçersiz) ve 404 (bilinmeyen belirteç) tamponlanmaz**, olduğu gibi sağlayıcıya döner. `GET /api/v1/webhooks/**` (Meta doğrulaması) canlı yanıt gerektirir, tamponlanmaz.
   - Kayıtta ham gövde (base64), **imza başlıkları aynen** (`X-Twilio-Signature`, `X-Hub-Signature-256`), istemci IP'si, çağrılan yol ve alınma zamanı durur. Çerez ve `authorization` başlıkları saklanmaz. İmzayı container doğrular: tampon, doğrulamayı atlatan bir arka kapı değildir.
@@ -841,7 +872,7 @@ Worker her yanıta `x-yg-ortam: cloudflare` başlığını ekler (isteğe bağl�
 1. **Yönetici girişi ve iki adımlı doğrulama (zorunlu):** `https://yemekgelsin.net/admin/giris` → `admin@yemekgelsin.net`, parola `DEV_PASSWORD`. İlk girişte yalnız **Yönetim › Güvenlik** (`/admin/guvenlik`) açılır; diğer yönetim uçları 403 `totp_enrollment_required` döner. QR'ı doğrulama uygulamasıyla okutun, 6 haneli kodla açın, **8 kurtarma kodunu** parola yöneticisine kaydedin (00 §12a madde 7). Container'a kabuk erişimi olmadığından kurtarma kodları kritik önemdedir: telefon ve kodlar birlikte kaybolursa sıfırlama yalnız yedeğin elle düzeltilmesiyle (aşağıda "Yedekten geri dönüş" yöntemiyle yeni döneme yükleyip `scripts/create-admin.ts --reset-totp`) yapılabilir.
 2. **KVKK (proje sahibi):** Cloudflare ile standart sözleşme, 5 iş günü içinde Kurum bildirimi, gerekirse VERBİS (08 §2.12). Yasal metinlerdeki aktarım paragrafları taslaktır, avukata gösterin.
 3. **Gizli değerler:** `SESSION_SECRET`, `TRACKING_SECRET`, `ENCRYPTION_KEY`, webhook ve VAPID anahtarları ilk dağıtımda Worker secret'ı olarak üretildi (`scripts/secrets.mjs`) ve Cloudflare'den geri okunamaz. Worker'ı silmeyin: `ENCRYPTION_KEY` olmadan yedekteki şifreli alanlar (TOTP sırları, WhatsApp anahtarları) okunamaz.
-4. İsteğe bağlı: gerçek WhatsApp (§6.2), dış izleme (`/api/v1/health` ve `/api/v1/health/worker`, 1 dk; bu, container'ı uyanık tutar — müşteri bekleme sayfası görmez, container sürekli çalışır).
+4. İsteğe bağlı: gerçek WhatsApp (§6.2), dış izleme (`/api/v1/health` ve `/api/v1/health/worker`, 1 dk; bu, container'ı uyanık tutar — müşteri bekleme sayfası görmez, container sürekli çalışır). Eşik aşımı (yedek/disk/bellek) 200 döndüğü için koda bakan monitöre düşmez: `ALERT_WEBHOOK_URL` tanımlıysa Worker turu ve API uyarı gönderir (§10).
 5. İsteğe bağlı Worker secret'ları (bir kez, elle; iş akışı bunları üretmez ve silmez): `npx wrangler secret put ALERT_WEBHOOK_URL` (uyarıların gideceği adres; apps/api ile aynı ad) ve `npx wrangler secret put WEBHOOK_DRAIN_SECRET` (webhook tamponunu elle boşaltma ucunun paylaşılan sırrı; verilmezse uç 404 döner, tampon yalnız 5 dakikalık turla boşalır). Değerler depoda tutulmaz.
 
 **İş akışı:**
@@ -866,13 +897,30 @@ Geliştirici araçları her durumda kapalıdır. API açılışta gerçek sağla
 
 **Sıfırlama (dikkat: canlı veri):** `vars.DATA_EPOCH`'u artırıp yeni dönemde yedek koymadan dağıtmak **tüm canlı veriyi** (işletmeler, siparişler, müşteriler) boş veritabanıyla değiştirir; yalnız bilinçli bir kararla yapın. Staging için `vars.STAGING_DATA_EPOCH` kullanılır; iki değer hiçbir zaman aynı olmamalıdır. Eski dönemlerin nesneleri R2'de kalır ve KVKK saklama sürelerine (08 §2.8) göre elle silinmelidir; `e2` ve öncesi eski demo verisidir.
 
+**Container'ın ortamı KAPALI bir beyaz listedir (önemli).** Worker'ın `vars` ve secret'larından container'a yalnız `deploy/cloudflare/src/mode.ts` `containerEnv` içinde (`PASSTHROUGH_KEYS` ya da gövde) **adıyla yazılanlar** geçer. Listeye eklenmemiş bir değişken canlıda tanımsız kalır ve `npx wrangler secret put …` ile değer vermek bile işe yaramaz. Bu sessiz sapma bir kez gerçekleşti: Faz 0–4'te eklenen künye, canary ve WhatsApp kotası değişkenleri listede yoktu, künye eksik kaldığı için sipariş ucu kalıcı 503 döndü ve duman testi sipariş ucunu denemediği için **dağıtım yeşil yanarken vitrin hiç sipariş almadı**. Kapı: `deploy/cloudflare/scripts/mode.test.mjs` "beyaz liste kapısı" vakaları — `apps/api`'nin okuduğu her ortam değişkeni ya `containerEnv` çıktısında olmalı ya da testteki `SCOPE_OUT` listesinde **gerekçesiyle** yer almalıdır (`npm test`, dağıtım iş akışının 2. adımı).
+
+**Canlıya çıkmadan önce `wrangler.jsonc` `vars`'a girilecek değerler.** Dosyada anahtarlar hazır ve **boş** durur; değerler depoya yazılmaz, proje sahibi doldurur. Gizli değildirler (künye kanunen kamuya açıktır), bu yüzden secret değil `vars`'tır — değişmesi için yeni dağıtım yeter.
+
+| Değişken | Kim doldurur / nereden | Girilmezse ne olur |
+|---|---|---|
+| `LEGAL_ENTITY_NAME`, `LEGAL_ENTITY_TYPE`, `LEGAL_ENTITY_ADDRESS`, `LEGAL_ENTITY_PHONE`, `LEGAL_ENTITY_TAX_OFFICE`, `LEGAL_ENTITY_TAX_NO` | şirket belgelerinden birebir (6563 m.3; §4 tablosu) | **sipariş ucu kalıcı 503** — vitrin hiç sipariş almaz (fail-closed) |
+| `LEGAL_ENTITY_MERSIS`, `LEGAL_ENTITY_CHAMBER`, `LEGAL_ENTITY_KEP` | varsa; şahıs şirketinde genelde yok | künyede "Yok" yazar (uydurulmaz) |
+| `LEGAL_SUPPORT_EMAIL` | boş bırakılabilir | marka adresi (`destek@yemekgelsin.net`) kullanılır; posta kutusu açık olmalı (KVKK m.13) |
+| `CANARY_ENABLED` | pilot öncesi `"1"` (06 §7.10) | sentetik canary hiç çalışmaz: sipariş yolunun sessiz bozulması ölçülmez |
+| `CANARY_STALE_ALERT` | **boş bırakılır** (panel sessiz ack'i gelene kadar) | doğru davranış; `"1"` yapılırsa her turda yanlış alarm |
+| `WABA_CONVERSATION_CAP`, `WABA_SHED_NONCRITICAL` | isteğe bağlı (§4) | koddaki varsayılan tavan; kota kısması kapalı |
+
+Secret olarak verilenler ayrıca §13 "Kurulum" 5. maddesindedir (`ALERT_WEBHOOK_URL`, `WEBHOOK_DRAIN_SECRET`). ⚠️ Künyenin **web tarafı** bu `vars` ile çözülmez (statik sayfalar derleme anında okunur) — §4'teki uyarıya bakın.
+
 **Canlıya çıkış (Cloudflare):**
+- [ ] `wrangler.jsonc` `vars` içindeki künye alanları (zorunlu altısı) dolu ve **canlı adreste gerçek bir sipariş geçti**: `POST /api/v1/store/<vitrin-slug>/orders` 503 `ordering_unavailable` dönmüyor (müşteri ekranında "Şu an sipariş alamıyoruz"). Duman testi bu ucu denemez, bu yüzden elle doğrulanır (§4, 08 §7.5).
+- [ ] `vars.CANARY_ENABLED` pilot öncesi `"1"`; ilk turdan sonra `Admin > İşler`'de `canary.run` kalıcı hatası yok ve panelde canary siparişi görünmüyor (06 §7.10).
 - [ ] Son "Canlı ortam (Cloudflare)" çalışması yeşil (duman testi yukarıdaki maddelerle geçti).
 - [ ] Platform yöneticisi iki adımlı doğrulamayı kurdu, kurtarma kodları parola yöneticisinde; `DEV_PASSWORD` en az 12 karakter.
 - [ ] KVKK: Cloudflare standart sözleşmesi imzalandı ve 5 iş günü içinde Kurum'a bildirildi; VERBİS gerekiyorsa güncellendi; aydınlatma metinleri avukattan geçti (08 §9.1).
 - [ ] WhatsApp: gerçek numara bağlı (§6.2, 360dialog) ya da bilerek yok (vitrinde WhatsApp bağlantısı görünmez).
 - [ ] R2'de `e3/db/son.dump`'ın son değiştirilme zamanı güncel (son değişiklikten en çok birkaç dakika sonra); `e3/db/gun-<0–6>.dump` kopyalarından en az ikisi birkaç gün geriye gidiyor; bir aylık tatbikat yapıldı.
-- [ ] Container günlüğünde `[ERROR]` satırı yok ve ilk siparişten sonra `/tmp/yedek-durum.json` `"lastResult":"ok"` gösteriyor (`"lastResult":"bos"` kalmışsa R2'ye hiç yazılmıyor demektir).
+- [ ] Container günlüğünde (`npx wrangler tail`) `[ERROR]` satırı yok; ilk siparişten sonra `veritabanı yedeği R2'ye yazıldı` satırı görüldü ve `curl -s https://yemekgelsin.net/api/v1/health/worker` `lastBackupAgeSec`'i **sayı**, `degraded`'ı **false** döndürüyor (yaş hâlâ `null` ise R2'ye hiç yazılmıyor, yani durum `"bos"` kalmış demektir). Durum dosyası container içindedir ve kabuk erişimi olmadığı için elle okunamaz.
 - [ ] Dış izleme `/api/v1/health` ve `/api/v1/health/worker`'ı izliyor.
 - [ ] Güvenlik başlıkları canlıda görünüyor: `curl -sI https://yemekgelsin.net/ | grep -iE 'strict-transport|content-security|x-frame|x-content-type'` ve aynı kontrol `/api/v1/health` için de geçiyor; CSP rapor kipinden çıkarıldı (`CSP_REPORT_ONLY="0"`).
 - [ ] R2'de `e3/webhook-tampon/` boş (tamponda bekleyen gelen webhook yok); `ALERT_WEBHOOK_URL` tanımlı ya da uyarıların yalnız günlükte kalacağı bilinçli olarak kabul edildi.
@@ -978,3 +1026,106 @@ Secret eklemek/değiştirmek dağıtımı başlatmaz: Actions > "Canlı ortam (T
 - **Duman testi "hâlâ Worker":** Cloudflare kenarının güncellenmesi birkaç dakika sürebilir; 10 dakikada geçmezse DNS > Records'ta A kayıtlarının proxy'li ve VPS IP'sinde olduğunu, Workers Routes'ta dev Worker'ına rota kalmadığını denetleyin.
 - **Sonsuz yönlendirme (ERR_TOO_MANY_REDIRECTS):** SSL/TLS modu "Flexible"; "Full (strict)" yapın.
 - **"Sunucu yeniden başlatma bekliyor":** yoğun saat dışında `ssh root@<VPS> reboot`; servisler `restart: unless-stopped` ile kendiliğinden açılır.
+---
+
+## 15. Kalite kapıları: lint, kapsam, erişilebilirlik
+
+Denetim 2026-10-04 madde 4.6'nın karşılığı. Üç ayrı araç, üç ayrı soru:
+
+| Araç | Soru | Komut | Dağıtım kapısında? |
+|------|------|-------|--------------------|
+| ESLint | Bu kod çalışma zamanında yanlış davranır mı? | `pnpm lint` | Evet (şimdilik `continue-on-error`) |
+| Vitest kapsam | Testler kodun ne kadarına dokunuyor? | `pnpm test:coverage` | **Hayır** — eşikler henüz ölçülmedi |
+| axe-core | Ekran okuyucu/klavye ile kullanılabilir mi? | `pnpm --filter @siparis/web test` | Evet (web birim testlerinin içinde) |
+
+### 15.1 ESLint
+
+Yapılandırma: kökteki `eslint.config.js` (flat config). Her kuralın NEDEN açık ya da kapalı olduğu dosyanın
+içinde yazılıdır; kural eklemeden önce o notları okuyun.
+
+```bash
+pnpm lint        # denetle
+pnpm lint:fix    # makineyle düzeltilebilenleri düzelt (import düzeni, gereksiz tür iddiası)
+```
+
+Tasarım ilkesi: **`error` yalnız gerçek hata.** `error` seviyesindeki kurallar, kodun yazarın niyetinden
+başka davrandığı ya da güvenlik açığı doğduğu durumlar:
+
+- `@typescript-eslint/no-floating-promises` — `await` yazılmamış yan etki (WhatsApp mesajı, outbox yazımı,
+  yedek) sessizce düşer; tür denetimi bunu görmez.
+- `react-hooks/rules-of-hooks` — koşullu kanca; panel ekranı rastgele davranır.
+- `react/jsx-no-target-blank` — `target="_blank"` + `rel="noopener"` eksikse açılan sayfa ana sekmeyi
+  yönlendirebilir.
+- `no-restricted-imports` — **CLAUDE.md değişmez kural 1'in makine kapısı:** Baileys / whatsapp-web.js /
+  Evolution API gibi resmi olmayan WhatsApp kütüphanelerini import etmek lint'i kırmızı yakar. Kural `patterns`
+  ile yazılıdır, yani alt yol import'u da (`@whiskeysockets/baileys/lib/socket`) yakalanır ve kapı `.ts` kadar
+  `.mjs`/`.js` dosyalarında da geçerlidir. **Kapının görmediği yol:** `require('baileys')` ve doğrudan
+  `package.json`'a bağımlılık eklenmesi — onlar kod incelemesinin işidir.
+
+Biçim kuralları (satır uzunluğu, tırnak, alfabetik import, `any` yasağı) **bilerek yok**: 100 bin satırlık
+mevcut kodu tek seferde değiştirmek `git blame`'i kullanılamaz hâle getirir. Prettier de eklenmedi.
+
+2026-10-05 ölçümü: **0 hata, 247 uyarı** (101 dosya, ~13 sn). Uyarı sayısını çivilemek için
+`pnpm lint --max-warnings <sayı>` kullanılabilir; sayıyı her temizlikte düşürün.
+
+### 15.2 Kapsam (coverage) eşiği — ÖLÇÜM BEKLİYOR
+
+```bash
+ALLOW_DB_RESET=1 pnpm test:coverage          # core + db + api  → coverage/
+pnpm --filter @siparis/web test:coverage     # web              → apps/web/coverage/
+```
+
+Eşikler iki yerde, ağaç başına ayrı ayrı tanımlıdır:
+
+| Dosya | Kapsadığı ağaç | Eşik anahtarı |
+|-------|----------------|---------------|
+| `vitest.config.ts` | `packages/core`, `packages/db`, `apps/api` | `ESIKLER.core` / `.db` / `.api` / `.genel` |
+| `apps/web/vitest.config.ts` | `apps/web/lib`, `apps/web/components/*.ts` | tek blok (`thresholds`) |
+
+⚠️ **Yazılı sayılar HEDEFTİR, ölçüm değil.** Kapsam bu depoda hiç ölçülmemişti; ölçüm `pnpm test`i koşmayı
+gerektirir ve o da paylaşılan `siparis_test` veritabanını sıfırlar. Bu yüzden eşikler varsayılan olarak
+**UYGULANMAZ**: `--coverage` yalnız rapor üretir.
+
+**Eray'ın yapacağı adım** (tek seferlik, başka iş koşmuyorken):
+
+1. Yukarıdaki iki komutu çalıştırın, çıkan gerçek yüzdeleri not edin.
+2. Gerçek değerlerin ~5 puan ALTINI `ESIKLER`e yazın (bugünkü seviyeyi çivileyen eşik: kapsamın
+   DÜŞMESİNİ engeller, bir gecede %80'e çıkmayı zorlamaz).
+3. Eşikleri zorunlu kılın: `KAPSAM_ESIK=1` ortam değişkeni. Dağıtım kapısına eklemek için
+   `.github/workflows/testler.yml` içindeki "Ne koşmaz (bilinçli, 2)" notundaki hazır adımı kullanın —
+   o adım `pnpm test` adımının **yerine** geçer, yanına değil (ikisi aynı veritabanını kullanır).
+   ⚠️ **Aynı commit'te `deploy-gate.test.mjs` de güncellenmelidir:** o test "core+db+api testleri koşuyor mu"
+   değişmezini `/run:\s*pnpm test\s*$/` çapasıyla arar; satır `pnpm test:coverage` olunca çapa eşleşmez ve
+   kapının son adımı kırmızı yanar, dağıtım hiç başlamaz. Çapa `pnpm test(:coverage)?` yapılmalıdır.
+
+Kapsamdan bilerek çıkarılanlar (oranı yapay şişirirdi): yalnız tür/sözleşme tanımları
+(`packages/core/src/contracts`, `packages/db/src/schema`), CLI giriş noktaları (`migrate`, `seed`, `reset`,
+`server.ts`, `worker.ts`), yalnız geliştirmede yüklenen rotalar (`routes/dev`), `apps/web/app/**` ve React
+bileşenleri (bunlar Playwright e2e'nin alanı).
+
+### 15.3 Erişilebilirlik (axe-core)
+
+Yardımcı: `apps/web/test/a11y.tsx`. Bileşeni jsdom'a gerçek istemci olarak basar (`createRoot` + `act`,
+yani `useEffect` çalışır) ve axe-core'u WCAG 2.2 AA kural kümesiyle koşar.
+
+```tsx
+/** @vitest-environment jsdom */
+import { auditA11y, renderForAudit } from '@/test/a11y';
+
+const screen = renderForAudit(<CheckoutPage slug="x" store={store} />);
+expect(await auditA11y(screen.container)).toEqual([]);
+```
+
+Bugün denetlenen ekran: **checkout** (`components/storefront/checkout/checkout-a11y.test.tsx`) — sözleşmenin
+kurulduğu ve ödeme yükümlülüğünün doğduğu tek ekran. Etiketsiz bir alan burada siparişin tamamlanamaması
+demektir. Test ayrıca denetimin kendisinin sökülmediğini de doğrular (bilinen bir ihlali kurup yakalandığını
+sınar), yoksa yapılandırma bozulduğunda testler sessizce yeşil kalırdı.
+
+jsdom'un sınırı: düzen (layout) hesaplanmaz, bu yüzden `color-contrast` ve `target-size` kuralları
+**kapalıdır**. Onların karşılığı başka yerdedir:
+
+- renk kontrastı → `apps/web/components/panel/panel-contrast.test.ts` (token değerlerinden ölçer, 4,5:1 / 3:1)
+- dokunma hedefi → Tailwind `min-h-hit` yardımcı sınıfı ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §11.1)
+
+**Henüz yapılmayan (FAZ 5):** işletme paneli ve admin ekranları axe ile denetlenmedi; gerçek tarayıcıda tam
+tarama (Playwright + `@axe-core/playwright`) kurulmadı. İkisi de aynı yardımcının kapsamını genişletmekle olur.

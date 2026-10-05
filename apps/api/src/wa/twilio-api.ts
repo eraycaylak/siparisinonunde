@@ -54,6 +54,11 @@ export function twilioCodeToMeta(code: string | null, httpStatus: number | null)
     case '63021':
     case '63036':
       return '132000';
+    // Twilio'nun GÜNLÜK mesaj sınırı: işletim anlamı Meta'nın 131048'iyle aynıdır (numaradan daha fazla mesaj
+    // çıkmıyor, hata kalıcı, ortak numarada tüm dükkanları birden durdurur). Aynı koda çevrilir ki kota gözcüsü
+    // (services/messaging/waba-quota.ts) tek kodu dinlesin; sınıflandırma değişmez ('fail').
+    case '63038':
+      return '131048';
     default:
       if (code == null && httpStatus != null && httpStatus >= 500) return null;
       return code;

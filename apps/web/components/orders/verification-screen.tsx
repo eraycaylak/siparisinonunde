@@ -5,8 +5,8 @@
 // `awaiting_customer` doğduğunda /t/<token> adresine geçilir, böylece sekme yenilenince kod, kalan süre ve
 // sipariş kaybolmaz. Durum yoklaması ve `awaiting_customer → new` geçişi takip sayfasının işidir.
 //
-// Sepet değişikliği (K10/K12): sunucu doğrulama anında 409 `cart_changed` döndürürse ya da takip yanıtı bekleyen
-// bir değişiklik taşıyorsa ekran fark listesine geçer; müşteri güncel toplamı onaylamadan doğrulama ilerlemez.
+// Sepet değişikliği (K10/K12): sunucu doğrulamayı 409 `cart_changed` ile REDDEDERSE ekran fark listesine geçer.
+// Fark BU EKRANDA ONAYLANMAZ (tek çıkış: işletmeyi ara / siparişi iptal et) — gerekçesi aşağıdaki dalda yazılıdır.
 
 import { useEffect, useRef, useState } from 'react';
 import { Copy, MessageCircle, Phone, Smartphone, TimerOff } from 'lucide-react';
@@ -16,8 +16,7 @@ import { apiFetch, errorMessage } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { formatElapsed, formatMoney } from '@/lib/format';
 import { storefrontHref } from '@/lib/storefront-url';
-import { CartChangeNotice } from './cart-change-notice';
-import { cartChangeActionError, cartChangeFromError, pendingCartChange, type CartChangeView } from './cart-change';
+import type { CartChangeView } from './cart-change';
 import { telHref } from './labels';
 import { SmsVerifyPanel } from './sms-verify-panel';
 
@@ -56,10 +55,8 @@ export function VerificationScreen({ token, track, onChanged }: VerificationScre
     // SMS'ten WhatsApp'a dönüşte odak yeni bölümün başlığına gider; aksi halde odak gövdeye düşerdi.
     if (switched && !smsMode) waHeadingRef.current?.focus();
   }, [switched, smsMode]);
-  /** Doğrulama anında 409 ile gelen sepet değişikliği (takip yanıtı henüz taşımıyorsa). */
+  /** Sunucunun doğrulamayı reddettiği sepet değişikliği (409 `cart_changed` ayrıntısı). */
   const [changeFromError, setChangeFromError] = useState<CartChangeView | null>(null);
-  const [accepting, setAccepting] = useState(false);
-  const [acceptError, setAcceptError] = useState<string | null>(null);
 
   const v = order.verification;
   const method = v?.method ?? null;
@@ -136,51 +133,48 @@ export function VerificationScreen({ token, track, onChanged }: VerificationScre
     </>
   );
 
-  // K10/K12: güncel sepet onaylanmadan doğrulama gösterilmez.
-  const change = changeFromError ?? pendingCartChange(order);
-  if (change) {
-    const accept = async () => {
-      setAccepting(true);
-      setAcceptError(null);
-      try {
-        await apiFetch(`/store/track/${token}/accept-changes`, {
-          method: 'POST',
-          body: change.totalKurus != null ? { expectedTotalKurus: change.totalKurus } : {},
-        });
-        setChangeFromError(null);
-        onChanged?.();
-      } catch (e) {
-        const next = cartChangeFromError(e);
-        if (next) {
-          setChangeFromError(next);
-          setAcceptError('Sepetiniz bu arada yeniden değişti. Güncel listeyi onaylayın.');
-        } else {
-          setAcceptError(cartChangeActionError(e));
-        }
-      } finally {
-        setAccepting(false);
-      }
-    };
+  // K10/K12 (03 §3.4 K12 satırı): sunucu doğrulamayı "sepetiniz değişti" gerekçesiyle REDDETTİYSE müşteri farkı
+  // GÖRÜR ama bu ekranda ONAYLAMAZ. Neden: sipariş oluşurken ürün adı ve fiyatı siparişe kopyalanır (CLAUDE.md
+  // kural 3), yani doğrulama anında siparişin tutarı kendiliğinden değişmez; değişmiş bir tutarı müşteriye yeniden
+  // onaylatmak sipariş SONRASI değişiklik akışıdır ve 03 K11'de Faz 2'ye (M14) bırakılmıştır — yeni tutarın yeni bir
+  // onay anı olması (08 §4.4) ikinci bir `legal_acceptances` kaydı da gerektirir.
+  //
+  // Önceki sürüm burada [Güncel sepetle devam] düğmesi gösterip `POST /store/track/:token/accept-changes` çağırıyordu:
+  // böyle bir uç ne API'de ne 14 §6.2 sözleşmesinde vardı, her tıklama 404 dönüyordu (ölü düğme, denetim MEDIUM A).
+  // Ölü çağrı kaldırıldı; müşteriye GERÇEKTEN çalışan iki çıkış bırakıldı: işletmeyi ara (sipariş numarasıyla) ve
+  // siparişi iptal et (`/store/track/:token/cancel`).
+  if (changeFromError) {
     return (
       <div className="flex flex-col gap-5 py-2">
-        <CartChangeNotice
-          view={change}
-          busy={accepting}
-          error={acceptError}
-          onConfirm={() => void accept()}
-          onReject={openCancel}
-        />
-        <p className="text-base text-fg-muted">
-          {business.name} · Sipariş #{order.number}
-        </p>
+        <Alert variant="warning" assertive title="Sepetiniz değişti, siparişiniz doğrulanamadı">
+          {changeFromError.lines.length ? (
+            <ul className="flex list-disc flex-col gap-1 ps-5">
+              {changeFromError.lines.map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
+          ) : null}
+          {changeFromError.totalText ? <p className="mt-2 font-semibold">{changeFromError.totalText}</p> : null}
+          <p className="mt-2">
+            Yeni tutarı bu sayfadan onaylayamıyoruz. Siparişiniz için {business.name} işletmesini arayın; sipariş
+            numaranız #{order.number}.
+          </p>
+        </Alert>
         {business.phone ? (
           <a
             href={telHref(business.phone)}
-            className="inline-flex min-h-hit items-center justify-center gap-2 self-start rounded-md border border-border-strong px-4 font-semibold"
+            className="inline-flex min-h-hit-primary w-full items-center justify-center gap-2 rounded-md bg-success px-4 text-lg font-bold text-success-fg hover:opacity-95"
           >
-            <Phone aria-hidden className="size-5" /> İşletmeyi ara
+            <Phone aria-hidden className="size-6" /> İşletmeyi ara
           </a>
         ) : null}
+        <button
+          type="button"
+          className="min-h-hit self-start text-sm font-semibold text-fg-muted underline underline-offset-4"
+          onClick={openCancel}
+        >
+          Vazgeçtim, siparişi iptal et
+        </button>
         {cancelDialog}
       </div>
     );

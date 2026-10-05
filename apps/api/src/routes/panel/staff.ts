@@ -1,5 +1,9 @@
 // Panel personel ve kuryeler (14 §6.3 Personel) — dilim 4. Yetki: owner/manager (manager owner'a dokunamaz);
 // kurye listesi cashier dahil (04 §2.3 P-24 ◐ liste).
+// Abonelik kapısı (00 §9, 05 §A.2.1, 08 §6.3; denetim 04.10.2026 (C)): salt-okunur/askıda/kapanmış işletmede
+// PERSONEL DÜZENLEME kapalıdır (403 `tenant_read_only`). Kurye giriş bağlantısı ve çıkış kapsam DIŞIDIR: ikisi
+// de personel kaydını değiştirmez, oturum aksiyonudur — kapı kapandığında yolda olan siparişlerin kuryesi
+// uygulamaya giremez hâle gelmesin, güvenlik gerekçesiyle oturum kapatma her zaman mümkün olsun.
 
 import type { TenantRole } from '@siparis/core';
 import {
@@ -14,12 +18,19 @@ import { z } from 'zod';
 import { audit, auditActor } from '../../lib/audit';
 import { requireTenantRole, tenantAuth } from '../../plugins/auth';
 import { createCourierLoginLink, createStaff, listCouriers, listStaff, logoutCourier, patchStaff, removeStaff } from '../../services/staff/index';
+import { tenantWritable } from './menu-guards';
 
 const OM: readonly TenantRole[] = ['owner', 'manager'];
 const OMC: readonly TenantRole[] = ['owner', 'manager', 'cashier'];
 const userParams = z.object({ userId: z.uuid() });
 
 const staffRoutes: FastifyPluginAsyncZod = async (app) => {
+  /** Personel YAZMA: owner/manager + yazılabilir oturum (impersonation) + yazılabilir abonelik. */
+  const edit = {
+    preValidation: requireTenantRole(OM),
+    preHandler: tenantWritable(app.db, 'Aboneliğiniz şu an salt-okunur durumda; personel düzenlenemez. Ödeme alındığında yeniden açılır.'),
+  };
+
   app.get('/staff', { preValidation: requireTenantRole(OM), schema: { response: { 200: z.object({ items: z.array(staffDtoSchema) }) } } }, async (request) => {
     const auth = tenantAuth(request);
     return { items: await listStaff(app.db, auth) };
@@ -27,7 +38,7 @@ const staffRoutes: FastifyPluginAsyncZod = async (app) => {
 
   app.post(
     '/staff',
-    { preValidation: requireTenantRole(OM), schema: { body: staffCreateSchema, response: { 201: z.object({ staff: staffDtoSchema, existingUser: z.boolean() }) } } },
+    { ...edit, schema: { body: staffCreateSchema, response: { 201: z.object({ staff: staffDtoSchema, existingUser: z.boolean() }) } } },
     async (request, reply) => {
       const auth = tenantAuth(request);
       const result = await app.db.transaction(async (tx) => {
@@ -48,7 +59,7 @@ const staffRoutes: FastifyPluginAsyncZod = async (app) => {
 
   app.patch(
     '/staff/:userId',
-    { preValidation: requireTenantRole(OM), schema: { params: userParams, body: staffPatchSchema, response: { 200: staffDtoSchema } } },
+    { ...edit, schema: { params: userParams, body: staffPatchSchema, response: { 200: staffDtoSchema } } },
     async (request) => {
       const auth = tenantAuth(request);
       return app.db.transaction(async (tx) => {
@@ -69,7 +80,7 @@ const staffRoutes: FastifyPluginAsyncZod = async (app) => {
 
   app.delete(
     '/staff/:userId',
-    { preValidation: requireTenantRole(OM), schema: { params: userParams, response: { 200: z.object({ ok: z.literal(true) }) } } },
+    { ...edit, schema: { params: userParams, response: { 200: z.object({ ok: z.literal(true) }) } } },
     async (request) => {
       const auth = tenantAuth(request);
       await app.db.transaction(async (tx) => {

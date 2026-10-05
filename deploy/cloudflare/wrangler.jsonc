@@ -70,7 +70,45 @@
     // İçerik güvenliği kuralı (CSP) yalnız rapor kipinde mi gönderilsin: "1" = tarayıcı uygulamaz, yalnız konsola
     // yazar. İlk yayında kırılan bir şey var mı diye "1" ile başlanabilir; birkaç gün konsol temiz kaldıktan sonra
     // "0" yapılır (src/security-headers.ts). "0": kural uygulanır.
-    "CSP_REPORT_ONLY": "0"
+    "CSP_REPORT_ONLY": "0",
+
+    // --- Künye: 6563 m.3 (08 §4.7; 15 §4) — GİZLİ DEĞİL, kanunen kamuya açıktır → secret değil vars -------
+    // Değerleri ŞİRKET BELGELERİNDEN birebir Eray doldurur (tahminle doldurulmaz). Buradan container'a
+    // src/mode.ts containerEnv (PASSTHROUGH_KEYS) ile geçer; boş bırakılan alan container'a HİÇ yazılmaz.
+    // Zorunlu altısı (NAME, TYPE, ADDRESS, PHONE, TAX_OFFICE, TAX_NO) eksikken canlı ortamda sipariş ucu
+    // KALICI 503 döner (apps/api/src/services/orders/legal-gate.ts — fail-closed: eksik künyeyle sözleşme
+    // kurulmasın). Yani aşağısı dolmadan vitrin sipariş ALMAZ; dağıtım yine yeşil yanar.
+    // ⚠️ DIŞ BAĞIMLILIK: pazarlama sitesinin /kunye ve /yasal/* sayfaları STATİK üretilir (next build), yani
+    // bu değerler ayrıca DERLEME anında gerekir. Bunun için deploy/cloudflare/Dockerfile'a ARG/ENV satırları
+    // ve buradaki containers[].image_vars'a NEXT_PUBLIC_LEGAL_* karşılıkları eklenmelidir (ya da apps/web bu
+    // sayfaları çalışma zamanında okur hâle getirilmelidir). O yapılmadan API kapısı açılır ama sayfalar
+    // "Eksik yapılandırma: LEGAL_ENTITY_*" basmaya devam eder (docs/15 §4, §13).
+    "LEGAL_ENTITY_NAME": "",
+    "LEGAL_ENTITY_TYPE": "",
+    "LEGAL_ENTITY_ADDRESS": "",
+    "LEGAL_ENTITY_PHONE": "",
+    "LEGAL_ENTITY_TAX_OFFICE": "",
+    "LEGAL_ENTITY_TAX_NO": "",
+    // İsteğe bağlı künye alanları: boşsa künyede "Yok" yazar (uydurulmaz)
+    "LEGAL_ENTITY_MERSIS": "",
+    "LEGAL_ENTITY_CHAMBER": "",
+    "LEGAL_ENTITY_KEP": "",
+    // Boşsa marka adresi (destek@yemekgelsin.net) kullanılır; posta kutusu GERÇEKTEN açık olmalı (KVKK m.13)
+    "LEGAL_SUPPORT_EMAIL": "",
+
+    // --- Sentetik canary (06 §7.10) ------------------------------------------------------------------------
+    // "1": şube açık saatlerinde 15 dk'da bir gerçek yoldan test_kind='canary' sipariş geçer, panelde görünmez,
+    // ack'te ya da en geç 10 dk'da kalıcı silinir. Boş/"0" = hiç sipariş üretilmez. Pilot öncesi "1" yapılır
+    // (15 §4); acil durdurma için feature_flags tablosundaki `canary` anahtarı yeter (deploy gerekmez).
+    "CANARY_ENABLED": "",
+    // "Bayat panel" uyarısı: panel tarafı sessiz ack eklenene kadar BOŞ bırakılır, yoksa her turda yanlış alarm
+    "CANARY_STALE_ALERT": "",
+
+    // --- WhatsApp oturum kotası (02; apps/api/src/services/messaging/waba-quota.ts) -----------------------
+    // Aylık ücretsiz oturum tavanı (pozitif tam sayı). Boş/geçersizse koddaki varsayılan kullanılır.
+    "WABA_CONVERSATION_CAP": "",
+    // "1": tavana yaklaşıldığında yalnız ÖNEMSİZ durum mesajları düşürülür (sipariş mesajları düşmez)
+    "WABA_SHED_NONCRITICAL": ""
   },
   // Gizli değerler iş akışında üretilir/yüklenir (scripts/secrets.mjs; wrangler deploy --secrets-file). Worker'da
   // zaten olanlara dokunulmaz. İSTEĞE BAĞLI secret'lar aşağıdaki listede YOKTUR, elle bir kez verilir

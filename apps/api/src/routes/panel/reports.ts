@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { forbidden } from '../../lib/errors';
 import { assertBranchAccess, requireTenantRole, tenantAuth } from '../../plugins/auth';
 import { addDays, dailyReport, savingsReport, summaryReport, todayIstanbul } from '../../services/reports/index';
+import exportRoutes from './exports';
 
 const reportRoutes: FastifyPluginAsyncZod = async (app) => {
   const scopeOf = async (request: Parameters<typeof tenantAuth>[0], branchId?: string) => {
@@ -68,6 +69,10 @@ const reportRoutes: FastifyPluginAsyncZod = async (app) => {
       return savingsReport(app.db, scope, month, { includePhone });
     },
   );
+
+  // Toplu dışa aktarma (ayrı eklenti: akışlı yanıt, kendi hız sınırı ve eşzamanlılık kapısı — menu.ts/menu-tools.ts
+  // ile aynı düzen). Yollar /panel/exports/* altındadır, rapor uçlarıyla karışmaz.
+  await app.register(exportRoutes);
 };
 
 export default reportRoutes;

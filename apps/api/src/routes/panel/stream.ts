@@ -8,6 +8,7 @@ import { openBranchStream, parseLastEventId } from '../../lib/sse';
 import { computeBranchOrderingState } from '../../services/orders/store-context';
 import { assertBranchAccess, defaultBranchId, requireTenantRole, tenantAuth } from '../../plugins/auth';
 import { recordImpersonationStreamOpen } from '../../plugins/impersonation-audit';
+import { sseLimiter } from '../../plugins/sse-limit';
 import { PANEL_PRESENCE_TOUCH_MS, PRESENCE_ROLES, touchBranchPresence } from '../../services/push/presence';
 
 const streamQuery = z.object({
@@ -40,6 +41,15 @@ const streamRoutes: FastifyPluginAsyncZod = async (app) => {
         role: auth.role,
         lastEventId: parseLastEventId(request),
       });
+      // Bağlantı sınırı (açık soru 5): akış TAM açıldıktan SONRA kaydedilir. Sınır aşılırsa EN ESKİ bağlantı
+      // kapatılır, bu istek reddedilmez — gerekçe plugins/sse-limit.ts başlığında (kapatma Last-Event-ID ile
+      // telafi edilir, reddetme kalıcı körlüktür). Slot akış kapanınca (res 'close') kendiliğinden bırakılır.
+      //
+      // Neden önce değil: `openBranchStream` içinde yazma başlığı, hub aboneliği, akış sayacı ve 'close'
+      // temizleyicisi birkaç `await`'ten SONRA kurulur. Yarı açık bir akış kapatma hedefi olursa `writeHead`
+      // kapanmış yanıta çalışır ve temizleyici hiç takılmadığı için ping zamanlayıcısı + hub aboneliği +
+      // `trackStream` sayacı kalıcı olarak sızar. Sonra kaydedince kapatma hedefi hep tam kurulmuş bir akış olur.
+      sseLimiter(app).admit(reply.raw, { tenantId: auth.tenantId, branchId });
       if (!reply.raw.writableEnded) {
         const data = {
           orderingState: state.state,

@@ -1,7 +1,7 @@
 // Dilim 4 — ayarlar: tenant, şube, saatler, özel günler, duraklat/yoğun (SSE), bölgeler; yetki ve yalıtım.
 
 import { branchStatePayloadSchema, localDateString } from '@siparis/core';
-import { auditLog, branchEvents, branches, deliveryZones } from '@siparis/db';
+import { auditLog, branchEvents, branches, deliveryZones, tenants } from '@siparis/db';
 import { and, desc, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createTestContext, expectError, expectIsolated, type TestContext, type TestTenant } from './helpers';
@@ -389,5 +389,81 @@ describe('Teslimat bölgeleri', () => {
     const after = await req('GET', '/zones', a.ownerCookie);
     expect(after.json().items.map((z: { id: string }) => z.id)).not.toContain(zoneId);
     expectError(await req('PATCH', `/zones/${zoneId}`, a.ownerCookie, { name: 'Silinmiş' }), 404, 'not_found');
+  });
+});
+
+// Abonelik yazma kapısı (00 §9, 05 §A.2.1, 08 §6.3; denetim 04.10.2026 (C)): doküman salt-okunur modda
+// "menü, ayar, personel düzenleme kapalı" diyordu; kod yalnız menüyü kapatıyordu, ayar uçları açıktı.
+describe('salt-okunur abonelikte ayar yazma kapalı (tenantWritable)', () => {
+  let ro: TestTenant;
+  let dayId: string;
+  let zoneId: string;
+
+  beforeAll(async () => {
+    ro = await ctx.createTenantWithOwner({ name: 'Salt Okunur Ayarlar' });
+    // Kayıtlar HENÜZ yazılabilir aşamada oluşturulur: kapı sonradan kapanınca güncelleme/silme de reddedilmeli
+    const day = await req('POST', `/branches/${ro.branchId}/special-days`, ro.ownerCookie, { date: '2032-05-19', isClosed: true });
+    expect(day.statusCode, day.body).toBe(201);
+    dayId = day.json().items[0].id as string;
+    const zone = await req('POST', '/zones', ro.ownerCookie, {
+      name: 'Kapı Bölgesi',
+      kind: 'radius',
+      radiusM: 1500,
+      feeKurus: 1000,
+      minOrderKurus: 0,
+      etaMinutes: 30,
+    });
+    expect(zone.statusCode, zone.body).toBe(201);
+    zoneId = zone.json().id as string;
+    await ctx.db.update(tenants).set({ lifecycleStage: 'read_only' }).where(eq(tenants.id, ro.tenantId));
+  });
+
+  it('tüm ayar yazma uçları 403 tenant_read_only döner', async () => {
+    const c = ro.ownerCookie;
+    const b = ro.branchId;
+    expectError(await req('PATCH', '/tenant', c, { name: 'Yeni Ad' }), 403, 'tenant_read_only');
+    expectError(await req('PATCH', `/branches/${b}`, c, { name: 'Yeni Şube' }), 403, 'tenant_read_only');
+    expectError(await req('PUT', `/branches/${b}/hours`, c, { days: [] }), 403, 'tenant_read_only');
+    expectError(await req('POST', `/branches/${b}/special-days`, c, { date: '2032-05-20', isClosed: true }), 403, 'tenant_read_only');
+    expectError(await req('PATCH', `/branches/${b}/special-days/${dayId}`, c, { isClosed: false, opensAt: '09:00', closesAt: '22:00' }), 403, 'tenant_read_only');
+    expectError(await req('DELETE', `/branches/${b}/special-days/${dayId}`, c), 403, 'tenant_read_only');
+    expectError(
+      await req('POST', '/zones', c, { name: 'Olmaz', kind: 'radius', radiusM: 900, feeKurus: 0, minOrderKurus: 0, etaMinutes: 20 }),
+      403,
+      'tenant_read_only',
+    );
+    expectError(await req('PATCH', `/zones/${zoneId}`, c, { feeKurus: 5000 }), 403, 'tenant_read_only');
+    expectError(await req('DELETE', `/zones/${zoneId}`, c), 403, 'tenant_read_only');
+
+    // Kapı GERÇEKTEN yazmayı engelledi: isim ve bölge ücreti değişmemiş olmalı
+    const [row] = await ctx.db.select({ name: branches.name }).from(branches).where(eq(branches.id, b));
+    expect(row!.name).toBe('Merkez');
+    const [zone] = await ctx.db.select({ fee: deliveryZones.feeKurus, deletedAt: deliveryZones.deletedAt }).from(deliveryZones).where(eq(deliveryZones.id, zoneId));
+    expect(zone!.fee).toBe(1000);
+    expect(zone!.deletedAt).toBeNull();
+  });
+
+  it('okuma ve operasyonel aksiyonlar (duraklat / yoğun / bölge sorgusu) açık kalır', async () => {
+    const c = ro.ownerCookie;
+    expect((await req('GET', '/tenant', c)).statusCode).toBe(200);
+    expect((await req('GET', `/branches/${ro.branchId}`, c)).statusCode).toBe(200);
+    expect((await req('GET', '/zones', c)).statusCode).toBe(200);
+    // Duraklat/yoğun "tükendi" ile aynı sınıftadır: alınmış siparişler ve kapanma bilgisi yönetilebilsin
+    const pause = await req('POST', `/branches/${ro.branchId}/pause`, c, { minutes: 30 });
+    expect(pause.statusCode, pause.body).toBe(200);
+    const busy = await req('POST', `/branches/${ro.branchId}/busy`, c, { extraMinutes: 15 });
+    expect(busy.statusCode, busy.body).toBe(200);
+    const check = await req('POST', '/zones/check', c, { neighborhood: 'Merdivenli' });
+    expect(check.statusCode, check.body).toBe(200);
+  });
+
+  it('askı ve kapanış aşamaları da yazmayı kapatır; ödeme alınınca yazma geri açılır', async () => {
+    for (const stage of ['suspended', 'churned'] as const) {
+      await ctx.db.update(tenants).set({ lifecycleStage: stage }).where(eq(tenants.id, ro.tenantId));
+      expectError(await req('PATCH', '/tenant', ro.ownerCookie, { name: 'Olmaz' }), 403, 'tenant_read_only');
+    }
+    await ctx.db.update(tenants).set({ lifecycleStage: 'active' }).where(eq(tenants.id, ro.tenantId));
+    const ok = await req('PATCH', '/tenant', ro.ownerCookie, { name: 'Ödendi Ayarlar' });
+    expect(ok.statusCode, ok.body).toBe(200);
   });
 });

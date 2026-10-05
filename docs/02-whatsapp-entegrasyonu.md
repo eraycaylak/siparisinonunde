@@ -805,7 +805,42 @@ WHERE wamid = $1
 |---|---|---|---|
 | Numara başı throughput | 80 mesaj/sn (Cloud, otomatik 1.000'e çıkabilir); **20 mesaj/sn (Coexistence)** | Redis token bucket, anahtar `rl:num:{phone_number_id}`, kapasite `mode`'a göre | 130429 |
 | Pair rate (aynı kullanıcıya) | ~6 sn'de 1 mesaj | `rl:pair:{phone_number_id}:{recipient}` sonraki izinli zaman; erken gelen iş gecikmeli yeniden kuyruğa | 131056 |
-| Messaging limit | Portföy başına 24 saatte pencere dışı tekil kullanıcı: 250 → 2.000 → 10.000 → 100.000 → sınırsız | Tenant başına kayan sayaç; kampanya başlamadan kontrol | — |
+| Messaging limit | Portföy başına 24 saatte pencere dışı tekil kullanıcı: 250 → 2.000 → 10.000 → 100.000 → sınırsız | **PLATFORM geneli** kayan 24 saatlik sayaç (§7.6a); kampanya başlamadan kontrol | 131048 |
+
+#### 7.6a Ortak numarada 24 saatlik konuşma kotası **[Faz 1 uygulaması]**
+
+**Neden platform geneli:** messaging limit 7 Ekim 2025'ten beri **portföy** düzeyindedir. Ortak numarada (00 §12a madde 8) tek portföy vardır, yani **tüm kiracılar tek kotayı paylaşır**: tavan tükendiğinde hiçbir dükkanın yeni müşteriye giden mesajı gitmez. "Tenant başına sayaç" ortak numara modeli için YANLIŞ ölçüdür; doğru ölçü platform genelidir, kiracı payı yalnız suçluyu göstermek için tutulur.
+
+**Ölçü (yeni tablo YOK, `services/messaging/waba-quota.ts` `measureWabaQuota`):** kayan 24 saatte açılan tekil iş-kaynaklı konuşma sayısı mevcut kayıtlardan türetilir:
+
+| Kaynak | Sayılır mı | Neden |
+|---|---|---|
+| `messages` (giden, `wa_accounts.provider = 'shared'`, `status` sent/delivered/read) | **Evet**, mesajdan önceki 24 saatte o sohbete GELEN mesaj yoksa | Meta'nın iş-kaynaklı tanımı; pencere içi yanıt tavana saymaz (§9.4) |
+| `notifications` (`channel = 'platform_wa'`, `status = 'sent'`) | **Evet** | İşletme sahibine giden uyarılar AYNI numaradan gider (`wa/registry.ts`); sayılmazsa ölçü sistematik düşük çıkar |
+| `shared_wa_messages` (dükkan seçici, "kod bulunamadı") | Hayır | Yapı gereği hepsi gelen mesajın yanıtıdır (`shared-router.ts` yalnız inbound olayında gönderir) → pencere içi |
+| İşletmenin KENDİ numarası (`provider` cloud/d360/twilio) | Hayır | Ayrı WABA, ayrı kota |
+
+**Tekillik alıcı başınadır** (`coalesce(phone_e164, 'bsuid:' || wa_bsuid)`): aynı kişi iki dükkanla konuşursa Meta **bir** konuşma sayar. Bu yüzden kiracı paylarının toplamı toplam sayıdan büyük olabilir; tavan karşılaştırması her zaman toplamla yapılır.
+
+**Tavan:** `WABA_CONVERSATION_CAP` (varsayılan 250 = yeni portföy). Sağlayıcı basamağı okunabiliyorsa o değer yapılandırmanın yerine geçer; bu **yalnız Twilio'da** olur (`properties.messaging_limit`). Meta Cloud'da `messaging_limit_tier` alanı `PHONE_FIELDS`'te istenmiyor ve `throughput.level` (STANDARD/HIGH) basamak **değildir**; 360dialog'da alan isteniyor ama yalnız ekran etiketine gidiyor, `phone.throughputLevel` null bırakılıyor. Her iki sağlayıcıda basamak **okunamaz** — uydurma değer üretilmez, yapılandırılan tavan kullanılır. **Eray'ın yapacağı adım:** cloud/d360 ile çalışırken basamak yükselince `WABA_CONVERSATION_CAP` elle güncellenir.
+
+**Uyarılar (`cron.waba_quota_watch`, 5 dakikada bir):**
+
+| Durum | Uyarı | Ağırlık |
+|---|---|---|
+| ≥ %70 | `waba_conversation_quota` | warning |
+| ≥ %90 | `waba_conversation_quota` | critical |
+| ≥ %100 | `waba_conversation_quota` ("ACİL … tavan DOLDU") | critical, 15 dk soğuma |
+| Sağlayıcı 131048 döndü | `waba_messaging_limit` | critical |
+| Kalite YELLOW/RED | `waba_quality_rating` | warning / critical |
+
+Tek işletme kotanın yarısından çoğunu tüketiyorsa uyarı metninde **adıyla ve konuşma sayısıyla** görünür (müşteri telefonu/adı uyarıya girmez, CLAUDE.md kural 7).
+
+**Bilinen sınır (gizlenmemiştir):** türetilen sayaç yalnız GÖNDERİLEBİLMİŞ mesajları görür. Tavan dolduğunda sağlayıcı reddeder, satır `failed` olur ve sayaç tam tavanda **düşük** okur. Bu yüzden sayaç **öncü** göstergedir (%70/%90) ve tavanın gerçeği **131048**'dir. İkinci sınır: 24 saatten eski bir GELEN mesaj saklama temizliğiyle silinirse pencere içi bir mesaj iş-kaynaklı sanılabilir — sapma uyarı yönündedir (erken uyarı), sessizlik yönünde değil.
+
+**Tavan dolduğunda davranış (`WABA_SHED_NONCRITICAL`, varsayılan KAPALI):** ayar açıldığında, tavanın son dilimine (%10, en az 10 konuşma) girildiğinde **önemsiz** durum mesajları yeni konuşma açmaz; kalan yer sipariş onayı / ret / iptal (`CRITICAL_ORDER_EVENTS`, SMS yedeğiyle aynı küme) için saklanır. Düşürülen mesaj `messages.error_code = 'waba_quota_shed'` olur ve siparişin **durum bütçesi geri verilir** (`releaseStatusBudget`) — yeni bir öncelik sistemi kurulmaz, var olan bütçe altyapısı kullanılır. Her koşul fail-open'dır: ayar kapalı, kendi numarası, pencere açık, mesaj kritik ya da ölçüm bayat (> 15 dk) ise mesaj **gider**.
+
+**Yalnız gerçekten yer kazandıran mesaj düşürülür:** tavan tekil alıcı saydığı için, o alıcıya son 24 saatte **gönderilebilmiş** bir mesaj varsa yeni mesaj tavana hiçbir şey eklemez (`recipientAlreadyBilled`). Böyle bir mesajı düşürmek kotadan yer kazandırmaz, yalnız müşteriyi sessiz bırakırdı: sipariş onayı kritik olduğu için her koşulda gider ve alıcıyı zaten saydırır, dolayısıyla ardından gelen hazırlanıyor / hazır / yolda / teslim mesajları **bedavadır** ve düşürülmez. Kontrol sohbet kapsamındadır (`messages_conversation_created_idx`); aynı telefon başka bir dükkanın sohbetinde sayılmışsa görülmez ve o dar durumda mesaj gereksiz düşürülebilir. **Eray'ın yapacağı adım:** ölçüm bir hafta izlendikten ve `waba_conversation_quota` uyarılarının gerçek trafikle örtüştüğü görüldükten sonra `WABA_SHED_NONCRITICAL=1` verilir.
 
 ### 7.7 Retry, backoff, DLQ, medya
 
@@ -911,7 +946,8 @@ Akış: BSUID ile ara → yoksa ve `wa_id` geldiyse telefonla ara (kural 2/4) �
   - **131050** → `marketing_opt_in = false` (müşteri pazarlamayı durdurmuş).
 - **Kampanya modülü [Faz 2]:** işletmenin İYS kaydı + alıcının önceden onayı + her mesajda ücretsiz ret yolu ("Kampanyaları durdur") + **gönderim öncesi İYS sorgusu (yazılımda zorunlu; WhatsApp operatör İYS filtresinden geçmez)** + `audit_log`. Müşteri başına haftada en fazla 1 kampanya, işletme başına günde en fazla 1 kampanya gönderimi; kampanya önizlemesinde tahmini maliyet, alıcı sayısı, messaging limit uygunluğu ve bastırılan kişi sayısı gösterilir.
 - **Kalite puanı:** `phone_number_quality_update` → `wa_phone_numbers.quality_rating` (`GREEN`/`YELLOW`/`RED`). `YELLOW`: işletmeye uyarı, kampanyalar manuel onaya düşer. `RED`: kampanya modülü kilitlenir, admin inceler; sipariş bildirimleri devam eder.
-- **Messaging limit:** 7 Ekim 2025'ten beri portföy seviyesinde; yeni portföy 250 tekil kullanıcı/24 saat; basamaklar 2.000 → 10.000 → 100.000 → sınırsız; artış ~6 saatte; kalite düşünce limit artık düşmüyor (A01 §6.3). Pencere içi yanıtlar sayılmaz. Tenant başına sayaç; kampanya limiti aşacaksa bölünür veya engellenir.
+  - **[Faz 1 uygulaması]** `phone_number_quality_update` alanı §7.9'da planlıdır ama **kodda bu olayı işleyen hiçbir yer yok** ve `wa_phone_numbers` tablosu hiç açılmadı (migration'larda yok); yani kalite derecesi itilerek gelmiyor. Faz 1'de **çekilerek** okunur: `cron.waba_quota_watch` saatte bir `services/admin/wa-setup` `testConnection` çağırır (Meta Graph `quality_rating`, Twilio Senders `properties.quality_rating`, 360dialog `health_status`) ve YELLOW/RED görürse `waba_quality_rating` uyarısı gönderir (RED = critical). Sağlayıcı yanıt vermezse değer **okunamadı** olarak loglanır, varsayımla doldurulmaz.
+- **Messaging limit:** 7 Ekim 2025'ten beri portföy seviyesinde; yeni portföy 250 tekil kullanıcı/24 saat; basamaklar 2.000 → 10.000 → 100.000 → sınırsız; artış ~6 saatte; kalite düşünce limit artık düşmüyor (A01 §6.3). Pencere içi yanıtlar sayılmaz. **Ortak numarada sayaç PLATFORM genelidir** (tek portföy, tüm kiracılar aynı kotada) — ölçü, eşikler ve kiracı payı §7.6a'dadır; kampanya limiti aşacaksa bölünür veya engellenir.
 - **Numara sınırı:** yeni portföyde 2 kayıtlı numara; doğrulama veya 2.000 limitiyle 20. Zincir paketinde (Faz 2) 3+ şube için işletmenin kendi Business Verification'ı onboarding'de yönlendirilir.
 - **Yaptırım:** tekrarlayan ihlalde 5/7/30 günlük gönderim engelleri (A01 §6.3 [3P]); `account_update` ile izlenir.
 
@@ -931,7 +967,7 @@ Resmi liste: https://developers.facebook.com/documentation/business-messaging/wh
 | 131050 | Kullanıcı pazarlamayı durdurmuş | Hayır | `marketing_opt_in = false` | Kampanya raporu |
 | 131056 | Pair rate limit | Evet | Geri çekil, bekleyen mesajları birleştir | — |
 | 130429 | Throughput aşıldı | Evet | Kuyruk + jitter'lı geri çekilme; limiter kapasitesini kontrol et | Admin (tekrarlıyorsa) |
-| 131048 | Spam rate limit | Hayır | Tenant kampanyalarını durdur, kaliteyi incele | Admin, `owner` |
+| 131048 | Spam rate limit **ya da 24 saatlik messaging limit tavanı doldu** | Hayır | Tenant kampanyalarını durdur, kaliteyi incele. **[Faz 1 uygulaması]** `isMessagingLimitCode` (`wa/errors.ts`) → `waba_messaging_limit` **kritik** uyarısı; ortak numarada metin ACİL'dir (tüm dükkanlar susar). Sınıflandırma `fail` kalır: spam kısıtına körlemesine yeniden denemek kaliteyi daha da düşürür. Twilio'nun günlük sınırı `63038` aynı koda çevrilir ([16](16-twilio-whatsapp.md) §2.6) | Admin, `owner` |
 | 131051 | Desteklenmeyen gelen mesaj tipi | — | "Bu içeriği okuyamadık" (günde 1) | — |
 | 132xxx | Şablon hataları (parametre, şablon yok, duraklatılmış) | Hayır | Şablon senkronu tetikle, pencere içindeyse serbest mesaja düş | Admin |
 | 4, 80007 (?) | Graph API çağrı limiti | Evet | Uzun geri çekilme | Admin (tekrarlıyorsa) |
@@ -948,7 +984,8 @@ Metrikler ve alarm kanalları (on-call, admin paneli) [06](06-teknik-mimari.md) 
 | Ingress imza hatası | > 10/dk | P2 | App Secret rotasyonu/saldırı kontrolü. **[Faz 1 uygulaması]** her 401 `log.error` + `wa_webhook_signature_invalid` uyarısı üretir (ortak numara critical — tüm dükkanlar susar —, işletme hesabı warning; bağlamda `scope`, `reason` (`meta_signature` · `twilio_signature` · `twilio_auth_token_missing`) ve `accountId`, gizli değer YOK). Uyarı yalnız **doğru webhook belirteciyle** gelen istekte üretilir, yoksa internetten tetiklenen uyarı seli olurdu; tekrar teslimler `alert()` soğumasına (10 dk) takılır |
 | Yeni sipariş onaylanmadı | `new` ≥ 2 dk | İşletme | Kademeli alarm zinciri (§10.3) |
 | Panel çevrimdışı | Şube açıkken sesi açık ve nabız gönderen hiç cihaz yok (≥ 3 dk). **[Faz 1 uygulaması]** sipariş ekranı akışı 5 dk görülmüyor ya da açılıştan beri hiç görülmedi ve açılış ≥ 10 dk | İşletme | `isletme_panel_cevrimdisi_v1` + SMS, 30 dk'da en fazla 1 (§5.3, [06](06-teknik-mimari.md) §7.7). **[Faz 1 uygulaması]** yalnız platform WhatsApp, şube başına 60 dk'da en çok 1 ve yerel günde en çok 1 (sayaç gün dönünce sıfırlanır) |
-| Kalite düşüşü | `YELLOW` / `RED` | İşletme + admin | §9.4 |
+| Kalite düşüşü | `YELLOW` / `RED` | İşletme + admin | §9.4. **[Faz 1 uygulaması]** `cron.waba_quota_watch` saatte bir `testConnection` ile kalite derecesini ÇEKER (webhook alanı kodda işlenmiyor) → `waba_quality_rating` uyarısı (YELLOW warning, RED critical). Okunamazsa uydurulmaz, "okunamadı" loglanır |
+| **24 saatlik konuşma kotası (ortak numara)** | Platform geneli tekil iş-kaynaklı konuşma ≥ %70 / %90 / %100 | P2 / P1 / P1 | **[Faz 1 uygulaması]** §7.6a: ölçü `messages` + `notifications` kayıtlarından türetilir (yeni tablo yok), `cron.waba_quota_watch` 5 dakikada bir ölçer → `waba_conversation_quota` uyarısı; tavan dolunca metin ACİL ve kotayı tüketen işletme adıyla görünür. Tavanın gerçeği `131048`'dir (sayaç tam tavanda düşük okur) |
 | Token 190 / süre bitimi yakın | Anında / 7 gün kala | İşletme + admin | §7.8. **[Faz 1 uygulaması]** işletme hesabında satır `error` olur + `wa_disconnected` platform uyarısı; **ortak numarada** işletmenin satırı duraklatılmaz (numara platformundur) ama platform mesajı gönderiminde (`performSharedSend`) `shared_wa_account_error` **kritik** uyarısı gider — Twilio kimlik/askı hataları `20003`/`20005` de Meta `190`'a çevrilir ([16](16-twilio-whatsapp.md) §2.6), yani ortak numara anahtarı bozulduğunda tüm dükkanların mesajları durur ve nöbetçi haberdar olur. **[Açık iş]** aynı hata DÜKKAN mesajı yolunda (`services/messaging/send.ts`, `account.provider === 'shared'` dalı) hâlâ yalnız `log.error` üretiyor; aynı uyarı oraya da eklenmeli |
 | Ödeme 131042 | Anında | İşletme + admin | §3.7 |
 | Coexistence kopması | `account_update` olayı, ardışık gönderim hataları veya tenant sessizliği + numara durumu değişimi | İşletme + admin | "Yeniden bağlan" |

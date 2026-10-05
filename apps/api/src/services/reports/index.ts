@@ -8,6 +8,7 @@ import { tenants, type Database } from '@siparis/db';
 import { eq, sql, type SQL } from 'drizzle-orm';
 import { notFound } from '../../lib/errors';
 import { validationError } from '../settings/common';
+import { avoidedCommissionKurus, resolveCommissionBp, withVatKurus } from './savings-rate';
 
 const TZ = DEFAULT_TIMEZONE;
 /** Doğrulanmış (awaiting_customer değil, doğrulama süresi dolup iptal olmamış) sipariş. */
@@ -236,13 +237,18 @@ export async function summaryReport(db: Database, scope: Scope, fromDate: string
 const MONTH_NAMES_TR = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
 
 export const SAVINGS_NOTE =
-  'Tahmindir. Bu siparişlerin tamamının pazaryerinden geleceği varsayılır; gerçek tasarruf daha düşük olabilir. Oranı sözleşmenize göre güncelleyin.';
+  'Yaklaşık bir tahmindir. Bu siparişlerin tamamının pazaryerinden geleceği varsayılır; gerçek tasarruf daha düşük olabilir. Oranı sözleşmenize göre güncelleyin.';
+
+/** 04 §11.3: oran girilmemişse varsayılan uydurulmaz; kart tutar yerine oranı ister. */
+export const SAVINGS_NOTE_RATE_MISSING =
+  'Tasarruf tutarı gösterilmiyor: pazaryeri kesinti oranınız girilmemiş. Oranı girin (hazır %15 / %25 / %35 ya da pazaryeri panelinizdeki aylık kesinti toplamı ÷ ciro); varsayılan bir oran uydurulmaz.';
 
 /** 04 §11.3: kendi kanaldan teslim edilen siparişlerin sepet tutarı × pazaryeri kesinti oranı. */
 export async function savingsReport(db: Database, scope: Scope, month: string, opts: { includePhone?: boolean; now?: Date } = {}): Promise<SavingsReport> {
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) throw validationError('Geçerli bir ay seçin (YYYY-AA).', 'month');
   const [tenant] = await db.select({ bp: tenants.marketplaceCommissionBp }).from(tenants).where(eq(tenants.id, scope.tenantId));
   if (!tenant) throw notFound('İşletme bulunamadı.');
+  const commissionBp = resolveCommissionBp(tenant.bp);
   const [y, m] = month.split('-').map(Number) as [number, number];
   const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, '0')}`;
   const from = zonedTimeToUtc(`${month}-01`, '00:00', TZ);
@@ -259,19 +265,22 @@ export async function savingsReport(db: Database, scope: Scope, month: string, o
   const byChannel = r.map((x) => ({ channel: x.channel, count: num(x.count), basketKurus: num(x.basket) }));
   const orderCount = byChannel.reduce((s, x) => s + x.count, 0);
   const basket = byChannel.reduce((s, x) => s + x.basketKurus, 0);
-  const avoided = Math.round((basket * tenant.bp) / 10_000);
+  const avoided = avoidedCommissionKurus(basket, commissionBp);
   const isCurrent = todayIstanbul(opts.now).slice(0, 7) === month;
   const period = isCurrent ? 'Bu ay' : `${MONTH_NAMES_TR[m - 1]} ${y} ayında`;
   return {
     month,
     orderCount,
     basketTotalKurus: basket,
-    commissionBp: tenant.bp,
+    commissionBp,
     avoidedCommissionKurus: avoided,
-    avoidedCommissionWithVatKurus: Math.round(avoided * 1.2),
+    avoidedCommissionWithVatKurus: withVatKurus(avoided),
     byChannel,
     includesPhoneOrders: Boolean(opts.includePhone),
-    headline: `${period} kendi kanalından ${orderCount} sipariş, ${formatTL(avoided)} tasarruf`,
-    note: SAVINGS_NOTE,
+    headline:
+      avoided == null
+        ? `${period} kendi kanalından ${orderCount} sipariş`
+        : `${period} kendi kanalından ${orderCount} sipariş, yaklaşık ${formatTL(avoided)} tasarruf`,
+    note: avoided == null ? SAVINGS_NOTE_RATE_MISSING : SAVINGS_NOTE,
   };
 }
