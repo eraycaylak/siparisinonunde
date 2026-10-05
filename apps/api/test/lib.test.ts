@@ -68,6 +68,23 @@ describe('takip token\'ı (14 §7.4)', () => {
     expect(createTrackingToken(id.toUpperCase(), 'sir')).toBe(token);
     expect(trackingUrl('http://localhost:3000/', id, 'sir')).toBe(`http://localhost:3000/t/${token}`);
   });
+
+  // AYNA TESTİ: vitrin, siparişten sonra token'ı sınırda doğrulayıp `/t/<token>`'a geçiyor
+  // (apps/web/components/orders/track-link.ts → TOKEN_PATTERN). Desen burada üretilen biçimi kabul etmezse
+  // Akış B'de müşteri "Takip sayfanız açılamadı" çıkmaz sokağına düşer — 05.10.2026'da canlıda tam bu oldu
+  // (nokta kabul edilmiyordu). Desen dosyadan OKUNUR: iki taraf ayrışırsa test kırmızı yanar.
+  it("vitrindeki token deseni gerçek token'ı kabul eder (track-link.ts aynası)", () => {
+    const src = readFileSync(new URL('../../web/components/orders/track-link.ts', import.meta.url), 'utf8');
+    const m = src.match(/const TOKEN_PATTERN = (\/.+\/);/);
+    expect(m, 'track-link.ts içinde TOKEN_PATTERN bulunamadı').not.toBeNull();
+    const pattern = new RegExp(m![1]!.slice(1, -1));
+    for (const uuid of [id, '00000000-0000-4000-8000-000000000000', 'ffffffff-ffff-4fff-bfff-ffffffffffff']) {
+      expect(pattern.test(createTrackingToken(uuid, 'sir')), `token deseni reddetti: ${uuid}`).toBe(true);
+    }
+    // Yol enjeksiyonu hâlâ kapalı
+    expect(pattern.test('../../panel')).toBe(false);
+    expect(pattern.test('//evil.example.com')).toBe(false);
+  });
 });
 
 describe('rate limiter', () => {
