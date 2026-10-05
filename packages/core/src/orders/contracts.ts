@@ -238,45 +238,97 @@ export const manualMenuResponseSchema = z.object({
 });
 export type ManualMenuResponse = z.infer<typeof manualMenuResponseSchema>;
 
+// ---------------------------------------------------------------------------
+// Telefon siparişinde müşteri arama (04 §4.13; uç `GET /panel/orders/manual/customers`)
+//
+// TEK `q` PARAMETRESİ (ayrı `phone`/`name` DEĞİL): ekranda iki alan var ama aynı anda yalnız biri yazılıyor;
+// iki parametre kaçınılmaz olarak "AND" semantiği sorusu doğurur (`phone=5&name=ahm` ne demek?) ve sunucu
+// zaten rakam/harf sınıflandırması yapmak zorundadır. CRM listesi (`GET /panel/customers?q=`) ve sipariş
+// listesi (`GET /panel/orders?q=`) de tek `q` kullanıyor — ikinci bir desen icat edilmedi.
+//
+// EN AZ KARAKTER YOK: ilk tuşta sonuç gelir (Eray'ın isteği, 04 §4.13). Anlamsız sorgu hata değildir:
+// normalize edilmiş ulusal telefon kısmı boşsa ("0", "+90", "90") süzgeç uygulanmaz ve "en son sipariş
+// verenler" döner — Türkiye'de her cep numarası `0` ile başladığı için `0` sıfır seçicilik taşır.
+
+export const customerLookupQuerySchema = z.object({
+  /** Telefon rakamları ya da ad; istemci normalize eder (`foldSearch`), sunucu yine savunmacı normalize eder. */
+  q: z.string().trim().max(40).optional(),
+  /**
+   * DEPRECATED — yalnız `q` yokken okunur. Eski istemciler ve `apps/api/test/order-panel.test.ts` için duruyor;
+   * `q` geldiğinde tamamen yok sayılır. Kaldırılması için bkz. 07 §6.3 notu.
+   */
+  phone: z.string().trim().max(20).optional(),
+  limit: z.coerce.number().int().min(1).max(20).default(8),
+  /**
+   * `'1'` (VARSAYILAN, geriye dönük uyum): ağır gövde — `addresses` + `lastOrders` dolu gelir.
+   * `'0'`: liste gövdesi — tek sorgu, maskeli telefon, ham telefon ve not YOK. Tuş başına arama bunu kullanır.
+   * Ağır gövde için tercih edilen yol artık `GET /panel/orders/manual/customers/:id`.
+   */
+  detail: z.enum(['0', '1']).default('1'),
+});
+export type CustomerLookupQuery = z.infer<typeof customerLookupQuerySchema>;
+
+export const customerLookupItemSchema = z.object({
+  id: z.string(),
+  name: z.string().nullable(),
+  /** Her zaman dolu (maskeli, yalnız son 4 hane). */
+  phoneMasked: z.string().nullable(),
+  /** Yalnız ayrıntı gövdesinde (`detail=1` ya da `/:id`): formu doldurmak için ham numara gerekir. */
+  phoneE164: z.string().nullable().optional(),
+  orderCount: z.number().int(),
+  isBlocked: z.boolean(),
+  /** Listede notun VARLIĞI gösterilir; içeriği yalnız ayrıntı gövdesinde. */
+  hasNotes: z.boolean(),
+  notes: z.string().nullable().optional(),
+  lastOrderAt: isoNullable,
+  addressCount: z.number().int(),
+  /** Yalnız ayrıntı gövdesinde. */
+  addresses: z
+    .array(
+      z.object({
+        id: z.string(),
+        label: z.string().nullable(),
+        neighborhood: z.string().nullable(),
+        addressLine: z.string().nullable(),
+        directions: z.string().nullable(),
+      }),
+    )
+    .optional(),
+  /** Yalnız ayrıntı gövdesinde; en yeni 3 sipariş ("Aynısını ekle"). */
+  lastOrders: z
+    .array(
+      z.object({
+        id: z.string(),
+        number: z.number().int(),
+        placedAt: z.string(),
+        totalKurus: kurusSchema,
+        items: z.array(
+          z.object({
+            productId: z.string().nullable(),
+            name: z.string(),
+            quantity: z.number().int(),
+            note: z.string().nullable(),
+            optionIds: z.array(z.string()),
+          }),
+        ),
+      }),
+    )
+    .optional(),
+});
+export type CustomerLookupItem = z.infer<typeof customerLookupItemSchema>;
+
 export const customerLookupResponseSchema = z.object({
-  items: z.array(
-    z.object({
-      id: z.string(),
-      name: z.string().nullable(),
-      phoneE164: z.string().nullable(),
-      orderCount: z.number().int(),
-      isBlocked: z.boolean(),
-      notes: z.string().nullable(),
-      addresses: z.array(
-        z.object({
-          id: z.string(),
-          label: z.string().nullable(),
-          neighborhood: z.string().nullable(),
-          addressLine: z.string().nullable(),
-          directions: z.string().nullable(),
-        }),
-      ),
-      lastOrders: z.array(
-        z.object({
-          id: z.string(),
-          number: z.number().int(),
-          placedAt: z.string(),
-          totalKurus: kurusSchema,
-          items: z.array(
-            z.object({
-              productId: z.string().nullable(),
-              name: z.string(),
-              quantity: z.number().int(),
-              note: z.string().nullable(),
-              optionIds: z.array(z.string()),
-            }),
-          ),
-        }),
-      ),
-    }),
-  ),
+  items: z.array(customerLookupItemSchema),
+  /**
+   * Hangi dal çalıştı: `latest` (süzgeçsiz, en son sipariş verenler), `phone`, `name`.
+   * Ekranda boş durum metnini doğru yazmak için gerekir ("eşleşme yok" ≠ "en son müşteriler").
+   */
+  mode: z.enum(['latest', 'phone', 'name']),
 });
 export type CustomerLookupResponse = z.infer<typeof customerLookupResponseSchema>;
+
+export const customerLookupDetailResponseSchema = z.object({ item: customerLookupItemSchema });
+export type CustomerLookupDetailResponse = z.infer<typeof customerLookupDetailResponseSchema>;
 
 // ---------------------------------------------------------------------------
 // Fiş (04 §4.14)

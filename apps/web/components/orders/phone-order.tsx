@@ -5,18 +5,19 @@
 // ekrandaki tutar POST /store/:slug/quote önizlemesidir.
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Minus, Plus, Search, Trash2, UserRound } from 'lucide-react';
+import { Minus, Plus, Search, Trash2 } from 'lucide-react';
 import type { QuoteResponse } from '@siparis/core/contracts/store';
-import type { CustomerLookupResponse, ManualMenuResponse, OrderCardResponse } from '@siparis/core/orders/contracts';
+import type { CustomerLookupItem, ManualMenuResponse, OrderCardResponse } from '@siparis/core/orders/contracts';
 import { MEAL_CARD_BRAND_LABELS, PAYMENT_METHOD_LABELS, type MealCardBrand, type PaymentMethod } from '@siparis/core/enums';
 import { allNeighborhoods } from '@siparis/core/zones';
-import { Alert, Badge, Button, Checkbox, EmptyState, Field, IconButton, Input, PageHeader, RadioGroup, Select, Sheet, Spinner, Switch, Textarea } from '@/components/ui';
+import { Alert, Button, Checkbox, EmptyState, Field, IconButton, Input, PageHeader, RadioGroup, Select, Sheet, Spinner, Switch, Textarea } from '@/components/ui';
 import { apiFetch, errorMessage, fieldErrorsOf, isApiError, newIdempotencyKey, useApiQuery } from '@/lib/api';
 import { useMe } from '@/lib/auth';
 import { cn } from '@/lib/cn';
-import { formatMoney, formatRelative, parseTlToKurus, searchKey } from '@/lib/format';
+import { formatMoney, parseTlToKurus, searchKey } from '@/lib/format';
+import { CustomerPicker, type LastOrderItems } from './customer-picker';
 import { ETA_CHIPS } from './labels';
 import { outOfZoneFeeError, outOfZoneFeeKurus, parseOutOfZoneFee } from './out-of-zone-fee';
 
@@ -66,11 +67,9 @@ export function PhoneOrder() {
   const [formError, setFormError] = useState<string | null>(null);
   const idem = useRef(newIdempotencyKey());
 
+  // Müşteri arama (ilk karakterden itibaren, telefon + ad, tuş başına) `CustomerPicker` içindedir.
+  // Burada yalnız kayıt doğrulaması için rakamlar tutulur.
   const digits = phone.replace(/\D/g, '');
-  const lookup = useApiQuery<CustomerLookupResponse>(['panel', 'orders', 'lookup', digits], digits.length >= 4 ? '/panel/orders/manual/customers' : null, {
-    query: { phone: digits },
-    staleTime: 10_000,
-  });
 
   const m = menu.data;
   const neighborhoods = useMemo(() => (m ? allNeighborhoods(m.zones.map((z) => ({ ...z, isActive: true }))) : []), [m]);
@@ -143,19 +142,26 @@ export function PhoneOrder() {
     else addLine(p, [], [], p.priceKurus);
   };
 
-  const chooseCustomer = (c: CustomerLookupResponse['items'][number]) => {
-    setCustomerId(c.id);
-    if (c.name) setName(c.name);
-    if (c.phoneE164) setPhone(`0${c.phoneE164.slice(3)}`);
-    const a = c.addresses[0];
-    if (a) {
-      if (a.neighborhood) setNeighborhood(neighborhoods.find((n) => searchKey(n) === searchKey(a.neighborhood!)) ?? a.neighborhood);
-      setAddressLine(a.addressLine ?? '');
-      setDirections(a.directions ?? '');
-    }
-  };
+  /**
+   * Seçilen müşterinin ayrıntısı geldiğinde formu doldurur (bugünkü otomatik doldurma davranışı korunur).
+   * Seçim durumunu `CustomerPicker` yönetir; burada yalnız alanlar yazılır — bu yüzden `setCustomerId` YOK
+   * (çağrılsa alan yazımı "yazmaya başladı, seçimi temizle" kuralını tetikleyip seçimi anında bozardı).
+   */
+  const fillFromCustomer = useCallback(
+    (c: CustomerLookupItem) => {
+      if (c.name) setName(c.name);
+      if (c.phoneE164) setPhone(`0${c.phoneE164.slice(3)}`);
+      const a = c.addresses?.[0];
+      if (a) {
+        if (a.neighborhood) setNeighborhood(neighborhoods.find((n) => searchKey(n) === searchKey(a.neighborhood!)) ?? a.neighborhood);
+        setAddressLine(a.addressLine ?? '');
+        setDirections(a.directions ?? '');
+      }
+    },
+    [neighborhoods],
+  );
 
-  const addSame = (items: CustomerLookupResponse['items'][number]['lastOrders'][number]['items']) => {
+  const addSame = (items: LastOrderItems) => {
     if (!m) return;
     const byId = new Map(m.categories.flatMap((c) => c.products).map((p) => [p.id, p]));
     let skipped = 0;
@@ -237,53 +243,25 @@ export function PhoneOrder() {
       <PageHeader title="Telefon siparişi" description="Telefonla gelen siparişi kaydedin. Toplamı sistem hesaplar." />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,26rem)] [&>*]:min-w-0">
         <div className="flex min-w-0 flex-col gap-4">
-          {/* 1 Müşteri */}
-          <section className="flex flex-col gap-3 rounded-lg border border-border bg-surface-raised p-4">
-            <h2 className="text-base font-bold">1 · Müşteri</h2>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Field label="Telefon" required hint="0 (5xx) xxx xx xx" error={errors.customerPhone}>
-                <Input type="tel" inputMode="tel" value={phone} onChange={(e) => { setPhone(e.target.value); setCustomerId(null); }} />
-              </Field>
-              <Field label="Ad" required error={errors.customerName}>
-                <Input value={name} maxLength={80} onChange={(e) => setName(e.target.value)} />
-              </Field>
-            </div>
-            {lookup.data?.items.length ? (
-              <ul className="flex flex-col gap-2">
-                {lookup.data.items.map((c) => (
-                  <li key={c.id} className={cn('flex flex-col gap-2 rounded-md border p-3', customerId === c.id ? 'border-primary' : 'border-border')}>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <UserRound aria-hidden className="size-5" />
-                      <span className="font-semibold">{c.name ?? 'Müşteri'}</span>
-                      <Badge size="sm" variant={c.orderCount > 1 ? 'info' : 'neutral'}>
-                        {c.orderCount > 0 ? `${c.orderCount} sipariş` : 'Yeni'}
-                      </Badge>
-                      {c.isBlocked ? <Badge size="sm" variant="danger">Kara listede</Badge> : null}
-                      <Button variant="secondary" size="sm" className="ms-auto" onClick={() => chooseCustomer(c)}>
-                        Seç
-                      </Button>
-                    </div>
-                    {c.addresses[0] ? (
-                      <p className="text-sm text-fg-muted">
-                        {c.addresses[0].neighborhood ? `${c.addresses[0].neighborhood} · ` : ''}
-                        {c.addresses[0].addressLine}
-                      </p>
-                    ) : null}
-                    {c.lastOrders.map((o) => (
-                      <div key={o.id} className="flex flex-wrap items-center gap-2 text-sm">
-                        <span className="text-fg-muted">
-                          #{o.number} · {formatRelative(o.placedAt)} · {o.items.map((i) => `${i.quantity}× ${i.name}`).join(', ')}
-                        </span>
-                        <Button variant="ghost" size="sm" onClick={() => { chooseCustomer(c); addSame(o.items); }}>
-                          <Plus aria-hidden /> Aynısını ekle
-                        </Button>
-                      </div>
-                    ))}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-          </section>
+          {/* 1 Müşteri — arama, klavye gezinmesi ve ayrıntı yüklemesi CustomerPicker'da (04 §4.13) */}
+          <CustomerPicker
+            phone={phone}
+            name={name}
+            onPhoneChange={(v) => {
+              setPhone(v);
+              setCustomerId(null);
+            }}
+            onNameChange={(v) => {
+              setName(v);
+              setCustomerId(null);
+            }}
+            selectedId={customerId}
+            onSelect={setCustomerId}
+            onFill={fillFromCustomer}
+            onAddSame={addSame}
+            phoneError={errors.customerPhone}
+            nameError={errors.customerName}
+          />
 
           {/* 2 Ürünler */}
           <section className="flex flex-col gap-3 rounded-lg border border-border bg-surface-raised p-4">

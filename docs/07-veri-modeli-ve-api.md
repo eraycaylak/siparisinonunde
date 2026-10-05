@@ -577,7 +577,16 @@ Kimlik `(tenant_id, wa_bsuid)`, telefon nullable ([00-kararlar-ve-sozluk.md](00-
 | `merged_into_id` | uuid | ✓ | Birleştirilen kaynak kayıt |
 | `anonymize_at`, `anonymized_at` | timestamptz | ✓ | Son sipariş/mesaj + `retention_customer_months` |
 
-İndeks `UNIQUE(tenant_id, wa_bsuid) WHERE wa_bsuid IS NOT NULL AND merged_into_id IS NULL`, `(tenant_id, phone_e164)`, GIN trigram `display_name`, `(anonymize_at) WHERE anonymized_at IS NULL`. Birleştirme kuralları D02 §8.3.
+İndeks `UNIQUE(tenant_id, wa_bsuid) WHERE wa_bsuid IS NOT NULL AND merged_into_id IS NULL`, `(tenant_id, phone_e164)`, `(tenant_id, last_order_at)`, `(anonymize_at) WHERE anonymized_at IS NULL`. Birleştirme kuralları D02 §8.3.
+
+**Arama indeksleri (uygulanan; göç `0006_customers_search_index.sql`):** telefon siparişi ekranındaki müşteri araması ÖNEK aramasıdır, bu yüzden iki btree indeksi `text_pattern_ops` opclass'ı ile kurulur:
+
+| İndeks | Tanım | Niçin |
+|---|---|---|
+| `customers_tenant_phone_prefix_idx` | `(tenant_id, phone_e164 text_pattern_ops) WHERE phone_e164 IS NOT NULL` | `LIKE '+90532%'` öneki. Varsayılan opclass yalnız `C` benzeri collation'da öneki karşılar; canlı `C.UTF-8`, compose `en_US.utf8`, geliştirme `C` — üçünde de çalışması için opclass ZORUNLU. |
+| `customers_tenant_name_fold_idx` | `(tenant_id, translate(name, …) text_pattern_ops) WHERE name IS NOT NULL` | Türkçe harf katlamalı ad öneki. `lower()`/`ILIKE` KULLANILMAZ: `lower()` noktasız `ı`/noktalı `İ`'yi hiçbir collation'da `i`'ye katlamaz (`'Ahmet Yıldız' ILIKE '%yildiz%'` → false) ve ASCII dışındaki davranışı collation'a bağlıdır (`locale 'C'`: `lower('ÇİĞDEM')` → `'ÇİĞdem'`; `C.UTF-8`: `'çiğdem'`). `ILIKE` önek indeksi de kullanamaz. `translate()` locale'den bağımsız ve IMMUTABLE'dır. |
+
+**Planlanan GIN trigram `display_name` indeksi KURULMADI (bilinçli):** trigram indeksi LIKE deseni 3 karakterden kısa olduğunda kullanılamaz, yani istenen 1–2 karakterlik aramada tam olarak işe yaramaz; ayrıca depoda hiç `CREATE EXTENSION` yok. Seçici olmayan sorguların maliyeti indeks yerine **200'lük aday penceresiyle** sınırlanır (04 §4.13).
 
 #### `customer_addresses` **[Faz 1]**
 std, `customer_id`, `label` ("Ev", "İş"), `city`, `district`, `neighbourhood`, `street`, `building_no`, `floor ✓`, `apartment_no ✓`, `is_detached`, `directions ✓` (adres tarifi), `address_text NN`, `location geography(Point,4326) NN`, `location_source` (`wa_pin`, `map_pin`, `autocomplete`, `manual`), `uavt_code ✓`, `is_default`, `last_used_at`. Tümü `pii:location`; "adresimi sil" hard delete. (D06 §10.1'deki Türkçe alan adlarının İngilizce karşılıkları.)
@@ -1125,6 +1134,8 @@ Faz 2 örneği: %10 kupon (üst sınır 50 TL) → indirim `round(47.500 × 0,10
 | GET | `/branches/{b}/snapshot?since_seq=` | O,M,C,K | Emniyet sorgusu: açık siparişler + `max_seq` |
 | GET | `/branches/{b}/orders?status=&from=&to=&q=&cursor=` | O,M,C,K | Liste ve arama (no, isim, telefonun son 4 hanesi) |
 | GET | `/orders/{id}` | O,M,C,K | Detay + zaman çizelgesi (`kitchen` fiyatsız) |
+| GET | `/orders/manual/customers?q=&limit=&detail=` | O,M,C | **Telefon siparişi müşteri araması** (04 §4.13). `q`: telefon rakamları **ya da** ad; **en az karakter YOK**, ilk tuşta sonuç. Ulusal telefon kısmı boşsa (`0`, `+90`, `90`, boş) süzgeç uygulanmaz → en son sipariş verenler. `limit` 1–20 (varsayılan 8), `detail` `0`\|`1` (varsayılan `1` = eski ağır gövde, geriye dönük uyum; tuş başına arama `0` kullanır). Yanıt `{items[], mode: latest\|phone\|name}`. `items[]` **her zaman**: `id`, `name`, `phoneMasked`, `orderCount`, `isBlocked`, `hasNotes`, `lastOrderAt`, `addressCount`. Yalnız ayrıntı gövdesinde: `phoneE164`, `notes`, `addresses[]`, `lastOrders[]`. **DEPRECATED** `phone=` takma adı yalnız `q` yokken okunur. Hız sınırı yok (gerekçe 04 §4.13) |
+| GET | `/orders/manual/customers/{id}` | O,M,C | Tek müşterinin **ağır gövdesi**: liste alanları + `phoneE164`, `notes`, `addresses[]` (en yeni 5), `lastOrders[]` (en yeni 3; kalemler `optionIds` ile → "Aynısını ekle"). Sabit 4 sorgu. Başka tenant ya da `customer_erasures`'ta kayıtlı müşteri → **404** |
 | POST | `/branches/{b}/orders` | O,M,C | Manuel sipariş (Akış E; `conversation_id` ile "sohbetten sipariş"; `{eta_minutes, wa_notify, out_of_zone_override?, out_of_zone_fee_kurus?}` → `new → accepted` tek transaction) |
 | POST | `/orders/{id}/ack` | O,M,C,K | Görüldü |
 | POST | `/orders/{id}/accept` | O,M,C | `{eta_minutes}` + `If-Match` |

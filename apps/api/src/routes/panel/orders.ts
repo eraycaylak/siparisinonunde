@@ -31,13 +31,9 @@ import {
 import {
   branches,
   cancellationRequests,
-  customerAddresses,
-  customers,
   memberships,
   orderAcks,
   orderEvents,
-  orderItemOptions,
-  orderItems,
   orders,
   products,
   tenants,
@@ -68,12 +64,15 @@ import {
   panelCancelRequestSchema,
   panelRejectRequestSchema,
   rejectOrderResponseSchema,
+  customerLookupDetailResponseSchema,
+  customerLookupQuerySchema,
   customerLookupResponseSchema,
   RECEIPT_TYPES,
   type ManualMenuResponse,
 } from '@siparis/core/orders/contracts';
 import { buildCards, buildOrderDetail, loadItems, orderDetailExtSchema, projectForRole, type OrderCard } from '../../services/orders/panel-dto';
 import { fieldError, validatePayment } from '../../services/orders/payment';
+import { attachDetails, classifyLookup, lookupCustomerById, lookupCustomers } from '../../services/customers/lookup';
 import { loadPricingProducts, loadZones, quoteForBranch } from '../../services/orders/pricing-context';
 import { buildReceipt, renderReceiptHtml, resolveReceiptSettings } from '../../services/orders/receipt';
 import { emitOrderUpdated, findOrder, type OrderRow } from '../../services/orders/summary';
@@ -115,7 +114,6 @@ const receiptQuery = z.object({
   width: z.enum(['58', '80']).optional(),
 });
 
-const lookupQuery = z.object({ phone: z.string().trim().min(3).max(20) });
 
 function roundUpTo5Minutes(d: Date): Date {
   const step = 5 * 60_000;
@@ -428,78 +426,50 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     };
   });
 
-  // GET /panel/orders/manual/customers?phone= — telefonla müşteri arama: kayıtlı adresler + son 3 sipariş
-  app.get('/orders/manual/customers', { ...staff, schema: { querystring: lookupQuery, response: { 200: customerLookupResponseSchema } } }, async (request) => {
-    const auth = tenantAuth(request);
-    const digits = request.query.phone.replace(/\D/g, '').replace(/^0+/, '').replace(/^90(?=5\d{9}$)/, '');
-    if (digits.length < 3) return { items: [] };
-    const found = await app.db
-      .select()
-      .from(customers)
-      .where(and(eq(customers.tenantId, auth.tenantId), sql`${customers.phoneE164} like ${`%${digits}%`}`))
-      .orderBy(desc(customers.lastOrderAt))
-      .limit(5);
-    const items = [];
-    for (const c of found) {
-      const addrs = await app.db
-        .select()
-        .from(customerAddresses)
-        .where(and(eq(customerAddresses.tenantId, auth.tenantId), eq(customerAddresses.customerId, c.id)))
-        .orderBy(desc(customerAddresses.lastUsedAt))
-        .limit(5);
-      const last = await app.db
-        .select()
-        .from(orders)
-        .where(and(eq(orders.tenantId, auth.tenantId), eq(orders.customerId, c.id)))
-        .orderBy(desc(orders.placedAt))
-        .limit(3);
-      const lastItems = await loadItems(
-        app.db,
-        last.map((o) => o.id),
-      );
-      const optRows = last.length
-        ? await app.db
-            .select({ itemId: orderItemOptions.orderItemId, optionId: orderItemOptions.optionId })
-            .from(orderItemOptions)
-            .innerJoin(orderItems, eq(orderItems.id, orderItemOptions.orderItemId))
-            .where(
-              inArray(
-                orderItems.orderId,
-                last.map((o) => o.id),
-              ),
-            )
-        : [];
-      items.push({
-        id: c.id,
-        name: c.name,
-        phoneE164: c.phoneE164,
-        orderCount: c.orderCount,
-        isBlocked: c.isBlocked,
-        notes: c.notes,
-        addresses: addrs.map((a) => ({
-          id: a.id,
-          label: a.label,
-          neighborhood: a.neighborhood,
-          addressLine: a.addressLine,
-          directions: a.directions,
-        })),
-        lastOrders: last.map((o) => ({
-          id: o.id,
-          number: o.number,
-          placedAt: o.placedAt.toISOString(),
-          totalKurus: o.totalKurus,
-          items: (lastItems.get(o.id) ?? []).map((i) => ({
-            productId: i.productId,
-            name: i.name,
-            quantity: i.quantity,
-            note: i.note,
-            optionIds: optRows.filter((x) => x.itemId === i.id && x.optionId).map((x) => x.optionId as string),
-          })),
-        })),
-      });
-    }
-    return { items };
-  });
+  // GET /panel/orders/manual/customers?q=&limit=&detail= — telefon siparişinde müşteri arama (04 §4.13).
+  //
+  // İLK KARAKTERDEN İTİBAREN, TELEFON **VE** AD, TUŞ BAŞINA (Eray'ın isteği). Eski uç en az 3 karakter
+  // dayatıyor, yalnız telefona bakıyor ve `phone_e164 like '%…%'` ile indeks kullanamıyordu; üstelik eşleşen
+  // HER müşteri için ayrı ayrı adres + son 3 sipariş + kalem + seçenek çekiyordu (5 müşteri ≈ 21 sorgu).
+  // Artık: dal seçimi + indeksli önek araması `services/customers/lookup.ts`'te, liste yolu TEK sorgu.
+  //
+  // HIZ SINIRI EKLENMEDİ (bilinçli): global limitleyici yok (`apps/api/src/app.ts` eklenti kurmuyor) ve bu uca
+  // da takılmadı — panelde limitleyici YALNIZ uca özel takılır (`panel/push.ts`, `panel/exports.ts`,
+  // `panel/whatsapp.ts`), dolayısıyla tuş başına istek 429 yemez; limit koymak istenen davranışı KESERDİ.
+  // Yerine maliyet tavanı: `q ≤ 40`, `limit ≤ 20`, aday penceresi 200, tek sorgu — önek dallarında ölçüm
+  // 0,2–4 ms / 100.000 satır, ancak İÇERİK bacağı indekssizdir ve seçici desende 160–230 ms'e çıkar
+  // (ölçüm ve sınır: `services/customers/lookup.ts` başı). Tehdit modeli: bu uca erişen rol (`STAFF`) `GET /panel/customers` ile
+  // zaten tüm müşteri listesini sayfa sayfa çekebiliyor, yani arama yeni bir sızdırma yolu açmıyor.
+  // Log tarafında değişiklik gerekmez: `redactUrlForLog` TÜM sorgu parametrelerini maskeler (`q=***`).
+  app.get(
+    '/orders/manual/customers',
+    { ...staff, schema: { querystring: customerLookupQuerySchema, response: { 200: customerLookupResponseSchema } } },
+    async (request) => {
+      const auth = tenantAuth(request);
+      const { q, phone, limit, detail } = request.query;
+      // `phone` yalnız `q` yokken okunur (DEPRECATED takma ad, sözleşme notu orders/contracts.ts).
+      const terms = classifyLookup(q && q.length ? q : (phone ?? ''));
+      const hits = await lookupCustomers(app.db, auth.tenantId, terms, limit);
+      const items = detail === '1' ? await attachDetails(app.db, auth.tenantId, hits) : hits.map((h) => h.item);
+      return { items, mode: terms.mode };
+    },
+  );
+
+  // GET /panel/orders/manual/customers/:id — TEK müşterinin ağır gövdesi (adresler + son 3 sipariş).
+  // Neden ayrı uç: kimliğe göre okuma arama DEĞİLDİR; ayrı önbellek anahtarı ister ve arama ucunun yanıt
+  // şemasını birleşime çevirmez. İstemci her tuşta `detail=0` ile arar, müşteri seçildiğinde (ya da tek
+  // sonuç kaldığında) bu ucu çağırır. Başka tenant'ın ya da KVKK ile silinmiş müşterinin kimliği → 404.
+  app.get(
+    '/orders/manual/customers/:id',
+    { ...staff, schema: { params: idParams, response: { 200: customerLookupDetailResponseSchema } } },
+    async (request) => {
+      const auth = tenantAuth(request);
+      const hit = await lookupCustomerById(app.db, auth.tenantId, request.params.id);
+      if (!hit) throw notFound('Müşteri bulunamadı.');
+      const [item] = await attachDetails(app.db, auth.tenantId, [hit]);
+      return { item: item! };
+    },
+  );
 
   // POST /panel/orders/manual — telefon siparişi: kanal manual, verification_method staff; isteğe bağlı new → accepted
   //

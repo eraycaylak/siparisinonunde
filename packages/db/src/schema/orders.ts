@@ -75,6 +75,18 @@ export const customers = pgTable(
     uniqueIndex('customers_tenant_bsuid_uk').on(t.tenantId, t.waBsuid).where(sql`wa_bsuid is not null`),
     uniqueIndex('customers_tenant_phone_uk').on(t.tenantId, t.phoneE164).where(sql`phone_e164 is not null`),
     index('customers_tenant_last_order_idx').on(t.tenantId, t.lastOrderAt),
+    // Telefon siparişi ekranındaki müşteri araması (04 §4.13): ilk karakterden itibaren, tuş başına, telefon VE ad.
+    // İkisi de ÖNEK indeksidir ve `text_pattern_ops` opclass'ı taşır — opclass'ı ne Drizzle burada ifade eder ne de
+    // sapma testi görür (`pg_get_indexdef(oid, k, true)` yazmıyor), bu yüzden gerçek çit `EXPLAIN` testindedir
+    // (apps/api/test/order-lookup.test.ts). Göç: migrations/0006_customers_search_index.sql — gerekçeler orada.
+    index('customers_tenant_phone_prefix_idx').on(t.tenantId, t.phoneE164).where(sql`phone_e164 is not null`),
+    // İfade metni `apps/api/src/services/customers/lookup.ts` → `NAME_FOLD_SQL` ile BİREBİR aynı olmalı.
+    index('customers_tenant_name_fold_idx')
+      .on(
+        t.tenantId,
+        sql`translate("name", 'ABCDEFGHIJKLMNOPQRSTUVWXYZÇĞİIÖŞÜçğıöşü', 'abcdefghijklmnopqrstuvwxyzcgiiosucgiosu')`,
+      )
+      .where(sql`name is not null`),
   ],
 );
 
