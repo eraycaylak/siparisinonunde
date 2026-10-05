@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Ban, Plus, RotateCcw, Search, SearchX, Store, X } from 'lucide-react';
 import { toast } from 'sonner';
 import type { StorefrontView } from '@siparis/core/menu/contracts';
+import { ResponsiveImage } from '@/components/common/responsive-image';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -362,13 +363,11 @@ function ProductCard({ product: p, canOrder, onOpen, onQuickAdd }: { product: St
           </span>
         </span>
         {p.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={p.imageUrl}
+          // 104 px'lik kutu: mobil veride 320 px varyantı iner (eskiden 5 MB'a kadar özgün dosya inerdi).
+          <ResponsiveImage
+            url={p.imageUrl}
             alt=""
-            loading="lazy"
-            width={104}
-            height={104}
+            sizes="104px"
             className={cn('size-26 shrink-0 rounded-lg bg-surface object-cover', p.soldOut && 'opacity-50 grayscale')}
           />
         ) : null}

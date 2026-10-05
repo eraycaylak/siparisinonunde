@@ -11,12 +11,15 @@
 // Twilio (16 §2.5): gövde JSON değil application/x-www-form-urlencoded'dır ve Meta imzası gelmez. Form alanları düz
 // nesneye çevrilip payload olarak saklanır; doğrulama X-Twilio-Signature iledir (Auth Token + ÇAĞRILAN ADRES + sıralı
 // alanlar). Adres istek başlıklarından değil APP_BASE_URL'den kurulur: sahte Host başlığı doğrulamayı yanıltamaz.
+// İmza 401'leri SESSİZ DEĞİLDİR (denetim H7 / iş 3.4): `rejectSignature` log.error + `alert()` üretir (ortak numarada
+// kritik). Uyarı yalnız doğru webhook belirteciyle gelen istekte çıkar, yoksa internetten tetiklenen uyarı seli olurdu.
 
 import { waAccounts } from '@siparis/db';
 import { eq } from 'drizzle-orm';
 import type { FastifyRequest } from 'fastify';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
+import { alert } from '../../lib/alert';
 import { AppError, badRequest, forbidden, notFound } from '../../lib/errors';
 import { clientIp, createRateLimiter, enforceRateLimit } from '../../lib/rate-limit';
 import { safeEqual } from '../../lib/tokens';
@@ -74,14 +77,27 @@ export function twilioWebhookUrl(appBaseUrl: string, path: string): string {
   return `${appBaseUrl.replace(/\/+$/, '')}${path}`;
 }
 
-/** Twilio gövdesi: imza doğrulanır, form alanları payload olur. İmza geçersizse 401. */
-function twilioPayload(request: FastifyRequest, authToken: string | undefined, appBaseUrl: string, path: string): Record<string, string> {
+/** İmza/kimlik doğrulaması başarısız olduğunda çağrılan ret işlevi (loglar, uyarı gönderir ve 401 atar). */
+type SignatureReject = (reason: SignatureFailReason) => never;
+
+/** Ret nedeni (uyarı yükünde ve logda görünür; gizli değer taşımaz). */
+export type SignatureFailReason = 'meta_signature' | 'twilio_signature' | 'twilio_auth_token_missing';
+
+/** Twilio gövdesi: imza doğrulanır, form alanları payload olur. İmza geçersizse `reject` (401 + uyarı). */
+function twilioPayload(
+  request: FastifyRequest,
+  authToken: string | undefined,
+  appBaseUrl: string,
+  path: string,
+  reject: SignatureReject,
+): Record<string, string> {
   const params = formToObject(rawBodyOf(request.body));
-  if (!authToken) throw new AppError(401, 'invalid_signature', 'Twilio Auth Token tanımlı değil; imza doğrulanamıyor.');
+  // Auth Token yoksa imza HİÇ doğrulanamaz: isteği kabul etmek yerine 401 + uyarı (yapılandırma arızası)
+  if (!authToken) return reject('twilio_auth_token_missing');
   const header = request.headers['x-twilio-signature'];
   const url = twilioWebhookUrl(appBaseUrl, path);
   if (!verifyTwilioSignature(url, params, typeof header === 'string' ? header : undefined, authToken)) {
-    throw new AppError(401, 'invalid_signature', 'İmza doğrulanamadı.');
+    return reject('twilio_signature');
   }
   return params;
 }
@@ -111,6 +127,38 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     throw notFound('Webhook bulunamadı.');
   };
 
+  /**
+   * İmza doğrulanamadı → logla + uyarı gönder + 401 (denetim H7 / iş 3.4: "401'ler loglanmıyor, sağır kalıyoruz").
+   * Uyarı yalnız DOĞRU webhook belirtecini sunan isteklerde üretilir (ortak numarada `sharedTokenOk`, işletmede
+   * belirteçle bulunan hesap satırı): dışarıdan rastgele bir tarama bu uyarıyı tetikleyip nöbetçiyi yoramaz.
+   * Ortak numara kritiktir: imza bozuksa TÜM ortak numara dükkanlarının müşteri mesajları 401'e düşer.
+   * Soğuma `alert()` içindedir (anahtar başına 10 dk), yani Meta'nın yeniden denemeleri uyarı seli yapmaz.
+   */
+  const rejectSignature = (
+    request: FastifyRequest,
+    info: { scope: 'shared' | 'account'; reason: SignatureFailReason; accountId?: string; provider?: string },
+  ): never => {
+    const shared = info.scope === 'shared';
+    request.log.error(
+      { scope: info.scope, reason: info.reason, accountId: info.accountId ?? null, provider: info.provider ?? null },
+      'webhook imzası doğrulanamadı: olay kaydedilmedi',
+    );
+    alert(
+      { log: app.log, config: app.config },
+      {
+        kind: 'wa_webhook_signature_invalid',
+        severity: shared ? 'critical' : 'warning',
+        message: shared
+          ? 'Ortak numara webhook imzası doğrulanamadı: gelen müşteri mesajları 401 ile reddediliyor, hiçbir dükkana sipariş düşmüyor.'
+          : 'İşletme WhatsApp webhook imzası doğrulanamadı: o işletmenin gelen mesajları 401 ile reddediliyor.',
+        // Gizli değer (belirteç, Auth Token, App Secret, phone_number_id) uyarıya YAZILMAZ
+        data: { scope: info.scope, reason: info.reason, provider: info.provider ?? null, ...(info.accountId ? { accountId: info.accountId } : {}) },
+        dedupeKey: `wa_webhook_signature_invalid:${info.scope}:${info.accountId ?? 'platform'}`,
+      },
+    );
+    throw new AppError(401, 'invalid_signature', 'İmza doğrulanamadı.');
+  };
+
   // GET /shared/:token — Meta doğrulaması (ortak numara)
   app.get('/shared/:token', { schema: { params: sharedParamsSchema, querystring: hubQuerySchema } }, async (request, reply) => {
     if (!sharedTokenOk(request.params.token)) rejectSharedToken(clientIp(request));
@@ -126,14 +174,19 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     enforceRateLimit(sharedLimiter, 'shared');
     const raw = rawBodyOf(request.body);
     let payload: object;
+    const reject: SignatureReject = (reason) => rejectSignature(request, { scope: 'shared', reason, provider: app.config.PLATFORM_WA_PROVIDER });
     if (app.config.PLATFORM_WA_PROVIDER === 'twilio' || isFormEncoded(request)) {
-      payload = twilioPayload(request, app.config.PLATFORM_WA_API_KEY, app.config.APP_BASE_URL, `${API_WA_WEBHOOK_PATH}/shared/${request.params.token}`);
+      payload = twilioPayload(
+        request,
+        app.config.PLATFORM_WA_API_KEY,
+        app.config.APP_BASE_URL,
+        `${API_WA_WEBHOOK_PATH}/shared/${request.params.token}`,
+        reject,
+      );
     } else {
       if (app.config.WA_APP_SECRET && app.config.PLATFORM_WA_PROVIDER !== 'd360') {
         const header = request.headers['x-hub-signature-256'];
-        if (!verifyMetaSignature(raw, typeof header === 'string' ? header : undefined, app.config.WA_APP_SECRET)) {
-          throw new AppError(401, 'invalid_signature', 'İmza doğrulanamadı.');
-        }
+        if (!verifyMetaSignature(raw, typeof header === 'string' ? header : undefined, app.config.WA_APP_SECRET)) reject('meta_signature');
       }
       payload = parseRawPayload(raw).payload;
     }
@@ -168,17 +221,16 @@ const routes: FastifyPluginAsyncZod = async (app) => {
 
     const raw = rawBodyOf(request.body);
     let payload: object;
+    const reject: SignatureReject = (reason) => rejectSignature(request, { scope: 'account', reason, accountId: account.id, provider: account.provider });
     if (account.provider === 'twilio' || isFormEncoded(request)) {
       // Twilio: imza hesabın kendi Auth Token'ıyla (şifreli alandan çözülür), adres APP_BASE_URL'den
       const ref = toAccountRef(account, app.config);
-      payload = twilioPayload(request, ref.apiKey ?? undefined, app.config.APP_BASE_URL, `${API_WA_WEBHOOK_PATH}/${token}`);
+      payload = twilioPayload(request, ref.apiKey ?? undefined, app.config.APP_BASE_URL, `${API_WA_WEBHOOK_PATH}/${token}`, reject);
     } else {
       // 360dialog Meta imzası göndermez; URL'deki gizli belirteç doğrulama yerine geçer (teyit edilmeli)
       if (app.config.WA_APP_SECRET && account.provider !== 'd360') {
         const header = request.headers['x-hub-signature-256'];
-        if (!verifyMetaSignature(raw, typeof header === 'string' ? header : undefined, app.config.WA_APP_SECRET)) {
-          throw new AppError(401, 'invalid_signature', 'İmza doğrulanamadı.');
-        }
+        if (!verifyMetaSignature(raw, typeof header === 'string' ? header : undefined, app.config.WA_APP_SECRET)) reject('meta_signature');
       }
       payload = parseRawPayload(raw).payload;
     }

@@ -28,6 +28,11 @@ export const ADMIN_PERMISSIONS = {
   'tenants:whatsapp': ['platform_owner', 'platform_admin'],
   /** A-09 salt-okunur impersonation. */
   'impersonation:start': ['platform_owner', 'platform_admin', 'support_agent'],
+  /**
+   * A-04 işletme kullanıcısının parolasını sıfırlama (denetim H29: parolasını unutan sahibin tek kurtarma yolu).
+   * Yalnız platform yöneticisi; destek, finans ve satış hiçbir koşulda hesabı ele geçirecek bir aksiyon yapamaz.
+   */
+  'users:reset_password': ['platform_admin'],
   /** A-10 not ve etiket ekleme (herkes). */
   'notes:write': ALL,
   /** Başkasının notunu düzenleme/silme. */

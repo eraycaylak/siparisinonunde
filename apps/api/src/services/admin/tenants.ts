@@ -1,6 +1,7 @@
 // İşletme listesi ve 360° detay (05 A-03, A-04). Son müşteri kişisel verisi dönmez (05 §A.1 #9).
 
 import type { AdminNote, AdminOrderRow, AdminTenantDetail, AdminTenantListItem } from '@siparis/core/admin/contracts';
+import { ADMIN_ONBOARDING_STUCK_HOURS } from '@siparis/core/admin/onboarding';
 import { LIFECYCLE_TRANSITIONS, lifecycleTransitionPermission } from '@siparis/core/admin/lifecycle';
 import { adminCan } from '@siparis/core/admin/permissions';
 import {
@@ -47,6 +48,18 @@ function escapeLike(q: string): string {
   return q.replace(/[\\%_]/g, (m) => `\\${m}`);
 }
 
+/** Verilen zamanların en yenisi (hepsi boşsa null). */
+function latestIso(...values: (Date | string | null | undefined)[]): string | null {
+  let best: number | null = null;
+  for (const v of values) {
+    if (v == null) continue;
+    const ms = v instanceof Date ? v.getTime() : Date.parse(v);
+    if (Number.isNaN(ms)) continue;
+    if (best === null || ms > best) best = ms;
+  }
+  return best === null ? null : new Date(best).toISOString();
+}
+
 interface ListRow {
   id: string;
   name: string;
@@ -66,16 +79,34 @@ interface ListRow {
   wa_status: WaAccountStatus | null;
   wa_mode: WaMode;
   wa_code: string | null;
+  onboarding_step: string;
+  onboarding_step_at: string;
+  last_login_at: string | null;
 }
+
+/**
+ * 05 §A.2.2 "takılan adım [T]": canlıya geçmemiş ve aynı huni adımında ADMIN_ONBOARDING_STUCK_HOURS'tan uzun
+ * kalmış işletme. Askıya alınmış ve kapanmış işletme takılmış sayılmaz (kurulum hunisinde değiller). Huni satırı
+ * hiç yoksa (panele hiç girmemiş kayıt) kayıt anı esas alınır — en sessiz takılma biçimi tam budur.
+ */
+// Eşik kodda sabit bir tam sayı; aralık metnine gömülür (bağlı parametre + `interval` çarpımında tür çıkarımına
+// güvenmemek için). Değer beklenmedik bir şeye dönüşürse sorgu kurulurken patlasın:
+const STUCK_HOURS = Number.isInteger(ADMIN_ONBOARDING_STUCK_HOURS) && ADMIN_ONBOARDING_STUCK_HOURS > 0 ? ADMIN_ONBOARDING_STUCK_HOURS : 48;
+
+const STUCK_SQL = sql`t.live_at is null
+  and coalesce(ob.step, 'account_created') <> 'live'
+  and t.lifecycle_stage not in ('suspended', 'churned')
+  and coalesce(ob.updated_at, t.created_at) < now() - ${sql.raw(`interval '${STUCK_HOURS} hours'`)}`;
 
 export async function listTenants(
   db: Database,
-  opts: { q?: string; stage?: LifecycleStage; cursor?: string; limit?: number },
+  opts: { q?: string; stage?: LifecycleStage; stuck?: boolean; cursor?: string; limit?: number },
 ): Promise<{ items: AdminTenantListItem[]; nextCursor?: string }> {
   const limit = opts.limit ?? 30;
   const cursor = decodeCursor(opts.cursor);
   const conds = [sql`true`];
   if (opts.stage) conds.push(sql`t.lifecycle_stage = ${opts.stage}`);
+  if (opts.stuck) conds.push(sql`(${STUCK_SQL})`);
   const q = opts.q?.trim();
   if (q) {
     const like = `%${escapeLike(q)}%`;
@@ -93,7 +124,11 @@ export async function listTenants(
     db,
     sql`select t.id, t.name, t.slug, t.lifecycle_stage, t.plan_code, t.suspension_reason, t.ordering_enabled, t.is_demo,
                t.trial_ends_at, t.live_at, t.created_at, t.wa_mode, t.wa_code, b.city, b.district,
+               coalesce(ob.step, 'account_created') as onboarding_step,
+               coalesce(ob.updated_at, t.created_at) as onboarding_step_at,
                (select max(o.placed_at) from orders o where o.tenant_id = t.id and o.test_kind is null) as last_order_at,
+               (select max(u.last_login_at) from memberships m join users u on u.id = m.user_id
+                 where m.tenant_id = t.id and m.disabled_at is null) as last_login_at,
                (select count(*)::int from orders o
                  where o.tenant_id = t.id and o.test_kind is null and o.status <> 'awaiting_customer'
                    and o.placed_at >= now() - interval '7 days') as orders_7d,
@@ -102,32 +137,48 @@ export async function listTenants(
                             when bool_or(w.status = 'connected') then 'connected' end
                   from wa_accounts w where w.tenant_id = t.id) as wa_status
           from tenants t
+          left join tenant_onboarding ob on ob.tenant_id = t.id
           left join lateral (select city, district from branches where tenant_id = t.id order by created_at limit 1) b on true
          where ${sql.join(conds, sql` and `)}
          order by date_trunc('milliseconds', t.created_at) desc, t.id desc
          limit ${limit + 1}`,
   );
 
-  const mapped: AdminTenantListItem[] = list.map((r) => ({
-    id: r.id,
-    name: r.name,
-    slug: r.slug,
-    lifecycleStage: r.lifecycle_stage,
-    planCode: r.plan_code,
-    suspensionReason: r.suspension_reason,
-    orderingEnabled: r.ordering_enabled,
-    isDemo: r.is_demo,
-    city: r.city,
-    district: r.district,
-    trialEndsAt: isoOrNull(r.trial_ends_at),
-    liveAt: isoOrNull(r.live_at),
-    createdAt: iso(r.created_at),
-    lastOrderAt: isoOrNull(r.last_order_at),
-    orders7d: Number(r.orders_7d ?? 0),
-    waStatus: r.wa_status,
-    waMode: r.wa_mode,
-    waCode: r.wa_code,
-  }));
+  const now = Date.now();
+  const mapped: AdminTenantListItem[] = list.map((r) => {
+    const step = r.onboarding_step || 'account_created';
+    const stepAt = iso(r.onboarding_step_at);
+    return {
+      id: r.id,
+      name: r.name,
+      slug: r.slug,
+      lifecycleStage: r.lifecycle_stage,
+      planCode: r.plan_code,
+      suspensionReason: r.suspension_reason,
+      orderingEnabled: r.ordering_enabled,
+      isDemo: r.is_demo,
+      city: r.city,
+      district: r.district,
+      trialEndsAt: isoOrNull(r.trial_ends_at),
+      liveAt: isoOrNull(r.live_at),
+      createdAt: iso(r.created_at),
+      lastOrderAt: isoOrNull(r.last_order_at),
+      orders7d: Number(r.orders_7d ?? 0),
+      waStatus: r.wa_status,
+      waMode: r.wa_mode,
+      waCode: r.wa_code,
+      onboardingStep: step,
+      onboardingStepAt: stepAt,
+      onboardingStuck:
+        r.live_at == null &&
+        step !== 'live' &&
+        r.lifecycle_stage !== 'suspended' &&
+        r.lifecycle_stage !== 'churned' &&
+        now - Date.parse(stepAt) > STUCK_HOURS * 3600_000,
+      // Son hareket: sipariş ya da panel girişi — hangisi yeniyse
+      lastActivityAt: latestIso(r.last_order_at, r.last_login_at),
+    };
+  });
   return paginate(mapped, limit, (t) => ({ at: t.createdAt, id: t.id }));
 }
 

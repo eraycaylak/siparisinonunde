@@ -2,6 +2,7 @@
 
 import { Bike, Circle, Clock, Pause, Phone, ShoppingBasket, Store, Timer } from 'lucide-react';
 import type { StorefrontView } from '@siparis/core/menu/contracts';
+import { ResponsiveImage } from '@/components/common/responsive-image';
 import { cn } from '@/lib/cn';
 import { deliverySummary, storeInitials, type OrderingStatusText } from './format';
 
@@ -17,8 +18,14 @@ export function StoreHeader({ store, status }: { store: StorefrontView; status: 
     <header className="-mx-4 -mt-4 flex flex-col">
       {store.tenant.coverUrl ? (
         <div className="relative">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={store.tenant.coverUrl} alt="" className="aspect-[2/1] max-h-64 w-full bg-surface object-cover" />
+          {/* Sayfanın LCP adayı: tembel yüklenmez, yüksek öncelikle iner. Kutu genişliği kabuğun max-w-2xl'i (672 px). */}
+          <ResponsiveImage
+            url={store.tenant.coverUrl}
+            alt=""
+            sizes="(max-width: 672px) 100vw, 672px"
+            priority
+            className="aspect-[2/1] max-h-64 w-full bg-surface object-cover"
+          />
           <div aria-hidden className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/25 to-transparent" />
         </div>
       ) : (
@@ -41,8 +48,7 @@ export function StoreHeader({ store, status }: { store: StorefrontView; status: 
         <div className="relative z-[1] -mt-10 flex items-end justify-between gap-3">
           <div className="flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border-4 border-bg bg-surface-raised shadow-md">
             {store.tenant.logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={store.tenant.logoUrl} alt={`${store.tenant.name} logosu`} className="size-full object-cover" />
+              <ResponsiveImage url={store.tenant.logoUrl} alt={`${store.tenant.name} logosu`} sizes="80px" className="size-full object-cover" />
             ) : (
               <span
                 aria-hidden

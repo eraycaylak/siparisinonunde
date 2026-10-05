@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { formatKurus, formatTL, formatTLShort, formatTRY, parseTRY, roundHalfUp } from '../src/money';
-import { formatPhone, isValidTrMobile, maskPhone, normalizePhone, normalizeTrMobile } from '../src/phone';
+import { formatPhone, isTrPhone, isValidTrMobile, maskPhone, normalizePhone, normalizeTrMobile, normalizeTrPhone } from '../src/phone';
 
 describe('phone', () => {
   it('normalize → +905XXXXXXXXX', () => {
@@ -24,6 +24,50 @@ describe('phone', () => {
     expect(maskPhone('0532 123 45 67')).toBe('0*** *** 45 67');
     expect(maskPhone('')).toBe('');
     expect(formatPhone('+905321234567')).toBe('0532 123 45 67');
+  });
+});
+
+// Yabancı numaralı müşteri (denetim 2026-10-04 madde 12 / soru 4): numara sessizce null dönüp sipariş düşmesin.
+describe('yabancı numara (E.164)', () => {
+  it('açıkça uluslararası yazılan numara kabul edilir', () => {
+    expect(normalizePhone('+49 170 1234567')).toBe('+491701234567');
+    expect(normalizePhone('0049 170 1234567')).toBe('+491701234567');
+    expect(normalizePhone('+1 555 123 4567')).toBe('+15551234567');
+    expect(normalizePhone('+44 7400 123456')).toBe('+447400123456');
+  });
+
+  it('önek yoksa ulusal numara TR sayılır; başka ülke tahmini yapılmaz', () => {
+    // 10 hane, öneksiz: TR kuralı uygulanır (2–5 ile başlamalı)
+    expect(normalizePhone('5321234567')).toBe('+905321234567');
+    expect(normalizePhone('1701234567')).toBeNull();
+    expect(normalizePhone('07400123456')).toBeNull();
+  });
+
+  it('ülke kodu 90 ise TR kuralları zorunlu (bozuk numara "yabancı" kılığında geçmez)', () => {
+    expect(normalizePhone('+905321234567890')).toBeNull();
+    expect(normalizePhone('+9012345')).toBeNull();
+  });
+
+  it('E.164 sınırları ve geçersizler', () => {
+    expect(normalizePhone('+0491701234567')).toBeNull(); // ülke kodu 0 ile başlamaz
+    expect(normalizePhone('+123456')).toBeNull(); // 8 haneden kısa
+    expect(normalizePhone('+1234567890123456')).toBeNull(); // 15 haneden uzun
+    expect(normalizePhone('+49 170 abc')).toBeNull();
+  });
+
+  it('Türkiye kapıları yabancı numarayı reddeder (SMS/OTP yolu)', () => {
+    expect(normalizeTrMobile('+49 170 1234567')).toBeNull();
+    expect(normalizeTrPhone('+49 170 1234567')).toBeNull();
+    expect(isTrPhone('+491701234567')).toBe(false);
+    expect(isTrPhone('+905321234567')).toBe(true);
+    expect(isTrPhone('0532 123 45 67')).toBe(true);
+    expect(isTrPhone(null)).toBe(false);
+  });
+
+  it('gösterim ve maskeleme ülke kodunu TR biçimine zorlamaz', () => {
+    expect(formatPhone('+491701234567')).toBe('+491701234567');
+    expect(formatPhone('+18501234567')).toBe('+18501234567');
+    expect(maskPhone('+491701234567')).toBe('+*** *** 45 67');
   });
 });
 

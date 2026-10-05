@@ -1,6 +1,6 @@
 // Storefront checkout (14 §6.2): quote, sipariş oluşturma (Akış A/B, SMS modu), idempotency, hız sınırı, kapalı durum.
 
-import { ORDER_CODE_PATTERN } from '@siparis/core';
+import { LEGAL_DOCUMENT_VERSION, ORDER_CODE_PATTERN } from '@siparis/core';
 import {
   branches,
   customers,
@@ -17,6 +17,7 @@ import {
 } from '@siparis/db';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { legalTextDigest } from '../src/services/orders/legal-gate';
 import { verifyCustomerCookie } from '../src/services/orders/storefront-cookies';
 import { createTestContext, expectError, type TestContext } from './helpers';
 import {
@@ -454,5 +455,35 @@ describe('kurallar ve korumalar', () => {
     expect(o!.totalKurus).toBe(38500);
     const pending = await ctx.db.select().from(jobs).where(eq(jobs.type, 'order.awaiting_timeout'));
     expect(pending.length).toBeGreaterThan(0);
+  });
+
+  // Tutar bağı (denetim B11): `expectedTotalKurus` fiyat değil ONAY KANITIDIR; sunucu yalnız karşılaştırır.
+  it('ekranda görülen toplam sunucu toplamıyla tutmazsa 409 cart_changed ve sipariş OLUŞMAZ', async () => {
+    // Denetimdeki senaryo: teslimat ücreti içermeyen bayat ara toplam (375,00 ₺) ile onay; sunucu 385,00 ₺ hesaplar
+    const body = orderBody(s, { expectedTotalKurus: 37500 });
+    const res = await placeOrder(ctx, s.slug, body);
+    expectError(res, 409, 'cart_changed');
+    expect(res.json().error.details).toMatchObject({ expectedTotalKurus: 37500, totalKurus: 38500, deliveryFeeKurus: 1000, differenceKurus: 1000 });
+    expect(res.json().error.message).toContain('385,00 TL');
+    // Hiçbir kayıt yazılmadı (aynı idempotency anahtarıyla sipariş yok)
+    const none = await ctx.db
+      .select({ id: orders.id })
+      .from(orders)
+      .where(and(eq(orders.tenantId, s.tenantId), eq(orders.idempotencyKey, body.idempotencyKey as string)));
+    expect(none).toHaveLength(0);
+    // Doğru tutar gönderilince aynı gövde geçer
+    const ok = await placeOrder(ctx, s.slug, { ...body, expectedTotalKurus: 38500 });
+    expect(ok.statusCode, ok.body).toBe(200);
+  });
+
+  // Kabul kaydının içerik kanıtı (denetim B2/B11, 08 §7.5): hangi sürüm + hangi metin özeti onaylandı
+  it('siparişe onaylanan yasal metnin sürümü ve içerik özeti yazılır', async () => {
+    const res = await placeOrder(ctx, s.slug, orderBody(s));
+    expect(res.statusCode, res.body).toBe(200);
+    const [o] = await ctx.db.select().from(orders).where(eq(orders.id, res.json().orderId));
+    const meta = o!.sourceMeta as { legal?: { version?: string; textDigest?: string | null } } | null;
+    expect(meta?.legal?.version).toBe(LEGAL_DOCUMENT_VERSION);
+    expect(meta?.legal?.textDigest).toBe(legalTextDigest());
+    expect(meta?.legal?.textDigest).toMatch(/^[0-9a-f]{64}$/);
   });
 });

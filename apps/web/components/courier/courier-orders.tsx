@@ -1,26 +1,67 @@
 'use client';
 
 // Kurye görünümü (K-02/K-03, 04 §9.2): atanmış siparişler, adres + tarif, harita bağlantıları, müşteriyi ara,
-// ödeme tipi + tahsilat + para üstü, "Yola çıktım" / "Teslim ettim". SSE yok: 30 sn yoklama.
+// ödeme tipi + tahsilat + para üstü, "Yola çıktım" / "Teslim ettim" / "Teslim edilemedi". SSE yok: 30 sn yoklama.
+// Teslim 5 sn "Geri al" penceresinden sonra gönderilir (yanlışlıkla basılan teslim geri alınabilsin).
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { Bike, ChevronDown, ChevronUp, MapPin, Package, Phone, RefreshCw } from 'lucide-react';
+import { Bike, ChevronDown, ChevronUp, MapPin, Package, PackageX, Phone, RefreshCw } from 'lucide-react';
 import type { CourierOrder, CourierOrdersResponse } from '@siparis/core/orders/contracts';
-import { MEAL_CARD_BRAND_LABELS, type MealCardBrand, type OrderStatus } from '@siparis/core/enums';
-import { Alert, Button, EmptyState, IconButton, RadioGroup, Select, Sheet, Spinner, StatusBadge } from '@/components/ui';
+import type { MealCardBrand, OrderStatus } from '@siparis/core/enums';
+import type { DeliveryFailureReason } from '@siparis/core/orders/delivery';
+import { Alert, Button, ConfirmUndoBar, EmptyState, IconButton, Spinner, StatusBadge, UndoBarRegion } from '@/components/ui';
 import { apiFetch, errorMessage, useApiQuery } from '@/lib/api';
 import { formatMoney, formatRelative, formatTime } from '@/lib/format';
 import { mapLinks, paymentCourierLabel, telHref } from '@/components/orders/labels';
 import { OrderItems } from '@/components/orders/order-items';
+import { DeliverSheet, UndeliverableSheet } from './courier-deliver';
+import { canReportUndeliverable, deliverBody, deliveryFailureText, DELIVER_UNDO_MS, type DeliverMode } from './courier-logic';
 
 const KEY = ['courier', 'orders'] as const;
 
+interface PendingDeliver {
+  order: CourierOrder;
+  body: Record<string, string>;
+  deadline: number;
+}
+
 export function CourierOrders() {
+  const qc = useQueryClient();
   const q = useApiQuery<CourierOrdersResponse>(KEY, '/courier/orders', { refetchInterval: 30_000, refetchIntervalInBackground: true, staleTime: 5_000 });
   const [open, setOpen] = useState<string | null>(null);
   const [deliver, setDeliver] = useState<CourierOrder | null>(null);
+  const [failed, setFailed] = useState<CourierOrder | null>(null);
+  const [pending, setPending] = useState<PendingDeliver[]>([]);
+
+  const schedule = useCallback((order: CourierOrder, mode: DeliverMode, brand: MealCardBrand | '') => {
+    setPending((list) => [...list.filter((p) => p.order.id !== order.id), { order, body: deliverBody(mode, brand), deadline: Date.now() + DELIVER_UNDO_MS }]);
+    setDeliver(null);
+  }, []);
+
+  const commit = useCallback(
+    async (p: PendingDeliver) => {
+      setPending((list) => list.filter((x) => x !== p));
+      try {
+        await apiFetch(`/courier/orders/${p.order.id}/delivered`, { method: 'POST', body: p.body });
+        toast.success(`#${p.order.number} teslim edildi.`);
+      } catch (e) {
+        toast.error(errorMessage(e));
+      }
+      await qc.invalidateQueries({ queryKey: KEY });
+    },
+    [qc],
+  );
+
+  const reportFailure = useCallback(
+    async (order: CourierOrder, body: { reason: DeliveryFailureReason; note?: string }) => {
+      await apiFetch(`/courier/orders/${order.id}/undeliverable`, { method: 'POST', body });
+      toast.success(`#${order.number} için işletmeye bildirildi.`);
+      await qc.invalidateQueries({ queryKey: KEY });
+    },
+    [qc],
+  );
 
   if (q.isPending) return <Spinner label="Siparişler yükleniyor" />;
   if (q.isError) {
@@ -41,20 +82,58 @@ export function CourierOrders() {
         <EmptyState icon={Package} title="Size atanmış sipariş yok" description="İşletme sipariş atadığında burada görünür. Liste 30 saniyede bir yenilenir." />
       ) : null}
       {items.map((o) => (
-        <CourierCard key={o.id} order={o} open={open === o.id} onToggle={() => setOpen(open === o.id ? null : o.id)} onDeliver={() => setDeliver(o)} />
+        <CourierCard
+          key={o.id}
+          order={o}
+          open={open === o.id}
+          onToggle={() => setOpen(open === o.id ? null : o.id)}
+          onDeliver={() => setDeliver(o)}
+          onFailed={() => setFailed(o)}
+          delivering={pending.some((p) => p.order.id === o.id)}
+        />
       ))}
-      <DeliverSheet order={deliver} onClose={() => setDeliver(null)} />
+      <DeliverSheet order={deliver} onClose={() => setDeliver(null)} onConfirm={schedule} />
+      <UndeliverableSheet order={failed} onClose={() => setFailed(null)} onSubmit={reportFailure} />
+      <UndoBarRegion>
+        {pending.map((p) => (
+          <ConfirmUndoBar
+            key={`del-${p.order.id}-${p.deadline}`}
+            tone="neutral"
+            message={`#${p.order.number} teslim edildi olarak işaretlendi`}
+            deadline={p.deadline}
+            seconds={DELIVER_UNDO_MS / 1000}
+            onUndo={() => setPending((list) => list.filter((x) => x !== p))}
+            onExpire={() => void commit(p)}
+          />
+        ))}
+      </UndoBarRegion>
     </div>
   );
 }
 
-function CourierCard({ order: o, open, onToggle, onDeliver }: { order: CourierOrder; open: boolean; onToggle: () => void; onDeliver: () => void }) {
+function CourierCard({
+  order: o,
+  open,
+  onToggle,
+  onDeliver,
+  onFailed,
+  delivering,
+}: {
+  order: CourierOrder;
+  open: boolean;
+  onToggle: () => void;
+  onDeliver: () => void;
+  onFailed: () => void;
+  /** 5 sn "Geri al" penceresi sürerken butonlar kapalı. */
+  delivering: boolean;
+}) {
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   const address = [o.neighborhood ? `${o.neighborhood} Mah.` : null, o.addressLine].filter(Boolean).join(', ');
   const maps = mapLinks({ lat: o.lat, lng: o.lng, address: `${address}, Yozgat` });
   const onTheWay = o.status === 'on_the_way';
   const preparing = o.status === 'preparing';
+  const failureText = deliveryFailureText(o.lastDeliveryFailure, o.deliveryAttempts);
 
   const goOut = async () => {
     setBusy(true);
@@ -85,6 +164,7 @@ function CourierCard({ order: o, open, onToggle, onDeliver }: { order: CourierOr
             <StatusBadge status={o.status as OrderStatus} size="sm" />
             {onTheWay && o.onTheWayAt ? `${formatRelative(o.onTheWayAt)} çıktınız` : o.status === 'ready' ? 'Hazır · Sizi bekliyor' : o.estimatedReadyAt ? `Hedef ${formatTime(o.estimatedReadyAt)}` : ''}
           </span>
+          {failureText ? <span className="text-sm font-bold text-destructive">{failureText}</span> : null}
         </span>
         {open ? <ChevronUp aria-hidden className="size-6" /> : <ChevronDown aria-hidden className="size-6" />}
       </button>
@@ -124,88 +204,30 @@ function CourierCard({ order: o, open, onToggle, onDeliver }: { order: CourierOr
       ) : null}
 
       {onTheWay ? (
-        <Button size="xl" block variant="success" onClick={onDeliver}>
-          Teslim ettim
-        </Button>
+        <>
+          <Button size="xl" block variant="success" onClick={onDeliver} disabled={delivering}>
+            Teslim ettim
+          </Button>
+          {canReportUndeliverable(o) ? (
+            <Button size="lg" block variant="secondary" onClick={onFailed} disabled={delivering}>
+              <PackageX aria-hidden /> Teslim edilemedi
+            </Button>
+          ) : null}
+          {o.lastDeliveryFailure ? (
+            <p className="text-center text-sm text-fg-muted">
+              İşletmeye bildirildi. {o.customerPhone ? 'Tekrar denemek için müşteriyi arayabilirsiniz.' : 'İşletmenin kararını bekleyin.'}
+            </p>
+          ) : null}
+        </>
       ) : (
         <>
           {/* preparing → on_the_way geçişi yok (00 durum makinesi): mutfak "Hazır" deyince açılır */}
           {preparing ? <p className="text-center text-sm font-semibold text-fg-muted">Mutfakta hazırlanıyor. Hazır olunca yola çıkabilirsiniz.</p> : null}
-          <Button size="xl" block onClick={goOut} loading={busy} disabled={o.fulfillmentType !== 'delivery' || preparing}>
+          <Button size="xl" block onClick={goOut} loading={busy} disabled={o.fulfillmentType !== 'delivery' || preparing || delivering}>
             <Bike aria-hidden /> Yola çıktım
           </Button>
         </>
       )}
     </article>
-  );
-}
-
-/** Teslim + ödeme alt sayfası: "285 TL nakit alındı" (varsayılan) ya da "Farklı yöntemle ödendi". */
-function DeliverSheet({ order: current, onClose }: { order: CourierOrder | null; onClose: () => void }) {
-  const qc = useQueryClient();
-  // Sheet hep bağlı kalır (yerel <dialog> açık/kapalı geçişi); kapanırken son sipariş gösterilir
-  const [last, setLast] = useState<CourierOrder | null>(current);
-  if (current && current !== last) setLast(current);
-  const order = current ?? last;
-  const [mode, setMode] = useState<'as_ordered' | 'card_on_delivery' | 'cash_on_delivery' | 'meal_card_on_delivery'>('as_ordered');
-  const [brand, setBrand] = useState<MealCardBrand | ''>('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const submit = async () => {
-    if (!order) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await apiFetch(`/courier/orders/${order.id}/delivered`, {
-        method: 'POST',
-        body: mode === 'as_ordered' ? {} : { paidWith: mode, ...(mode === 'meal_card_on_delivery' && brand ? { mealCardBrand: brand } : {}) },
-      });
-      toast.success(`#${order.number} teslim edildi.`);
-      await qc.invalidateQueries({ queryKey: KEY });
-      onClose();
-    } catch (e) {
-      setError(errorMessage(e));
-      await qc.invalidateQueries({ queryKey: KEY });
-    } finally {
-      setBusy(false);
-    }
-  };
-  const asOrdered = order ? `${formatMoney(order.totalKurus)} ${paymentCourierLabel(order.paymentMethod, order.mealCardBrand).toLocaleLowerCase('tr-TR')} alındı` : '';
-  return (
-    <Sheet
-      open={Boolean(current)}
-      onOpenChange={(o) => !o && onClose()}
-      side="bottom"
-      title={order ? `#${order.number} teslim` : 'Teslim'}
-      footer={
-        <Button size="xl" block variant="success" onClick={submit} loading={busy}>
-          Teslim ettim
-        </Button>
-      }
-    >
-      <div className="flex flex-col gap-3">
-        <RadioGroup
-          legend="Ödeme"
-          value={mode}
-          onValueChange={(v) => setMode(v as typeof mode)}
-          options={[
-            { value: 'as_ordered', label: asOrdered },
-            { value: 'cash_on_delivery', label: 'Farklı yöntemle: nakit' },
-            { value: 'card_on_delivery', label: 'Farklı yöntemle: kart' },
-            { value: 'meal_card_on_delivery', label: 'Farklı yöntemle: yemek kartı' },
-          ].filter((x) => x.value === 'as_ordered' || x.value !== order?.paymentMethod)}
-        />
-        {mode === 'meal_card_on_delivery' ? (
-          <Select
-            aria-label="Yemek kartı markası"
-            value={brand}
-            placeholder="Marka seçin"
-            onChange={(e) => setBrand(e.target.value as MealCardBrand)}
-            options={(Object.keys(MEAL_CARD_BRAND_LABELS) as MealCardBrand[]).map((b) => ({ value: b, label: MEAL_CARD_BRAND_LABELS[b] }))}
-          />
-        ) : null}
-        {error ? <Alert variant="danger">{error}</Alert> : null}
-      </div>
-    </Sheet>
   );
 }

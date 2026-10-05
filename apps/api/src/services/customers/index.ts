@@ -10,6 +10,7 @@ import {
   customerErasures,
   customers,
   messages,
+  orderDeliveryAttempts,
   orderEvents,
   orderItemOptions,
   orderItems,
@@ -426,10 +427,23 @@ export async function eraseCustomer(
       .update(cancellationRequests)
       .set({ reason: null })
       .where(and(eq(cancellationRequests.tenantId, c.tenantId), inArray(cancellationRequests.orderId, orderIds)));
+    // Kuryenin "teslim edilemedi" açıklaması müşteriyi anlatabilir (cancel_note ile aynı sınıf); sebep kodu kalır
+    await tx
+      .update(orderDeliveryAttempts)
+      .set({ note: null })
+      .where(and(eq(orderDeliveryAttempts.tenantId, c.tenantId), inArray(orderDeliveryAttempts.orderId, orderIds)));
+    // Zaman çizelgesindeki serbest metinler: müşterinin yazdığı notlar + kuryenin "teslim edilemedi" açıklaması.
+    // Bu açıklama iki yere yazılır (`order_delivery_attempts.note` + olay günlüğü); tek kopyası kalırsa silme yarım kalır.
     await tx
       .update(orderEvents)
       .set({ note: null })
-      .where(and(eq(orderEvents.tenantId, c.tenantId), inArray(orderEvents.orderId, orderIds), eq(orderEvents.actorType, 'customer')));
+      .where(
+        and(
+          eq(orderEvents.tenantId, c.tenantId),
+          inArray(orderEvents.orderId, orderIds),
+          or(eq(orderEvents.actorType, 'customer'), eq(orderEvents.type, 'delivery_failed')),
+        ),
+      );
   }
   const convs = await tx.select({ id: conversations.id }).from(conversations).where(and(eq(conversations.tenantId, c.tenantId), eq(conversations.customerId, c.id)));
   let messageCount = 0;

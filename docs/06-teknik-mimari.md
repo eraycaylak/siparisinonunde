@@ -212,7 +212,7 @@ siparisinonunde/
 - **Sınırlar:** Her HTTP girdisi, iş yükü, SSE olayı ve LLM çıktısı Zod ile doğrulanır. Hatalar RFC 9457 `application/problem+json` biçiminde döner.
 - **Metin ve yerelleştirme (i18n) [Faz 1 altyapı · Faz 3 diller]:** Panel, admin ve storefront metinleri ile müşteri mesaj gövdeleri koddan ayıklanır ve `packages/i18n` kataloğundan gelir. Kaynak katalog `tr`'dir, anahtar biçimi `panel.orders.accept_button`. Mesajlar ICU MessageFormat ile yazılır (FormatJS önerisi, [12](12-marka-tasarim-ve-kullanilabilirlik.md) §11.3) [T]. Sayı içeren her metin **Faz 1'den itibaren** ICU `plural` ile, duruma göre değişen metin `select` ile kurulur; Türkçede çoğul tek biçimli olsa da Faz 3 dilleri (Rusça, Arapça) daha çok çoğul kategorisi ister. Metin birleştirme (`"Sepette " + n + " ürün"`) ve değişkene ek getirme ("{işletme}'den") yasaktır. JSX içindeki çıplak metin lint ile yakalanır (kural adı teyit edilmeli). Türkçe biçim yardımcıları (`formatTL()`, `formatSaat()`, `tr-TR` büyük/küçük harf) aynı pakettedir ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §11.2). Kenar boşlukları CSS mantıksal özellikleriyle yazılır; Faz 3'te RTL maliyeti böylece düşük kalır.
   - **[Faz 3] Diller:** EN, RU, AR, DE, turistik bölgelerdeki işletmeler için. Önce storefront ve müşteri mesajları çevrilir, panel Türkçe kalır. Ürün adı ve açıklaması çevirileri `product_translations` tablosundadır ([07](07-veri-modeli-ve-api.md) §3.8). Dil tarayıcı diline göre seçilir ve elle değiştirilebilir. WhatsApp şablonları her dil kodu için ayrı onaylanır ([02](02-whatsapp-entegrasyonu.md)). Arapçada `dir="rtl"` kullanılır.
-  - **Yabancı numaraya SMS OTP:** Faz 1'de SMS OTP ve WhatsApp'sız mod durum SMS'leri yalnız `+90` numaralara gider [T]. Yabancı numaralı müşteri Akış B'yi WhatsApp doğrulamasıyla tamamlar; WhatsApp'sız modda "İşletmeyi arayın" yoluna düşer ([03](03-musteri-deneyimi-ve-storefront.md) §3.2.1). Yurt dışı SMS'in birim fiyatı yurt içinden farklıdır ve SMS pompalama (uluslararası ücret dolandırıcılığı) riskini büyütür; sağlayıcının yurt dışı teslim koşulları ve fiyatı teyit edilmeli ([08](08-mevzuat-kvkk-odeme-fatura.md) §11.3). Faz 3'te açılırsa ülke izin listesi, telefon ve ülke başına günlük OTP sınırı, aylık maliyet tavanı ve `sms_fallback` kill-switch'i ile birlikte açılır; yurt dışı SMS'ler SMS kotası sayacında ayrı izlenir.
+  - **Yabancı numaraya SMS OTP:** Faz 1'de SMS OTP ve WhatsApp'sız mod durum SMS'leri yalnız `+90` numaralara gider [T]. **Numaranın kendisi kabul edilir** (`normalizePhone` E.164'ü kabul eder, 14 §2): "kabul" ile "SMS gönderilebilir" ayrı kararlardır — numarayı sessizce `null`'a düşürüp siparişi düşürmek doğru değildir. SMS kapıları TR'ye özel yardımcılardır: OTP isteğinde `normalizeTrMobile` (uygulanmış, `routes/store/orders.ts` → S-06C yabancı numara metni). **[Açık iş]** `sms.send` işinin kendi normalizasyonu hâlâ her E.164 numarayı kabul ediyor (`services/messaging/sms-send.ts`); son kapı olarak `isTrPhone` ile süzülmeli (TR olmayan numarada `skipped: foreign_phone`), yoksa durum SMS'i yedeği yurt dışına çıkabilir. Yabancı numaralı müşteri Akış B'yi WhatsApp doğrulamasıyla tamamlar; WhatsApp'sız modda "İşletmeyi arayın" yoluna düşer ([03](03-musteri-deneyimi-ve-storefront.md) §3.2.1). Yurt dışı SMS'in birim fiyatı yurt içinden farklıdır ve SMS pompalama (uluslararası ücret dolandırıcılığı) riskini büyütür; sağlayıcının yurt dışı teslim koşulları ve fiyatı teyit edilmeli ([08](08-mevzuat-kvkk-odeme-fatura.md) §11.3). Faz 3'te açılırsa ülke izin listesi, telefon ve ülke başına günlük OTP sınırı, aylık maliyet tavanı ve `sms_fallback` kill-switch'i ile birlikte açılır; yurt dışı SMS'ler SMS kotası sayacında ayrı izlenir.
 - **Loglama:** Pino JSON kullanılır. Telefon, adres, mesaj metni ve token loglanmaz (§14.2). Her log satırı `request_id`, `tenant_id` ve `trace_id` taşır.
 - **Test ve PR:** Test dosyası kodun yanında durur (`*.test.ts`); domain değişikliği testsiz birleşmez. Conventional Commits kullanılır; PR şablonunda "tenant/RLS etkisi", "migration geriye uyumlu mu", "yeni metrik/alarm" kutuları vardır.
 
@@ -525,6 +525,45 @@ Kaynak: MDN BCD üzerinden A04 §3.4–3.6. Wake Lock sayfa gizlenince düşer v
 - **Güvenlik:** `X-Canary` imzası platform sırrıyla HMAC'lidir ve Turnstile'ı yalnız bu istek için atlatır; imzasız istekte `test_kind` alanı yok sayılır. Canary sabit sentetik sepet kullanır; şubenin `paused` durumu, stok ve min sepet kuralları yanlış alarm üretmesin diye canary'de atlanır, ama fiyat hesabı ve DB yazımı gerçek yoldan geçer.
 - Canary numaraları arası otomatik mesajlaşmanın Meta politikasına uygunluğu ve aylık maliyeti teyit edilmeli ([10](10-riskler-operasyon-ve-metrikler.md) §7.3).
 
+**[Faz 1 uygulaması — tenant canary]** `cron.canary` (`apps/api/src/jobs/cron/index.ts`) dakikada bir koşar; iş
+mantığı `apps/api/src/services/canary/`'dedir. Tur üç şey yapar: (1) süresi geçmiş sentetik siparişleri siler,
+(2) **dilimi gelen** şubelere `canary.run` işi ekler, (3) son 1 saatte iki ya da daha çok işletmede `canary.run`
+kalıcı başarısızsa `canary_create_failed` kritik uyarısını gönderir (platform arızası). Sapma şube kimliğinden
+türetilir (`canaryJitterMs`): her şubenin 15 dakikalık diliminde kendi dakikası olur, tek turda sipariş yığını
+oluşmaz; dilim tekilliği `jobs` tablosundaki `canary:<şube>:<dilim>` anahtarıdır. `canary.run` siparişi **gerçek
+yoldan** yazar: `quoteForBranch` (storefront ve telefon siparişiyle aynı sunucu fiyat hesabı) → `orders` +
+`order_items` → `recordOrderCreated` (`order_events` + `branch_events` `order.created` + NOTIFY) → panel SSE.
+Sepet, zorunlu seçeneği olmayan ilk aktif üründen 1 adettir (zorunlu seçenek `option_rule_violation` üretip
+canary'yi sessizce susturur); şube gel-al kabul etmiyorsa teslimat dalı 0 ₺ bölge dışı istisnasıyla kullanılır.
+60 sn sonra `canary.verify` çalışır: `orders.first_acked_at` doluysa süre loglanır (`canary_ack_seconds`) ve kayıt
+silinir; boşsa `branch_events`'e `resync` yazılır ve şubede çevrimiçi panel varken **2. ardışık** başarısızlıkta
+`canary_stale_panel` kritik uyarısı gider. Ardışıklık ayrı bir tablo yerine biten `canary.verify` işinin kendi
+yükünde (`payload.stale`) tutulur. Temizlik `sys_purge_canary()` yerine TypeScript'tedir (`purgeCanaryOrder` +
+10 dakikalık süpürme `purgeExpiredCanaryOrders`), silme FSM'den geçmez.
+
+**[Faz 1 — bilinçli sapmalar ve eksikler]**
+- **Taşıma:** Sipariş HTTP ile (`POST /api/v1/store/orders` + `X-Canary` HMAC başlığı, Cloudflare üzerinden)
+  değil **süreç içinden** oluşturulur. Yani Cloudflare → Worker → container girişi (ingress) bu testte **ölçülmez**;
+  ölçülen yol fiyat hesabı + veritabanı + olay günlüğü + SSE'dir. `X-Canary` imzası, Turnstile atlatma ve storefront
+  ucunda `test_kind` kabulü yazılmadı (vitrin ucu bu dilimin sahipliğinde değil).
+- **Panel sessiz ack'i YOK:** Panel canary olayında erken dönüyor (`apps/web/components/live/new-order-alarm.tsx`)
+  ve `/panel/orders/active` canary'yi süzüyor; yani canary bugün hiç ack ALMIYOR. Bu yüzden "bayat panel"
+  sinyalinin **tamamı** (uyarı + `resync` + hata logu) `CANARY_STALE_ALERT` ortam değişkeniyle **kapalı gelir**:
+  sonuç her turda kesin "bayat" çıkacağı için ölçüm değil gürültüdür — açık olsa sağlıklı her şube 15 dk'da bir
+  yanlış alarm ve boş bir panel tazelemesi üretirdi. Sipariş üretme yolunun ölçümü (fiyat → DB → olay → SSE;
+  `canary.run` kalıcı hatası → `job_failed_permanent` + `canary_create_failed`) bu değişkenden bağımsız sürer.
+  Panel tarafı sessiz ack (canary kartını göstermeden `POST /panel/orders/:id/ack` — ack ucu canary'yi süzmüyor,
+  yani API değişikliği gerekmiyor) eklenince değişken `1` yapılır.
+- **Uyarı kanalı:** `notifications.kind = 'stale_panel'` satırı açılmıyor (`stale_panel` henüz `NOTIFICATION_KINDS`
+  içinde değil); uyarı `apps/api/src/lib/alert.ts` üzerinden operasyona gider, işletmeye WhatsApp mesajı gitmez.
+- **Alarm zinciri:** `planAlarmSteps` canary için hâlâ (ses tekrarı, otomatik iptal) döndürüyor; canary siparişi
+  oluşturulurken zincir aynı transaction'da iptal edilir ve `cron.order_new_watch` canary'yi taramaz, böylece
+  "FSM'de iptal geçişi kullanılmaz" maddesi korunur. Kalıcı çözüm `planAlarmSteps`'in canary'de boş dönmesidir.
+- **Platform canary** (`canary-platform`, Meta dahil, `sandbox` tenant'ı) ve Prometheus histogramları yazılmadı;
+  ack süresi yalnız log satırındadır.
+- **Açma:** `CANARY_ENABLED=1` olmadıkça hiç sentetik sipariş üretilmez (paylaşılan geliştirme/test veritabanı
+  kendiliğinden sipariş almasın); `canary` kill-switch'i (`feature_flags`) deploy'suz acil durdurmadır.
+
 **Kabul kriterleri (canary):** Ingress durdurulduğunda platform canary ≤ 10 dk içinde P1 üretir; SSE katmanı bozulup ingress sağlamken de P1 üretir; canary siparişleri hiçbir işletme ekranında, raporunda ve faturasında görünmez (sözleşme testi).
 
 ## 8. Asenkron işleme
@@ -601,7 +640,7 @@ CREATE TABLE outbox (                      -- tam alan listesi: 07 §3.4
 | `scheduled-order-release` | 1 dk | Hazırlık zamanı gelen planlı siparişleri öne çıkarır, alarmı kurar | 2 |
 | `branch-pause-expiry` | 1 dk | `paused_until` dolan şubeyi `open`'a döndürür, `branch.settings_changed` üretir | 1 |
 | `panel-offline-detector` | 1 dk | §7.7 | 1 |
-| `canary-tenant` | 1 dk (zamanlayıcı; şube başına açık saatte 15 dk) | Tenant canary siparişi (§7.10) | 1 |
+| `canary-tenant` | 1 dk (zamanlayıcı; şube başına açık saatte 15 dk) | Tenant canary siparişi (§7.10). **[Faz 1 uygulaması]** `cron.canary` + adımları `canary.run` (sipariş) ve `canary.verify` (60 sn ack kontrolü); `CANARY_ENABLED` kapalıyken tur yalnız süresi geçmiş sentetik siparişleri siler | 1 |
 | `canary-platform` | 5 dk (gece 15 dk) | Meta dahil uçtan uca platform canary'si (§7.10) | 1 |
 | `wa-tenant-silence` | 5 dk | Mesai saatinde beklenmedik webhook sessizliği ([02](02-whatsapp-entegrasyonu.md) §10.2) | 1 |
 | `partition-maintenance`, `idempotency-cleanup` | Günlük 02:00 / saatlik | `branch_events`, `audit_log` (aylık) ve `wa_webhook_events` (günlük) için gelecek partition'ları açar, süresi dolanı düşürür; süresi dolan `idempotency_keys` kayıtlarını siler | 1 |
@@ -796,7 +835,12 @@ Faz 1'de yalnız ekip içi concierge aracıdır: platform ekibi admin panelinden
 - **Çok host'lu yönlendirme:** `proxy.ts` `Host` başlığını okur, `storefront_hosts` eşlemesini (Redis, 60 sn) çözer ve `/_s/{tenantSlug}/…` iç yoluna rewrite eder. Ayrılmış alt adlar ve bilinmeyen host'lar 404 döner. Faz 3'te özel alan adları da aynı tablodan çözülür.
 - **Render stratejisi:** Menü sayfası statiktir (ISR) ve menü yayınlanınca `revalidateTag('menu:{branchId}')` ile anında yenilenir. Açık/kapalı durumu, tahmini süre ve stok küçük bir JSON'dan istemcide çekilir (`/api/v1/store/status`, 15 sn cache), böylece sayfa statik kalır. Sepet istemcide (localStorage), checkout dinamiktir. Takip sayfası `/t/{token}` cache'lenmez, `noindex` taşır ve 15 sn'de bir yoklar; WhatsApp'sız modda (SMS OTP ile doğrulanan sipariş) müşterinin durum bilgisini aldığı ana yer burasıdır.
 - **Cache:** HTML `s-maxage=60, stale-while-revalidate=600` [T]. Statik varlıklar değişmez (immutable) hash'li dosyalardır. Ürün görselleri R2 + Cloudflare CDN'den gelir.
-- **Görseller:** Yüklemede `images` kuyruğu EXIF'i temizler ve AVIF/WebP 320/640/1080 px varyantları üretir. `<img srcset>`, `loading="lazy"`, sabit en-boy oranı (CLS) ve düşük çözünürlüklü yer tutucu kullanılır. Cloudflare Images opsiyoneldir (Free'de 5.000 benzersiz dönüşüm/ay, A04 §7.6).
+- **Görseller (uygulanan, Faz 3.9):** Yükleme ucu (`POST /panel/uploads`) işi **eşzamanlı** yapar — Faz 1'de `images` kuyruğu yok ve panel kaydedeceği adresi hemen almak zorunda. `apps/api/src/services/menu/uploads.ts` sharp ile: EXIF yönünü uygular, **tüm** metaveriyi (EXIF/GPS, XMP, IPTC, ICC) düşürür, 320/640/1080 px WebP varyant + özgün biçimde 640 px geri düşme karesi üretir; **özgün dosya saklanmaz** (diskte EXIF'li kopya bırakmak temizliği anlamsız kılar, KVKK). Görsel **büyütülmez**: merdivenin kaynaktan geniş basamakları atlanır. Ama üst basamak merdivene de **düşürülmez** — 1024 px'lik kaynak 320/640/**1024** px yazılır, yoksa yüklenen görselin genişliğinin %40'ı sebepsiz atılırdı. Üst basamak altındakine %15'ten yakınsa (ör. 321 px) ikiz dosya olduğu için yazılmaz; kural `variantWidths` içinde tek gövdedir ve iki tarafta birim testlidir.
+  - **Varyant listesi dosya adında taşınır:** `<token>.<maxW>x<maxH>.<w>.<uzantı>` (`services/menu/image-variants.ts`). `UploadResponse` tek bir `url` alanı taşıdığı ve `products.image_url` / `tenants.cover_url` tek metin sakladığı için istemci `srcset`'i ve gerçek piksel ölçüsünü bu addan türetir (`apps/web/lib/image.ts`) — ek istek yok, veri modeli değişmiyor. Kalıba uymayan adresler (Faz 1 yüklemeleri, elle girilmiş `https://…`) `srcset` ÜRETMEZ: var olmayan bir varyantı `srcset`'e koymak tarayıcıyı `src`'ye geri düşürmez, görseli tamamen kırar.
+  - **Çizim:** `<picture>` + `<source type="image/webp" srcset sizes>` + özgün biçimdeki `<img src>`, açık `width`/`height` (CLS), kapakta `loading="eager"` + `fetchpriority="high"` (LCP), geri kalanında `loading="lazy"` + `decoding="async"` (`apps/web/components/common/responsive-image.tsx`).
+  - **Açık iş — `og:image`:** Link önizlemesi `coverUrl ?? logoUrl` adresini, yani **geri düşme karesini** (en çok 640 px) veriyor (`apps/web/app/s/[slug]/page.tsx`). Önceden özgün dosya (ör. 1600 px) gidiyordu; WhatsApp/X önizlemesi hâlâ çiziliyor ama 12 §5.2'deki 1200×630 önerisinin altında. Çözüm ya özgün biçimde 1080 px'lik ikinci bir kare üretmek ya da og'a en geniş WebP varyantı vermektir (tarayıcı dışı tüketicilerin WebP desteği **teyit edilmeli**).
+  - **libvips belleği kısılır:** sharp'ın belleği V8 yığınının dışındadır, yani `--max-old-space-size` onu sınırlamaz — container sınırı sınırlar (denetim H23: 1 GiB'lik tek container'da OOM, PostgreSQL dahil tam kesinti). Yükleme `concurrency(1)` + 16 MB işlem önbelleği ile çalışır ve çözülecek en büyük piksel sayısı 50 MP'dir (`MAX_INPUT_PIXELS`, sıkıştırma bombası tavanı). **Açık iş:** eşzamanlı yükleme sayısı sınırlanmıyor; aynı anda gelen birkaç büyük PNG hâlâ container belleğini zorlayabilir.
+  - **AVIF bilerek üretilmiyor:** kodlaması WebP'den belirgin yavaştır ve bu iş yükleme isteğinin içinde duruyor; 1 GiB'lik tek container'da (denetim H23) hem gecikme hem bellek maliyeti kazancı haklı çıkarmıyor. `images` kuyruğu Faz 2'de açılırsa AVIF oraya eklenir. Düşük çözünürlüklü yer tutucu da yapılmadı (sabit en-boy oranı CLS'i zaten bitiriyor). Cloudflare Images opsiyoneldir (Free'de 5.000 benzersiz dönüşüm/ay, A04 §7.6).
 - **Düşük bant genişliği:** Sistem yazı tipleri kullanılır, üçüncü taraf script yoktur (üçüncü taraf analitik yalnız çerez rızasıyla). Ürün analitiği birinci taraftır ve çerezsizdir: olaylar `sendBeacon` ile `POST /api/v1/store/events`'e gider, `analytics_events`'e PII'siz yazılır ([07](07-veri-modeli-ve-api.md) §6.2, §3.5; [03](03-musteri-deneyimi-ve-storefront.md) §11). MapLibre yalnız adres adımında tembel yüklenir. `Save-Data` veya yavaş bağlantıda görseller kapalı "hafif menü" gösterilir. HTTP/3 + Brotli Cloudflare'de açıktır.
 - **Hedefler (mobil, p75; CrUX ve kendi RUM'umuz) [T]:**
 

@@ -269,10 +269,12 @@ Her bileşenin Storybook'ta **tüm durumları × iki tema × gerçek Türkçe me
 | Varlık | Önerilen | En az | Biçim [T] | Kullanıldığı yer ve güvenli alan |
 |---|---|---|---|---|
 | Logo | 1024×1024 px (1:1), şeffaf PNG veya SVG | 256×256 px | PNG, SVG, JPEG ≤ 5 MB | S-01 başlığı (40–48 px), storefront favicon'u, P-36 baskısı. İçerik merkezdeki %80 alanda kalır (daire kırpmaya uygun). Baskıda 1024 px ≈ 87 mm @ 300 dpi |
-| Kapak | **1200×630 px (1,91:1)** | 800×420 px | JPEG, PNG, WebP ≤ 5 MB | S-01 üst görseli, link önizlemesi (`og:image`), M01 karşılama mesajının isteğe bağlı üst görseli ([03](03-musteri-deneyimi-ve-storefront.md) §9.2; WhatsApp oranı **teyit edilmeli**). Görselde yazı olmamalı; önemli içerik merkezde kalmalı |
-| Ürün görseli | 1080×1080 px (1:1) | 640×640 px | JPEG, PNG, WebP ≤ 5 MB | Ürün kartında 72–96 px kare, S-02'de geniş. `images` kuyruğu EXIF'i temizler, 320/640/1080 px AVIF ve WebP üretir ([06](06-teknik-mimari.md) §12) |
+| Kapak | **1200×630 px (1,91:1)** | 800×420 px | JPEG, PNG, WebP ≤ 5 MB | S-01 üst görseli, link önizlemesi (`og:image`; **açık iş:** `og:image` geri düşme karesini gösteriyor, yani en çok 640 px — 1200×630 önerisinin altında, bkz. [06](06-teknik-mimari.md) §12), M01 karşılama mesajının isteğe bağlı üst görseli ([03](03-musteri-deneyimi-ve-storefront.md) §9.2; WhatsApp oranı **teyit edilmeli**). Görselde yazı olmamalı; önemli içerik merkezde kalmalı |
+| Ürün görseli | 1080×1080 px (1:1) | 640×640 px | JPEG, PNG, WebP ≤ 5 MB | Ürün kartında 104 px kare, S-02'de geniş. Yükleme ucu EXIF'i temizler ve 320/640/1080 px WebP üretir ([06](06-teknik-mimari.md) §12) |
 
-Yüklemede boyut yetersizse görsel reddedilmez, "Bu görsel bulanık görünebilir" uyarısı çıkar. Esnaf engellenmez [T].
+Yüklemede boyut yetersizse görsel reddedilmez, "Bu görsel bulanık görünebilir" uyarısı çıkar. Esnaf engellenmez [T]. Bu uyarı **seçilen dosyanın** ölçüsüne bakar, önizlemeye bakmaz: sunucu artık varyant ürettiği için servis edilen kare en çok 640 px geniştir (`components/settings/image-field.tsx`).
+
+**Servis edilen ölçü (uygulanan, Faz 3.9):** Yükleme özgün dosyayı saklamaz; 320/640/1080 px WebP varyantlar + özgün biçimde 640 px geri düşme karesi üretilir ve **en geniş varyant 1080 px'tir**. Kaynak 1080 px'ten darsa üst basamak kaynağın kendi genişliğidir (1024 px'lik kapak 1024 px olarak da yazılır; merdivene düşürülmez). Yukarıdaki "önerilen" ölçüler yine de geçerlidir — kaynak büyük olduğunda 1080 px varyant daha iyi kadrajdan üretilir. Kapak masaüstünde 672 px'lik kabukta çizildiği için 2× ekranda 1080 px ideal olanın biraz altındadır; mobilde fazlasıyla yeterlidir.
 
 ### 5.3 "Altyapı: Yemek Gelsin" imzası kuralı
 - **Metin (kanonik):** "Altyapı: Yemek Gelsin" ([00](00-kararlar-ve-sozluk.md) §7 "Storefront imzası"; [03](03-musteri-deneyimi-ve-storefront.md) §1 İ5 ve §4.0). A05 §6.4 ve görev tanımındaki "Yemek Gelsin ile" kullanılmaz (§13 #1).

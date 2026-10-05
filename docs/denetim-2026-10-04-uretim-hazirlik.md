@@ -59,7 +59,7 @@ Cloudflare Worker + **TEK container** (PostgreSQL + API + worker + web), yedek 2
 | # | Konu | Dosya | Durum |
 |---|---|---|---|
 | B1 | Künye/KVKK metni yer tutucu, **canlıda yayında** | `apps/web/lib/site.ts:89` | ✅ doğrulandı (canlı curl) |
-| B2 | Mesafeli satış + ön bilgilendirme "**Taslak**" olarak onaylatılıyor | `store-legal-document.tsx:45`, `enums.ts:423` | ✅ doğrulandı |
+| B2 | Mesafeli satış + ön bilgilendirme "**Taslak**" olarak onaylatılıyor | `store-legal-document.tsx:45`, `enums.ts:423` | 🟡 kapı yazıldı (metin hâlâ taslak) |
 | B3 | **DPA ve alt işleyen listesi üründe hiç yok** | `routes/auth.ts:182` | ✅ doğrulandı |
 | B4 | CI hiçbir monorepo testi/tür denetimi koşmuyor | `.github/workflows/deploy-dev-cloudflare.yml:113` | ✅ doğrulandı |
 | B5 | Ajan dalına her push kapısız canlıya; geri dönüş yok | aynı dosya `:38`, `:328` | ✅ doğrulandı |
@@ -68,7 +68,7 @@ Cloudflare Worker + **TEK container** (PostgreSQL + API + worker + web), yedek 2
 | B8 | Webhook girişinde **spool yok** → her dağıtımda sipariş kaybı | `services/messaging/ingest.ts:18` | ✅ doğrulandı |
 | B9 | **Hiçbir otomatik uyarı kanalı yok** (Sentry/Slack/mail/webhook = 0) | `deploy/cloudflare/src/index.ts:312` | ✅ doğrulandı |
 | B10 | Onay kapısı yok: herkes kaydolup kendi kendine canlıya geçiyor | `routes/auth.ts:152`; `signup-status` → `{open:true}` | ✅ doğrulandı |
-| B11 | Onay butonundaki toplam sunucu quote'una bağlı değil | `checkout-page.tsx:177` | rapor edildi |
+| B11 | Onay butonundaki toplam sunucu quote'una bağlı değil | `checkout-page.tsx:177` | ✅ düzeltildi |
 | B12 | Tüm yasal metinler sabit; secret'la düzeltilemez, kod değişikliği şart | `site.ts:89` | ✅ doğrulandı |
 | B13 | **Deneme bitişi hiç uygulanmıyor + `read_only` sipariş almayı durdurmuyor** | `storefront/load.ts:25` → `['suspended','churned']` | ✅ doğrulandı |
 | B14 | `DATA_EPOCH` / `VPS_HOST` tek secret ile canlıyı **sessizce sıfırlıyor** | `entrypoint.sh:171-186`, `deploy-production.yml` | rapor edildi |
@@ -80,6 +80,8 @@ Cloudflare Worker + **TEK container** (PostgreSQL + API + worker + web), yedek 2
 
 **B2 — Taslak sözleşme onaylatılıyor.** Checkout'ta onay kutusu zorunlu ve bağlandığı metinde "Taslak, hukuki inceleme bekliyor" yazıyor; kabul kaydına `2026-09-28-taslak` sürümü kalıcı yazılıyor.
 → **Düzeltme:** avukat onayı → sürümü tarihli yayın sürümüne çevir, taslak bantlarını kaldır. Onaya kadar: sürüm `taslak` içeriyorsa `POST /store/:slug/orders` **fail-closed** reddetsin (taslak metinle kabul kaydı hiç oluşmasın).
+→ **Yapıldı (FAZ 0.3, kapı tarafı):** çalışma zamanı kapısı `apps/api/src/services/orders/legal-gate.ts`; `POST /store/:slug/orders` canlı dağıtımda (`NODE_ENV=production` **ve** `DEPLOY_ENV=production`) üç nedenden biri varsa 503 `ordering_unavailable` döner: sürüm taslak, künyenin zorunlu alanları eksik, sürümün içerik özeti sabitlenmemiş. Müşteriye gerekçe sızmaz; açılışta bir kez `alert()` ile `legal_texts_not_published` kritik uyarısı gider ve gerekçeler log'a maskesiz yazılır. Gizli staging (`DEPLOY_ENV=dev`) ve geliştirme/test kapsam dışı. Kabul anında siparişe onaylanan metnin **sürümü + içerik özeti** yazılıyor (`orders.source_meta.legal`). CI'da `pnpm check:legal` adımı eklendi (şimdilik `continue-on-error`, iş akışı özetine büyük uyarı bloğu).
+→ **Kalan (Eray + avukat):** metinlerin son hâli, künye değerleri, `LEGAL_DOCUMENT_VERSION`'ın yayın sürümüne çevrilmesi, yeni içerik özetinin iki yere yazılması, CI adımındaki `continue-on-error` satırının kaldırılması. **Kapı bu yapılmadan canlıda sipariş aldırmaz.**
 
 **B3 — DPA yok.** Platform, işletmeler adına son müşteri verisi işliyor → veri işleyen. KVKK m.12/2 yazılı sözleşme ister, docs/08 §2.2 bunu 11 maddelik click-wrap DPA olarak tanımlıyor; kayıtta yalnız `abonelik` + `kvkk_aydinlatma` kabul ediliyor.
 → **Düzeltme:** `/yasal/dpa` sürümlü sayfa + `LEGAL_DOCUMENTS`'a `dpa` + kayıtta `legal_acceptances`'a yaz + alt işleyen listesini (Cloudflare, Twilio, FCM/APNs/Mozilla, GitHub) ülke + m.9 dayanağıyla yayınla.
@@ -104,6 +106,8 @@ Cloudflare Worker + **TEK container** (PostgreSQL + API + worker + web), yedek 2
 
 **B11 — Müşteri gördüğünden farklı tutara onay veriyor.** `/quote` başarısız olursa buton açık kalıyor ve toplam `localStorage`'daki **teslimat ücreti içermeyen, bayat** ara toplamdan yazılıyor; 400 ms debounce yüzünden mahalleyi seçip hemen basan müşteri de ücretsiz toplam onaylıyor. Sunucu doğru (yüksek) tutarı kaydediyor; kapıda fiyat tartışması + kabul kaydında tutar hash'i olmadığı için "hangi tutarı onayladı" sorusunun cevabı yok.
 → **Düzeltme:** şemaya zorunlu `expectedTotalKurus` + sunucuda uyuşmazlıkta 409 `cart_changed` + fark listesi; istemcide `quote` yoksa buton pasif ve `cart.subtotalKurus` yedeğini kaldır; `legal_acceptances.amount_hash`.
+→ **Yapıldı (FAZ 2.2):** gövdeye `expectedTotalKurus` eklendi (`apps/api/src/routes/store/orders.ts` rota şeması; müşterinin ekranda gördüğü toplam, fiyat değil onay kanıtı). Sunucu `apps/api/src/services/orders/expected-total.ts` ile karşılaştırır: 1 kuruş fark bile sipariş OLUŞTURMAZ, 409 `cart_changed` + `details:{expectedTotalKurus, totalKurus, subtotalKurus, deliveryFeeKurus, differenceKurus}` döner. Alan üretim derlemesinde zorunludur (yoksa 400 `expected_total_missing`); geliştirme/testte isteğe bağlı kaldı, böylece doğrudan API'ye istek atan 40 test ve yerel araçlar bozulmadı. İstemcide (`checkout-page.tsx`) `cart.subtotalKurus` yedeği KALDIRILDI: toplam yalnız taze quote'tan gelir, quote girdileri değişir değişmez (400 ms gecikme penceresi dâhil) tutar "—" olur ve onay butonu pasifleşir; 409 gelince yeni tutar yazılıp quote yenilenir ve onay yeniden istenir. Tutar hesaplanamazsa (ör. `/quote` 500 ya da hız sınırı) uyarı kutusunda **“Tutarı tekrar hesapla”** düğmesi çıkar: onay butonu tutar olmadan pasif olduğu için bu kapı olmasa müşterinin sepeti değiştirmekten başka çıkışı kalmaz ve sipariş kaçardı. Kabul kanıtı olarak siparişe yasal metnin sürümü + içerik özeti yazılıyor (`orders.source_meta.legal`).
+→ **Kalan:** `legal_acceptances` tablosunda özet/tutar kolonu yok (migration gerekir, `packages/db`); kanıt şimdilik sipariş satırında. Şemanın `packages/core/src/contracts/store.ts` içinde de `expectedTotalKurus` taşıması (bugün rota katmanında genişletiliyor).
 
 **B13 — Ücretli iş modeli fiilen yok.** `trialEndsAt` yazılıyor, panelde bant gösteriliyor, **bitişi kontrol eden hiçbir cron yok** — kayıtlı 4 cron: `retention`, `sold_out_reset`, `branch_pause_end`, `panel_presence` ✅ doğrulandı. Ayrıca `ORDERING_BLOCKED_STAGES = ['suspended','churned']` → `read_only` listede yok, yani admin elle `read_only` yapsa bile vitrin sipariş almaya devam ediyor. Tahsilat, dunning, fatura üretimi, KDV, kurulum ücreti kodda **hiç yok**; fiyat sayfasında gerçek fiyatlar (990/1.790/2.990 TL) yayında. İlk işletmeden para alındığı gün e-arşiv fatura yükümlülüğü doğar.
 → **Düzeltme:** `read_only`'yi listeye ekle + `cron.trial_watch` (bitişte `read_only`) + fatura/tahsilatı ilk ay elle yap ve bunu yazılı bir işletim adımı olarak kabul et.
@@ -121,9 +125,9 @@ Cloudflare Worker + **TEK container** (PostgreSQL + API + worker + web), yedek 2
 | H1 | Bitmiş işin dedupe anahtarı kalıcı → sipariş "bekleyen ret"te **kilitlenir**: ne onay, ne ret, ne 15 dk oto-iptal. `jobs_dedupe_key_uk` kısmi değil, tam unique ✅ doğrulandı | `lib/jobs.ts:87`, `0000_init.sql:817` |
 | H2 | `recoverStaleJobs` deneme sayısına **hiç bakmıyor** ✅ doğrulandı → worker'ı çökerten bir iş sonsuza kadar denenir, her turda TÜM container yeniden başlar = sürekli kapanan site | `lib/jobs.ts:232` |
 | H3 | `order-new-watch` emniyet cron'u yok → alarm işi `failed` olan sipariş sonsuza kadar `new` kalır | `jobs/cron/index.ts:40` |
-| H4 | **Sentetik canary yok** (docs/00 §11 "pilot öncesi ZORUNLU") → SSE/panel teslim yolu sessizce bozulsa kimse anlamaz | `jobs/cron/index.ts:45` |
+| H4 | **Sentetik canary yok** (docs/00 §11 "pilot öncesi ZORUNLU") → SSE/panel teslim yolu sessizce bozulsa kimse anlamaz. **Faz 3.6'da kapatıldı:** `cron.canary` + `services/canary/` (sipariş gerçek yoldan, 60 sn ack kontrolü, `resync`, 2 ardışık hatada uyarı, 10 dk temizlik). **Açık kalan:** panelin canary'yi sessizce ack'lemesi (`new-order-alarm.tsx`; ack ucu canary'yi süzmüyor, API değişikliği gerekmez) — gelene kadar bayat panel sinyalinin tamamı (uyarı + `resync` + hata logu) `CANARY_STALE_ALERT` ile kapalı; ingress bacağı (`X-Canary`) ve platform canary'si yazılmadı (06 §7.10 "bilinçli sapmalar") | `jobs/cron/index.ts`, `services/canary/index.ts` |
 | H5 | Dayanıklılık 120 sn'lik `pg_dump`'a bağlı, **PITR yok** → OOM'da müşteriye "onaylandı" mesajı gitmiş sipariş yok olur | `entrypoint.sh:14` |
-| H6 | Akış B doğrulama ekranı kalıcı adreste değil + sepet temizlenmiş → sekme yenilenince müşteri kodu kaybeder, 30 dk sonra sessiz iptal | `checkout-page.tsx:256` |
+| H6 | Akış B doğrulama ekranı kalıcı adreste değil + sepet temizlenmiş → sekme yenilenince müşteri kodu kaybeder, 30 dk sonra sessiz iptal · ✅ **kapatıldı (3.1):** ekran `/t/<token>`'a taşındı (`components/orders/verification-screen.tsx`), checkout `router.replace` ile oraya geçiyor | `checkout-page.tsx:256` |
 | H7 | Ortak numara (Twilio) sussa/401 verse **hiç alarm yok**; 'shared' sağlayıcı sessizlik denetiminden çıkarılmış | `services/admin/wa-health.ts:67` |
 | H8 | Twilio kimlik hatası (20003/20005→190) yalnız log satırı: hesap duraklatılmıyor, uyarı gitmiyor | `services/messaging/send.ts:182` |
 | H9 | Sağlayıcı geçişinde kuyrukta bekleyen webhook olayları yanlış ayrıştırıcıya düşüp **hatasız "işlendi"** damgalanıyor | `ingest.ts:43` |
@@ -131,11 +135,11 @@ Cloudflare Worker + **TEK container** (PostgreSQL + API + worker + web), yedek 2
 ### Para / kurye
 | # | Ne | Dosya |
 |---|---|---|
-| H10 | **Kurye teslimde ödeme yöntemini değiştiriyor**, sunucu doğrulamıyor, eski değer hiçbir yere yazılmıyor → P-32 kurye nakit kırılımı istenildiği kadar düşürülebilir, işletme bunu üründen göremez | `routes/courier/index.ts:141` |
-| H11 | `/delivered` ödeme yöntemini hiç doğrulamıyor: `online_card`, `pay_at_counter`, **markasız yemek kartı** kabul ediliyor | `routes/courier/index.ts:134` |
-| H12 | Checkout butonu quote'a bağlı değil (B11'in operasyonel yüzü): CGNAT arkasında 120/dk limitine takılan müşteri eksik toplam onaylıyor | `checkout-page.tsx:177` |
-| H13 | "Teslim edilemedi" akışı **kodda hiç yok** → kurye kapıda müşteri yokken yanlış biçimde "Teslim ettim"e basıyor, müşteriye M10 + değerlendirme isteği gidiyor | `courier-orders.tsx:126` |
-| H14 | Sepet değişikliği müşteriye hiç gösterilmiyor (K10/K12 fark listesi yok); tükenen ürünle checkout çıkmaz sokak | `checkout-page.tsx:268` |
+| H10 | **Kurye teslimde ödeme yöntemini değiştiriyor**, sunucu doğrulamıyor, eski değer hiçbir yere yazılmıyor → P-32 kurye nakit kırılımı istenildiği kadar düşürülebilir, işletme bunu üründen göremez · ✅ **kapatıldı (2.3):** değişiklik `order_events.payment_method_changed` olayına eski→yeni + kim/ne zaman yazılıyor (`services/orders/courier.ts`), `audit_log`'a da eski yöntem düşüyor; panel zaman çizelgesinde "Ödeme yöntemi değişti · …" görünüyor | `routes/courier/index.ts:141` |
+| H11 | `/delivered` ödeme yöntemini hiç doğrulamıyor: `online_card`, `pay_at_counter`, **markasız yemek kartı** kabul ediliyor · ✅ **kapatıldı (2.3):** şema 3 değere daraldı (`courierCollectedPaymentMethodSchema`), sunucu yöntemin şubede açık olduğunu `validatePayment` ile doğruluyor, online/kasada ödenen siparişte 422 `payment_method_locked`; kurye ekranı seçenekleri sunucudan gelen `allowedPaymentMethods` ile çiziyor | `routes/courier/index.ts:134` |
+| H12 | ✅ düzeltildi — Checkout butonu quote'a bağlı değil (B11'in operasyonel yüzü): CGNAT arkasında 120/dk limitine takılan müşteri eksik toplam onaylıyor | `checkout-page.tsx:177` |
+| H13 | "Teslim edilemedi" akışı **kodda hiç yok** → kurye kapıda müşteri yokken yanlış biçimde "Teslim ettim"e basıyor, müşteriye M10 + değerlendirme isteği gidiyor · ✅ **kapatıldı (3.5):** `POST /courier/orders/:id/undeliverable` + sebep çipleri; sipariş durum değiştirmez (`order_delivery_attempts` + `order_events.delivery_failed` + panel SSE olayı), müşteriye mesaj gitmez. Teslimde 5 sn "Geri al" şeridi eklendi | `courier-orders.tsx:126` |
+| H14 | Sepet değişikliği müşteriye hiç gösterilmiyor (K10/K12 fark listesi yok); tükenen ürünle checkout çıkmaz sokak · 🟡 **ekran yazıldı:** `components/orders/cart-change-notice.tsx` + `cart-change.ts` (409 `cart_changed` / 422 `cart_invalid` ayrıntısını fark listesine çevirir, S-06B/C'de bağlı); checkout'un 409 dalını bu bileşene bağlamak **2.2'nin işi** | `checkout-page.tsx:268` |
 
 ### Ortak numara / yalıtım
 | # | Ne | Dosya |
@@ -158,12 +162,12 @@ Cloudflare Worker + **TEK container** (PostgreSQL + API + worker + web), yedek 2
 | H22 | Worker sağlık ucunu üretimde kimse yoklamıyor (Worker cron yalnız `/health` çağırıyor) | `deploy/cloudflare/src/index.ts:311` |
 | H23 | 1 GiB container'da yalnız Node yığın tavanları **704 MiB** → OOM = tam kesinti + veri kaybı; disk/bellek hiç izlenmiyor | `entrypoint.sh:216`, `routes/health.ts:40` |
 | H24 | Rollback mekanizması hiç yok; **aşağı migration da yok** → migrate hata verirse sonsuz yeniden başlatma, çıkış yolu `DATA_EPOCH` artırıp veriyi feda etmek | `workflow:328`, `migrate.ts` |
-| H25 | Görseller hiç küçültülmüyor (5 MB'a kadar orijinal, 104 px kutuda) + EXIF/GPS temizlenmiyor | `services/menu/uploads.ts:24` |
+| H25 | Görseller hiç küçültülmüyor (5 MB'a kadar orijinal, 104 px kutuda) + EXIF/GPS temizlenmiyor | `services/menu/uploads.ts:24` · ✅ **kapatıldı (3.9):** yüklemede sharp ile 320/640/1080 px WebP varyant + özgün biçimde 640 px geri düşme karesi; EXIF yönü uygulanıp **tüm** metaveri (EXIF/GPS, XMP, IPTC, ICC) düşürülüyor ve özgün dosya hiç saklanmıyor. Vitrin `srcset`/`sizes` + açık `width`/`height` ile çiziyor. Ölçülen: 4000×3000 / 2,75 MB fotoğraf → ürün kartına 2–41 KB iniyor, diskte 4 varyant toplam 276 KB. **Bağımsız inceleme düzeltmesi:** merdiven kuralı kaynağın çözünürlüğünü düşürüyordu (1024 px → 640 px); üst basamak artık kaynağın kendi genişliği, libvips belleği `concurrency(1)` + 16 MB ile kısıldı, yarım yazılan varyant kümesi temizleniyor. Kalan açık işler 06 §12'de (`og:image` 640 px, eşzamanlı yükleme sınırı yok) |
 | H26 | `jobs` 'failed' saklama adımı atlıyor (PII) / `notifications` hiç silinmiyor / `sms_messages.body` hiç temizlenmiyor | `jobs/system/index.ts:107,170,178` |
 | H27 | Migration numaralandırması dilim-bazlı → taze DB ile üretim **farklı sırada** uyguluyor; drizzle-kit meta `0000`'da donmuş, `db:generate` çalıştırılırsa container açılmaz | `migrate.ts:21`, `meta/_journal.json:4` |
-| H28 | Admin'de onboarding hunisi yok (`onboarding_step` yazılıyor, hiçbir uçtan okunmuyor) → "takılan işletme" görünümü tamamen kör | `services/onboarding/index.ts:160` |
-| H29 | Parolasını unutan işletme sahibini kurtarmanın **hiçbir yolu yok** (self-servis yok, admin aksiyonu yok, container'da kabuk yok) | `docs/15:215` |
-| H30 | Destek oturumu müşteri telefonunu **maskesiz** görüyor + işletme destek erişiminden hiç haberdar edilmiyor | `panel-dto.ts:261`, `admin/impersonation.ts:77` |
+| H28 | Admin'de onboarding hunisi yok (`onboarding_step` yazılıyor, hiçbir uçtan okunmuyor) → "takılan işletme" görünümü tamamen kör | `services/onboarding/index.ts:160` · ✅ **3.13/3.12 ile kapatıldı** (liste sütunları + `?stuck=1`); kayıttaki aşama açık kaldı |
+| H29 | Parolasını unutan işletme sahibini kurtarmanın **hiçbir yolu yok** (self-servis yok, admin aksiyonu yok, container'da kabuk yok) | `docs/15:215` · ✅ **3.11 ile kapatıldı** (admin "Parolayı sıfırla"); self-servis sıfırlama hâlâ yok (e-posta kanalı yok) |
+| H30 | Destek oturumu müşteri telefonunu **maskesiz** görüyor + işletme destek erişiminden hiç haberdar edilmiyor | `panel-dto.ts:261`, `admin/impersonation.ts:77` · ⚠️ **yarım**: bildirim tarafı 3.13 ile kapatıldı (işletme artık görüyor); maskesiz telefon açık kaldı (`panel-dto.ts` bu işin alanında değil) |
 | H31 | SMS yedeği sağlayıcıyı sormuyor: canlıda `SMS_PROVIDER='mock'` sabit → bayrak açılırsa "kod gönderildi" denip sipariş 30 dk'da düşer | `services/orders/verification.ts:34`, `mode.ts:87` |
 | H32 | **E-posta kanalı diye bir şey yok** (SMTP/Resend/SES/nodemailer = 0): demo/lead başvurusu kimseye gitmiyor, KVKK başvuru kutusu yok, fatura yolu yok | `routes/public/index.ts:53` |
 | H33 | Vitrin **her zaman varsayılan şubeyi** yüklüyor, müşteri şube seçemiyor + `is_default` varsayılanı `true` ve tek-varsayılan kısıtı yok → çok şubeli paket çalışmıyor | `storefront/load.ts:46`, `platform.ts:157` |
@@ -260,7 +264,7 @@ Cloudflare Worker + **TEK container** (PostgreSQL + API + worker + web), yedek 2
 |---|---|---|
 | 2.1 | `read_only`'yi `ORDERING_BLOCKED_STAGES`'e ekle + `cron.trial_watch` (deneme bitişinde `read_only`) | S |
 | 2.2 | `expectedTotalKurus` + sunucuda 409 `cart_changed` + istemcide butonu quote'a bağla + `amount_hash` | M |
-| 2.3 | Kurye ödeme yöntemi: `payment_method_changed` olayı (eski→yeni), `/delivered`'da `validatePayment`, şemayı 3 değere daralt, markasız yemek kartını reddet, panelde görünür kıl | M |
+| 2.3 | ✅ Kurye ödeme yöntemi: `payment_method_changed` olayı (eski→yeni), `/delivered`'da `validatePayment`, şemayı 3 değere daralt, markasız yemek kartını reddet, panelde görünür kıl | M |
 | 2.4 | Kayıt kapısı: canlıda `signup_open`'ı kapat + lead formuna yönlendir (S) ya da `approved_at` onay akışını yaz (M) | S/M |
 | 2.5 | Bölge dışı ücret `parseTlToKurus` + tasarruf raporunda oranı nullable yap ("Oranınızı girin") | S |
 | 2.6 | Fatura/tahsilat: ilk ay elle, yazılı işletim adımı olarak kabul et (e-arşiv yükümlülüğü) | S (karar) |
@@ -268,18 +272,30 @@ Cloudflare Worker + **TEK container** (PostgreSQL + API + worker + web), yedek 2
 ### FAZ 3 — İlk hafta dayanıklılığı · ~2-3 gün
 | # | İş | Boyut |
 |---|---|---|
-| 3.1 | Akış B doğrulama ekranını `/t/<token>`'a taşı (`router.replace`) | S |
+| 3.1 | Akış B doğrulama ekranını `/t/<token>`'a taşı (`router.replace`) · ✅ **yapıldı** + sepet değişikliği onay akışı (K10/K12) ve erişilebilirlik (odak yönetimi, kalıcı canlı bölge) | S |
 | 3.2 | Seçici soğumasını yalnız `decision.auto === true`'ya bağla + regresyon testi | S |
 | 3.3 | `phone_number_id` uyuşmazlığında **dur** + orphan işaretle + admin alarmı | S |
 | 3.4 | Ortak numara sessizlik dedektörü + webhook 401 loglaması + Twilio kimlik hatasında admin alarmı | M |
-| 3.5 | "Teslim edilemedi" ucu + kurye ekranında 5 sn "Geri al" şeridi | M |
-| 3.6 | `cron.canary` (tenant canary, 15 dk, `test_kind='canary'`, 60 sn'de ack yoksa resync + 2 hatada alarm) | M |
+| 3.5 | ✅ "Teslim edilemedi" ucu (migration 0200 + `order_delivery_attempts`) + kurye ekranında 5 sn "Geri al" şeridi; kurye DTO'sunda veri minimizasyonu (gel-al ve final durumda adres/telefon dönmez) | M |
+| 3.6 | ~~`cron.canary` (tenant canary, 15 dk, `test_kind='canary'`, 60 sn'de ack yoksa resync + 2 hatada alarm)~~ **YAPILDI** — `apps/api/src/services/canary/` + `cron.canary`/`canary.run`/`canary.verify`; `order_new_watch` canary'yi taramıyor; `CANARY_ENABLED` ile açılır. Kalan iş: panelde sessiz ack + `X-Canary` ingress bacağı + platform canary'si | M |
 | 3.7 | KVKK silmeye `sms_messages` + `body` temizliği + `notifications` 90 gün | S |
 | 3.8 | HSTS + CSP (Worker `withEnvHeaders`'a, `/api/*` dahil) + duman testine başlık kontrolü | S |
-| 3.9 | Görsel yükleme: sharp ile EXIF strip + 320/640/1080 WebP varyant + `srcset` | M |
+| 3.9 | Görsel yükleme: sharp ile EXIF strip + 320/640/1080 WebP varyant + `srcset` | M · ✅ **tamamlandı** (`services/menu/image-variants.ts`, `services/menu/uploads.ts`, `apps/web/lib/image.ts`, `components/common/responsive-image.tsx`). AVIF **bilerek yapılmadı** (gerekçe: docs/06 §12) |
 | 3.10 | Gerçek cihazda panel testi (restoranın tableti/telefonu): Tailwind 4 eşiği + iOS'ta PWA kurulumu olmadan push gelmediğini kullanıcıya anlatan akış | S |
-| 3.11 | Admin'e "Parolayı sıfırla" aksiyonu (gerekçeli + audit + oturum kapatma) | S |
-| 3.12 | Onboarding hunisi: kayıtta `lifecycleStage:'onboarding'` + admin listesine `onboardingStep` | M |
+| 3.11 | Admin'e "Parolayı sıfırla" aksiyonu (gerekçeli + audit + oturum kapatma) · ✅ **yapıldı** — `POST /admin/tenants/:id/members/:userId/reset-password`, izin `users:reset_password` (PO/PA); parolayı sunucu üretir ve yalnız yanıtta döner (log/denetim/e-posta yok), kullanıcının tüm oturumları silinir, hız sınırlı; `routes/admin/recovery.ts` + `services/admin/recovery.ts` | S |
+| 3.12 | Onboarding hunisi: kayıtta `lifecycleStage:'onboarding'` + admin listesine `onboardingStep` · ⚠️ **yarım** — admin tarafı yapıldı (`onboardingStep`, `onboardingStepAt`, `onboardingStuck`, `lastActivityAt`, `?stuck=1` "takılan" görünümü); kayıttaki aşama düzeltilmedi, aşağıya bak | M |
+| 3.13 | Destek erişimi bildirimini **okunur** hale getir (yazılan `notifications` satırını hiçbir uç nokta okumuyordu) · ✅ **yapıldı** — başlangıç/bitiş kaydı + işletme ucu `GET /admin/support-access/notices` + panel bandı; `services/admin/support-access.ts`, `components/panel/support-access-band.tsx` | S |
+
+#### 3.12 açık kalan parça — kayıttaki yaşam döngüsü aşaması (DIŞ BAĞIMLILIK)
+
+`POST /auth/signup` işletmeyi doğrudan `lifecycleStage: 'trial'` ile açıyor (`apps/api/src/routes/auth.ts:158`). Sonuçları:
+
+- 05 §A.2.1'in `lead → onboarding → trial/pilot` zinciri kendi kaydolan işletmede hiç çalışmıyor; `onboarding` aşaması yalnız elle atanan işletmelerde görünüyor.
+- `services/onboarding/index.ts` `goLive()` içindeki `if (t.lifecycleStage === 'lead' || t.lifecycleStage === 'onboarding')` dalı bu işletmeler için **hiç** tetiklenmiyor: canlıya geçiş aşamayı terfi ettirmiyor çünkü aşama zaten `trial`.
+- `LIFECYCLE_TRANSITIONS` içinde `trial → onboarding` kenarı **yok**, yani yanlış konan aşama admin panelinden geri alınamıyor; mevcut kayıtlar için geri dolum (backfill) gerekir.
+- Bu yüzden "kurulumda takılan işletme" yalnız **aşamaya** bakılarak bulunamaz; admin listesindeki huni adımı (`onboarding_step`) + `?stuck=1` görünümü bu boşluğu kapatmak için eklendi ve aşamadan bağımsız çalışıyor.
+
+Düzeltme `routes/auth.ts`'i (ve mevcut satırlar için bir geri dolum göçünü) sahiplenen işte yapılmalı: kayıtta `lifecycleStage: 'onboarding'`, `goLive()` terfiyi zaten yazıyor.
 
 ### FAZ 4 — Pilot sonrası (satmadan önce karar)
 | # | İş | Boyut |

@@ -11,6 +11,13 @@ export interface OrderSourceMeta {
   notifyConsent?: boolean;
   /** Kaynak etiketi (ör. 'onboarding'). */
   src?: string;
+  /** Konumsuz seçilen bölge: ücret/minimum müşteri beyanına dayanır (storefront). */
+  zoneDeclared?: boolean;
+  /**
+   * Müşterinin onayladığı yasal metnin kimliği (08 §7.5, denetim B2/B11): sürüm + metin içerik özeti.
+   * `legal_acceptances` tablosunda özet kolonu olana kadar kabulün içerik kanıtı burada durur.
+   */
+  legal?: { version: string; textDigest: string | null };
   [key: string]: unknown;
 }
 

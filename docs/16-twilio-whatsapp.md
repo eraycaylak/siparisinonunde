@@ -136,7 +136,7 @@ Twilio hata kodları Meta kodlarına çevrilir; `wa/errors.ts` sınıflandırmas
 |---|---|---|
 | `63016` | 24 saat penceresi kapalı, serbest mesaj | `131047` → şablona düş |
 | `63003`, `63024` | alıcı bulunamadı / geçersiz numara | `131026` → teslim edilemez |
-| `20003` | kimlik doğrulama başarısız | `190` → hesap duraklar |
+| `20003`, `20005` | kimlik doğrulama başarısız / hesap askıda | `190` → hesap duraklar. **Ortak numarada** (platformun numarası) işletmenin satırı duraklatılmaz ama `shared_wa_account_error` **kritik** operasyon uyarısı gider (`services/messaging/shared-router.ts` `performSharedSend`; denetim H8). Anahtar bozulduğunda tüm ortak numara dükkanlarının mesajları durduğu için bu uyarı sessiz bırakılamaz |
 | `20429`, `63018` | hız sınırı | `130429` → yeniden dene |
 | `63021`, `63005` | içerik/şablon hatası | `132000` → şablon hatası |
 | HTTP 5xx, ağ, zaman aşımı | geçici | yeniden dene |

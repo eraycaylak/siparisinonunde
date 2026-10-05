@@ -22,6 +22,7 @@ import { storefrontHref } from '@/lib/storefront-url';
 import { SUBSCRIPTION_STATUS_LABELS, SUSPENSION_REASON_LABELS } from './admin-labels';
 import { InfoRow, LoadMore, QueryError, StageBadge, StatCard, useAdminAccess, useCursorList } from './common';
 import { ImpersonateButton } from './impersonate-dialog';
+import { PasswordResetButton, PasswordResetDialog, type PasswordResetTarget } from './password-reset-dialog';
 import { TenantManageForm } from './tenant-manage-form';
 import { TenantNotes } from './tenant-notes';
 import { TenantWhatsappCard } from './tenant-whatsapp';
@@ -141,7 +142,7 @@ export function TenantDetailScreen({ id }: { id: string }) {
           <TenantNotes tenantId={t.id} />
         </TabsContent>
         <TabsContent value="uyeler">
-          <MembersTab d={d} />
+          <MembersTab d={d} canReset={can('users:reset_password')} />
         </TabsContent>
       </Tabs>
     </>
@@ -304,43 +305,61 @@ function OrdersTab({ tenantId }: { tenantId: string }) {
   );
 }
 
-function MembersTab({ d }: { d: AdminTenantDetail }) {
+/**
+ * Üyeler sekmesi. "Parolayı sıfırla" yalnız platform yöneticisine görünür (karar API'dedir, arayüz yalnız gizler):
+ * parolasını unutan işletme sahibinin başka kurtarma yolu yok — self-servis sıfırlama akışı ve e-posta kanalı yok.
+ */
+function MembersTab({ d, canReset }: { d: AdminTenantDetail; canReset: boolean }) {
+  const [resetTarget, setResetTarget] = useState<PasswordResetTarget | null>(null);
   if (!d.members.length) return <EmptyState title="Üye yok" />;
   return (
-    <Table>
-      <THead>
-        <TR>
-          <TH>Ad</TH>
-          <TH>Rol</TH>
-          <TH>E-posta / telefon</TH>
-          <TH>Son giriş</TH>
-          <TH>2FA</TH>
-        </TR>
-      </THead>
-      <TBody>
-        {d.members.map((m) => (
-          <TR key={m.userId}>
-            <TD className="font-semibold">
-              {m.name}
-              {m.disabled ? (
-                <Badge variant="neutral" size="sm" className="ms-2">
-                  Devre dışı
-                </Badge>
-              ) : null}
-            </TD>
-            <TD>
-              {TENANT_ROLE_LABELS[m.role]}
-              {m.branchId ? <div className="text-xs text-fg-muted">{d.branches.find((b) => b.id === m.branchId)?.name ?? 'Şube kısıtlı'}</div> : null}
-            </TD>
-            <TD>
-              <div>{m.email ?? '—'}</div>
-              {m.phone ? <div className="text-sm text-fg-muted">{m.phone}</div> : null}
-            </TD>
-            <TD className="whitespace-nowrap">{m.lastLoginAt ? formatRelative(m.lastLoginAt) : 'Hiç'}</TD>
-            <TD>{m.hasTotp ? <Badge variant="success" size="sm">Açık</Badge> : <Badge variant="warning" size="sm">Yok</Badge>}</TD>
+    <>
+      <Table>
+        <THead>
+          <TR>
+            <TH>Ad</TH>
+            <TH>Rol</TH>
+            <TH>E-posta / telefon</TH>
+            <TH>Son giriş</TH>
+            <TH>2FA</TH>
+            {canReset ? <TH>Parola</TH> : null}
           </TR>
-        ))}
-      </TBody>
-    </Table>
+        </THead>
+        <TBody>
+          {d.members.map((m) => (
+            <TR key={m.userId}>
+              <TD className="font-semibold">
+                {m.name}
+                {m.disabled ? (
+                  <Badge variant="neutral" size="sm" className="ms-2">
+                    Devre dışı
+                  </Badge>
+                ) : null}
+              </TD>
+              <TD>
+                {TENANT_ROLE_LABELS[m.role]}
+                {m.branchId ? <div className="text-xs text-fg-muted">{d.branches.find((b) => b.id === m.branchId)?.name ?? 'Şube kısıtlı'}</div> : null}
+              </TD>
+              <TD>
+                <div>{m.email ?? '—'}</div>
+                {m.phone ? <div className="text-sm text-fg-muted">{m.phone}</div> : null}
+              </TD>
+              <TD className="whitespace-nowrap">{m.lastLoginAt ? formatRelative(m.lastLoginAt) : 'Hiç'}</TD>
+              <TD>{m.hasTotp ? <Badge variant="success" size="sm">Açık</Badge> : <Badge variant="warning" size="sm">Yok</Badge>}</TD>
+              {canReset ? (
+                <TD>
+                  <PasswordResetButton
+                    onClick={() => setResetTarget({ userId: m.userId, name: m.name, roleLabel: TENANT_ROLE_LABELS[m.role] })}
+                  />
+                </TD>
+              ) : null}
+            </TR>
+          ))}
+        </TBody>
+      </Table>
+      {canReset ? (
+        <PasswordResetDialog tenantId={d.tenant.id} target={resetTarget} onOpenChange={(open) => !open && setResetTarget(null)} />
+      ) : null}
+    </>
   );
 }

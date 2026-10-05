@@ -6,6 +6,7 @@ import { Ban, Download, ImageOff, Layers, Pencil, Percent, Plus, RotateCcw, Sear
 import { toast } from 'sonner';
 import { formatNextOpenTR } from '@siparis/core/hours';
 import type { PanelMenuResponse, PanelProduct } from '@siparis/core/menu/contracts';
+import { ResponsiveImage } from '@/components/common/responsive-image';
 import { ScreenError, ScreenLoading } from '@/components/common/screen-state';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -358,8 +359,7 @@ function ProductRow({
     <li className={cn('flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface-raised p-3', !p.isActive && 'bg-surface')}>
       <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-md bg-surface">
         {p.imageUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={p.imageUrl} alt="" className="size-full object-cover" loading="lazy" />
+          <ResponsiveImage url={p.imageUrl} alt="" sizes="56px" className="size-full object-cover" />
         ) : (
           <ImageOff aria-hidden className="size-5 text-fg-muted" />
         )}

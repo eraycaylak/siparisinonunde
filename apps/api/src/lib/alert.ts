@@ -109,9 +109,17 @@ export function resolveAlertConfig(config?: AlertConfig, env: Record<string, str
   };
 }
 
-/** Metinden kişisel veri sızıntısını azaltır: uzun rakam dizileri (telefon) maskelenir, metin kırpılır. */
+/** UUID: iç tanımlayıcıdır, kişisel veri değildir — maskelenirse uyarı hangi kaydı gösterdiğini kaybeder. */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Metinden kişisel veri sızıntısını azaltır: uzun rakam dizileri (telefon) maskelenir, metin kırpılır.
+ * Sınır koşulları, UUID/karma gibi tanımlayıcıların içindeki rakam öbeklerinin yanlışlıkla maskelenmesini önler
+ * (ör. `…-dd9f87381621` sonundaki 8 hane telefon değildir).
+ */
 function scrubText(v: string): string {
-  return v.replace(/\+?\d[\d\s-]{6,}\d/g, '***').slice(0, MAX_TEXT);
+  if (UUID_RE.test(v)) return v;
+  return v.replace(/(?<![0-9A-Za-z-])\+?\d[\d\s-]{6,}\d(?![0-9A-Za-z-])/g, '***').slice(0, MAX_TEXT);
 }
 
 /** Bağlamı güvenli hale getirir: yalnız bir seviye, metinler maskeli ve kırpık, en çok 20 alan. */

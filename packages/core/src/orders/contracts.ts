@@ -6,7 +6,8 @@ import { z } from 'zod';
 import { idSchema, kurusSchema, nonNegativeKurusSchema } from '../contracts/common';
 import { cancelOrderRequestSchema, orderDetailSchema, orderSummarySchema, rejectOrderRequestSchema, assignCourierRequestSchema } from '../contracts/orders';
 import { cartItemSchema, trackResponseSchema } from '../contracts/store';
-import { TENANT_CANCEL_REASONS, deliveryZoneKindSchema, mealCardBrandSchema, paymentMethodSchema } from '../enums';
+import { TENANT_CANCEL_REASONS, courierCollectedPaymentMethodSchema, deliveryZoneKindSchema, mealCardBrandSchema, paymentMethodSchema } from '../enums';
+import { DELIVERY_FAILURE_NOTE_MAX, deliveryFailureReasonSchema } from './delivery';
 
 const isoNullable = z.string().nullable();
 
@@ -360,6 +361,11 @@ export const courierOrderSchema = z.object({
   zoneName: z.string().nullable(),
   paymentMethod: z.string(),
   mealCardBrand: z.string().nullable(),
+  /**
+   * Kuryenin teslimde seçebileceği yöntemler: şubede AÇIK + kapıda tahsil edilebilen (04 §9.2).
+   * Boş liste = ödeme yöntemi kapıda değiştirilemez (online kart, kasada ödeme, gel-al).
+   */
+  allowedPaymentMethods: z.array(z.string()),
   totalKurus: z.number().int(),
   changeForKurus: z.number().int().nullable(),
   changeKurus: z.number().int().nullable(),
@@ -368,6 +374,12 @@ export const courierOrderSchema = z.object({
   estimatedReadyAt: z.string().nullable(),
   readyAt: z.string().nullable(),
   onTheWayAt: z.string().nullable(),
+  /** Kaç kez "teslim edilemedi" bildirildi (04 §9.2; sipariş durumu değişmez). */
+  deliveryAttempts: z.number().int(),
+  /** En son teslim edilemedi bildirimi (yoksa null). */
+  lastDeliveryFailure: z
+    .object({ reason: z.string(), note: z.string().nullable(), at: z.string() })
+    .nullable(),
   version: z.number().int(),
 });
 export type CourierOrder = z.infer<typeof courierOrderSchema>;
@@ -381,11 +393,22 @@ export type CourierOrdersResponse = z.infer<typeof courierOrdersResponseSchema>;
 
 export const courierDeliveredRequestSchema = z
   .object({
-    /** "Farklı yöntemle ödendi" — verilmezse siparişteki yöntemle ödendi sayılır. */
-    paidWith: paymentMethodSchema.optional(),
+    /**
+     * "Farklı yöntemle ödendi" — verilmezse siparişteki yöntemle ödendi sayılır. Yalnız kapıda tahsil edilen üç
+     * yöntem gelebilir (denetim H11): `online_card` önceden ödenir, `pay_at_counter` kasada ödenir; ikisi de
+     * kurye tarafından seçilemez. Sunucu ayrıca yöntemin ŞUBEDE AÇIK olduğunu doğrular.
+     */
+    paidWith: courierCollectedPaymentMethodSchema.optional(),
     mealCardBrand: mealCardBrandSchema.optional(),
   })
   .optional();
+
+/** "Teslim edilemedi" bildirimi (04 §9.2): sebep zorunlu, `other` sebebinde açıklama da zorunlu. */
+export const courierUndeliverableRequestSchema = z.object({
+  reason: deliveryFailureReasonSchema,
+  note: z.string().trim().max(DELIVERY_FAILURE_NOTE_MAX).optional(),
+});
+export type CourierUndeliverableRequest = z.infer<typeof courierUndeliverableRequestSchema>;
 
 export const courierActionResponseSchema = z.object({ order: courierOrderSchema.nullable(), status: z.string() });
 

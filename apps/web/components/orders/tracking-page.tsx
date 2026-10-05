@@ -3,9 +3,11 @@
 // Takip sayfası (S-07/S-08, 03 §7): durum çizelgesi (renk + ikon + kelime), tahmini saat, onay gecikmesi satırı,
 // kalemler ve toplam, işletmeyi ara / WhatsApp'tan yaz, iptal (new) / iptal talebi (accepted+), teslimden sonra
 // 3 butonlu değerlendirme. 15 sn'de bir yenilenir (doğrulama beklerken 3 sn). Süresi dolmuş link: kişisel veri yok.
+// `awaiting_customer` iken Akış B doğrulama ekranı (S-06B/C) BU adreste gösterilir: /t/<token> doğrulamanın da
+// kalıcı adresidir (denetim 2026-10-04 madde 3.1 / H6) — sekme yenilenince kod ve kalan süre kaybolmaz.
 // Altta satıcı künyesi (business.legal) ve işletmenin yasal metinleri (/s/{slug}/yasal/*; satıcı ve veri sorumlusu işletme).
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Check, Circle, Frown, Meh, MessageCircle, Phone, Smile, TimerOff } from 'lucide-react';
 import type { TrackExpiredDetails, TrackResponseExt } from '@siparis/core/orders/contracts';
 import type { OrderStatus } from '@siparis/core/enums';
@@ -14,7 +16,7 @@ import { apiFetch, errorMessage, isApiError, useApiQuery } from '@/lib/api';
 import { cn } from '@/lib/cn';
 import { formatMoney, formatTime } from '@/lib/format';
 import { storefrontHref } from '@/lib/storefront-url';
-import { VerificationScreen } from '@/components/storefront/checkout/verification-screen';
+import { VerificationScreen } from './verification-screen';
 import { availableImprintRows } from '@/components/storefront/legal/store-legal';
 import { ImprintDetails, StoreLegalLinks } from '@/components/storefront/legal/store-legal-links';
 import { orderWaHref, reorderWaHref } from '@/lib/wa-links';
@@ -34,23 +36,53 @@ export function TrackingPage({ token }: { token: string }) {
     setFast(data?.order.status === 'awaiting_customer');
   }, [data?.order.status]);
 
-  if (q.isPending) return <Spinner label="Sipariş yükleniyor" />;
-  if (q.error && isApiError(q.error) && q.error.status === 410) {
-    const details = q.error.details as TrackExpiredDetails | undefined;
-    return <ExpiredView business={details?.business ?? null} />;
-  }
-  if (q.error && !data) {
-    return (
+  const apiError = isApiError(q.error) ? q.error : null;
+  let body: ReactNode = null;
+  if (q.isPending) {
+    body = <Spinner label="Sipariş yükleniyor" />;
+  } else if (apiError?.status === 410) {
+    body = <ExpiredView business={(apiError.details as TrackExpiredDetails | undefined)?.business ?? null} />;
+  } else if (q.error && !data) {
+    body = (
       <Alert variant="danger" title="Sipariş bulunamadı" className="mt-6">
-        {isApiError(q.error) && q.error.status === 404 ? 'Takip bağlantısı geçersiz.' : errorMessage(q.error)}
+        {apiError?.status === 404 ? 'Takip bağlantısı geçersiz.' : errorMessage(q.error)}
       </Alert>
     );
+  } else if (data) {
+    body =
+      data.order.status === 'awaiting_customer' ? (
+        // Akış B doğrulama ekranı (S-06B/C) kalıcı adreste yaşar: /t/<token> (denetim 3.1).
+        <VerificationScreen token={token} track={data} onChanged={() => void q.refetch()} />
+      ) : (
+        <TrackingView token={token} data={data} refetch={() => void q.refetch()} />
+      );
   }
-  if (!data) return null;
-  if (data.order.status === 'awaiting_customer') {
-    return <VerificationScreen token={token} track={data} onChanged={() => void q.refetch()} />;
-  }
-  return <TrackingView token={token} data={data} refetch={() => void q.refetch()} />;
+
+  return (
+    <>
+      {/* Durum değişimi (ör. "Onayınız bekleniyor" → "Siparişiniz alındı") ekran okuyucuya duyurulur. Canlı bölge
+          tüm dallarda ayakta kalır; yeni monte edilen bir aria-live kutusu güvenilir biçimde okunmaz. */}
+      <StatusAnnouncer label={data?.order.statusLabel ?? null} />
+      {body}
+    </>
+  );
+}
+
+/** İlk yükleme duyurulmaz (sayfanın kendisi okunur); sonraki her durum değişimi kibarca duyurulur. */
+function StatusAnnouncer({ label }: { label: string | null }) {
+  const [announced, setAnnounced] = useState('');
+  const seen = useRef<string | null>(null);
+  useEffect(() => {
+    if (!label) return;
+    const previous = seen.current;
+    seen.current = label;
+    if (previous !== null && previous !== label) setAnnounced(label);
+  }, [label]);
+  return (
+    <p className="sr-only" role="status">
+      {announced}
+    </p>
+  );
 }
 
 function ExpiredView({ business }: { business: TrackExpiredDetails['business'] | null }) {

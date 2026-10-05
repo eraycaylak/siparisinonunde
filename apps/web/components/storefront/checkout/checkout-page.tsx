@@ -3,11 +3,16 @@
 // Checkout (S-04/S-05, 03 §4.4): tek kaydırılan sayfa — teslimat, iletişim, ödeme, özet + ön bilgilendirme onayı,
 // "Siparişi onayla · N TL" ve altında ödeme yükümlülüğü/cayma istisnası metni. Tutarı sunucu hesaplar (POST /quote).
 // Gönderim idempotency anahtarıyla; ağ kopmasında aynı anahtarla tekrar denenir (03 K13, K23).
+//
+// TUTAR BAĞI (denetim B11): ekranda gösterilen toplam YALNIZ taze bir sunucu quote'undan gelir — yerel sepet
+// ara toplamına düşme (teslimat ücretsiz görünmesi) KALDIRILDI. Girdi değişince quote bayatlar, tutar "—" olur ve
+// onay butonu pasifleşir. Gönderimde ekranda görülen toplam `expectedTotalKurus` ile yollanır; sunucu kendi
+// hesabıyla karşılaştırır ve tutmazsa 409 `cart_changed` döner (yeni tutar gösterilir, onay yeniden istenir).
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ArrowLeft, Bike, CircleAlert, FileText, MapPin, MessageCircle, ShoppingBag, Store } from 'lucide-react';
+import { ArrowLeft, Bike, CircleAlert, FileText, MapPin, MessageCircle, RotateCcw, ShoppingBag, Store } from 'lucide-react';
 import type { StorefrontView } from '@siparis/core/menu/contracts';
 import type { CreateOrderResponse, QuoteResponse } from '@siparis/core/contracts/store';
 import { MEAL_CARD_BRAND_LABELS, PAYMENT_METHOD_LABELS, type MealCardBrand, type PaymentMethod } from '@siparis/core/enums';
@@ -20,7 +25,7 @@ import { cn } from '@/lib/cn';
 import { formatMoney, formatPhone, parseTlToKurus } from '@/lib/format';
 import { storefrontHref } from '@/lib/storefront-url';
 import { brandButtonClass } from '@/components/storefront/brand';
-import { WITHDRAWAL_EXCEPTION_TEXT, storeLegalHref } from '@/components/storefront/legal/store-legal';
+import { STORE_LEGAL_IS_DRAFT, WITHDRAWAL_EXCEPTION_TEXT, storeLegalHref } from '@/components/storefront/legal/store-legal';
 import { useStoreSession } from '@/components/storefront/use-store-session';
 import { VerificationScreen } from './verification-screen';
 
@@ -80,7 +85,10 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
   const [remember, setRemember] = useState(false);
   const [preInfoOpen, setPreInfoOpen] = useState(false);
 
-  const [quote, setQuote] = useState<QuoteResponse | null>(null);
+  // Quote, hangi girdiler için alındıysa o anahtarla saklanır: girdi değişir değişmez `quote` null olur, yani
+  // 400 ms'lik gecikme penceresinde bayat tutar ne ekranda görünür ne de onaya gider (denetim B11/H12).
+  const [quoted, setQuoted] = useState<{ key: string; data: QuoteResponse } | null>(null);
+  const [quoteNonce, setQuoteNonce] = useState(0);
   const [quoting, setQuoting] = useState(false);
   const [quoteError, setQuoteError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -94,6 +102,12 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
 
   const items = cart.toItems();
   const itemsKey = JSON.stringify(items);
+  /** Quote'un bağlı olduğu girdiler: sepet, teslim türü ve adres. Değişirse eldeki quote geçersizdir. */
+  const quoteKey = useMemo(
+    () => JSON.stringify([itemsKey, fulfillment, fulfillment === 'delivery' ? neighborhood : '', fulfillment === 'delivery' ? zoneId : '']),
+    [itemsKey, fulfillment, neighborhood, zoneId],
+  );
+  const quote = quoted?.key === quoteKey ? quoted.data : null;
   const flowA = session.status === 'ready' && session.data?.linkStatus === 'active';
   const prefill = session.status === 'ready' ? (session.data.prefill ?? null) : null;
   // Akış A gel-al: telefon boş bırakılabilir, sunucu WhatsApp bağlantısındaki numarayı kullanır (03 §4.4)
@@ -136,7 +150,7 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
   // Canlı fiyat: sepet, teslim türü ve adres değişince (400 ms gecikmeli)
   useEffect(() => {
     if (!items.length) {
-      setQuote(null);
+      setQuoted(null);
       return;
     }
     const ctrl = new AbortController();
@@ -154,7 +168,7 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
             ...(fulfillment === 'delivery' && zoneId ? { zoneId } : {}),
           },
         });
-        setQuote(q);
+        setQuoted({ key: quoteKey, data: q });
       } catch (e) {
         if (e instanceof Error && e.name === 'AbortError') return;
         setQuoteError(errorMessage(e, 'Tutar hesaplanamadı.'));
@@ -167,16 +181,19 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
       ctrl.abort();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [itemsKey, fulfillment, neighborhood, zoneId, slug]);
+  }, [itemsKey, fulfillment, neighborhood, zoneId, slug, quoteNonce]);
 
   // Teslim türü değişince uygun olmayan ödeme yöntemini sıfırla
   useEffect(() => {
     if (payment && !paymentOptions(store, fulfillment).includes(payment)) setPayment(null);
   }, [fulfillment, payment, store]);
 
-  const total = quote?.totalKurus ?? cart.subtotalKurus;
+  // Toplam YALNIZ sunucunun taze quote'undan; yoksa null ("—" gösterilir, onay butonu pasif) — denetim B11.
+  const total = quote?.totalKurus ?? null;
   const deliveryProblems = (quote?.problems ?? []).filter((p) => p.code === 'out_of_delivery_area');
   const blocking = (quote?.problems ?? []).filter((p) => !(p.code === 'out_of_delivery_area' && fulfillment === 'delivery' && !neighborhood && !zoneId));
+  /** Onay yalnız taze, sorunsuz ve sunucudan gelmiş bir tutar varken mümkün (denetim B11/H12). */
+  const canConfirm = orderingOpen && !submitting && !quoting && total !== null && blocking.length === 0;
   const zoneMatched = fulfillment === 'delivery' && quote?.zone;
   const eta = zoneMatched
     ? etaRange({ zoneEtaMinutes: quote!.zone!.etaMinutes, prepMinutes: store.branch.prepMinutes, busyExtraMinutes: store.branch.busyExtraMinutes ?? 0 })
@@ -202,13 +219,19 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
     if (payment === 'meal_card_on_delivery' && !mealBrand) e.mealCardBrand = 'Yemek kartı markasını seçin.';
     if (payment === 'cash_on_delivery' && changeFor === 'other') {
       if (!changeForKurus) e.changeForKurus = 'Tutarı rakamla yazın (ör. 1.000 ya da 250,50).';
-      else if (changeForKurus < total) e.changeForKurus = 'Tutar sipariş toplamından az olamaz.';
+      else if (total !== null && changeForKurus < total) e.changeForKurus = 'Tutar sipariş toplamından az olamaz.';
     }
     if (!accept) e.acceptPreInfo = 'Ön bilgilendirmeyi onaylayın.';
     return e;
   };
 
   const submit = async () => {
+    // Tutar bağı (denetim B11): sunucudan gelmiş TAZE bir toplam olmadan onay gönderilmez. Buton zaten pasiftir;
+    // bu, klavye/otomasyon yoluyla gelen ikinci bir kapıdır.
+    if (total === null) {
+      setFormError(quoteError ?? 'Sipariş tutarı hesaplanıyor. Tutar göründüğünde onaylayın.');
+      return;
+    }
     const errs = validate();
     setFieldErrors(errs);
     setFormError(null);
@@ -233,6 +256,8 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
       wantsCutlery: cutlery,
       ...(note.trim() ? { note: note.trim() } : {}),
       acceptPreInfo: true,
+      // Ekranda gösterilen toplam: sunucu kendi hesabıyla karşılaştırır, tutmazsa 409 cart_changed (denetim B11)
+      expectedTotalKurus: total,
       idempotencyKey: idemKey.current,
       ...(!flowA && remember ? { rememberDevice: true } : {}),
     };
@@ -269,6 +294,17 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
           setFormError('Sepetinizde değişiklik gerekiyor.');
         } else if (e.code === 'ordering_closed') {
           setFormError('İşletme şu an sipariş almıyor. Sepetiniz saklandı.');
+        } else if (e.code === 'cart_changed' || e.code === 'expected_total_missing') {
+          // Sunucunun toplamı ekranda görülenden farklı: sipariş OLUŞMADI. Taze quote çekilir (satırlar ve teslimat
+          // ücreti de güncellenir), yeni tutar yazılır ve müşteriden onay yeniden istenir.
+          const changed = e.details as { totalKurus?: number } | undefined;
+          setQuoted(null);
+          setQuoteNonce((n) => n + 1);
+          setFormError(
+            typeof changed?.totalKurus === 'number'
+              ? `Sepetiniz güncellendi, yeni tutar: ${formatMoney(changed.totalKurus)}. Tutarı kontrol edip siparişi tekrar onaylayın.`
+              : errorMessage(e, 'Sipariş tutarı değişti. Tutarı kontrol edip tekrar onaylayın.'),
+          );
         } else {
           const fe = fieldErrorsOf(e);
           setFieldErrors(fe);
@@ -303,7 +339,7 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
   }
 
   const payOpts = paymentOptions(store, fulfillment);
-  const chipAmounts = changeChips(total);
+  const chipAmounts = total === null ? [] : changeChips(total);
 
   return (
     <div className="flex flex-col gap-5 pb-8">
@@ -498,7 +534,7 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
                 <Input inputMode="decimal" value={changeOther} onChange={(e) => setChangeOther(e.target.value)} />
               </Field>
             ) : null}
-            {changeForKurus && changeForKurus > total ? (
+            {changeForKurus && total !== null && changeForKurus > total ? (
               <p className="text-sm text-fg-muted">
                 {formatMoney(changeForKurus)}&apos;ye para üstü: {formatMoney(changeForKurus - total)}
               </p>
@@ -514,7 +550,8 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
       {/* 4 ÖZET VE ONAY */}
       <section aria-labelledby="ozet" className="flex flex-col gap-3 rounded-lg border border-border bg-surface-raised p-4">
         <h2 id="ozet" className="flex items-center gap-2 text-base font-bold">
-          4 · Özet {quoting ? <Spinner size="sm" label="Tutar hesaplanıyor" /> : null}
+          {/* Tutar bayatken de (gecikme penceresi) "hesaplanıyor" görünür: ekranda eski tutar kalmaz */}
+          4 · Özet {quoting || (total === null && !quoteError) ? <Spinner size="sm" label="Tutar hesaplanıyor" /> : null}
         </h2>
         <ul className="flex flex-col gap-1">
           {(quote?.lines ?? []).map((l, i) => (
@@ -529,7 +566,7 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
         </ul>
         <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 border-t border-border pt-2">
           <dt className="text-fg-muted">Ara toplam</dt>
-          <dd className="text-end tabular-nums">{formatMoney(quote?.subtotalKurus ?? cart.subtotalKurus)}</dd>
+          <dd className="text-end tabular-nums">{quote ? formatMoney(quote.subtotalKurus) : '—'}</dd>
           {fulfillment === 'delivery' ? (
             <>
               <dt className="text-fg-muted">Teslimat ücreti</dt>
@@ -537,9 +574,29 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
             </>
           ) : null}
           <dt className="text-lg font-bold">Toplam (KDV dahil)</dt>
-          <dd className="text-end text-lg font-bold tabular-nums">{formatMoney(total)}</dd>
+          <dd className="text-end text-lg font-bold tabular-nums">{total === null ? '—' : formatMoney(total)}</dd>
         </dl>
-        {quoteError ? <Alert variant="warning">{quoteError}</Alert> : null}
+        {quoteError ? (
+          // Tutar sunucudan gelmediği sürece onay butonu pasiftir (tutar bağı); bu yüzden hesap başarısız olunca
+          // müşteriye TEKRAR DENE kapısı şart — yoksa sepeti değiştirmekten başka çıkış kalmaz ve sipariş kaçar.
+          <Alert
+            variant="warning"
+            action={
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setQuoteError(null);
+                  setQuoteNonce((n) => n + 1);
+                }}
+              >
+                <RotateCcw aria-hidden />
+                Tutarı tekrar hesapla
+              </Button>
+            }
+          >
+            {quoteError}
+          </Alert>
+        ) : null}
         {blocking.filter((p) => p.code !== 'out_of_delivery_area').length ? (
           <Alert variant="warning" title="Sepetinizi kontrol edin">
             <ul className="list-disc ps-5">
@@ -610,17 +667,23 @@ export function CheckoutPage({ slug, store }: { slug: string; store: StorefrontV
         <button
           type="button"
           onClick={submit}
-          disabled={submitting || !orderingOpen || quoting}
+          disabled={!canConfirm}
           aria-busy={submitting || undefined}
           className={cn(brandButtonClass, 'min-h-hit-primary w-full text-lg disabled:opacity-50')}
         >
           {submitting ? <Spinner size="sm" /> : null}
-          Siparişi onayla · {formatMoney(total)}
+          {total === null ? 'Siparişi onayla' : `Siparişi onayla · ${formatMoney(total)}`}
         </button>
         <p className="text-sm leading-6 text-fg-muted">{OBLIGATION_TEXT}</p>
       </div>
 
-      <Dialog open={preInfoOpen} onOpenChange={setPreInfoOpen} title="Ön bilgilendirme formu" description="Taslak — hukuki inceleme bekliyor." size="lg">
+      <Dialog
+        open={preInfoOpen}
+        onOpenChange={setPreInfoOpen}
+        title="Ön bilgilendirme formu"
+        description={STORE_LEGAL_IS_DRAFT ? 'Taslak — hukuki inceleme bekliyor.' : undefined}
+        size="lg"
+      >
         <PreInfo slug={slug} store={store} quote={quote} fulfillment={fulfillment} payment={payment} />
       </Dialog>
     </div>

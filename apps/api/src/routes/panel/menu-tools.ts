@@ -2,6 +2,7 @@
 //   POST /panel/menu/bulk-price {productIds[], kind, value, rounding?, preview}   (04 §6.5)
 //   POST /panel/menu/bulk-price/:batchId/revert                                  (24 sa içinde geri al)
 //   POST /panel/uploads (multipart, ≤ 5 MB, JPEG/PNG/WebP) → { url: '/api/v1/uploads/<ad>' }
+//        Sunucuda EXIF temizlenir + 320/640/1080 px WebP varyant üretilir (Faz 3.9; services/menu/uploads.ts)
 //   GET  /panel/menu/export.csv · POST /panel/menu/import.csv {csv, preview}      (04 §6.6)
 
 import multipart from '@fastify/multipart';
@@ -20,12 +21,13 @@ import { categories, priceChangeBatches, products, tenants } from '@siparis/db';
 import { and, asc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
+import { alert } from '../../lib/alert';
 import { audit, auditActor } from '../../lib/audit';
 import { AppError, badRequest, conflict, notFound } from '../../lib/errors';
 import { requireTenantRole, tenantAuth } from '../../plugins/auth';
 import { batchValue, computeBulkPrice } from '../../services/menu/bulk-price';
 import { formatMenuCsv, nameKey, parseMenuCsv } from '../../services/menu/csv';
-import { saveImage, sniffImageType } from '../../services/menu/uploads';
+import { ImageProcessingError, saveImage, sniffImageType } from '../../services/menu/uploads';
 import { MENU_EDIT_ROLES, menuEditGuard } from './menu-guards';
 
 const REVERT_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -173,15 +175,42 @@ const menuToolsRoutes: FastifyPluginAsyncZod = async (app) => {
       if (!buf.length) throw badRequest('Dosya boş.', undefined, 'file_required');
       const type = sniffImageType(buf);
       if (!type) throw new AppError(415, 'unsupported_media_type', 'Yalnız JPEG, PNG ya da WebP görsel yükleyebilirsiniz.');
-      const saved = await saveImage(app.config.uploadDirAbs, buf, type);
+
+      let saved;
+      try {
+        saved = await saveImage(app.config.uploadDirAbs, buf, type);
+      } catch (err) {
+        if (!(err instanceof ImageProcessingError)) throw err;
+        if (err.engineUnavailable) {
+          // Dağıtım arızası: sharp hiç yüklenemiyor. Özgün dosyayı olduğu gibi kaydetmeye DÜŞMÜYORUZ — bu,
+          // EXIF/GPS'li 5 MB'lık kareyi herkese açık dizine koymak olurdu (CLAUDE.md kural 7). Yükleme reddedilir
+          // ve operasyon uyarılır; panel kullanıcısına "adres gir" yolu açık kalır (image-field.tsx).
+          alert(
+            { log: request.log, config: app.config },
+            { kind: 'image_engine_unavailable', severity: 'critical', message: 'Görsel işleyici (sharp) yüklenemedi; görsel yükleme kapalı.' },
+          );
+          throw new AppError(503, 'image_engine_unavailable', 'Görsel yükleme şu an kullanılamıyor. Görselin adresini yapıştırabilirsiniz.');
+        }
+        request.log.warn({ err, contentType: type, bytes: buf.length }, 'gorsel islenemedi');
+        throw new AppError(415, 'unsupported_media_type', 'Görsel okunamadı. Başka bir dosya deneyin.');
+      }
+
       await audit(app.db, {
         ...auditActor(request),
         action: 'menu.upload',
         entityType: 'upload',
-        data: { url: saved.url, contentType: saved.contentType, size: saved.size },
+        data: {
+          url: saved.url,
+          contentType: saved.contentType,
+          size: saved.size,
+          sourceBytes: saved.source.bytes,
+          sourceWidth: saved.source.width,
+          sourceHeight: saved.source.height,
+          variants: saved.files.length,
+        },
       });
       reply.status(201);
-      return saved;
+      return { url: saved.url, contentType: saved.contentType, size: saved.size };
     },
   );
 

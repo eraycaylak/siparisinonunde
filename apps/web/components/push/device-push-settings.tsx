@@ -11,6 +11,8 @@ import { Alert, Badge, Button, Switch } from '@/components/ui';
 import { Section, SettingsShell } from '@/components/settings/settings-shell';
 import { errorMessage, useApiQuery } from '@/lib/api';
 import { currentRole, useMe } from '@/lib/auth';
+import { iosBrowserOf, iosInstallGuide, shouldOfferIosInstall, type IosBrowser } from './ios-install';
+import { IosInstallAlert } from './ios-install-steps';
 import {
   currentPlatform,
   currentSubscription,
@@ -30,6 +32,8 @@ export const PUSH_PUBLIC_KEY_QUERY = ['panel', 'push', 'public-key'] as const;
 interface DeviceState {
   supported: boolean;
   platform: PushPlatform;
+  /** iOS rehberinde Paylaş simgesinin yeri tarayıcıya göre değişir. */
+  iosBrowser: IosBrowser;
   permission: NotificationPermission | 'unsupported';
   /** Tarayıcıdaki abonelik (sunucu anahtarıyla eşleşen) */
   endpoint: string | null;
@@ -106,7 +110,14 @@ export function DevicePushSettings({ impersonating, kitchen }: { impersonating: 
       const publicKey = key.data?.publicKey;
       if (sub && (!publicKey || sameApplicationServerKey(sub.options.applicationServerKey, publicKey))) endpoint = sub.endpoint;
     }
-    setDevice({ supported, platform: currentPlatform(), permission: notificationPermission(), endpoint, optedOut: isPushOptedOut() });
+    setDevice({
+      supported,
+      platform: currentPlatform(),
+      iosBrowser: iosBrowserOf(navigator.userAgent),
+      permission: notificationPermission(),
+      endpoint,
+      optedOut: isPushOptedOut(),
+    });
   }, [key.data?.publicKey]);
 
   useEffect(() => {
@@ -182,16 +193,8 @@ export function DevicePushSettings({ impersonating, kitchen }: { impersonating: 
       ) : null}
 
       <Section title="Bu cihaz" description="Panel kapalıyken ya da ekran kilitliyken yeni siparişi bildirimle haber verir.">
-        {platform?.needsHomeScreen ? (
-          <Alert variant="info" title="iPhone ve iPad: önce ana ekrana ekleyin">
-            <p>Bildirimler iPhone ve iPad&apos;de yalnız ana ekrana eklenen panelde çalışır (iOS 16.4 ve üzeri).</p>
-            <ol className="mt-2 list-decimal space-y-1 ps-5">
-              <li>Safari&apos;de alttaki Paylaş simgesine dokunun.</li>
-              <li>&quot;Ana Ekrana Ekle&quot;yi seçin ve &quot;Ekle&quot;ye dokunun.</li>
-              <li>Paneli ana ekrandaki &quot;Siparişler&quot; simgesinden açın, giriş yapın ve bu sayfadan bildirimleri açın.</li>
-            </ol>
-          </Alert>
-        ) : null}
+        {/* Adımlar tek kaynaktan (components/push/ios-install.ts): vardiya ekranındaki rehberle aynı metin */}
+        {device && shouldOfferIosInstall(device.platform) ? <IosInstallAlert guide={iosInstallGuide(device.iosBrowser)} /> : null}
         {platform?.iosTooOld ? (
           <Alert variant="warning" title="iOS sürümü eski">
             Bu cihazın iOS sürümü web bildirimlerini desteklemiyor (iOS 16.4 ve üzeri gerekir). Ayarlar › Genel › Yazılım Güncelleme ile güncelleyebilirsiniz.

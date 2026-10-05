@@ -58,6 +58,7 @@ import { applyStatus, handleInboundMessage, inboundRecord, type EngineDeps, type
 import { specBody, specKind, type OutboundSpec } from './outbound';
 import type { SendContext, SendOutcome } from './send';
 import { recipientOf, sendSpec, specRequestBody } from './send';
+import { alertSharedAccountError } from './shared-health';
 import { matchShopsByName } from './shared-match';
 import {
   selectableSharedShops,
@@ -590,7 +591,10 @@ export async function routeSharedMessage(deps: EngineDeps, ev: InboundEvent, now
     if (!inserted) return { decision: null, duplicate: true as const };
     await tx
       .update(sharedWaRoutes)
-      .set({ lastInboundAt: now, ...(decision.kind === 'platform' ? { lastPickerAt: now } : {}), updatedAt: now })
+      // Seçici soğuması YALNIZ kendiliğinden gönderilen seçiciyi (decision.auto) kısıtlar (denetim H15 / iş 3.2).
+      // Eskiden her platform yanıtı `last_picker_at`'i işaretliyordu: müşteri "#KOD" yazıp "bu dükkan ortak numarada
+      // değil" bilgisini aldıktan sonra 60 sn boyunca TÜM kodsuz mesajları sessizce yutuluyordu (ilk temas cevapsız).
+      .set({ lastInboundAt: now, ...(decision.kind === 'platform' && decision.auto === true ? { lastPickerAt: now } : {}), updatedAt: now })
       .where(eq(sharedWaRoutes.id, route.id));
     if (decision.kind === 'platform') {
       let seq = 0;
@@ -707,6 +711,8 @@ export async function performSharedSend(ctx: SendContext, messageId: string): Pr
   } catch (err) {
     const e = isWaSendError(err) ? err : new WaSendError('unknown', String(err));
     log.warn({ code: e.code, action: e.action, messageId: msg.id }, 'ortak numara gönderim hatası');
+    // Kimlik / hesap hatası PLATFORM arızasıdır (tüm dükkanlar susar): nöbetçiye kritik uyarı (denetim H8 / iş 3.4)
+    alertSharedAccountError({ log, config }, e, config.PLATFORM_WA_PROVIDER);
     if (e.action === 'retry' && !ctx.lastAttempt) throw err;
     await markSharedFailed(db, msg.id, payload, e.code, waErrorSummary(e));
     return 'failed';

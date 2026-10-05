@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from 'react';
 import { ImagePlus, Trash2, TriangleAlert, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { MENU_LIMITS, suggestRestricted, type PanelMenuResponse, type PanelProduct } from '@siparis/core/menu/contracts';
+import { ResponsiveImage } from '@/components/common/responsive-image';
 import { Alert } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -179,8 +180,7 @@ function ProductForm({ onOpenChange, menu, product, defaultCategoryId }: Product
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex size-24 items-center justify-center overflow-hidden rounded-lg border border-border bg-surface">
             {imageUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={imageUrl} alt="Ürün görseli önizlemesi" className="size-full object-cover" />
+              <ResponsiveImage url={imageUrl} alt="Ürün görseli önizlemesi" sizes="96px" className="size-full object-cover" />
             ) : (
               <ImagePlus aria-hidden className="size-8 text-fg-muted" />
             )}

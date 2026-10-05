@@ -9,6 +9,7 @@ export * from './outbound';
 export * from './platform-alert';
 export * from './send';
 export * from './shared';
+export * from './shared-health';
 export * from './shared-match';
 export * from './shared-router';
 export * from './sms-send';

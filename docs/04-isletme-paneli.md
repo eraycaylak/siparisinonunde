@@ -299,7 +299,7 @@ Tarayıcılar sesli oynatmayı kullanıcı jesti olmadan engeller ve Wake Lock s
 
 - Dokunuş: `AudioContext.resume()` + kısa, duyulur test sesi + Wake Lock isteği + Web Push izni (ilk sefer) + cihaz durumunun sunucuya bildirimi (`audio_unlocked`, `wake_lock_active`) (D06 §7.8).
 - "Hayır, duymadım" → ses rehberi (cihaz sesi, sessiz mod, hoparlör testi).
-- iOS'ta ana ekrana eklenmemişse: "Bildirimler için paneli ana ekrana ekleyin" rehberi.
+- **iOS'ta ana ekrana eklenmemişse [Faz 1 uygulaması]:** iPhone/iPad'de Web Push yalnız ana ekrana eklenmiş web uygulamasında çalışır (iOS 16.4+, [06](06-teknik-mimari.md) §7.8); sekmede izin penceresi hiç çıkmaz. Vardiya kartının altında bu yüzden kalıcı bir satır durur: "Bu iPhone/iPad'de panel kapalıyken bildirim gelmez. **[Nasıl eklenir?]**". Düğme adım adım rehberi çekmecede açar; adımlar Paylaş simgesinin yerine göre değişir (Safari alt çubuk, Chrome adres çubuğu, diğer tarayıcılar Safari'ye yönlendirilir) ve ana ekrandaki simge adı manifest'teki `short_name` ("Siparişler") ile aynı yazılır. Rehber ses akışını engellemez: "Siparişleri almaya başla" her hâlde çalışır. iOS 16.4'ten eski cihazda rehber yerine "iOS sürümü eski" uyarısı gösterilir (ana ekrana eklemek orada da yetmez). Aynı metinler Ayarlar › Bu cihazda bildirimler ekranında tek kaynaktan kullanılır (`apps/web/components/push/ios-install.ts`); vardiya ekranı açıkken `needs_home_screen` tostu bastırılır, aynı ekranda iki uyarı çıkmaz.
 - Ekran atlanırsa panel açılır ama üstte kırmızı bant kalır: **"Ses kapalı — yeni siparişleri duyamazsınız. [Sesi aç]"**. 5 dk sürerse aynı uyarı `owner`'a gider (D06 §7.7).
 - Wake Lock düşerse (sekme gizlendi) sayfa görünür olunca yeniden istenir; alınamazsa üst barda "Ekran kapanabilir" ikonu.
 - **"Günü kapat"** (kullanıcı menüsü): açık saatteyken ve başka aktif cihaz yoksa uyarır: "Başka açık panel yok. Sipariş gelirse duyulmaz. Sipariş almayı durdurmak ister misiniz?" [Durdur ve kapat] [Yine de kapat] [T].
@@ -535,6 +535,8 @@ Detay çekmecesinde müşteri bölümü: "**5. sipariş** · ilk: 3 Ağu · son:
 | Geri geldi | Bağlantı kuruldu | "Bağlantı geri geldi · 2 yeni sipariş" | Kaçırılan olaylar sırayla uygulanır; kaçırılan `new` siparişler için alarm çalar |
 | [ses kapalı ikonu] Ses kilitli | `audio_unlocked=false` | Kırmızı bant "Ses kapalı" | 5 dk sonra `owner`'a uyarı |
 | Ekran kapanabilir | Wake Lock alınamadı | Üst barda ikon | Görünürlükte yeniden istenir |
+| Tarayıcı çok eski | Panel açılışında `CSS.supports` ile özellik yoklaması: `color-mix()`, `dvh`, `oklch()`. Bunlar sürüm tahmini değil, `app/globals.css` derlenip üretilen 69 KB'lık CSS taranarak bulunan gerçek eşiklerdir (Tailwind 4.3.3, `optimize: true`): 35 `color-mix(in oklab, …)` (hepsi `@supports`lu, her birinin önünde DÜZ renkli yedek var → saydamlık kaybolur, renk katılaşır), 23 `dvh` (yedeksiz, tek gerçek düzen kırıcısı), 1 `oklch()`. Yoklanmayanlar ve nedenleri: `@property` (71 kez, ama Tailwind kendi `@layer properties` yedeğini basar), `linear-gradient(… in oklab, …)` (çıktıda 1 kez ve yalnız **vitrin** başlığında — kapıya alınsaydı Firefox 113–127'de panel kusursuz boyanırken yanlış alarm verirdi), `@layer`/`:is()`/`:where()`/nesting (color-mix'ten eski eşikler) | Her şeyin üstünde, kapatılamaz kırmızı bant: "Tarayıcınız eski — panel bozuk görünüyor" + kullanıcı ajanına göre tek adımlık yapılacak iş (Android: Play Store › Chrome › Güncelle; iPhone/iPad: Ayarlar › Genel › Yazılım Güncelleme) + "Panelde neler bozuk?" katlanır listesi | Bant **Tailwind sınıfı kullanmaz**, yalnız satır içi stil ve hex renk kullanır: uyarının kendisi bozuk olan CSS'e bağlı olamaz. Karar sürüme değil özelliğe bakar — eski bir tarayıcı özellikleri destekliyorsa uyarı çıkmaz. En düşük sürümler (yalnız metin içindir): Chrome/Edge 111, Firefox 128, Safari ve iOS 16.4 ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §9.1) |
+| iOS'ta bildirim gelmiyor | `detectPushPlatform`: iOS + ana ekrana eklenmemiş + iOS ≥ 16.4 | Vardiya ekranında "Nasıl eklenir?" rehberi (§4.1), Ayarlar › Bu cihazda bildirimler'de aynı adımlar | Sipariş sesi ve bantlar etkilenmez; yalnız panel kapalıyken gelen bildirim kaybolur |
 | Panel çevrimdışı (sunucu tarafı) | Şube sipariş alırken (çalışma saati içinde, duraklatılmamış) sipariş ekranı 5 dk'dır açık değil ya da açılıştan beri hiç açılmadı ve açılış ≥ 10 dk önce. **[Faz 1 uygulaması]** "Açık" = sahip/yönetici/kasiyer oturumunun canlı akışı (SSE) bağlı; dakikada bir `branch_panel_presence` (mutfak ekranı ve destek görünümü sayılmaz; ses kilidi henüz sunucuya bildirilmez) | — (cihazlar kapalı) | `owner`'a platform WhatsApp `isletme_panel_cevrimdisi_v1` (şube başına 60 dk'da en çok 1 ve yerel günde en çok 1; sayaç gün dönünce sıfırlanır; `cron.panel_presence`). **[Sonra]** SMS ve "ayar açıksa 10 dk sonra storefront 'Şu an sipariş alınmıyor'" (varsayılan kapalı) (D06 §7.7) |
 
 - **Aksiyon kuyruğu yok (panel):** onay/ret gibi aksiyonlar çevrimdışıyken kuyruğa alınmaz; iki cihazın çakışmasını ve geç giden mesajı önler. Kurye görünümü farklıdır (§9.4).
@@ -557,6 +559,24 @@ Detay çekmecesinde müşteri bölümü: "**5. sipariş** · ilk: 3 Ağu · son:
 - [ ] `kitchen` rolündeki cihazda hiçbir ekranda ve API yanıtında fiyat görünmez.
 - [ ] Telefon siparişinde "WhatsApp bildirimi" kutusu işaretsizken hiçbir şablon gönderilmez.
 - [ ] Tüm ana aksiyon butonları ≥ 56 px yüksekliktedir (görsel regresyon testi, 800×1280 tablet).
+- [ ] Gerekli CSS özelliklerinden biri eksik olan tarayıcıda panel sessizce bozuk açılmaz: en üstte Türkçe, kapatılamaz uyarı ve tek adımlık güncelleme talimatı görünür (§4.17, §4.20).
+- [ ] iPhone/iPad'de panel ana ekrana eklenmemişken kullanıcı bildirimin gelmeyeceğini öğrenir ve kurulum adımlarını ekrandan okuyabilir (§4.1).
+- [ ] Yeni sipariş geldiğinde ekran okuyucu siparişi tek cümlede duyurur ("Yeni sipariş: 1052 numaralı sipariş, 3 ürün, 285,00 TL, paket servis."); aynı bilgi iki kez okunmaz (§4.20).
+- [ ] Onay, süre çipi ve ret düğmelerine klavyeyle (yalnız Tab ve Enter) ulaşılır; odaklanan her öğenin görünür halkası vardır (§4.20).
+
+### 4.20 Erişilebilirlik: klavye, odak, ekran okuyucu ve kontrast **[Faz 1]**
+Kurallar [12](12-marka-tasarim-ve-kullanilabilirlik.md) §11.1'dedir; burada canlı sipariş ekranındaki uygulaması ve sınandığı yer yazılıdır.
+
+| Konu | Uygulama | Nerede sınanıyor |
+|---|---|---|
+| **Yeni sipariş duyurusu** (WCAG 4.1.3) | Kırmızı bant `role="alert"` olduğu için **tek canlı bölge** odur. Bandın gözle okunan kısa yazısı (`YENİ SİPARİŞ #1052 · 285,00 TL`) `aria-hidden`, yanındaki `sr-only` cümle ise tam okunur: "Yeni sipariş: 1052 numaralı sipariş, 3 ürün, 285,00 TL, paket servis." Birden fazla siparişte ilki okunur, kalanın sayısı söylenir. Mutfak projeksiyonunda tutar olmadığı için cümleye hiç girmez. İkinci bir `aria-live` bölgesi **bilerek eklenmez**: aynı duyuru iki kez okunurdu | `components/live/new-order-announce.test.ts` |
+| **Klavye** (WCAG 2.1.1) | Onay, süre çipleri, ret, "Gördüm", kart başlığı ve "Tamamlanan" katlayıcısı gerçek `<button>`/`<a>`; fare gerektiren hiçbir aksiyon yok. Kart üstündeki "gördüm" yakalaması `onClickCapture` ile çalışır, Enter'la basılan düğme de tetikler. "İçeriğe geç" atlama bağlantısı panel kabuğundadır | Elle keşif listesi EK-09/EK-10 ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §9.3) |
+| **Telefon durum süzgeci** | `role="tablist"`/`role="tab"` **kullanılmaz**: aynı `<section>` tablette kanban sütunu, telefonda süzgecin seçtiği görünümdür; görünür sekme listesi olmadan `role="tabpanel"` geçersiz olur ve `role="tab"` roving tabindex + ok tuşu ister. Yerine `role="group"` içinde `aria-pressed` düğmeleri: iki düzende de geçerli, hepsi Tab sırasında. `aria-controls` ilgili sütunun `id`'sine (`sutun-<durum>`) işaret eder; `aria-label` sayıyı da söyler ("Yeni: 2 sipariş") | — |
+| **Görünür odak** (WCAG 2.4.7, 1.4.11) | `globals.css` `:focus-visible` → 2 px `--ring` + 2 px boşluk. Kodda hiçbir yerde `outline-none` yok (tarandı). Halka nötr mürekkeptir, kırmızı hata çerçevesiyle karışmaz | `components/panel/panel-contrast.test.ts` |
+| **Kontrast** (WCAG 1.4.3, 1.4.11) | Sipariş ekranında yan yana duran 21 çift iki temada ölçülür: metin ≥ 4,5:1, arayüz öğesi ve odak halkası ≥ 3:1. Ölçüm token'ın gerçek değerinden yapılır, teste renk kopyalanmaz. **Dar nokta:** açık temada odak halkası kırmızı bandın üstünde 3,10:1 — eşiğin 0,10 üstü; `--band-alarm` ya da `--ring` değişirse bu çift ilk düşer | `components/panel/panel-contrast.test.ts` |
+| **Yanıp sönme** (WCAG 2.3.1) | Kart çerçevesi 1 Hz; `prefers-reduced-motion: reduce` açıkken `animation-duration: 0ms` | `components/panel/panel-contrast.test.ts` |
+
+**Henüz yapılmayan:** axe/otomatik erişilebilirlik taraması hiçbir katmanda yok ([12](12-marka-tasarim-ve-kullanilabilirlik.md) §11.1 "Test" satırı); buradaki testler yalnız yukarıdaki sözleşmeyi kilitler. "Geri al · 30 sn" geri sayımına `aria-live="polite"` eklenmedi: metin saniyede bir değiştiği için ekran okuyucu her saniye konuşurdu.
 
 ---
 
@@ -903,9 +923,12 @@ Salt-okunur abonelik modunda (G+10) menü, fiyat, ayar, bölge, personel ekranla
 - **Liste:** yalnız kendine atanan açık siparişler; kart: no, mahalle, ödeme tipi + tahsil edilecek tutar + para üstü, durum, birincil buton.
 - **Detay:** tam adres + kat/daire + **adres tarifi** (vurgulu), **navigasyon** (Google Maps / Yandex / Apple Haritalar derin linki; koordinat varsa koordinatla), **[Müşteriyi ara]** (teslimat telefonu), kalemler (fiyatsız liste + toplam tahsilat), ödeme tipi büyük harfle (NAKİT / KART / MULTINET), sipariş notu.
 - **Yola çıktım** → `on_the_way`; müşteriye "Yolda" mesajı (kurye adıyla). **Teslim ettim** → `delivered`; ödeme alt sayfası: "285 TL nakit alındı ✓" (varsayılan) / "Farklı yöntemle ödendi" (kart / yemek kartı markası) → `payment_status = paid`. Değerlendirme mesajı tetiklenir.
-- **Teslim edilemedi** → sebep çipleri (Müşteri yok / Ulaşılamadı / Adres bulunamadı / Müşteri almadı) → panelde uyarı + ses; karar işletmede (tekrar dene veya `courier_issue` ile iptal).
+- **Uygulama notu (ödeme yöntemi, denetim H10/H11):** "Farklı yöntemle" seçenekleri sunucudan gelir (`allowedPaymentMethods`) ve yalnız **şubede açık** + **kapıda tahsil edilen** üç yöntemdir: kapıda nakit, kapıda kart, kapıda yemek kartı (markası zorunlu ve işletmenin kabul ettiği markalardan). `online_card` (önceden ödenmiş) ve `pay_at_counter` (kasada) kurye ekranında çıkmaz, uç nokta da kabul etmez; bu yöntemlerle verilen siparişin yöntemi kapıda **değiştirilemez** (422 `payment_method_locked`) — böyle siparişte `allowedPaymentMethods` boş döner, yani ekran reddedilecek bir seçenek hiç önermez. Yöntem değişirse eski değer `order_events.payment_method_changed` olayına (eski→yeni, kim, ne zaman) yazılır — işletmenin tahsilat kaydı sessizce değişmez; gün sonu kasa raporunun kurye kırılımı (§11.1) bu olayla denetlenir.
+- **Uygulama notu ("Geri al", §4.8 ile aynı):** "Teslim ettim" onayından sonra ekranın altında **5 sn** "Geri al" şeridi çıkar; istek ancak süre dolunca gönderilir. Bu yüzden yanlışlıkla basılan teslimde müşteriye mesaj gitmez ve ödeme "alındı" yazılmaz.
+- **Teslim edilemedi** → sebep çipleri (Müşteri kapıyı açmadı / Telefonla ulaşılamadı / Adres bulunamadı / Müşteri almadı / Diğer + açıklama) → panelde uyarı + ses; karar işletmede (tekrar dene veya `courier_issue` ile iptal).
+- **Uygulama notu (teslim edilemedi, denetim H13):** `POST /courier/orders/:id/undeliverable {reason, note?}` — yalnız **yolda** olan paket siparişinde (değilse 409 `order_not_on_the_way`; teslim edilmişse 409 `already_delivered`). Sipariş **durum değiştirmez** (durum makinesine yeni geçiş eklenmez): `order_delivery_attempts` satırı + `order_events.delivery_failed` + `branch_events('order.updated', change:'delivery_failed', reason, attempts)` yazılır (serbest metin açıklama SSE yüküne konmaz; işletme onu zaman çizelgesinde okur), sipariş kuryenin listesinde kalır ve kart "Teslim edilemedi bildirildi · <sebep>" rozetini gösterir. Müşteriye hiçbir mesaj gitmez.
 - **WhatsApp'tan yaz yok (Faz 1):** kuryenin kişisel WhatsApp'ından yazması müşteri numarasını kişisel telefona taşır; yalnız arama sunulur (A06 §5.4) [T].
-- **Gizlilik:** teslimden sonra adres ve telefon kurye görünümünde maskelenir; kurye başka kuryenin siparişini açamaz (IDOR testi, D06 §6.6).
+- **Gizlilik:** teslimden sonra adres ve telefon kurye görünümünde maskelenir; kurye başka kuryenin siparişini açamaz (IDOR testi, D06 §6.6). Veri minimizasyonu: müşteri telefonu, adres, adres tarifi, koordinat ve bölge adı yalnız **açık paket** siparişte döner — gel-al/masada siparişte (kurye teslimatı yoktur) ve final durumda bu alanlar `null`'dır.
 
 ### 9.3 Gün sonu özeti (K-04) **[Faz 2]**
 - **Faz kararı:** Faz 1 kurye görünümü [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11'deki "basit kurye görünümü"dür (atanan siparişler, yola çıktım/teslim ettim; K-02 başlığında bugünkü teslimat sayısı). Faz 1'de kuryenin tahsilat özeti kasada, P-32 gün sonu kasa raporunun **kurye kırılımından** alınır (§11.1). Kuryenin kendi ekranındaki gün sonu özeti Faz 2'dedir ([09](09-yol-haritasi-ve-sprint-plani.md) F2-17).
@@ -925,6 +948,9 @@ Expo tabanlı native uygulama: arka plan konum, müşteriye canlı konum ve "kur
 - [ ] "Teslim ettim" siparişi `delivered` yapar ve teslim mesajını tetikler; çevrimdışıyken aksiyon kuyruğa alınır ve bağlantı gelince sırayla gönderilir.
 - [ ] Atama sonrası kuryenin telefonuna ≤ 30 sn içinde bildirim veya liste güncellemesi ulaşır.
 - [ ] Teslimden sonra müşteri telefonu kurye görünümünde görünmez.
+- [ ] Kurye şubede kapalı bir ödeme yöntemini (ya da markasız yemek kartını) seçemez; seçtiği yöntem siparişten farklıysa eski yöntem olay günlüğünde kalır.
+- [ ] "Teslim ettim" 5 sn içinde geri alınabilir ve geri alındığında sunucuya hiçbir istek gitmez.
+- [ ] "Teslim edilemedi" siparişi iptal etmez; panelde uyarı çıkar ve sipariş kuryenin listesinde kalır.
 
 ---
 
@@ -1195,7 +1221,8 @@ Toplam: Faz 1'de 41 panel + 3 kurye ekranı; Faz 2'de 6 yeni panel ekranı (P-42
 | Kurye oturumu doldu | "Oturum süreniz doldu. İşletmenizden yeni giriş linki isteyin." |
 | Tasarruf kartı | "Bu ay kendi kanalınızdan {X} sipariş aldınız. Net tasarruf: {Y} TL. (Tahmindir)" |
 | Meta maliyeti | "Bu ay Meta'ya tahmini ödeme: ≈ {TL} TL ({USD} $). Kesin tutar Meta faturanızdadır." |
-| Destek erişimi bandı | "Destek ekibi hesabınızı görüntülüyor (Can, 14.05–14.35)" |
+| Destek erişimi bandı | "Destek ekibi hesabınızı görüntülüyor: Can · 14.05–14.35. Yalnız okuyabilir, hiçbir değişiklik yapamaz." (erişim kapandıktan sonra 24 saat sarı bant: "Destek erişimi sona erdi (Can, …). Beklemediğiniz bir erişimse destek ekibine yazın.") |
+| Parola sıfırlandı bandı | "Parolanız destek ekibi tarafından sıfırlandı (Can, …). Beklemediğiniz bir erişimse destek ekibine yazın." |
 | Güncelleme hazır (sessiz not) | "Yeni sürüm hazır. Vardiya başında yüklenecek." |
 | Zorunlu güncelleme | "Panelin yeni sürümü yükleniyor. Ardından 'Siparişleri almaya başla'ya dokunun." (yalnız açık yeni sipariş yokken, [D06 §16.7](06-teknik-mimari.md)) |
 | Güncelleme sonrası push | "Panel güncellendi. Sesi açmak için panele dokunun." |

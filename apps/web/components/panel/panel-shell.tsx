@@ -14,6 +14,7 @@ import { cn } from '@/lib/cn';
 import { currentBranchId, currentRole, useLogout, useMe, type Me } from '@/lib/auth';
 import { TENANT_ROLE_LABELS } from '@/lib/labels';
 import { MOBILE_TAB_HREFS, isActive, isPathAllowed, navForRole, settingsForRole, type PanelNavItem } from './nav-config';
+import { OldBrowserNotice } from './old-browser-notice';
 import { PanelBands } from './panel-bands';
 import { PanelStreamProvider, usePanelStream } from './stream-provider';
 import { UserMenu } from './user-menu';
@@ -191,6 +192,8 @@ function PanelChrome({ me, pathname, minimal, children }: { me: Me; pathname: st
         İçeriğe geç
       </a>
       <div ref={topRef} className="sticky top-0 z-40" data-print-hide>
+        {/* Panel bozuk boyanıyorsa her şeyin üstünde: önce tarayıcıyı düzelt (04 §4.17) */}
+        <OldBrowserNotice />
         <NewOrderBands />
         <PanelBands me={me} />
         <ConnectionBanner onRetry={stream?.reconnect} />

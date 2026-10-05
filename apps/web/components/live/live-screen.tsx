@@ -45,6 +45,11 @@ export function LiveScreen() {
 
 type ColumnKey = 'new' | 'accepted' | 'preparing' | 'ready' | 'on_the_way';
 
+/** Sütunun DOM kimliği: telefon süzgeci `aria-controls` ile bu bölüme işaret eder. */
+export function columnDomId(key: ColumnKey): string {
+  return `sutun-${key}`;
+}
+
 function LiveInner({ kitchen }: { kitchen: boolean }) {
   const stream = usePanelStream();
   const alarm = useNewOrderAlarm();
@@ -136,17 +141,27 @@ function LiveInner({ kitchen }: { kitchen: boolean }) {
       {q.isPending ? <Spinner label="Siparişler yükleniyor" /> : null}
       {q.isError && !data ? <Banner tone="warn">Siparişler yüklenemedi. Bağlantı gelince yeniden denenecek.</Banner> : null}
 
-      {/* Telefon: sekmeli */}
-      <div role="tablist" aria-label="Sipariş durumları" className="flex gap-1 overflow-x-auto md:hidden">
+      {/*
+        Telefon: durum süzgeci. Bilinçli olarak role="tablist"/role="tab" DEĞİL: aynı <section> tablet ve
+        masaüstünde (süzgeç hiç görünmezken) kanban sütunudur, telefonda süzgecin seçtiği görünümdür. Görünür
+        sekme listesi olmadan `role="tabpanel"` geçersiz olur; `role="tab"` de ok tuşlarıyla dolaşım ve roving
+        tabindex ister. Basılı durum düğmeleri (`aria-pressed`) iki düzende de geçerlidir ve hepsi Tab sırasında
+        kalır — kasiyer klavyeyle her süzgece ulaşır (WCAG 2.1.1).
+        components/ui/tabs.tsx'teki Tabs bileşeni doğru ARIA sekmesidir ama burada kullanılamaz: sütunların
+        masaüstünde AYNI ANDA görünmesi gerekir, TabsContent ise yalnız seçili paneli basar. 04 §4.20.
+      */}
+      <div role="group" aria-label="Sipariş durumu süzgeci" className="flex gap-1 overflow-x-auto md:hidden">
         {columns.map((c) => (
           <button
             key={c.key}
-            role="tab"
             type="button"
-            aria-selected={tab === c.key}
+            aria-pressed={tab === c.key}
+            aria-controls={columnDomId(c.key)}
+            aria-label={`${c.title}: ${c.cards.length} sipariş`}
             onClick={() => setTab(c.key)}
             className={cn(
               'min-h-hit shrink-0 rounded-md px-3 text-sm font-semibold',
+              'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring',
               tab === c.key ? 'bg-primary text-primary-fg' : 'bg-surface-raised text-fg',
               c.key === 'new' && c.cards.length ? 'ring-2 ring-status-new-fg' : '',
             )}
@@ -158,7 +173,12 @@ function LiveInner({ kitchen }: { kitchen: boolean }) {
 
       <div className={cn('grid gap-3', usePreparingStep ? 'md:grid-cols-3 xl:grid-cols-5' : 'md:grid-cols-2 xl:grid-cols-4')}>
         {columns.map((col) => (
-          <section key={col.key} aria-label={col.title} className={cn('flex min-w-0 flex-col gap-3', tab !== col.key && 'max-md:hidden')}>
+          <section
+            key={col.key}
+            id={columnDomId(col.key)}
+            aria-label={`${col.title}: ${col.cards.length} sipariş`}
+            className={cn('flex min-w-0 flex-col gap-3', tab !== col.key && 'max-md:hidden')}
+          >
             <h2 className="hidden items-center gap-2 text-sm font-bold uppercase tracking-wide text-fg-muted md:flex">
               {col.title}
               <span className={cn('rounded-full px-2 py-0.5 text-xs', col.key === 'new' && col.cards.length ? 'bg-status-new-bg text-status-new-fg' : 'bg-surface')}>

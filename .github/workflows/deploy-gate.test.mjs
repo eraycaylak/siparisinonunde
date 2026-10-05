@@ -91,6 +91,17 @@ test('kapı tür denetimini ve tüm test takımlarını koşar', () => {
   assert.ok(has(gate, 'NODE_ENV: test'), 'NODE_ENV=test olmalı: reset.ts üretimde sıfırlamayı tümden reddeder');
 });
 
+test('kapı yasal metin denetimini de koşar (künye, sürüm, yer tutucu)', () => {
+  // Künye ve yasal metin sürümü yayına hazır olmadan canlıya çıkılmasın (denetim B1/B2/B12). Adım bugün
+  // `continue-on-error: true` ile SARI yanar (gerçek şirket bilgisi girilmedi); bilgiler girilince o satır
+  // kaldırılacak. Bu test adımın VARLIĞINI denetler, bu yüzden `continue-on-error` kaldırıldığında da geçer.
+  assert.ok(has(gate, 'pnpm check:legal'), 'kapı yasal metin denetimini koşmalı (pnpm check:legal)');
+  const pkg = JSON.parse(read('package.json'));
+  assert.ok(pkg.scripts?.['check:legal'], 'package.json içinde check:legal betiği olmalı');
+  // Bulgu varken adım sessiz kalmasın: iş akışı özetine uyarı bloğu yazan adım da yerinde olmalı.
+  assert.ok(has(gate, "steps.yasal.outcome != 'success'"), 'bulgu varken iş akışı özetine uyarı yazan adım olmalı');
+});
+
 test('kapı pnpm sürümünü package.json packageManager alanından alır (tek kaynak)', () => {
   const pkg = JSON.parse(read('package.json'));
   assert.ok(pkg.packageManager?.startsWith('pnpm@'), 'package.json packageManager alanı pnpm sürümünü sabitlemeli');

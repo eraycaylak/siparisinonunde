@@ -174,6 +174,18 @@ export const PHASE1_PAYMENT_METHODS = [
   'meal_card_on_delivery',
   'pay_at_counter',
 ] as const satisfies readonly PaymentMethod[];
+/**
+ * Kuryenin kapıda tahsil edebileceği — ve teslimde seçebileceği — yöntemler (04 §9.2). `online_card` müşteri
+ * tarafından önceden ödenir, `pay_at_counter` kasada ödenir: ikisi de kurye ekranında seçilemez, `/delivered`
+ * ucu da kabul etmez (denetim H11). Şubede açık olma koşulu `@siparis/core/orders/delivery` → `courierPaymentMethods`.
+ */
+export const COURIER_COLLECTED_PAYMENT_METHODS = [
+  'cash_on_delivery',
+  'card_on_delivery',
+  'meal_card_on_delivery',
+] as const satisfies readonly PaymentMethod[];
+export type CourierCollectedPaymentMethod = (typeof COURIER_COLLECTED_PAYMENT_METHODS)[number];
+export const courierCollectedPaymentMethodSchema = zEnum(COURIER_COLLECTED_PAYMENT_METHODS);
 
 // Yemek kartı markaları (07 §3.0)
 export const MEAL_CARD_BRANDS = ['multinet', 'pluxee', 'edenred', 'setcard', 'metropol', 'other'] as const;

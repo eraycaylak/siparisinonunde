@@ -126,6 +126,7 @@ Gösterim: **✓** tam · **O** okuma · **K** kısıtlı (not sütununda) · **
 | A-07 Maliyet defteri / rate card ve kur düzenleme | ✓ | ✓ | O | O | — | Rate card satırı değişmez, yenisi eklenir |
 | A-08 Plan liste fiyatı tanımı | ✓ | — | — | O | — | Dört göz |
 | Abonelik değişikliği, kurucu üye atama, havale eşleştirme, iade, hesap alacağı | ✓ | — | — | ✓ | K | SR yalnız teklif taslağı hazırlar; eşik üstü iade dört göz |
+| İşletme kullanıcısının parolasını sıfırlama | ✓ | ✓ | — | — | — | İzin `users:reset_password`; gerekçe zorunlu, parola tek seferlik gösterilir, tüm oturumlar kapanır |
 | A-09 Impersonation salt-okunur | ✓ | ✓ | ✓ | — | — | Gerekçe + destek kaydı no |
 | Impersonation yazma modu | ✓ | ✓ | K | — | — | SA talep eder, PA onaylar |
 | Müşteri telefonunu açma (impersonation içinde) | ✓ | ✓ | K | — | — | SA: gerekçe + destek kaydı; her açma loglu |
@@ -173,6 +174,7 @@ Tek ekranda "şu an ne bozuk" ve "iş nasıl gidiyor".
 ### A-03 İşletmeler listesi **[Faz 1]**
 - **Sütunlar:** işletme adı + slug, `lifecycle_stage`, plan, şehir/ilçe, sağlık skoru (renk), onboarding adımı, WhatsApp modu (`cloud`/`coexistence`), son 7 gün kanal siparişi, son sipariş zamanı, pilot/kurucu üye rozeti, satış sorumlusu, bayi **[Faz 2]**.
 - **Filtreler:** her sütun; ayrıca "takılan", "dunning'de", "aktivasyon riski" (canlı ≥ 7 gün ve < 5 kanal siparişi [T]) hazır görünümleri.
+- **Uygulanan (Faz 1):** `onboarding_step` sütunu `tenant_onboarding.step`'ten gelir; satır yoksa (işletme kayıt olup panele hiç girmemişse) `account_created` sayılır. Yanında "ne zamandan beri bu adımda" ve **takıldı** rozeti; "son hareket" sütunu son (test olmayan) sipariş ile son üye girişinin en yenisidir. `GET /admin/tenants?stuck=1` "takılan" hazır görünümünü verir. Sağlık skoru, satış sorumlusu ve bayi sütunları henüz yok.
 - **Arama:** ad, slug, VKN, owner telefonu (tam eşleşme; sonuç maskeli).
 - **Sağlık skoru (0–100; tanım, ağırlıklar ve bantlar [10](10-riskler-operasyon-ve-metrikler.md) §5.6'da kanoniktir):** günlük hesaplanır (`tenant_health_scores`, son değer `tenants.health_score` / `health_band`, [07](07-veri-modeli-ve-api.md) §3.7). Listede sayı + bant rengi gösterilir: **≥ 75 yeşil · 50–74 sarı · < 50 kırmızı**; 10 §5.6'daki skordan bağımsız kırmızı tetikleyiciler bandı doğrudan kırmızı yapar. Aşağıdaki sinyaller (A06 §9.3 KRI'larından) skorun bileşenlerini besler ve A-04'te "nedenler" olarak gösterilir; ayrı bir renk kuralı değildir:
   - **Kırmızı:** WhatsApp kırmızı (131042, 190, kopuk, kalite `RED`); canlı ≥ 14 gün ve 7 günde < 2 kanal siparişi; `read_only`/`suspended`; son 7 günde ≥ 3 panel çevrimdışı alarmı.
@@ -192,7 +194,7 @@ Destek uzmanının bir işletmenin sorununu tek sayfada teşhis etmesi için.
 | **Siparişler** | Son 50 sipariş: no, kanal, durum, tutar, onay süresi, ret/iptal sebebi, mesaj teslim durumu. Müşteri bilgisi maskeli; ayrıntı yalnız impersonation ile |
 | **Kullanım ve maliyet** | Bu ay ve önceki aylar: tahmini Meta maliyeti (kategori kırılımı), ücretsiz 1.000 servis mesajı kullanımı, SMS adedi ve **SMS kotası kullanımı** (Esnaf 100, Pro 300, Zincir şube başına 300 SMS/ay; amaç kırılımı: OTP / kritik durum / alarm), platform WABA uyarıları, LLM **[Faz 2]** |
 | **Abonelik** | Durum, plan, dönem, indirimler, faturalar, ödemeler, dunning aşaması, hesap alacağı |
-| **Kullanıcılar** | Üyeler, roller, 2FA durumu, son giriş. "Owner 2FA sıfırlama" yalnız kimlik doğrulama prosedürüyle (görüntülü veya kayıtlı telefondan arama [T]) ve dört gözle |
+| **Kullanıcılar** | Üyeler, roller, 2FA durumu, son giriş. "Owner 2FA sıfırlama" yalnız kimlik doğrulama prosedürüyle (görüntülü veya kayıtlı telefondan arama [T]) ve dört gözle. **"Parolayı sıfırla" (Faz 1, izin `users:reset_password` → yalnız PO/PA):** gerekçe zorunlu; parolayı **sunucu üretir** (admin parola yazmaz), yeni parola **yalnız yanıt penceresinde bir kez** görünür — loga, denetim kaydına ve e-postaya yazılmaz —, kullanıcının **tüm** oturumları kapanır ve işletme sahiplerine panelde kayıt düşer. Platform yönetim hesabının ve kapatılmış hesabın parolası bu yoldan sıfırlanamaz (409). Hız sınırı: yönetici başına 5/saat, hedef hesap başına 3/saat. Parolasını unutan işletme sahibinin **tek** kurtarma yolu budur: self-servis sıfırlama akışı ve e-posta kanalı yok |
 | **Destek** | Notlar, etiketler, temas geçmişi (`admin_notes`), görevler (`admin_tasks`); talepler (`support_tickets`) **[Faz 2]** |
 | **Zaman çizelgesi** | Lifecycle, onboarding, WhatsApp olayları, abonelik olayları, admin aksiyonları tek akışta |
 
@@ -259,13 +261,14 @@ Kurallar [06](06-teknik-mimari.md) §6.7 ile aynıdır; UI ve süreç burada.
 | Mod | Varsayılan **salt-okunur**. Yazma modu: SA talep eder, PA onaylar (PA ve PO kendi gerekçesiyle başlatabilir); taze doğrulama |
 | Süre | **En fazla 30 dk** ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4; [07](07-veri-modeli-ve-api.md) `impersonation_sessions.expires_at`). Uzatma yoktur; ihtiyaç sürerse yeni gerekçeyle yeni oturum açılır (yeni audit kaydı ve işletmeye yeni bildirim) |
 | İşletmeye görünürlük | Panelde kırmızı üst bant: **"Destek ekibi hesabınızı görüntülüyor (Can, 14.05–14.35)"**. Başlangıçta owner'a e-posta ve panel bildirimi. Owner kendi audit ekranında kaydı görür |
+| İşletmeye görünürlük — uygulanan (Faz 1) | Başlangıç ve bitiş `notifications`'a yazılır (`support_access_started`, `support_access_ended`, `support_access_password_reset`; alıcı etkin owner'lar, kanal `log`). İşletme kendi oturumuyla **`GET /admin/support-access/notices`**'ten okur: açık oturumlar canlı `sessions` satırından, geçmiş kayıtlar bildirim satırlarından. Panelde `SupportAccessBand` erişim açıkken kırmızı, kapandıktan sonra 24 saat sarı bant basar; destek oturumunun kendi görünümünde bant gizlenir. **Gerekçe işletmeye gösterilmez** (serbest metin müşteri bilgisi içerebilir). 30 dk dolup oturum sunucuda düşerse `end` çağrılmadığı için bitiş satırı yazılmaz; bant "açık mı" sorusunu bu yüzden bildirime değil `sessions`'a sorar. E-posta kanalı yok (denetim madde 23) |
 | PII | Müşteri telefonu ve adresi maskeli. "Telefonu göster" ayrı aksiyondur; gerekçe ister, her açma loglanır |
 | Yasak işlemler | Abonelik ve ödeme işlemleri, WhatsApp bağlantısını değiştirme (Embedded Signup), kullanıcı/rol değişikliği, parola/2FA, müşteri dışa aktarma veya silme, toplu işlemler |
 | Kayıt | Her istek `audit_log`'a `actor_type = admin_impersonation`, `actor_platform_user_id` (impersonation yapan platform kullanıcısı) ile yazılır; oturum `impersonation_sessions` tablosunda tutulur ([07](07-veri-modeli-ve-api.md) §3.7) |
 
 - **[Faz 2] "Onaylı erişim" ayarı:** Owner isterse destek erişimini "her seferinde onayımı iste" yapar; talep panelde ve e-postayla onaylanır. P1 (sipariş alamıyorum) durumunda salt-okunur erişim onaysız açılabilir; bu istisna DPA'da yazılır (teyit edilmeli).
 
-**Kabul kriterleri:** Süre dolunca oturum sunucu tarafında kapanır (istemci yenilemesiyle uzamaz). Salt-okunur modda hiçbir yazma rotası 2xx dönmez (test). Yasak işlemler yazma modunda da 403 döner. Bant ve owner bildirimi olmadan oturum başlamaz.
+**Kabul kriterleri:** Süre dolunca oturum sunucu tarafında kapanır (istemci yenilemesiyle uzamaz). Salt-okunur modda hiçbir yazma rotası 2xx dönmez (test). Yasak işlemler yazma modunda da 403 döner. Bant ve owner bildirimi olmadan oturum başlamaz. Bildirim satırı yazılamazsa oturum da başlamaz (aynı transaction). İşletme bildirimini **okuyan** bir uç nokta olmadan özellik tamam sayılmaz: yazılıp okunmayan satır bildirim değildir.
 
 ### A-10 Destek **[Faz 1 basit · Faz 2 tam]**
 **[Faz 1]:**

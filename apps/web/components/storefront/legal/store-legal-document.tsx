@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { ArrowLeft, Store, TriangleAlert } from 'lucide-react';
 import { isDraftLegalVersion } from '@siparis/core/enums';
 import type { StorefrontView } from '@siparis/core/menu/contracts';
+import { ResponsiveImage } from '@/components/common/responsive-image';
 import { storefrontHref } from '@/lib/storefront-url';
 import { PrintButton } from './print-button';
 import type { LegalBlock, StoreLegalDocument } from './store-legal';
@@ -34,8 +35,7 @@ export function StoreLegalDocumentView({ store, document: d }: { store: Storefro
       <header className="flex items-center gap-3 border-b-4 border-[var(--brand)] pb-3">
         <span className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-surface-raised">
           {store.tenant.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={store.tenant.logoUrl} alt="" className="size-full object-cover" />
+            <ResponsiveImage url={store.tenant.logoUrl} alt="" sizes="48px" className="size-full object-cover" />
           ) : (
             <Store aria-hidden className="size-6 text-[var(--brand-strong)]" />
           )}

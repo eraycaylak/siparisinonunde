@@ -3,11 +3,13 @@
 import type { BulkPriceResponse, MenuImportResponse, PanelMenuResponse } from '@siparis/core/menu/contracts';
 import { auditLog, categories, priceChangeBatches, products } from '@siparis/db';
 import { and, eq, isNull } from 'drizzle-orm';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import sharp from 'sharp';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { computeNewPrice } from '../src/services/menu/bulk-price';
 import { parseCsv, parseMenuCsv } from '../src/services/menu/csv';
+import { parseVariantName, variantName } from '../src/services/menu/image-variants';
 import { createTestContext, expectError, type TestContext, type TestTenant } from './helpers';
 import { TINY_PNG, multipartBody, seedMenu, type SeededMenu } from './menu-helpers';
 
@@ -137,17 +139,60 @@ describe('POST /panel/uploads', () => {
     return ctx.app.inject({ method: 'POST', url: `${P}/uploads`, headers: { cookie, 'content-type': contentType }, payload });
   };
 
-  it('PNG yüklenir, rastgele adla kaydedilir ve /api/v1/uploads altından servis edilir', async () => {
+  it('PNG yüklenir, varyant adıyla kaydedilir ve /api/v1/uploads altından servis edilir', async () => {
     const res = await upload(a.ownerCookie, { filename: 'logo.png', contentType: 'image/png', data: TINY_PNG });
     expect(res.statusCode, res.body).toBe(201);
     const body = res.json() as { url: string; contentType: string; size: number };
-    expect(body).toMatchObject({ contentType: 'image/png', size: TINY_PNG.length });
-    expect(body.url).toMatch(/^\/api\/v1\/uploads\/[A-Za-z0-9_-]+\.png$/);
+    expect(body.contentType).toBe('image/png');
+    // Faz 3.9: özgün dosya saklanmaz, yeniden kodlanır → boyut artık yüklenenle aynı DEĞİL
+    expect(body.size).toBeGreaterThan(0);
+    // Ad sözleşmesi: <token>.<maxW>x<maxH>.<w>.<uzantı> — istemci srcset'i bu addan türetir
+    expect(body.url).toMatch(/^\/api\/v1\/uploads\/[A-Za-z0-9_-]+\.1x1\.1\.png$/);
     const name = body.url.split('/').pop()!;
     expect(existsSync(join(ctx.config.uploadDirAbs, name))).toBe(true);
+    // 1×1 kaynak 320 px'e BÜYÜTÜLMEZ: yanında yalnız aynı genişlikte WebP varyant durur
+    expect(existsSync(join(ctx.config.uploadDirAbs, name.replace(/\.png$/, '.webp')))).toBe(true);
     const get = await ctx.request({ method: 'GET', url: body.url });
     expect(get.statusCode).toBe(200);
     expect(get.headers['content-type']).toContain('image/png');
+  });
+
+  it('büyük JPEG yüklemesi 320/640/1080 WebP + 640 px JPEG üretir; denetim kaydı özgün ölçüyü yazar', async () => {
+    const data = await sharp({ create: { width: 1600, height: 900, channels: 3, background: '#c0392b' } }).jpeg().toBuffer();
+    const res = await upload(a.ownerCookie, { filename: 'kapak.jpg', contentType: 'image/jpeg', data });
+    expect(res.statusCode, res.body).toBe(201);
+    const body = res.json() as { url: string; contentType: string; size: number };
+
+    expect(body.contentType).toBe('image/jpeg');
+    // Servis edilen kare özgün dosyadan küçüktür (mobil veride vitrin açılır)
+    expect(body.size).toBeLessThan(data.length);
+
+    const fallback = body.url.split('/').pop()!;
+    const parsed = parseVariantName(fallback)!;
+    expect(parsed).toMatchObject({ maxWidth: 1080, width: 640, ext: 'jpg' });
+    for (const w of [320, 640, 1080]) {
+      const variant = variantName(parsed.token, parsed.maxWidth, parsed.maxHeight, w, 'webp');
+      expect(existsSync(join(ctx.config.uploadDirAbs, variant)), variant).toBe(true);
+      const get = await ctx.request({ method: 'GET', url: `/api/v1/uploads/${variant}` });
+      expect(get.statusCode).toBe(200);
+      expect(get.headers['content-type']).toContain('image/webp');
+    }
+
+    // Kaydı adresinden buluyoruz: aynı dosyada başka yüklemeler de 'menu.upload' yazıyor
+    const entries = await ctx.db
+      .select()
+      .from(auditLog)
+      .where(and(eq(auditLog.tenantId, a.tenantId), eq(auditLog.action, 'menu.upload')));
+    const entry = entries.find((e) => (e.data as { url?: string } | null)?.url === body.url);
+    expect(entry, 'yükleme denetim kaydı').toBeDefined();
+    expect(entry!.data).toMatchObject({ sourceWidth: 1600, sourceHeight: 900, sourceBytes: data.length, variants: 4 });
+  });
+
+  it('geçerli imza + çözülemeyen gövde 415 döner, diske dosya bırakmaz', async () => {
+    const before = readdirSync(ctx.config.uploadDirAbs).length;
+    const fake = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(64, 7)]);
+    expectError(await upload(a.ownerCookie, { filename: 'bozuk.png', contentType: 'image/png', data: fake }), 415, 'unsupported_media_type');
+    expect(readdirSync(ctx.config.uploadDirAbs).length).toBe(before);
   });
 
   it('tür dosya imzasından belirlenir: PNG adlı metin dosyası 415', async () => {
@@ -155,10 +200,13 @@ describe('POST /panel/uploads', () => {
     expectError(res, 415, 'unsupported_media_type');
   });
 
-  it('1 MB üstü (5 MB altı) görsel kabul edilir', async () => {
-    const mid = Buffer.concat([TINY_PNG, Buffer.alloc(2 * 1024 * 1024, 1)]);
+  it('1 MB üstü (5 MB altı) görsel kabul edilir; kayıtlı kare özgün dosyadan küçüktür', async () => {
+    // 1200×900×3 ≈ 3,2 MB: 1 MB sınırının üstünde ama 5 MB sınırının altında (2000×1500 ile 8,6 MB çıkıyordu)
+    const mid = await sharp({ create: { width: 1200, height: 900, channels: 3, background: '#2d6a4f' } }).png({ compressionLevel: 0 }).toBuffer();
+    expect(mid.length).toBeGreaterThan(1024 * 1024);
     const res = await upload(a.ownerCookie, { filename: 'orta.png', contentType: 'image/png', data: mid });
     expect(res.statusCode, res.body).toBe(201);
+    expect((res.json() as { size: number }).size).toBeLessThan(mid.length);
   });
 
   it('5 MB üstü 413', async () => {

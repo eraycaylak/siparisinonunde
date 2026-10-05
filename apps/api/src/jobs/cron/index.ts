@@ -1,14 +1,16 @@
 // Zamanlanmış işler (registerCron ile). Temel bakım işleri jobs/system'dedir.
 // Buradaki işler: duraklatma bitişi, panel çevrimdışı dedektörü, alarm zinciri emniyet ağı (`order_new_watch`,
-// 06 §7.6/§8.5) ve DLQ gözcüsü (`jobs_dlq_watch`: kalıcı başarısız iş birikmesi uyarısı; saklama/maskeleme
-// `jobs/system` içindeki `cron.retention` koşusundadır).
+// 06 §7.6/§8.5), DLQ gözcüsü (`jobs_dlq_watch`: kalıcı başarısız iş birikmesi uyarısı; saklama/maskeleme
+// `jobs/system` içindeki `cron.retention` koşusundadır) ve sentetik canary (`cron.canary` + adımları
+// `canary.run` / `canary.verify`, 06 §7.10 — iş mantığı services/canary'dedir).
 // Burada: registerJobHandler(type, handler), registerCron({...}) ve onOrderTransition/onOrderCreated abonelikleri.
 // Bu fonksiyon hem API hem worker sürecinde çağrılır; kayıtlar ada göre tekildir (tekrar çağrı güvenli).
 
 import { branches, orders, type Database } from '@siparis/db';
-import { and, eq, isNotNull, isNull, lte, ne, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import { alert, type AlertContext } from '../../lib/alert';
 import { enqueueJob, generationKey, registerCron, registerJobHandler } from '../../lib/jobs';
+import { CANARY_RUN_JOB, CANARY_VERIFY_JOB, createCanaryOrder, runCanaryTick, verifyCanaryOrder } from '../../services/canary/index';
 import { alarmDedupeKey, normalizeAlarmPolicy, planAlarmSteps } from '../../services/orders/alarm-policy';
 import { detectOfflinePanels } from '../../services/push/presence';
 import { emitBranchState } from '../../services/settings/branch';
@@ -89,6 +91,8 @@ type AlarmJobRow = { step: number | string | null; gen: number | string | null; 
  *
  * Kapsam dışı:
  *  - `manual` kanal: telefon siparişini personel kendisi girer, zincir hiç kurulmaz (04 §4.5).
+ *  - `canary` siparişleri: alarm zinciri sözleşme gereği HİÇ kurulmaz (06 §7.10); taranırsa onarım zinciri
+ *    geri kurar ve otomatik iptal adımı sentetik siparişi iptal eder.
  *  - Pencere dışı siparişler (ORDER_NEW_WATCH_WINDOW_MS).
  *  - **Bekleyen ret** (`rejection_scheduled_at` dolu): eskalasyon bilerek duruyor ve adımlar ret penceresinin
  *    sonrasına ertelenmiş olabilir; burada onarılacak bir şey yok, siparişle 30 sn içinde `order.finalize_rejection`
@@ -115,6 +119,10 @@ export async function watchNewOrders(db: Database, now: Date = new Date(), ctx?:
         eq(orders.status, 'new'),
         ne(orders.channel, 'manual'),
         isNull(orders.rejectionScheduledAt),
+        // Canary: zinciri BİLEREK yok (06 §7.10, services/canary). Emniyet ağı burayı taramasa, canary'nin
+        // oluşturulurken silinen (REPEAT, AUTO_CANCEL) adımlarını 1 dk sonra geri kurar, "zincir eksikti"
+        // kritik uyarısı üretir ve AUTO_CANCEL sentetik siparişi `cancelled/tenant_no_response` yapardı.
+        or(isNull(orders.testKind), ne(orders.testKind, 'canary'))!,
         sql`coalesce(${orders.verifiedAt}, ${orders.placedAt}) >= ${since.toISOString()}::timestamptz`,
       ),
     );
@@ -265,4 +273,36 @@ export function registerCronJobs(): void {
     );
   });
   registerCron({ name: 'jobs_dlq_watch', type: 'cron.jobs_dlq_watch', schedule: { everyMinutes: 15 } });
+
+  // -------------------------------------------------------------------------
+  // Sentetik canary (06 §7.10; denetim H4 / iş 3.6). Tur dakikada bir koşar ama şube başına dilim 15 dk'dır
+  // (`isCanaryDue` sapması): her şubenin kendi dakikası vardır, tek turda sipariş yığını oluşmaz.
+  // `CANARY_ENABLED` kapalıysa tur yalnız süresi geçmiş sentetik siparişleri temizler.
+  registerJobHandler('cron.canary', async (_payload, { db, config, log }) => {
+    const res = await runCanaryTick(db, { log, config });
+    if (res.purged) log.info({ purged: res.purged }, 'süresi geçmiş canary siparişleri silindi');
+    if (res.queued) log.info({ branches: res.branchIds.length }, 'canary siparişi kuyruğa atıldı');
+  });
+  registerCron({ name: 'canary', type: 'cron.canary', schedule: { everyMinutes: 1 } });
+
+  // Şubenin dilim işi: sentetik siparişi GERÇEK yoldan oluşturur ve 60 sn sonraya ack kontrolünü kurar.
+  // Hata YUTULMAZ: iş yeniden denenir, denemesi tükenirse `job_failed_permanent` kritik uyarısı gider
+  // (06 §7.10 "sipariş oluşturma adımı hata verirse platform alarmı").
+  registerJobHandler<{ tenantId: string; branchId: string }>(CANARY_RUN_JOB, async (payload, { db, log }) => {
+    const res = await createCanaryOrder(db, { tenantId: payload.tenantId, branchId: payload.branchId });
+    if (res.created) log.info({ canary: 'created', branchId: payload.branchId, orderId: res.orderId }, 'canary siparişi oluşturuldu');
+    else log.info({ canary: 'skipped', branchId: payload.branchId, reason: res.reason, detail: res.detail }, 'canary siparişi atlandı');
+  });
+
+  // Ack kontrolü: ack geldiyse süre ölçülür, gelmediyse SSE'ye `resync` + 2. ardışık turda uyarı; kayıt silinir.
+  // Sonucu `verifyCanaryOrder` kendi (iş bağlamını taşıyan) logger'ıyla zaten yazar — burada ikinci satır yok;
+  // yoksa CANARY_STALE_ALERT kapalıyken kesin-yanlış "bayat panel" hatası her turda loga düşerdi.
+  registerJobHandler<{ tenantId: string; branchId: string; orderId: string }>(CANARY_VERIFY_JOB, async (payload, { db, config, log, job }) => {
+    await verifyCanaryOrder(
+      db,
+      { tenantId: payload.tenantId, branchId: payload.branchId, orderId: payload.orderId, jobId: job.id },
+      { log, config },
+    );
+  });
 }
+

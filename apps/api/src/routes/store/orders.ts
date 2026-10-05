@@ -8,6 +8,7 @@ import {
   createOrderRequestSchema,
   createOrderResponseSchema,
   maskPhone,
+  nonNegativeKurusSchema,
   normalizePhone,
   normalizeTrMobile,
   okResponseSchema,
@@ -36,6 +37,7 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { smsOtpResponseSchema, smsVerifyResponseSchema, trackCancelResponseSchema } from '@siparis/core/orders/contracts';
 import type { Config } from '../../config';
+import { alert } from '../../lib/alert';
 import { AppError, conflict, notFound } from '../../lib/errors';
 import { enqueueJob } from '../../lib/jobs';
 import { RATE_LIMITS, clientIp, createRateLimiter, enforceRateLimit } from '../../lib/rate-limit';
@@ -48,6 +50,8 @@ import {
   upsertCustomerByPhone,
   type CustomerRow,
 } from '../../services/orders/create-order';
+import { expectedTotalProblem, expectedTotalRequired } from '../../services/orders/expected-total';
+import { legalGateAlertMessage, legalOrderingBlocked, legalOrderingGate } from '../../services/orders/legal-gate';
 import { fieldError, validatePayment } from '../../services/orders/payment';
 import { quoteForBranch, toQuoteResponse } from '../../services/orders/pricing-context';
 import {
@@ -78,6 +82,15 @@ const OTP_RESEND_MS = 60_000;
 /** Akış A: token başına saatte en çok 3 sipariş (03 §3.1). */
 const LINK_TOKEN_ORDERS_PER_HOUR = 3;
 
+/**
+ * Sipariş gövdesi = sözleşme şeması (packages/core) + `expectedTotalKurus`: müşterinin EKRANDA GÖRDÜĞÜ toplam
+ * (denetim B11). Fiyat değil ONAY KANITIDIR — hesaba girmez, sunucu yalnız kendi toplamıyla karşılaştırır
+ * (services/orders/expected-total.ts). Şemada isteğe bağlıdır, zorunluluğu üretim derlemesinde rota uygular;
+ * böylece doğrudan API'ye istek atan testler ve yerel araçlar bozulmaz.
+ */
+const createOrderBodySchema = createOrderRequestSchema.extend({
+  expectedTotalKurus: nonNegativeKurusSchema.optional(),
+});
 
 function orderingClosed(details?: Record<string, unknown>): AppError {
   return conflict('ordering_closed', 'İşletme şu an sipariş almıyor. Sepetiniz saklandı.', details);
@@ -161,6 +174,27 @@ function noStore(reply: { header: (k: string, v: string) => unknown }) {
 }
 
 const routes: FastifyPluginAsyncZod = async (app) => {
+  // Taslak sözleşme kapısı (denetim B2, 08 §7.5): durum AÇILIŞTA BİR KEZ hesaplanır — sürüm ve künye ortam
+  // değişkenleri süreç ömrü boyunca değişmez. Gerekçeler önce düz log'a (maskesiz, sebep görünsün), sonra uyarı
+  // kanalına yazılır; `alert()` ateşle-ve-unut olduğu için açılışı bekletmez ve hata atmaz.
+  const legalGate = legalOrderingGate(app.config);
+  if (legalGate.reasons.length) {
+    app.log.error(
+      { legalVersion: legalGate.version, legalBlocked: legalGate.blocked, live: legalGate.live, reasons: legalGate.reasons },
+      legalGateAlertMessage(legalGate),
+    );
+    alert(
+      { log: app.log, config: app.config },
+      {
+        kind: 'legal_texts_not_published',
+        severity: legalGate.blocked ? 'critical' : 'warning',
+        message: legalGateAlertMessage(legalGate),
+        data: { reasonCount: legalGate.reasons.length, blocked: legalGate.blocked, live: legalGate.live, reasons: legalGate.reasons },
+        cooldownMs: 0,
+      },
+    );
+  }
+
   const ipLimiter = createRateLimiter(RATE_LIMITS.storeOrderPerIp);
   const phoneLimiter = createRateLimiter(RATE_LIMITS.storeOrderPerPhone);
   const otpPhoneLimiter = createRateLimiter(RATE_LIMITS.otpPerPhone);
@@ -187,7 +221,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
   // POST /store/:slug/orders — sipariş oluşturma (Akış A çerezli / Akış B doğrulamalı)
   app.post(
     '/:slug/orders',
-    { schema: { params: slugParams, body: createOrderRequestSchema, response: { 200: createOrderResponseSchema } } },
+    { schema: { params: slugParams, body: createOrderBodySchema, response: { 200: createOrderResponseSchema } } },
     async (request, reply) => {
       const body = request.body;
       const store = await loadStoreBySlug(app.db, request.params.slug);
@@ -199,6 +233,14 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       if (existing) {
         if (existing.customerId && body.rememberDevice === true) setCustomerCookie(reply, app.config, tenant.slug, existing.customerId);
         return buildCreateResponse(app.db, app.config, tenant, existing);
+      }
+
+      // Taslak sözleşme kapısı (denetim B2): yasal metin yayına hazır değilse CANLI ortamda yeni sipariş alınmaz.
+      // Sıra önemli: idempotent tekrar YUKARIDA yanıtlandı, yani dağıtım sırasında kapı kapanırsa daha önce
+      // oluşmuş bir siparişin tekrar denemesi hâlâ kendi yanıtını alır (sipariş kaçmaz, CLAUDE.md kural 4).
+      if (legalGate.blocked) {
+        request.log.error({ legalVersion: legalGate.version, reasons: legalGate.reasons }, 'sipariş reddedildi: yasal metin yayına hazır değil');
+        throw legalOrderingBlocked();
       }
 
       const now = new Date();
@@ -231,6 +273,9 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       if (!quote.ok) {
         throw new AppError(422, 'cart_invalid', quote.problems[0]?.message ?? 'Sepetinizi kontrol edin.', { problems: quote.problems });
       }
+      // Tutar bağı (denetim B11): müşteri ekranda ne gördüyse siparişi o tutara onaylamış olmalı.
+      const totalProblem = expectedTotalProblem(body.expectedTotalKurus, quote, { required: expectedTotalRequired(app.config) });
+      if (totalProblem) throw totalProblem;
       validatePayment(branch, body, quote.totalKurus);
 
       const channels = token ? null : await loadVerificationChannels(app.db, tenant, branch.id);
@@ -291,8 +336,13 @@ const routes: FastifyPluginAsyncZod = async (app) => {
               confirmationIp: clientIp(request),
               confirmationUserAgent: request.headers['user-agent'] ?? null,
               statusNotifyChannel,
-              // Konumsuz seçilen poligon/yarıçap bölgesi: ücret/minimum müşteri beyanına dayanır (kartta işaretli)
-              ...(body.fulfillmentType === 'delivery' && zoneMatch?.declared ? { sourceMeta: { zoneDeclared: true } } : {}),
+              sourceMeta: {
+                // Konumsuz seçilen poligon/yarıçap bölgesi: ücret/minimum müşteri beyanına dayanır (kartta işaretli)
+                ...(body.fulfillmentType === 'delivery' && zoneMatch?.declared ? { zoneDeclared: true } : {}),
+                // Hangi metni onayladı (08 §7.5): sürüm + metin içerik özeti. `legal_acceptances`'ta özet kolonu
+                // olmadığı için kanıt siparişe yazılır (raporda DIŞ BAĞIMLILIK: legal_acceptances.text_digest).
+                legal: { version: LEGAL_DOCUMENT_VERSION, textDigest: legalGate.textDigest },
+              },
             },
             { type: 'customer' },
           );

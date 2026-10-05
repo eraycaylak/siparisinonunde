@@ -13,6 +13,8 @@
 #   3. pnpm --filter @siparis/web test    — web birim testleri (lib/*, components/*; tarayıcı gerekmez)
 #   4. pnpm test:vps                      — dağıtım betikleri (env-merge, cloudflare-dns, deploy.sh günlük süzgeci)
 #   5. node --test .github/workflows/deploy-gate.test.mjs — bu kapının kendisi sökülmemiş mi (değişmez denetimi)
+#   6. pnpm check:legal                   — künye dolu mu, yasal metin sürümü yayınlanmış mı, yer tutucu kalmış mı
+#                                           (ŞİMDİLİK YALNIZ UYARI: continue-on-error; adımın başındaki nota bakın)
 # Ne koşmaz (bilinçli): Playwright e2e (9 senaryo) — kendi veritabanı (*_e2e_test), derlenmiş web ve tarayıcı indirmesi
 # gerekir; dağıtım kapısını ~10 dk uzatır. Ayrı bir iş akışına alınması FAZ 2 işidir (docs/09).
 #
@@ -161,6 +163,63 @@ jobs:
             echo "::warning::Bu sürümde .github/workflows/deploy-gate.test.mjs yok (kapıdan önceki bir commit); kapı değişmezleri denetlenmedi. Koşan iş akışı dosyaları seçilen daldan geldiği için kapı yine de yerinde."
           fi
 
+      # ───────────────────────────────────────────────────────────────────────────────────────────────────────────
+      # YASAL METİN DENETİMİ (denetim B1 / B2 / B12 · FAZ 0.3) — scripts/check-legal.ts
+      #   1) Künye (6563 m.3) ortam değişkenlerinden tam dolmuş mu, 2) yasal metin sürümü taslak mı,
+      #   3) metinlerde yer tutucu / "teyit edilecek" / TODO kalmış mı, yayımlanan yasal bağlantıların sayfası var mı,
+      #   içerik özeti sürümle uyumlu mu. Gizli DEĞER yazmaz; yalnız eksik değişkenlerin ADLARINI yazar.
+      #
+      # ŞU AN 7 BULGU VERİYOR: gerçek şirket bilgisi (unvan, şirket türü, adres, telefon, vergi dairesi, VKN) henüz
+      # girilmedi ve sürüm hâlâ "…-taslak". Bu yüzden adım dağıtım kapısını KIRMIZI YAPMAZ; yalnız iş akışı özetine
+      # büyük bir uyarı bloğu yazar.
+      #
+      # ⚠️ BİLGİLER GİRİLDİKTEN SONRA (LEGAL_ENTITY_* değerleri + avukat onaylı tarihli sürüm) aşağıdaki
+      #    `continue-on-error: true` SATIRI KALDIRILACAK. O andan sonra yasal metin bulgusu dağıtımı durdurur.
+      #
+      # NOT: çalışma zamanı kapısı ayrıca vardır (apps/api/src/services/orders/legal-gate.ts): canlı dağıtımda
+      # (NODE_ENV=production + DEPLOY_ENV=production) metin taslaksa ya da künye eksikse POST /store/:slug/orders
+      # sipariş ALMAZ. Yani bu adımın sarı kalması "taslak metinle sözleşme kurulabiliyor" demek DEĞİLDİR.
+      # `shell: bash` bilerek yazıldı: GitHub yalnız açıkça seçilen bash'te `pipefail` uygular, yoksa `| tee`
+      # yüzünden betiğin çıkış kodu yutulur ve adım bulgu varken de yeşil yanar.
+      # ───────────────────────────────────────────────────────────────────────────────────────────────────────────
+      - name: Yasal metin denetimi (künye, sürüm, yer tutucu)
+        id: yasal
+        continue-on-error: true
+        shell: bash
+        run: pnpm check:legal 2>&1 | tee "$RUNNER_TEMP/yasal-denetim.log"
+
+      - name: Yasal metin uyarısı (iş akışı özetine)
+        if: always() && steps.yasal.outcome != 'success'
+        shell: bash
+        run: |
+          {
+            echo "## YASAL METİNLER TASLAK — ÜRETİME ÇIKMADAN ÖNCE TAMAMLANMALI"
+            echo ""
+            echo "\`pnpm check:legal\` bulgu verdi. Bu sürüm gerçek müşteriye **sipariş veremez**: canlı dağıtımda"
+            echo "sipariş ucu (\`POST /store/:slug/orders\`) fail-closed olarak 503 döner"
+            echo "(\`apps/api/src/services/orders/legal-gate.ts\`), yani taslak metinle sözleşme kurulmaz."
+            echo ""
+            echo "**Üretime çıkmadan önce yapılacaklar**"
+            echo ""
+            echo "1. Gerçek künye bilgilerini \`LEGAL_ENTITY_*\` ortam değişkenlerine girin (6563 m.3)."
+            echo "2. Yasal metinleri avukata onaylatın ve \`packages/core/src/enums.ts\` içindeki"
+            echo "   \`LEGAL_DOCUMENT_VERSION\`'ı tarihli yayın sürümüne çevirin (ör. \`2026-10-15\`)."
+            echo "3. Yeni sürümün içerik özetini \`node --import tsx scripts/check-legal.ts --ozet\` ile alıp İKİ yere"
+            echo "   yazın: \`scripts/check-legal.ts\` (PINNED_TEXT_DIGEST) ve"
+            echo "   \`apps/api/src/services/orders/legal-gate.ts\` (LEGAL_TEXT_DIGESTS)."
+            echo "4. Bu iş akışındaki \`continue-on-error: true\` satırını **KALDIRIN** — yasal bulgu artık dağıtımı"
+            echo "   durdursun."
+            echo ""
+            echo "### Bulgular"
+            echo ""
+            echo '```'
+            cat "$RUNNER_TEMP/yasal-denetim.log" 2>/dev/null || echo "(denetim günlüğü okunamadı; adım günlüğüne bakın)"
+            echo '```'
+            echo ""
+            echo "Ayrıntı: \`docs/08-mevzuat-kvkk-odeme-fatura.md\` §4.7 ve §7.5, \`docs/15-kurulum-ve-isletim.md\` §4, §12."
+          } >> "$GITHUB_STEP_SUMMARY"
+          echo "::warning title=Yasal metinler taslak::Künye ve/veya yasal metin sürümü yayına hazır değil; canlı dağıtımda sipariş ucu kapalı kalır. İş akışı özetindeki uyarı bloğuna bakın."
+
       - name: Özet
         if: always()
         run: |
@@ -169,6 +228,7 @@ jobs:
             echo ""
             echo "- Sürüm: \`${DEPLOY_SHA:0:12}\`"
             echo "- Koşanlar: tür denetimi, core+db+api testleri, web birim testleri, dağıtım betikleri, kapı değişmezleri."
+            echo "- Yasal metin denetimi: ${{ steps.yasal.outcome == 'success' && 'temiz' || 'BULGU VAR (uyarı; dağıtımı durdurmuyor)' }}"
             echo "- Koşmayanlar (bilinçli): Playwright e2e (9 senaryo; kendi veritabanı ve tarayıcısı gerekir)."
             if [ "${{ job.status }}" != "success" ]; then
               echo "- **Dağıtım başlatılmadı.** Yukarıdaki kırmızı adımı düzeltip yeniden çalıştırın."

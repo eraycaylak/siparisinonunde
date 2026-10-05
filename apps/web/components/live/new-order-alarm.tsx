@@ -25,9 +25,9 @@ import { enablePush, isPushOptedOut, isPushSupported, registerPanelServiceWorker
 import { useApiQuery } from '@/lib/api';
 import { useMe } from '@/lib/auth';
 import { cn } from '@/lib/cn';
-import { formatMoney } from '@/lib/format';
 import { alarmSound, ScreenWake } from './alarm-sound';
 import { alarmingOrdersOf, bandOrdersOf, isHighLevel, newOrdersOf, orderAnchorHref, withNewOrderCount } from './alarm-state';
+import { NewOrderAnnouncement, NewOrderBandLabel } from './new-order-band-text';
 import { ShiftStart } from './shift-start';
 import { useNow } from './use-now';
 
@@ -214,11 +214,17 @@ export function NewOrderAlarmProvider({
       .catch(() => undefined);
   }, [impersonating, pushOwner]);
 
+  // Vardiya ekranı açık mı (ShiftStart görünür; iOS rehberi de orada gösterilir)
+  const shiftOpen = shiftRequested || (shift === 'pending' && onLive);
+
   /** Kullanıcı jesti içinde çağrılır: bildirim izni (ilk sefer) + bu cihazın aboneliği. Sessizdir; ayrıntı ayarlarda. */
   const startPush = useCallback(() => {
     if (impersonating) return;
     void enablePush({ respectOptOut: true }).then((res) => {
       if (res.ok) return;
+      // Vardiya ekranı açıkken iOS "Ana Ekrana Ekle" rehberi zaten ekranda duruyor (IosInstallPrompt):
+      // aynı şeyi bir de tostla söylemek aynı ekranda iki uyarı demek olur.
+      if (res.reason === 'needs_home_screen' && shiftOpen) return;
       if ((res.reason === 'needs_home_screen' || res.reason === 'denied') && takePushHint()) {
         toast.info(
           res.reason === 'needs_home_screen'
@@ -228,7 +234,7 @@ export function NewOrderAlarmProvider({
         );
       }
     });
-  }, [impersonating, router]);
+  }, [impersonating, router, shiftOpen]);
 
   const enableSound = useCallback(() => {
     // Kullanıcı jesti içinde: ses kilidini aç, ekranı açık tut, bildirim iznini iste
@@ -271,7 +277,6 @@ export function NewOrderAlarmProvider({
   }, [bandOrders.length]);
 
   const openShift = useCallback(() => setShiftRequested(true), []);
-  const shiftOpen = shiftRequested || (shift === 'pending' && onLive);
 
   const value = useMemo<NewOrderAlarmValue>(
     () => ({
@@ -353,6 +358,8 @@ export function NewOrderBands() {
   // Bant, yeni sipariş kaldıkça yerinde durur (susturunca kaybolup düzeni kaydırmaz); "Gördüm" yalnız çalan varken
   const first = alarming[0] ?? bandOrders[0];
   const showSoundOff = !audioOn && !shiftOpen && (!minimal || bandOrders.length > 0);
+  // Duyuru sırası bantla aynı olsun: önce bantta görünen sipariş, sonra kalanlar
+  const announced = first ? [first, ...bandOrders.filter((c) => c.id !== first.id)] : [];
   return (
     <>
       {first ? (
@@ -367,10 +374,14 @@ export function NewOrderBands() {
             ) : null
           }
         >
-          <Link href={orderAnchorHref(first.id)} className="inline-flex min-h-hit items-center underline-offset-4 hover:underline">
-            YENİ SİPARİŞ #{first.number}
-            {first.totalKurus != null ? ` · ${formatMoney(first.totalKurus)}` : ''}
-            {bandOrders.length > 1 ? ` · +${bandOrders.length - 1} sipariş daha` : ''}
+          {/* Bandın kendisi role="alert"; tek canlı bölge bu. Görsel yazı aria-hidden, okunan tam cümle sr-only. */}
+          <NewOrderAnnouncement orders={announced} />
+          <Link
+            href={orderAnchorHref(first.id)}
+            aria-label="Bu siparişi aç"
+            className="inline-flex min-h-hit items-center underline-offset-4 hover:underline"
+          >
+            <NewOrderBandLabel order={first} extra={bandOrders.length - 1} />
           </Link>
         </Banner>
       ) : null}

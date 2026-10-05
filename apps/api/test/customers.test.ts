@@ -2,7 +2,7 @@
 // KVKK dışa aktarma ve silme/anonimleştirme (08 §2.10, SMS gönderim kayıtları dahil); yetki ve yalıtım.
 
 import { localDateString, maskPhone } from '@siparis/core';
-import { auditLog, cancellationRequests, conversations, customerAddresses, customers, messages, orderEvents, orderItems, orders, smsMessages, tenants, waAccounts } from '@siparis/db';
+import { auditLog, cancellationRequests, conversations, customerAddresses, customers, messages, orderDeliveryAttempts, orderEvents, orderItems, orders, smsMessages, tenants, waAccounts } from '@siparis/db';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { SMS_REDACTED_BODY } from '../src/services/customers/index';
 import { signCustomerCookie } from '../src/services/storefront/cookies';
@@ -283,7 +283,12 @@ describe('KVKK: aynı kişinin başka müşteri kaydındaki siparişleri ve serb
     await ctx.db.insert(orderEvents).values([
       { tenantId: a.tenantId, orderId: wa.id, type: 'cancel_requested', actorType: 'customer', note: 'Adresim Yeni Mah. 5. sok no 3' },
       { tenantId: a.tenantId, orderId: wa.id, type: 'note', actorType: 'user', note: 'Kurye aradı' },
+      // Kuryenin "teslim edilemedi" açıklaması: kullanıcı yazmış olsa da müşteriyi anlatır (04 §9.2)
+      { tenantId: a.tenantId, orderId: wa.id, type: 'delivery_failed', actorType: 'user', reason: 'other', note: 'Fatma Kaya 3. katta oturuyor' },
     ]);
+    await ctx.db
+      .insert(orderDeliveryAttempts)
+      .values({ tenantId: a.tenantId, orderId: wa.id, reason: 'other', note: 'Fatma Kaya 3. katta oturuyor' });
 
     // Dışa aktarma iki siparişi de içerir
     const exp = await req('POST', `/customers/${recA.id}/export`, a.ownerCookie);
@@ -301,7 +306,11 @@ describe('KVKK: aynı kişinin başka müşteri kaydındaki siparişleri ve serb
     expect(cr!.reason).toBeNull();
     const evs = await ctx.db.select().from(orderEvents).where(eq(orderEvents.orderId, wa.id));
     expect(evs.find((e) => e.actorType === 'customer')!.note).toBeNull();
-    expect(evs.find((e) => e.actorType === 'user')!.note).toBe('Kurye aradı');
+    expect(evs.find((e) => e.type === 'note')!.note).toBe('Kurye aradı');
+    // Teslim edilemedi açıklaması İKİ kopyadan da silinir (biri kalırsa silme talebi yarım kalır)
+    expect(evs.find((e) => e.type === 'delivery_failed')!.note).toBeNull();
+    const attempts = await ctx.db.select().from(orderDeliveryAttempts).where(eq(orderDeliveryAttempts.orderId, wa.id));
+    expect(attempts.every((x) => x.note === null)).toBe(true);
     const [u] = await ctx.db.select().from(orders).where(eq(orders.id, untouched.id));
     expect(u!.customerPhone).toBe('+905337770000');
   });

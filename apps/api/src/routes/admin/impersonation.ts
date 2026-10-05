@@ -1,19 +1,24 @@
 // Destek erişimi (00 §4, 05 A-09): salt-okunur, en fazla 30 dk, gerekçe zorunlu, işletmeye bildirim, audit.
 // Çerez stratejisi: services/admin/impersonation.ts başındaki açıklama.
+// İşletmeye bildirim: başlangıç ve bitiş kaydı services/admin/support-access.ts ile yazılır; işletme kendi
+// oturumuyla GET /admin/support-access/notices'ten okur (denetim: yazılan satır hiçbir yerden okunmuyordu).
 
 import {
   adminImpersonateRequestSchema,
   adminImpersonateResponseSchema,
   adminImpersonationEndResponseSchema,
 } from '@siparis/core/admin/contracts';
-import { memberships, notifications, sessions, tenants } from '@siparis/db';
+import { supportAccessNoticesResponseSchema } from '@siparis/core/admin/support-access';
+import { memberships, sessions, tenants, users, type Database } from '@siparis/db';
 import { and, eq, gt, isNull } from 'drizzle-orm';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { audit } from '../../lib/audit';
 import { notFound, unauthorized } from '../../lib/errors';
+import { requireTenantRole, tenantAuth } from '../../plugins/auth';
 import { sha256Hex } from '../../lib/tokens';
 import { ADMIN_STASH_COOKIE, clearAdminStashCookie, setAdminStashCookie } from '../../services/admin/impersonation';
+import { loadSupportAccessNotices, supportAccessNotice } from '../../services/admin/support-access';
 import { adminActor, adminAudit, requireAdmin } from '../../services/admin/util';
 import {
   SESSION_COOKIE,
@@ -23,6 +28,37 @@ import {
   resolveSession,
   setSessionCookie,
 } from '../../services/auth/sessions';
+
+/** İşletmenin etkin sahipleri (bildirim alıcıları). */
+async function ownerIds(tx: Database, tenantId: string): Promise<string[]> {
+  const rows = await tx
+    .select({ userId: memberships.userId })
+    .from(memberships)
+    .where(and(eq(memberships.tenantId, tenantId), eq(memberships.role, 'owner'), isNull(memberships.disabledAt)));
+  return rows.map((r) => r.userId);
+}
+
+/**
+ * Destek erişimi kapanış kaydı. Destek görevlisinin adı oturumu açan kullanıcıdan okunur: `end` çağrısı destek
+ * oturumundan gelebilir ve o oturumun `auth.user.name`'i aynı kişi olsa da, admin oturumundan toplu kapatmada
+ * başka tenant'ların kaydı da yazılır — ad tek yerden, `impersonator_user_id`den gelsin.
+ */
+async function writeEndNotice(
+  tx: Database,
+  tenantId: string,
+  impersonatorUserId: string,
+  sessionId: string,
+  endedBy: 'support_session' | 'admin_session',
+): Promise<void> {
+  const [agent] = await tx.select({ name: users.name }).from(users).where(eq(users.id, impersonatorUserId));
+  await supportAccessNotice(tx, {
+    tenantId,
+    kind: 'ended',
+    recipientUserIds: await ownerIds(tx, tenantId),
+    supportAgentName: agent?.name ?? 'Destek ekibi',
+    data: { sessionId, endedBy },
+  });
+}
 
 const routes: FastifyPluginAsyncZod = async (app) => {
   // POST /admin/tenants/:id/impersonate {reason, ticketRef?}
@@ -47,10 +83,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       const [tenant] = await app.db.select({ id: tenants.id, name: tenants.name }).from(tenants).where(eq(tenants.id, tenantId));
       if (!tenant) throw notFound('İşletme bulunamadı.');
 
-      const owners = await app.db
-        .select({ userId: memberships.userId })
-        .from(memberships)
-        .where(and(eq(memberships.tenantId, tenantId), eq(memberships.role, 'owner'), isNull(memberships.disabledAt)));
+      const owners = await ownerIds(app.db, tenantId);
 
       // Oturum, işletme bildirimi ve audit aynı transaction'da: bildirim ya da audit yazılamazsa oturum başlamaz.
       const { token, session } = await app.db.transaction(async (tx) => {
@@ -66,25 +99,20 @@ const routes: FastifyPluginAsyncZod = async (app) => {
           impersonationReason: reason,
         });
         const now = new Date();
-        const payload = {
-          sessionId: created.session.id,
+        // İşletmeye görünen kayıt (panelde kırmızı bant + "Destek erişimi" listesi; services/admin/support-access.ts)
+        await supportAccessNotice(tx, {
+          tenantId,
+          kind: 'started',
+          recipientUserIds: owners,
           supportAgentName: actor.name,
-          startedAt: now.toISOString(),
-          expiresAt: created.session.expiresAt.toISOString(),
-          readOnly: true,
-        };
-        const recipients = owners.length ? owners.map((o) => o.userId) : [null];
-        await tx.insert(notifications).values(
-          recipients.map((recipientUserId) => ({
-            tenantId,
-            recipientUserId,
-            kind: 'support_access_started',
-            channel: 'log' as const,
-            status: 'sent' as const,
-            sentAt: now,
-            payload,
-          })),
-        );
+          data: {
+            sessionId: created.session.id,
+            startedAt: now.toISOString(),
+            expiresAt: created.session.expiresAt.toISOString(),
+            readOnly: true,
+          },
+          now,
+        });
         await adminAudit(tx, actor, {
           tenantId,
           action: 'admin.impersonation_start',
@@ -137,6 +165,10 @@ const routes: FastifyPluginAsyncZod = async (app) => {
           data: { actorRole: auth.user.platformRole, endedBy: 'support_session' },
           ip: request.ip ?? null,
         });
+        // Kapanış kaydı işletmeye de yazılır (başlangıç kaydının karşılığı)
+        if (deleted.length && auth.session.tenantId) {
+          await writeEndNotice(tx, auth.session.tenantId, impersonatorId, auth.session.id, 'support_session');
+        }
       } else if (auth && isAdminSession) {
         const deleted = await tx
           .delete(sessions)
@@ -153,6 +185,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
             impersonatorUserId: actor.userId,
             data: { endedBy: 'admin_session' },
           });
+          if (d.tenantId) await writeEndNotice(tx, d.tenantId, actor.userId, d.id, 'admin_session');
         }
       }
     });
@@ -183,6 +216,27 @@ const routes: FastifyPluginAsyncZod = async (app) => {
 
     return { ok: true as const, ended, restored, redirectTo: restored || isAdminSession ? '/admin' : '/admin/giris' };
   });
+
+  /**
+   * GET /admin/support-access/notices — İŞLETME ucu (platform rolü gerekmez; `requireAdminTotpEnrollment`
+   * platform olmayan oturumda erken döner). İşletme sahibi/yöneticisi kendi işletmesinde açık destek
+   * oturumlarını ve son destek kayıtlarını görür; başka işletmenin kaydı görünmez (tenant yalıtımı oturumdaki
+   * `tenantId` ile sağlanır, istekte işletme kimliği ALINMAZ).
+   *
+   * Destek oturumunun kendisi de bu ucu çağırabilir (panel kabuğu aynı koddur); gördüğü şey yine o işletmenin
+   * kaydıdır, yeni bir bilgi açılmaz.
+   */
+  app.get(
+    '/support-access/notices',
+    {
+      preHandler: requireTenantRole(['owner', 'manager']),
+      schema: { response: { 200: supportAccessNoticesResponseSchema } },
+    },
+    async (request) => {
+      const auth = tenantAuth(request);
+      return loadSupportAccessNotices(app.db, { tenantId: auth.tenantId, userId: auth.userId });
+    },
+  );
 };
 
 export default routes;

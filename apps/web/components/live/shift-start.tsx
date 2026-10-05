@@ -3,10 +3,13 @@
 // "Vardiyayı başlat" tam ekran kartı (04 §4.1): dokunuş ses kilidini açar (kısa test sesi), Wake Lock ister.
 // Jest gerektiren diğer istekler (Web Push bildirim izni) `onTap` ile dokunuşun içinde, hiçbir beklemeden önce yapılır.
 // Bekleyen yeni sipariş varsa kartın üstünde kırmızı uyarı görünür (kartlar bu ekranın arkasında kalır).
+// iPhone/iPad'de panel ana ekrana eklenmemişse bildirim izni penceresi hiç çıkmaz: ses akışının yanında
+// "Ana Ekrana Ekle" rehberi gösterilir (04 §4.1, 06 §7.8).
 
 import { useState } from 'react';
 import { BellRing, CircleCheck, CircleX, Play, Volume2, Wifi } from 'lucide-react';
 import { Button } from '@/components/ui';
+import { IosInstallPrompt } from '@/components/push/ios-install-steps';
 import { alarmSound, type ScreenWake } from './alarm-sound';
 
 export function ShiftStart({
@@ -79,6 +82,8 @@ export function ShiftStart({
         {result && !result.audio ? (
           <p className="text-sm text-fg-muted">Cihaz sesini ve sessiz modu kontrol edip tekrar deneyin.</p>
         ) : null}
+        {/* iOS'ta bildirim izni ana ekrana eklenmeden hiç sorulmaz: adım adım rehber (sesi engellemez) */}
+        <IosInstallPrompt className="w-full" />
         <button type="button" onClick={onSkip} className="min-h-hit text-sm font-semibold text-fg-muted underline underline-offset-4">
           Sesi açmadan devam et
         </button>

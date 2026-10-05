@@ -45,6 +45,7 @@ export const AUDIT_ACTION_LABELS: Record<string, string> = {
   'admin.impersonation_start': 'Destek erişimi başladı',
   'admin.impersonation_end': 'Destek erişimi bitti',
   'admin.impersonation_request': 'Destek oturumunda istek',
+  'admin.user_password_reset': 'Kullanıcı parolası sıfırlandı',
   'admin.note_create': 'Not eklendi',
   'admin.note_update': 'Not düzenlendi',
   'admin.note_delete': 'Not silindi',

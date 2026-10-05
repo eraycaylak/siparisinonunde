@@ -2,16 +2,41 @@
 
 import { useId, useRef, useState } from 'react';
 import { ImageUp, Link2, Trash2, TriangleAlert } from 'lucide-react';
+import { ResponsiveImage } from '@/components/common/responsive-image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { apiFetch, errorMessage, isApiError } from '@/lib/api';
+import { responsiveImage } from '@/lib/image';
 
 const ACCEPT = 'image/jpeg,image/png,image/webp';
 const MAX_BYTES = 5 * 1024 * 1024;
 
 /**
+ * Seçilen dosyanın gerçek piksel ölçüsü (tarayıcı EXIF yönünü uygular, sunucudaki `autoOrient` ile aynı sonuç).
+ * Okunamazsa `null` — uyarı verilmez, yükleme engellenmez.
+ */
+async function measureImageFile(file: File): Promise<{ width: number; height: number } | null> {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    return await new Promise((resolve) => {
+      const probe = new Image();
+      probe.onload = () => resolve({ width: probe.naturalWidth, height: probe.naturalHeight });
+      probe.onerror = () => resolve(null);
+      probe.src = objectUrl;
+    });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+/**
  * Logo/kapak alanı: POST /panel/uploads (menü dilimi) ile yükleme; yükleme kullanılamazsa görsel adresi girilir.
  * Boyut yetersizse reddedilmez, uyarı gösterilir (12 §5.2).
+ *
+ * Çözünürlük uyarısı SEÇİLEN DOSYAYA bakar, önizlemeye bakmaz: sunucu artık 320/640/1080 px varyant ürettiği için
+ * servis edilen kare en çok 640 px geniştir ve `naturalWidth` özgün ölçüyü yansıtmaz (yoksa 800 px eşiğindeki
+ * kapak alanı her seferinde yanlış "bulanık görünebilir" uyarısı verirdi). Varyantsız adreslerde (eski yükleme ya
+ * da elle girilmiş `https://…`) eski ölçüm yolu korunur — orada indirilen kare tek kaynaktır.
  */
 export function ImageField({
   label,
@@ -38,9 +63,12 @@ export function ImageField({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [urlMode, setUrlMode] = useState(false);
   const [lowRes, setLowRes] = useState(false);
+  // Varyantlı adreste önizleme 320 px karesini indirir; varyantsızda eski tek-kare yolu kullanılır.
+  const hasVariants = Boolean(responsiveImage(value)?.webpSrcSet);
 
   async function upload(file: File) {
     setUploadError(null);
+    setLowRes(false);
     if (file.size > MAX_BYTES) {
       setUploadError('Görsel en fazla 5 MB olabilir.');
       return;
@@ -51,8 +79,13 @@ export function ImageField({
     try {
       const res = await apiFetch<{ url: string }>('/panel/uploads', { method: 'POST', body: form });
       onChange(res.url);
+      // Ölçüm BEKLENMEZ: çözünürlük uyarısı yan bilgidir, 5 MB'lık bir dosyanın çözülmesi düğmeyi yükleniyor
+      // durumunda tutmasın (adres zaten kaydedildi).
+      void measureImageFile(file).then((measured) => {
+        if (measured) setLowRes(measured.width < minWidth || measured.height < minHeight);
+      });
     } catch (err) {
-      if (isApiError(err) && (err.status === 404 || err.status === 0)) {
+      if (isApiError(err) && (err.status === 404 || err.status === 0 || err.status === 503)) {
         setUrlMode(true);
         setUploadError('Görsel yükleme şu an kullanılamıyor. Görselin adresini yapıştırabilirsiniz.');
       } else {
@@ -77,7 +110,9 @@ export function ImageField({
               : 'flex h-20 w-36 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-surface'
           }
         >
-          {value ? (
+          {value && hasVariants ? (
+            <ResponsiveImage url={value} alt="" sizes={aspect === 'square' ? '80px' : '144px'} className="size-full object-cover" />
+          ) : value ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={value}
@@ -111,7 +146,13 @@ export function ImageField({
             Adres gir
           </Button>
           {value ? (
-            <Button variant="ghost" onClick={() => onChange(null)}>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setLowRes(false);
+                onChange(null);
+              }}
+            >
               <Trash2 aria-hidden />
               Kaldır
             </Button>
@@ -124,7 +165,10 @@ export function ImageField({
           inputMode="url"
           placeholder="https://… ya da /api/v1/uploads/…"
           value={value ?? ''}
-          onChange={(e) => onChange(e.target.value.trim() || null)}
+          onChange={(e) => {
+            setLowRes(false);
+            onChange(e.target.value.trim() || null);
+          }}
           aria-label={`${label} adresi`}
         />
       ) : null}

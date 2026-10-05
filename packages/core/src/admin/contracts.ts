@@ -123,6 +123,11 @@ export type AdminOverview = z.infer<typeof adminOverviewSchema>;
 export const adminTenantListQuerySchema = adminCursorQuerySchema.extend({
   q: z.string().trim().max(100).optional(),
   stage: z.enum(LIFECYCLE_STAGES).optional(),
+  /** "Takılan" hazır görünümü (05 §A-03 filtreleri): yalnız kurulumda takılmış işletmeler. */
+  stuck: z
+    .union([z.literal('1'), z.literal('true'), z.literal('0'), z.literal('false'), z.boolean()])
+    .optional()
+    .transform((v) => v === true || v === '1' || v === 'true'),
 });
 
 export const adminTenantListItemSchema = z.object({
@@ -146,6 +151,14 @@ export const adminTenantListItemSchema = z.object({
   waMode: z.enum(WA_MODES),
   /** Dükkan kodu (ortak numarada QR/#KOD) */
   waCode: z.string().nullable(),
+  /** 05 §A.2.2 huni adımı (`tenant_onboarding.step`; satır yoksa 'account_created'). */
+  onboardingStep: z.string(),
+  /** Adımın son değiştiği an (satır yoksa işletmenin kayıt anı) — "ne zamandan beri bu adımda". */
+  onboardingStepAt: iso,
+  /** Canlı değil ve aynı adımda ADMIN_ONBOARDING_STUCK_HOURS'tan uzun kaldı. */
+  onboardingStuck: z.boolean(),
+  /** Son hareket: son (test olmayan) sipariş ya da son üye girişi; hiç yoksa null. */
+  lastActivityAt: isoOrNull,
 });
 export type AdminTenantListItem = z.infer<typeof adminTenantListItemSchema>;
 

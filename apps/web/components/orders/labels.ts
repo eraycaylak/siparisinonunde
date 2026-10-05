@@ -11,6 +11,7 @@ import {
   type PaymentMethod,
   type RejectionReason,
 } from '@siparis/core/enums';
+import { DELIVERY_FAILURE_REASON_LABELS, type DeliveryFailureReason } from '@siparis/core/orders/delivery';
 import { formatMoney } from '@/lib/format';
 
 /** Ret sebep çipleri (04 §4.7) — sıra ekrandaki sıradır. */
@@ -98,6 +99,11 @@ export function eventLabel(e: { type: string; toStatus?: string | null; reason?:
       return 'Gecikme bildirildi';
     case 'courier_assigned':
       return 'Kurye atandı';
+    case 'payment_method_changed':
+      // Kurye kapıda farklı yöntemle tahsil etti (04 §9.2). Eski yöntem olay kaydının `data` alanındadır.
+      return `Ödeme yöntemi değişti · ${paymentShort(e.reason ?? '')}`;
+    case 'delivery_failed':
+      return `Teslim edilemedi · ${DELIVERY_FAILURE_REASON_LABELS[(e.reason ?? 'other') as DeliveryFailureReason] ?? e.reason}`;
     case 'cancel_requested':
       return 'Müşteri iptal istedi';
     case 'cancel_request_rejected':

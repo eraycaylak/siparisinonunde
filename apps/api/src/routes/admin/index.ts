@@ -1,5 +1,6 @@
 // Admin uç noktaları (14 §6.4) — dilim 5. Tamamı platform oturumu (requirePlatform + 05 §A.3 rol matrisi);
-// yalnız POST /impersonation/end destek oturumuyla da çağrılabilir (oturumu geri yükler).
+// iki istisna: POST /impersonation/end destek oturumuyla da çağrılabilir (oturumu geri yükler) ve
+// GET /support-access/notices İŞLETME oturumuyla çağrılır (işletme destek erişiminden haberdar olsun).
 
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { requireAdminTotpEnrollment } from '../../plugins/auth';
@@ -10,6 +11,7 @@ import jobRoutes from './jobs';
 import leadRoutes from './leads';
 import noteRoutes from './notes';
 import overviewRoutes from './overview';
+import recoveryRoutes from './recovery';
 import tenantRoutes from './tenants';
 import whatsappRoutes from './whatsapp';
 import whatsappSetupRoutes from './whatsapp-setup';
@@ -25,6 +27,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
   await app.register(overviewRoutes);
   await app.register(tenantRoutes);
   await app.register(impersonationRoutes);
+  await app.register(recoveryRoutes);
   await app.register(noteRoutes);
   await app.register(whatsappRoutes);
   await app.register(whatsappSetupRoutes);

@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Building2, Search } from 'lucide-react';
 import type { AdminTenantListItem, AdminTenantListResponse } from '@siparis/core/admin/contracts';
+import { ADMIN_ONBOARDING_STUCK_HOURS, adminOnboardingStepLabel } from '@siparis/core/admin/onboarding';
 import { LIFECYCLE_STAGES, WA_MODE_LABELS, type LifecycleStage } from '@siparis/core/enums';
 import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/ui/empty-state';
@@ -13,6 +14,7 @@ import { Input } from '@/components/ui/input';
 import { PageHeader } from '@/components/ui/page-header';
 import { Select } from '@/components/ui/select';
 import { Spinner } from '@/components/ui/spinner';
+import { Switch } from '@/components/ui/switch';
 import { TBody, TD, TH, THead, TR, Table } from '@/components/ui/table';
 import { formatNumber, formatRelative } from '@/lib/format';
 import { LIFECYCLE_STAGE_LABELS, PLAN_CODE_LABELS } from '@/lib/labels';
@@ -22,7 +24,11 @@ function isStage(v: string | null): v is LifecycleStage {
   return v !== null && (LIFECYCLE_STAGES as readonly string[]).includes(v);
 }
 
-/** A-03 işletmeler listesi: ad/slug/telefon araması, aşama filtresi. Filtreler URL'de tutulur. */
+/**
+ * A-03 işletmeler listesi: ad/slug/telefon araması, aşama filtresi, "takılanlar" görünümü. Filtreler URL'de tutulur.
+ * Kurulum adımı ve son hareket sütunları onboarding hunisini görünür kılar (05 §A-03; denetim H28: `onboarding_step`
+ * yazılıyordu ama hiçbir ekranda okunmuyordu, yani kurulumda takılan işletme fark edilmiyordu).
+ */
 export function TenantsListScreen() {
   const router = useRouter();
   const pathname = usePathname();
@@ -31,6 +37,7 @@ export function TenantsListScreen() {
   const [q, setQ] = useState(sp.get('q') ?? '');
   const [debounced, setDebounced] = useState(q);
   const [stage, setStage] = useState<LifecycleStage | ''>(isStage(initialStage) ? initialStage : '');
+  const [stuck, setStuck] = useState(sp.get('stuck') === '1');
 
   useEffect(() => {
     const t = setTimeout(() => setDebounced(q.trim()), 300);
@@ -41,19 +48,21 @@ export function TenantsListScreen() {
     const next = new URLSearchParams();
     if (debounced) next.set('q', debounced);
     if (stage) next.set('stage', stage);
+    if (stuck) next.set('stuck', '1');
     const qs = next.toString();
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-  }, [debounced, stage, pathname, router]);
+  }, [debounced, stage, stuck, pathname, router]);
 
   const list = useCursorList<AdminTenantListItem, AdminTenantListResponse>(['admin', 'tenants'], '/admin/tenants', {
     q: debounced || undefined,
     stage: stage || undefined,
+    stuck: stuck ? '1' : undefined,
   });
 
   return (
     <>
       <PageHeader title="İşletmeler" description="Ad, adres (slug) ya da telefonla arayın. Telefon tam eşleşir." />
-      <div className="mb-4 grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div className="mb-4 grid gap-3 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_auto]">
         <Field label="Ara" hideLabel>
           <div className="relative">
             <Search aria-hidden className="pointer-events-none absolute start-3 top-1/2 size-5 -translate-y-1/2 text-fg-muted" />
@@ -75,7 +84,20 @@ export function TenantsListScreen() {
             options={[{ value: '', label: 'Tüm aşamalar' }, ...LIFECYCLE_STAGES.map((s) => ({ value: s, label: LIFECYCLE_STAGE_LABELS[s] }))]}
           />
         </Field>
+        <Switch
+          checked={stuck}
+          onCheckedChange={setStuck}
+          label="Yalnız takılanlar"
+          showStateText={false}
+          className="self-end"
+        />
       </div>
+      {stuck ? (
+        <p className="mb-3 text-sm text-fg-muted">
+          Canlıya geçmemiş ve aynı kurulum adımında {ADMIN_ONBOARDING_STUCK_HOURS} saatten uzun kalmış işletmeler. Askıdaki ve kapanmış
+          işletmeler listelenmez.
+        </p>
+      ) : null}
 
       {list.isError ? <QueryError error={list.error} onRetry={() => void list.refetch()} /> : null}
       {list.isPending ? (
@@ -93,9 +115,11 @@ export function TenantsListScreen() {
               <TH>İşletme</TH>
               <TH>Aşama</TH>
               <TH>Plan</TH>
+              <TH>Kurulum</TH>
               <TH>Şehir</TH>
               <TH className="text-end">7 gün</TH>
               <TH>Son sipariş</TH>
+              <TH>Son hareket</TH>
               <TH>WhatsApp</TH>
             </TR>
           </THead>
@@ -127,9 +151,20 @@ export function TenantsListScreen() {
                   </div>
                 </TD>
                 <TD>{PLAN_CODE_LABELS[t.planCode]}</TD>
+                <TD>
+                  <div className="flex flex-col items-start gap-1">
+                    <span className="whitespace-nowrap text-sm">{adminOnboardingStepLabel(t.onboardingStep)}</span>
+                    {t.onboardingStuck ? (
+                      <Badge variant="warning" size="sm">
+                        Takıldı · {formatRelative(t.onboardingStepAt)}
+                      </Badge>
+                    ) : null}
+                  </div>
+                </TD>
                 <TD className="whitespace-nowrap">{[t.city, t.district].filter(Boolean).join(' / ') || '—'}</TD>
                 <TD className="text-end tabular-nums">{formatNumber(t.orders7d)}</TD>
                 <TD className="whitespace-nowrap text-fg-muted">{t.lastOrderAt ? formatRelative(t.lastOrderAt) : '—'}</TD>
+                <TD className="whitespace-nowrap text-fg-muted">{t.lastActivityAt ? formatRelative(t.lastActivityAt) : 'Hiç'}</TD>
                 <TD>
                   <div className="flex flex-col items-start gap-1">
                     <WaStatusBadge status={t.waStatus} />

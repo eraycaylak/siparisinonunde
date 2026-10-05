@@ -9,8 +9,9 @@ import { Button } from '@/components/ui/button';
 import { apiFetch, errorMessage } from '@/lib/api';
 import { ME_QUERY_KEY, type Me } from '@/lib/auth';
 import { formatDate, formatTime } from '@/lib/format';
+import { SupportAccessBand } from './support-access-band';
 
-/** Üst bantlar: salt-okunur destek oturumu, abonelik durumu, deneme bitişi (UI-09). */
+/** Üst bantlar: salt-okunur destek oturumu, işletmeye destek erişimi bildirimi, abonelik durumu, deneme bitişi (UI-09). */
 export function PanelBands({ me }: { me: Me }) {
   const router = useRouter();
   const qc = useQueryClient();
@@ -32,6 +33,8 @@ export function PanelBands({ me }: { me: Me }) {
 
   return (
     <>
+      {/* İşletmenin kendi gözüyle destek erişimi kaydı (destek oturumunda kendini gizler) */}
+      <SupportAccessBand me={me} />
       {me.readOnly ? (
         <Banner
           tone="alarm"

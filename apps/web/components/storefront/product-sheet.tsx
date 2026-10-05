@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Ban, Check, Info } from 'lucide-react';
+import { ResponsiveImage } from '@/components/common/responsive-image';
 import { Alert } from '@/components/ui/alert';
 import { Sheet } from '@/components/ui/sheet';
 import { cn } from '@/lib/cn';
@@ -94,8 +95,13 @@ function ProductSheetBody({ product, canOrder, closedText, onAdd }: Omit<Product
   return (
     <div className="flex flex-col gap-5">
       {product.imageUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={product.imageUrl} alt="" className="aspect-[4/3] w-full rounded-lg bg-surface object-cover" />
+        // Çekmece kabuğun max-w-2xl'i (672 px) eksi p-4 dolgusu kadar geniştir.
+        <ResponsiveImage
+          url={product.imageUrl}
+          alt=""
+          sizes="(max-width: 672px) calc(100vw - 2rem), 640px"
+          className="aspect-[4/3] w-full rounded-lg bg-surface object-cover"
+        />
       ) : null}
       <div className="flex flex-col gap-1">
         {product.description ? <p className="text-base text-fg-muted">{product.description}</p> : null}
