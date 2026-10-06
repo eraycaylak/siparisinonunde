@@ -71,6 +71,12 @@ describe('liste ve arama', () => {
     expect(byPhone.json().items.map((i: { id: string }) => i.id)).toEqual([ayse.id]);
     const full = await req('GET', `/customers?q=${encodeURIComponent('0532 111 22 33')}`, cashier.cookie);
     expect(full.json().items.map((i: { id: string }) => i.id)).toEqual([ayse.id]);
+    // TÜRKÇE HARF KATLAMA: canlı container `C.UTF-8` ile açıldığı için `ilike`/`lower()` Türkçe harfleri
+    // katlamıyordu — "ayse" yazan kullanıcı "Ayşe"yi bulamıyordu (telefon siparişi aramasıyla aynı kusur).
+    for (const yazim of ['ayse', 'AYSE', 'AyŞe', 'ayş']) {
+      const r = await req('GET', `/customers?q=${encodeURIComponent(yazim)}`, cashier.cookie);
+      expect(r.json().items.map((i: { id: string }) => i.id), `"${yazim}" araması`).toEqual([ayse.id]);
+    }
   });
 
   it('yetki: mutfak 403, oturumsuz 401', async () => {

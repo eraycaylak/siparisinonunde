@@ -1,7 +1,7 @@
 // Müşteriler / CRM (04 §8) ve KVKK talepleri (08 §2.10): liste (maskeli telefon), profil, not/kara liste,
 // sipariş geçmişi, veri dışa aktarma ve silme/anonimleştirme. Test siparişleri hariç.
 
-import { maskPhone, turkishLower, type FulfillmentType, type PaymentMethod, type SmsPurpose } from '@siparis/core';
+import { foldSearch, maskPhone, type FulfillmentType, type PaymentMethod, type SmsPurpose } from '@siparis/core';
 import type { CustomerDetail, CustomerListItem, CustomerOrderItem, CustomerPatch } from '@siparis/core/settings/contracts';
 import {
   cancellationRequests,
@@ -26,6 +26,7 @@ import { and, asc, desc, eq, inArray, isNull, or, sql, type SQLWrapper } from 'd
 import { audit } from '../../lib/audit';
 import { AppError, conflict, notFound } from '../../lib/errors';
 import { isoOrNull, validationError } from '../settings/common';
+import { NAME_FOLD_SQL } from './lookup';
 
 type CustomerRow = typeof customers.$inferSelect;
 
@@ -93,7 +94,12 @@ export async function listCustomers(
   const q = opts.q?.trim();
   if (q) {
     const digits = q.replace(/\D/g, '');
-    const parts = [sql`c.name ilike ${`%${escapeLike(q)}%`}`, sql`lower(c.name) like ${`%${escapeLike(turkishLower(q))}%`}`];
+    // TÜRKÇE HARF KATLAMA: `ilike`/`lower()` canlıda Türkçe harfleri KATLAMAZ — container `initdb --locale=C.UTF-8`
+    // ile açılıyor ve o collation'da `lower('ÇİĞDEM')` → `'ÇİĞdem'`, `'ÇİĞDEM' ILIKE 'çiğ%'` → false.
+    // Yani "sukru" yazan kullanıcı "Şükrü"yü bulamıyordu. Telefon siparişi aramasıyla AYNI katlama kullanılır:
+    // istemci/sunucu tarafında `foldSearch()`, SQL tarafında `NAME_FOLD_SQL` (translate) — ve o ifade
+    // `customers_tenant_name_fold_idx` (mig 0006) tarafından indekslenir.
+    const parts = [sql`${NAME_FOLD_SQL} like ${`%${escapeLike(foldSearch(q))}%`}`];
     if (digits.length >= 3) {
       const d = digits.replace(/^0+/, '').replace(/^90(?=5)/, '');
       parts.push(sql`c.phone_e164 like ${`%${escapeLike(d)}%`}`);
