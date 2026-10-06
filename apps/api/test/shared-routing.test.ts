@@ -2,12 +2,14 @@
 // 24 saat içinde güncel dükkana devam, eski yönlendirmede son dükkanlar butonu, tüm liste ve sayfalama, komutlar,
 // ad eşleşmesi, Akış B kodunun global araması, etkileşimli yanıtın doğru dükkana gitmesi, dükkan adıyla marka,
 // platform mesajlarının hiçbir dükkanın sohbetine girmemesi ve tenant yalıtımı. Kendi numaralı işletme etkilenmez.
+// Ayrıca: MÜŞTERİ YANITSIZ KALMAZ (06.10.2026) — "selam", "a", "1", emoji, medya ve etkin dükkana yazılan tanınmayan
+// metin hep bir yanıt alır; yalnız kendi trafiğimiz sessiz kalır (echo, durum geri bildirimi, tekrar teslim).
 
 import { sharedPrefillText } from '@siparis/core';
 import { conversations, customers, messages, orders, reviews, sharedWaMessages, tenants } from '@siparis/db';
 import { and, asc, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { buildStatusPayload } from '../src/services/messaging/dev-payload';
+import { buildEchoPayload, buildStatusPayload } from '../src/services/messaging/dev-payload';
 import { processWebhookEvent } from '../src/services/messaging/ingest';
 import { upsertConversation } from '../src/services/messaging/customers';
 import { queueOutbound, type OutboundPayload } from '../src/services/messaging/outbound';
@@ -70,6 +72,25 @@ const listRows = (m: PlatformRow | undefined) => specOf(m).interactive.list!.sec
 const convOf = (t: WaSetup, phone: string) => conversationFor(ctx.db, t.account, phone);
 async function countMessages(t: WaSetup): Promise<number> {
   return (await ctx.db.select({ id: messages.id }).from(messages).where(eq(messages.tenantId, t.tenantId))).length;
+}
+
+/**
+ * Müşteriye `since`dan sonra giden yanıtların kodları: dükkan sohbeti (M…) + platform (P…). "Müşteri yanıtsız kalmaz"
+ * değişmezini ölçer; yanıtın hangi taraftan geldiği (motor M01N ya da yönlendirici P07) davranışın parçası değildir.
+ */
+async function repliesAfter(phone: string, since: Date, shop?: WaSetup): Promise<string[]> {
+  const codes: string[] = [];
+  const conv = shop ? await convOf(shop, phone) : undefined;
+  if (conv) {
+    const rows = await threadRows(ctx.db, conv.id);
+    codes.push(
+      ...rows
+        .filter((r) => r.direction === 'out' && r.createdAt >= since)
+        .map((r) => String((r.payload as unknown as OutboundPayload | null)?.code ?? r.kind)),
+    );
+  }
+  codes.push(...(await platformRows(phone)).filter((r) => r.createdAt >= since).map((r) => String(codeOf(r))));
+  return codes;
 }
 
 beforeAll(async () => {
@@ -158,9 +179,12 @@ describe('dükkan seçimi (QR / #KOD)', () => {
     // Çift dokunma: 30 sn sonra yine aynı kod → yanıt yok
     await sharedInbound(ctx, { phone: p2 }, text('#PIDEEVI'), { now: plus(t1, 5 * MIN + 30_000) });
     expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01', 'M01K']);
-    // Kodsuz mesaj eski kurala tabi (soğuma içinde sessiz)
-    await sharedInbound(ctx, { phone: p2 }, text('merhaba'), { now: plus(t1, 7 * MIN) });
-    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01', 'M01K']);
+    // Kodsuz mesaj kısa karşılamayı (M01K) yinelemez ama müşteri YANITSIZ da kalmaz: yanıt ya dükkandan (M01N)
+    // ya platformdan (P07) gelir — eskiden 30 dk boyunca tam sessizlik vardı (Eray'ın "cevapsız kalıyo" şikâyeti)
+    const t2 = plus(t1, 20 * MIN);
+    await sharedInbound(ctx, { phone: p2 }, text('merhaba'), { now: t2 });
+    expect((await outCodes(ctx.db, conv!.id)).filter((c) => c === 'M01K')).toHaveLength(1);
+    expect(await repliesAfter(p2, t2, E)).toHaveLength(1);
   });
 
   it('24 saatten eski yönlendirme: son 2 dükkan + "Diğer dükkanlar" butonu (P01); dükkan sohbetlerine girmez', async () => {
@@ -202,10 +226,15 @@ describe('seçici: kayıtsız müşteri, soğuma, komutlar', () => {
     const t = new Date();
     await sharedInbound(ctx, { phone }, text('selam'), { now: t });
     expect((await platformRows(phone)).map(codeOf)).toEqual(['P02']);
+    // Soğuma TAM seçiciyi yineletmez ama müşteriyi sessiz bırakmaz: tek satırlık hatırlatma (P06)
     await sharedInbound(ctx, { phone }, text('selam'), { now: plus(t, 10_000) });
-    expect(await platformRows(phone)).toHaveLength(1);
+    const hint = await platformRows(phone);
+    expect(hint.map(codeOf)).toEqual(['P02', 'P06']);
+    expect(hint.at(-1)!.body).toBe(
+      'Dükkanları mı görmek istiyorsun? Yukarıdaki mesajdan dükkan seçebilirsin; dükkan adını ya da kodunu yazman da yeter.',
+    );
     await sharedInbound(ctx, { phone }, text('Dükkanlar'), { now: plus(t, 20_000) });
-    expect((await platformRows(phone)).map(codeOf)).toEqual(['P02', 'P02']);
+    expect((await platformRows(phone)).map(codeOf)).toEqual(['P02', 'P06', 'P02']);
     // Hiçbir dükkanda konuşma açılmadı
     for (const s of [A, B, E]) expect(await convOf(s, phone)).toBeUndefined();
   });
@@ -217,6 +246,127 @@ describe('seçici: kayıtsız müşteri, soğuma, komutlar', () => {
     const again = await sharedInbound(ctx, { phone }, text('iyi akşamlar'), { wamid: 'wamid.shared.dup.1' });
     expect(again.summary).toMatchObject({ messages: 0, duplicates: 1 });
     expect(await platformRows(phone)).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Müşteri yanıtsız kalmaz (06.10.2026 canlı geri bildirimi: "whatsapp selam yazınca bile cevap versin, a yazsa bile
+// cevap versin; illa #KOD yazmamızı bekliyor"). Senaryolar 14 §8.1 "yanıtsız kalmaz" tablosuyla birebir.
+describe('müşteri yanıtsız kalmaz', () => {
+  it('(a,b,e,g) ilk temas: "selam" → liste; "a", emoji ve "1" sessiz kalmaz; dakikada en çok 2 yanıt', async () => {
+    const phone = nextPhone();
+    const t = new Date();
+    // (a) ilk temas
+    await sharedInbound(ctx, { phone }, text('selam'), { now: t });
+    expect((await platformRows(phone)).map(codeOf)).toEqual(['P02']);
+    // (b,g) tek harf: eskiden picker_cooldown yüzünden TAM SESSİZLİK; artık listeden nasıl seçildiği söylenir
+    await sharedInbound(ctx, { phone }, text('a'), { now: plus(t, 10_000) });
+    const pick = await platformRows(phone);
+    expect(pick.map(codeOf)).toEqual(['P02', 'P06']);
+    expect(pick.at(-1)!.body).toBe('Dükkanları mı görmek istiyorsun? Yukarıdaki "Dükkanları gör" düğmesine dokun ya da dükkan adını yaz.');
+    // Üst sınır: aynı 60 sn penceresinde ikinci hatırlatma gitmez (spam ve Meta kalite derecesi koruması)
+    await sharedInbound(ctx, { phone }, text('1'), { now: plus(t, 20_000) });
+    await sharedInbound(ctx, { phone }, { type: 'sticker' }, { now: plus(t, 30_000) });
+    expect((await platformRows(phone)).map(codeOf)).toEqual(['P02', 'P06']);
+    // 60 sn geçince tam seçici, ardından pencere yeniden açıldığı için hatırlatma da yeniden gider
+    await sharedInbound(ctx, { phone }, text('1'), { now: plus(t, 61_000) });
+    expect((await platformRows(phone)).map(codeOf)).toEqual(['P02', 'P06', 'P02']);
+    // (e) yalnız emoji: anlamsız metin de yanıt alır (genel hatırlatma)
+    await sharedInbound(ctx, { phone }, text('😀'), { now: plus(t, 71_000) });
+    const emoji = await platformRows(phone);
+    expect(emoji.map(codeOf)).toEqual(['P02', 'P06', 'P02', 'P06']);
+    expect(emoji.at(-1)!.body!.startsWith('Dükkanları mı görmek istiyorsun? Yukarıdaki mesajdan')).toBe(true);
+    // Platform düzeyi: hiçbir dükkanın sohbetine girmedi
+    for (const sh of [A, B, E]) expect(await convOf(sh, phone)).toBeUndefined();
+  });
+
+  it('(c) 24 saatten eski oturumda "selam" → son dükkanlar butonu', async () => {
+    const phone = nextPhone();
+    const t = new Date();
+    await sharedInbound(ctx, { phone }, text('#DONER'), { now: t });
+    const t2 = plus(t, 25 * HOUR);
+    await sharedInbound(ctx, { phone }, text('selam'), { now: t2 });
+    const p = await lastPlatform(phone);
+    expect(codeOf(p)).toBe('P01');
+    expect(specOf(p).interactive.buttons!.map((b) => b.id)).toEqual([`shop:${B.tenantId}`, 'shops:list']);
+    // Hatırlatma, az önce gönderilen seçiciye uymalı: son dükkanlar mesajında (P01) "Dükkanları gör" düğmesi YOKTUR
+    // (o düğme yalnız liste mesajındadır, P02) — tek harf yazılsa bile genel hatırlatma gider.
+    await sharedInbound(ctx, { phone }, text('a'), { now: plus(t2, 10_000) });
+    const hint = await lastPlatform(phone);
+    expect(codeOf(hint)).toBe('P06');
+    expect(hint!.body).toBe(
+      'Dükkanları mı görmek istiyorsun? Yukarıdaki mesajdan dükkan seçebilirsin; dükkan adını ya da kodunu yazman da yeter.',
+    );
+  });
+
+  it('(d,f) etkin dükkana yazan müşteri: tanınmayan metin, konum ve fotoğraf yanıtsız kalmaz', async () => {
+    const phone = nextPhone();
+    const t = new Date();
+    await sharedInbound(ctx, { phone }, text('#DONER'), { now: t });
+    expect(await outCodes(ctx.db, (await convOf(B, phone))!.id)).toEqual(['M01']);
+    // (d) 10 dk sonra tanınmayan metin: TAM 1 yanıt. Kaynağı davranışın parçası değildir (motor M01N ya da
+    // yönlendirici P07) ama ikisi birden YAZMAZ: motor yanıt ürettiyse platform araya girmez.
+    const t1 = plus(t, 10 * MIN);
+    await sharedInbound(ctx, { phone }, text('menü'), { now: t1 });
+    expect(await repliesAfter(phone, t1, B)).toHaveLength(1);
+    // (f) medya ve konum: eskiden her zaman sessizdi
+    const t2 = plus(t, 40 * MIN);
+    await sharedInbound(ctx, { phone }, { type: 'image' }, { now: t2 });
+    expect(await repliesAfter(phone, t2, B)).toHaveLength(1);
+    const t3 = plus(t, 80 * MIN);
+    await sharedInbound(ctx, { phone }, { type: 'location', lat: 39.82, lng: 34.8 }, { now: t3 });
+    expect(await repliesAfter(phone, t3, B)).toHaveLength(1);
+  });
+
+  it('bilerek sessiz kalan yollarda platform ARAYA GİRMEZ: kara liste ve opt-out', async () => {
+    // 1) Kara liste: motor M33'ü 12 saatte bir gönderir, soğuma içinde bilerek sessizdir — bu müşteriye platformun
+    // "menüyü açabilirsin" demesi de yanlış olurdu (02 §6.2 bilerek sessiz kalan yollar).
+    const blocked = nextPhone();
+    const t = new Date();
+    await sharedInbound(ctx, { phone: blocked }, text('#DONER'), { now: t });
+    const conv = (await convOf(B, blocked))!;
+    await ctx.db.update(customers).set({ isBlocked: true }).where(eq(customers.id, conv.customerId));
+    await sharedInbound(ctx, { phone: blocked }, text('bugün sipariş verebilir miyim'), { now: plus(t, 2 * HOUR) });
+    expect((await outCodes(ctx.db, conv.id)).at(-1)).toBe('M33');
+    const t2 = plus(t, 5 * HOUR);
+    await sharedInbound(ctx, { phone: blocked }, text('peki ne zaman'), { now: t2 });
+    expect(await repliesAfter(blocked, t2, B)).toEqual([]);
+    await ctx.db.update(customers).set({ isBlocked: false }).where(eq(customers.id, conv.customerId));
+
+    // 2) Opt-out: "DUR" + [Evet, hepsini durdur] sonrası hiçbir otomatik yanıt gitmez (platform da yazmaz)
+    const out = nextPhone();
+    await sharedInbound(ctx, { phone: out }, text('#DONER'), { now: t });
+    await sharedInbound(ctx, { phone: out }, text('DUR'), { now: plus(t, MIN) });
+    await sharedInbound(ctx, { phone: out }, button('optout:all'), { now: plus(t, 2 * MIN) });
+    expect((await outCodes(ctx.db, (await convOf(B, out))!.id)).slice(-2)).toEqual(['M31', 'M31a']);
+    const t3 = plus(t, 5 * HOUR);
+    await sharedInbound(ctx, { phone: out }, text('merhaba'), { now: t3 });
+    expect(await repliesAfter(out, t3, B)).toEqual([]);
+  });
+
+  it('döngü koruması: kendi echo\'muz, durum geri bildirimi ve tekrar teslim SESSİZ kalır', async () => {
+    const phone = nextPhone();
+    const t = new Date();
+    const wamid = `wamid.nosilence.${Date.now()}`;
+    const deps = { db: ctx.db, config: ctx.config, log: silentLog };
+    await sharedInbound(ctx, { phone }, text('selam'), { now: t, wamid });
+    expect((await platformRows(phone)).map(codeOf)).toEqual(['P02']);
+    // 1) Tekrar teslim (aynı wamid): yanıt yinelenmez
+    const again = await sharedInbound(ctx, { phone }, text('selam'), { now: plus(t, 5_000), wamid });
+    expect(again.summary).toMatchObject({ messages: 0, duplicates: 1 });
+    expect((await platformRows(phone)).map(codeOf)).toEqual(['P02']);
+    // 2) Gönderdiğimiz seçicinin durum geri bildirimi: yalnız durum yazılır, yanıt üretilmez
+    expect(await runJobs(ctx, ['wa.send_shared'])).toBeGreaterThan(0);
+    const sent = await lastPlatform(phone);
+    const st = await ingestSharedWebhookPayload(ctx.db, buildStatusPayload(SHARED_DEV_ACCOUNT, { wamid: sent!.wamid!, status: 'delivered' }));
+    expect(await processWebhookEvent(deps, st.webhookEventId, { now: plus(t, 10_000) })).toMatchObject({ messages: 0, statuses: 1 });
+    expect((await platformRows(phone)).map(codeOf)).toEqual(['P02']);
+    expect((await lastPlatform(phone))!.status).toBe('delivered');
+    // 3) Giden mesajın echo'su: yok sayılır (iki bot arasında döngü kurulamaz)
+    const { payload: echoPayload } = buildEchoPayload(SHARED_DEV_ACCOUNT, { phone }, 'Siparişiniz hazırlanıyor', { at: plus(t, 20_000) });
+    const echo = await ingestSharedWebhookPayload(ctx.db, echoPayload);
+    expect(await processWebhookEvent(deps, echo.webhookEventId, { now: plus(t, 20_000) })).toMatchObject({ messages: 0, echoes: 0 });
+    expect((await platformRows(phone)).map(codeOf)).toEqual(['P02']);
   });
 });
 
@@ -344,7 +494,10 @@ describe('kodun işletmesi seçilemiyorsa', () => {
   it('bilinmeyen #kod seçiciye düşer; bulunamayan Akış B kodu listede not düşer', async () => {
     const phone = nextPhone();
     await sharedInbound(ctx, { phone }, text('#YOKBOYLE'));
-    expect(codeOf(await lastPlatform(phone))).toBe('P02');
+    const unknown = await lastPlatform(phone);
+    expect(codeOf(unknown)).toBe('P02');
+    // Sebep yazılır: "#DENEM" gibi bir yazım hatasında müşteri eskiden neden listeye düştüğünü hiç öğrenmiyordu
+    expect(specOf(unknown).interactive.body.startsWith('Bu dükkan kodunu bulamadık.')).toBe(true);
     const phone2 = nextPhone();
     await sharedInbound(ctx, { phone: phone2 }, text('Sipariş kodu: ZZ9ZZ9'));
     const p = await lastPlatform(phone2);
@@ -359,10 +512,19 @@ describe('opt-out, durum olayları, gönderim', () => {
     await sharedInbound(ctx, { phone }, text('#DONER'));
     await sharedInbound(ctx, { phone }, text('DUR'));
     expect((await outCodes(ctx.db, (await convOf(B, phone))!.id)).at(-1)).toBe('M31');
+    // Dükkanı olmayan kişi de yanıtsız kalmaz: kayıt bulunmadığı söylenir (P08). Seçici GÖNDERİLMEZ — "DUR" diyene
+    // dükkan listesi yollamak izin isteği gibi okunurdu.
     const lonely = nextPhone();
-    await sharedInbound(ctx, { phone: lonely }, text('DUR'));
-    expect(await platformRows(lonely)).toHaveLength(0);
-    expect((await platformRows(lonely, 'in')).map((m) => m.body)).toEqual(['DUR']);
+    const tl = new Date();
+    await sharedInbound(ctx, { phone: lonely }, text('DUR'), { now: tl });
+    const opt = await platformRows(lonely);
+    expect(opt.map(codeOf)).toEqual(['P08']);
+    expect(opt[0]!.body).toBe('Bu numarada sana ait bir dükkan sohbeti bulamadık. Sipariş vermek istersen "dükkanlar" yazabilirsin.');
+    expect(opt[0]!.kind).toBe('text');
+    // Üst sınır: 60 sn içinde ikinci "DUR" aynı bilgiyi yinelemez
+    await sharedInbound(ctx, { phone: lonely }, text('DUR'), { now: plus(tl, 10_000) });
+    expect(await platformRows(lonely)).toHaveLength(1);
+    expect((await platformRows(lonely, 'in')).map((m) => m.body)).toEqual(['DUR', 'DUR']);
   });
 
   it('platform mesajı ortak numaradan gider; durum olayları doğru kayda yazılır', async () => {

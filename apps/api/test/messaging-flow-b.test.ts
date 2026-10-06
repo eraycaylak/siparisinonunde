@@ -214,6 +214,14 @@ describe('buton yanıtları', () => {
     await inbound(ctx, t.account, { phone: stranger }, { type: 'button_reply', id: `cancel:${order.id}`, title: 'Siparişi iptal et' });
     expect((await getOrder(ctx.db, order.id)).status).toBe('new');
     const conv = await conversationFor(ctx.db, t.account, stranger);
-    expect((await threadRows(ctx.db, conv!.id)).filter((r) => r.direction === 'out')).toHaveLength(0);
+    // Buton YOK SAYILIR (sipariş `new` kalır) ama yabancı SESSİZ BIRAKILMAZ: Eray'ın isteği gereği her mesaj
+    // yanıt alır. Yanıt, başka müşterinin siparişi hakkında HİÇBİR ŞEY sızdırmamalıdır.
+    const out = (await threadRows(ctx.db, conv!.id)).filter((r) => r.direction === 'out');
+    expect(out).toHaveLength(1);
+    const govde = String(out[0]!.body ?? '');
+    expect(govde).not.toContain('QWN3R5');
+    expect(govde).not.toContain(order.id);
+    expect(govde).not.toMatch(new RegExp(`#?${order.number}\\b`));
+    expect(govde).not.toMatch(/iptal/i);
   });
 });

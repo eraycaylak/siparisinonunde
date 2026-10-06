@@ -132,7 +132,7 @@ describe('seçici soğuması (auto)', () => {
     expect(rows).not.toContain(`shop:${KAPALI.tenantId}`);
   });
 
-  it('kendiliğinden gönderilen seçici soğumayı başlatır: 60 sn içindeki kodsuz mesaj sessiz', async () => {
+  it('kendiliğinden gönderilen seçici soğumayı başlatır: 60 sn içinde TAM seçici yinelenmez, kısa hatırlatma gider', async () => {
     const phone = nextPhone();
     const t0 = new Date('2026-10-05T13:00:00Z');
     await sharedInbound(ctx, { phone }, text('iyi günler kolay gelsin'), { now: t0 });
@@ -140,13 +140,18 @@ describe('seçici soğuması (auto)', () => {
 
     const r = await sharedInbound(ctx, { phone }, text('bir şey sormak istiyorum'), { now: plus(t0, 10_000) });
     expect(r.summary).toMatchObject({ messages: 1 });
-    // Yeni platform mesajı YOK (soğuma); soğuma anı da ilerlemedi
-    expect(codesOf(await platformRows(ctx.db, phone))).toEqual(['P02']);
+    // Tam seçici (liste) yinelenmez ama müşteri SESSİZ KALMAZ: tek satırlık hatırlatma (P06, 06.10.2026)
+    expect(codesOf(await platformRows(ctx.db, phone))).toEqual(['P02', 'P06']);
+    // Soğuma anı ilerlemedi: hatırlatma kendiliğinden seçici değildir
     expect((await findSharedRoute(ctx.db, { phone }))?.lastPickerAt).toEqual(t0);
+
+    // Hatırlatma da 60 sn'de en çok 1 (üst sınır: kişiye dakikada 2 platform mesajı)
+    await sharedInbound(ctx, { phone }, text('bir şey sormak istiyorum'), { now: plus(t0, 20_000) });
+    expect(codesOf(await platformRows(ctx.db, phone))).toEqual(['P02', 'P06']);
 
     // 60 sn geçince yeniden seçici gelir
     await sharedInbound(ctx, { phone }, text('bir şey sormak istiyorum'), { now: plus(t0, 61_000) });
-    expect(codesOf(await platformRows(ctx.db, phone))).toEqual(['P02', 'P02']);
+    expect(codesOf(await platformRows(ctx.db, phone))).toEqual(['P02', 'P06', 'P02']);
   });
 
   it('müşterinin kendi istediği seçici (komut) de soğuma başlatmaz', async () => {

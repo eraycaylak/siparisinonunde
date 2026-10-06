@@ -17,9 +17,17 @@
 //   5) alıntılanan (yanıtlanan) dükkan mesajı → o dükkan
 //   6) son 24 saatte konuşulan (güncel) dükkan → devam
 //   7) dükkan adı eşleşmesi: tek → seçilir, birden çok → eşleşenlerin listesi
-//   8) seçici: son dükkanlar varsa en çok 2'si + "Diğer dükkanlar" butonu, yoksa dükkan listesi (sayfalı)
+//   8) seçici: son dükkanlar varsa en çok 2'si + "Diğer dükkanlar" butonu, yoksa dükkan listesi (sayfalı);
+//      seçici 60 sn içinde yeniden gönderilmez ama müşteri SESSİZ BIRAKILMAZ: tek satırlık yol gösterme gider (P06)
 // Seçici ve bilgi mesajları hiçbir dükkanın sohbetine girmez (shared_wa_messages, platform düzeyi; 30 gün).
 // Tekrar teslim (aynı wamid) ilk kararı hangi tarafa verildiyse (dükkan sohbeti ya da platform kaydı) orada yakalanır.
+//
+// MÜŞTERİ YANITSIZ KALMAZ (14 §8.1, 02 §6.2a; Eray'ın canlı geri bildirimi 06.10.2026 "illa #KOD yazmamızı bekliyor"):
+// müşterinin GERÇEK mesajı hiçbir kuralda tam sessizlikle karşılanmaz. Bilerek sessiz kalınan tek yerler kendi
+// trafiğimiz ve döngü koruması: giden mesajın echo'su, durum geri bildirimi (status), tekrar teslim (aynı wamid),
+// anahtarsız gönderici ve `request_welcome` (QR'ın ön-dolu #KOD mesajı hemen ardından gelir ve dükkanı seçer).
+// Dükkan motoru (engine.ts) yanıt üretmediğinde yönlendirici bunu ÖĞRENİR (`ensureShopReplied`: giden mesaj sayılır)
+// ve yedek bir yol gösterme yazar (P07). Spam koruması soğumalarla kurulur, sessizlikle değil.
 
 import {
   SHARED_BUTTON_IDS,
@@ -29,6 +37,7 @@ import {
   extractHashCodes,
   formatPhone,
   normalizeWaCode,
+  sharedContinueText,
   sharedOwnNumberText,
   sharedUnavailableText,
   toWaMeDigits,
@@ -41,6 +50,7 @@ import {
   orders,
   sharedWaMessages,
   sharedWaRoutes,
+  tenants,
   waAccounts,
   waWebhookEvents,
   type Database,
@@ -54,7 +64,9 @@ import { isMessagingLimitCode, isWaSendError, WaSendError, waErrorSummary } from
 import { getWaProvider, platformAccountRef, type WaAccountRow } from '../../wa/registry';
 import { acquireNumberSlot } from '../../wa/throttle';
 import type { NormalizedWaEvent, WaInteractiveMessage, WaRecipient, WaSender } from '../../wa/types';
-import { applyStatus, handleInboundMessage, inboundRecord, type EngineDeps, type ProcessEventsSummary } from './engine';
+import { tenantUnavailable } from './context';
+import { humanModeActive } from './customers';
+import { applyStatus, handleInboundMessage, inboundRecord, type EngineDeps, type InboundResult, type ProcessEventsSummary } from './engine';
 import { specBody, specKind, type OutboundSpec } from './outbound';
 import type { SendContext, SendOutcome } from './send';
 import { recipientOf, sendSpec, specRequestBody } from './send';
@@ -75,6 +87,21 @@ import { alertWabaMessagingLimit } from './waba-quota';
 export const SHARED_ROUTE_ACTIVE_MS = 24 * 60 * 60_000;
 /** Kendiliğinden (kodsuz, dükkansız mesaja) gönderilen seçicinin aynı kişiye en sık aralığı. */
 export const SHARED_PICKER_COOLDOWN_MS = 60_000;
+/**
+ * Seçici penceresi içindeki kısa yol gösterme (P06) ve dükkansız "DUR"/"BAŞLAT" bilgisi (P08) en sık aralığı.
+ * ÜST SINIR: seçici + hatırlatma ile aynı kişiye dakikada en çok 2 platform mesajı gider (saniyede 10 mesaj yazan
+ * birine 10 yanıt yazmak hem maliyet hem Meta kalite derecesi kaybıdır). Sessizlik değil, SADELEŞTİRME uygulanır.
+ */
+export const SHARED_HINT_COOLDOWN_MS = 60_000;
+/**
+ * Yedek yol gösterme (P07) penceresi: dükkan bu süre içinde müşteriye bir şey yazdıysa müşteri "yanıtsız" sayılmaz ve
+ * platform araya GİRMEZ; aynı yol gösterme de bu sıklıktan daha sık gönderilmez (üst sınır: saatte 1 platform mesajı).
+ * Neden 1 saat: motorun kendi sınırları (mesaj patlaması 2 dk, yardım yanıtı saatte 4 — `engine.ts`) bu pencerenin
+ * ALTINDA kalır, yani platform motorun "şimdilik yeter" kararını hiçbir zaman çürütmez (02 §6.2 sessizlik yasağı).
+ * Platform yalnız dükkan sohbeti SAATLERDİR hiç yanıt üretmediğinde (motor sürümü eski ya da bir yol gözden kaçmış)
+ * devreye girer.
+ */
+export const SHARED_FALLBACK_QUIET_MS = 60 * 60_000;
 /** Son dükkan listesi uzunluğu. */
 export const SHARED_RECENT_MAX = 5;
 /** WhatsApp liste mesajında en çok satır (tüm bölümler toplamı; teyit edilmeli: 10). */
@@ -368,6 +395,57 @@ async function pickerReply(db: Database, route: SharedRouteRow, intro?: string |
   return { code: 'P01', spec: recentShopsSpec(recent, all.length > recent.length, intro) };
 }
 
+/**
+ * Kişiye daha önce gönderilen aynı kodlu platform yanıtının zamanı (soğuma ölçüsü). Yeni kolon/migration GEREKMEZ:
+ * platform mesajları zaten `shared_wa_messages` outbox'ında duruyor (route + createdAt indeksli, 30 gün).
+ */
+async function lastPlatformReplyAt(db: Database, routeId: string, code: string): Promise<Date | null> {
+  const [row] = await db
+    .select({ at: sharedWaMessages.createdAt })
+    .from(sharedWaMessages)
+    .where(
+      and(
+        eq(sharedWaMessages.routeId, routeId),
+        eq(sharedWaMessages.direction, 'out'),
+        sql`${sharedWaMessages.payload} ->> 'code' = ${code}`,
+      ),
+    )
+    .orderBy(desc(sharedWaMessages.createdAt))
+    .limit(1);
+  return row?.at ?? null;
+}
+
+/** Müşteri listeden sıra seçmeye çalışıyor ("1", "2") ya da tek-iki karakter yazdı ("a", "ok"). */
+function looksLikeListPick(folded: string): boolean {
+  return /^\d{1,2}$/.test(folded) || (folded.length > 0 && folded.length <= 2);
+}
+
+/**
+ * P07 · Dükkan motoru bu mesaja otomatik yanıt üretmedi: müşteri yanıtsız kalmasın. Dükkan düğmesi seçimi ZORLAR
+ * (`picker_select` → `selected` → motor soğuma beklemeden durum kartı / kapalı bilgisi / karşılama gönderir).
+ */
+async function shopContinueReply(db: Database, route: SharedRouteRow, shopName: string): Promise<PlatformReply> {
+  const all = await selectableSharedShops(db);
+  const current = all.find((s) => s.tenantId === route.currentTenantId);
+  if (!current) return textReply('P07', sharedContinueText({ isletme: shopName, butonlar: false }));
+  const hasOthers = all.length > 1;
+  const [title] = shopButtonTitles([current], hasOthers ? [SHARED_PICKER_TEXTS.otherShops] : []);
+  const buttons = [{ id: SHARED_BUTTON_IDS.shop(current.tenantId), title: title! }];
+  if (hasOthers) buttons.push({ id: SHARED_BUTTON_IDS.list, title: SHARED_PICKER_TEXTS.otherShops });
+  return {
+    code: 'P07',
+    spec: {
+      type: 'interactive',
+      interactive: {
+        kind: 'buttons',
+        body: sharedContinueText({ isletme: current.name, butonlar: true, digerDukkanlar: hasOthers }),
+        footer: SHARED_PICKER_TEXTS.footer,
+        buttons,
+      },
+    },
+  };
+}
+
 async function listReply(db: Database, page: number, intro?: string | null): Promise<PlatformReply> {
   const all = await selectableSharedShops(db);
   if (!all.length) return textReply('P05', SHARED_PICKER_TEXTS.noShops);
@@ -436,7 +514,12 @@ async function decide(db: Database, route: SharedRouteRow, ev: InboundEvent, now
       (await accountOfWamid(db, ev.contextWamid)) ??
       (await lastSenderAccount(db, route, ev.from)) ??
       (await currentAccount(db, route, now, Number.POSITIVE_INFINITY));
-    return target ? { kind: 'tenant', account: target, selected: false, rule: 'opt_command', keepCurrent: true } : { kind: 'silent', rule: 'opt_command_no_shop' };
+    if (target) return { kind: 'tenant', account: target, selected: false, rule: 'opt_command', keepCurrent: true };
+    // Dükkan yok: eskiden tam sessizlik vardı. "DUR" yazan kişiye kayıt bulunmadığını söylemek ticari ileti değildir;
+    // seçici GÖNDERİLMEZ (izin isteği gibi okunurdu), yalın bilgi gider (60 sn'de en çok 1).
+    const optAt = await lastPlatformReplyAt(db, route.id, 'P08');
+    if (optAt && now.getTime() - optAt.getTime() < SHARED_HINT_COOLDOWN_MS) return { kind: 'silent', rule: 'opt_command_no_shop_cooldown' };
+    return { kind: 'platform', replies: [textReply('P08', SHARED_PICKER_TEXTS.optNoShop)], rule: 'opt_command_no_shop' };
   }
 
   // 1) Buton / liste yanıtları
@@ -479,8 +562,10 @@ async function decide(db: Database, route: SharedRouteRow, ev: InboundEvent, now
   // 3) Dükkan kodu: "#KOD" ya da mesajın tamamı bir kod. Yalın sözcük yalnız etkin dükkan yokken kod sayılır: etkin
   // oturumda "pide", "lahmacun" gibi bir sözcük başka dükkanın koduna denk gelse de müşteri dükkan değiştirmek istemez.
   const active = await currentAccount(db, route, now, SHARED_ROUTE_ACTIVE_MS);
+  let shopCodeNotFound = false;
   if (m.kind === 'text') {
-    const codes = extractHashCodes(text);
+    const hashCodes = extractHashCodes(text);
+    const codes = [...hashCodes];
     if (!codes.length && !active && folded && !folded.includes(' ')) {
       const whole = normalizeWaCode(folded);
       if (whole && /[A-Z]/.test(whole)) codes.push(whole);
@@ -498,6 +583,10 @@ async function decide(db: Database, route: SharedRouteRow, ev: InboundEvent, now
       }
       return { kind: 'platform', replies: [await unavailableShopReply(db, t)], rule: 'shop_code_unavailable' };
     }
+    // Buraya düşmek: yazılan "#KOD"ların hiçbiri dükkan değil (yazım hatası). Seçiciye/hatırlatmaya not düşülür —
+    // "#DENEM" yazan müşteri eskiden sebebini hiç öğrenmiyordu. Yalın sözcükten türeyen kod denemesi not DÜŞMEZ:
+    // "selam" gibi bir sözcüğe "kodu bulamadık" demek yanlış olurdu.
+    if (hashCodes.length) shopCodeNotFound = true;
   }
 
   // 4) Komutlar
@@ -526,11 +615,26 @@ async function decide(db: Database, route: SharedRouteRow, ev: InboundEvent, now
     }
   }
 
-  // 8) Dükkan seçici (kendiliğinden; aynı kişiye 60 sn'de en çok 1)
+  // 8) Dükkan seçici (kendiliğinden; aynı kişiye 60 sn'de en çok 1). Soğuma penceresinde TAM seçici yinelenmez ama
+  // müşteri SESSİZ BIRAKILMAZ (06.10.2026): tek satırlık yol gösterme gider (P06, 60 sn'de en çok 1). Üst sınır
+  // böylece kişi başına dakikada 2 platform mesajıdır; "a", "1", emoji gibi mesajlar artık cevapsız kalmaz.
+  const intro = codeNotFound ? SHARED_PICKER_TEXTS.codeNotFound : shopCodeNotFound ? SHARED_PICKER_TEXTS.shopCodeNotFound : null;
   if (route.lastPickerAt && now.getTime() - route.lastPickerAt.getTime() < SHARED_PICKER_COOLDOWN_MS) {
-    return { kind: 'silent', rule: 'picker_cooldown' };
+    const hintAt = await lastPlatformReplyAt(db, route.id, 'P06');
+    if (hintAt && now.getTime() - hintAt.getTime() < SHARED_HINT_COOLDOWN_MS) return { kind: 'silent', rule: 'picker_hint_cooldown' };
+    // Hatırlatma az önce GERÇEKTEN gönderilen seçiciyi anlatmalı (ayrım `pickerReply` ile aynı): seçilebilir dükkan
+    // yoksa o mesaj P05'ti ("dükkan yok") → "yukarıdaki mesajdan dükkan seç" demek yanlış olur; son dükkanlar
+    // mesajında (P01) "Dükkanları gör" düğmesi YOKTUR, o düğme yalnız liste mesajındadır (P02, `listButton`).
+    const shops = await selectableSharedShops(db);
+    const liste = shops.length > 0 && !shops.some((s) => route.recentTenantIds.includes(s.tenantId));
+    const hint = !shops.length
+      ? SHARED_PICKER_TEXTS.noShops
+      : liste && looksLikeListPick(folded)
+        ? SHARED_PICKER_TEXTS.pickerPickHint
+        : SHARED_PICKER_TEXTS.pickerRepeat;
+    return { kind: 'platform', replies: [textReply('P06', intro ? `${intro} ${hint}` : hint)], rule: 'picker_hint' };
   }
-  return { kind: 'platform', replies: [await pickerReply(db, route, codeNotFound ? SHARED_PICKER_TEXTS.codeNotFound : null)], rule: 'picker', auto: true };
+  return { kind: 'platform', replies: [await pickerReply(db, route, intro)], rule: 'picker', auto: true };
 }
 
 // ---------------------------------------------------------------------------
@@ -613,7 +717,10 @@ export async function routeSharedMessage(deps: EngineDeps, ev: InboundEvent, now
     deps.log.info({ rule: d.rule }, 'ortak numara: platform yanıtı');
     return { status: 'processed', decision: d.kind, rule: d.rule };
   }
-  const r = await handleInboundMessage(deps, d.account, ev, now, { selected: d.selected, repeatCode: d.repeatCode === true });
+  const r: EngineReply = await handleInboundMessage(deps, d.account, ev, now, { selected: d.selected, repeatCode: d.repeatCode === true });
+  if (r.status === 'processed' && r.conversationId && r.replied !== true) {
+    await ensureShopReplied(deps, { ev, now, rule: d.rule, tenantId: d.account.tenantId, conversationId: r.conversationId, key });
+  }
   return {
     status: r.status,
     decision: 'tenant',
@@ -621,6 +728,73 @@ export async function routeSharedMessage(deps: EngineDeps, ev: InboundEvent, now
     tenantId: d.account.tenantId,
     ...(r.conversationId ? { conversationId: r.conversationId } : {}),
   };
+}
+
+/**
+ * Motorun yanıtı (`engine.ts` `InboundResult`). `replied` motorun bu mesaj için müşteriye yanıt ürettiğini söyleyen
+ * SÖZLEŞMEDİR (14 §8.1). Alanı taşımayan bir motor sürümünde (`undefined`) yönlendirici ölçüyü kendisi yapar: dükkanın
+ * giden mesaj outbox'ına (`messages`) bakar — yani varsayıma düşmez.
+ */
+type EngineReply = InboundResult & { replied?: boolean };
+
+/**
+ * Yedek yanıtın uygulandığı kararlar: müşterinin mesajı SESSİZCE dükkan motoruna gitti (açık bir seçim ya da komut
+ * değil). Seçim kararlarında (`shop_code`, `picker_select`, `order_code`…) motor `selected` ile her zaman yanıt üretir;
+ * `shop_code_current` (QR'ı yeniden okutma) 60 sn çift dokunma korumasına güvenir. Buton/liste yanıtları hariçtir:
+ * butonlar BİZİM mesajımızdan gelir, bağlam motorda tamdır (ör. "Vazgeçtim" bilerek sessizdir).
+ */
+const SHARED_FALLBACK_RULES: ReadonlySet<string> = new Set(['current', 'reply_context']);
+
+/**
+ * Dükkan motoru (engine.ts) bu mesaja yanıt üretmediyse müşteri yanıtsız kalmasın: platform kısa bir yol gösterme
+ * yazar (P07). "Yanıt üretti mi" ölçüsü ÖNCE motorun sözleşmesidir (`InboundResult.replied`, 14 §8.1); alan yoksa
+ * yönlendirici motorun giden mesaj outbox'ına (`messages`) bakar — hiçbir durumda varsayım yapmaz. Üç kapı
+ * sessizliğin KASITLI olduğu durumları korur:
+ *   1. Motor bu mesaja yanıt yazdı (giden mesaj `now`dan sonra) ya da dükkan son 1 saatte yazdı → müşteri yanıtsız
+ *      değil; platformun araya girmesi gürültü olur.
+ *   2. Motorun BİLEREK sessiz kaldığı yollar (02 §6.2 "bilerek sessiz kalan yollar", 14 §8.1): opt-out, insan modu
+ *      (personel yanıtlayacak), `bot_enabled = false`, kara liste / askı (bu müşteriye "menüyü aç" demek yanlış) ve
+ *      Akış B kodu (kod bulunamadı yanıtı ve kaba kuvvet susturması motorun alanıdır).
+ *   3. Aynı yol gösterme saatte en çok 1 kez (sonsuz tekrar yok).
+ */
+async function ensureShopReplied(
+  deps: EngineDeps,
+  input: { ev: InboundEvent; now: Date; rule: string; tenantId: string; conversationId: string; key: string },
+): Promise<void> {
+  const { ev, now, conversationId, tenantId } = input;
+  if (!SHARED_FALLBACK_RULES.has(input.rule)) return;
+  const m = ev.message;
+  if (m.kind === 'button_reply' || m.kind === 'list_reply' || m.kind === 'request_welcome') return;
+  if (m.kind === 'text' && matchOrderCode(m.text)) return;
+  const db = deps.db;
+
+  // 1) Dükkandan giden son mesaj: `now` ve sonrası = motor bu mesaja yanıt verdi; pencere içindeyse müşteri yanıtsız değil
+  const [out] = await db
+    .select({ at: messages.createdAt })
+    .from(messages)
+    .where(and(eq(messages.tenantId, tenantId), eq(messages.conversationId, conversationId), eq(messages.direction, 'out')))
+    .orderBy(desc(messages.createdAt))
+    .limit(1);
+  if (out && now.getTime() - out.at.getTime() < SHARED_FALLBACK_QUIET_MS) return;
+
+  // 2) Kasıtlı sessizlik (opt-out / insan modu / bot kapalı / kara liste / askı): platform da susar
+  const [st] = await db
+    .select({ tenant: tenants, blocked: customers.isBlocked, mode: conversations.mode, humanUntil: conversations.humanUntil, optedOut: conversations.optedOut })
+    .from(conversations)
+    .innerJoin(tenants, eq(tenants.id, conversations.tenantId))
+    .innerJoin(customers, eq(customers.id, conversations.customerId))
+    .where(and(eq(conversations.id, conversationId), eq(conversations.tenantId, tenantId)));
+  if (!st || st.optedOut || st.blocked || !st.tenant.botEnabled || tenantUnavailable(st.tenant) || humanModeActive(st, now)) return;
+
+  await db.transaction(async (tx) => {
+    await lockKey(tx, input.key);
+    const route = await upsertSharedRoute(tx, ev.from);
+    const at = await lastPlatformReplyAt(tx, route.id, 'P07');
+    if (at && now.getTime() - at.getTime() < SHARED_FALLBACK_QUIET_MS) return;
+    const reply = await shopContinueReply(tx, route, st.tenant.name);
+    await queueSharedOutbound(tx, { routeId: route.id, to: ev.from, code: reply.code, spec: reply.spec, now: new Date(now.getTime() + 1) });
+    deps.log.info({ rule: input.rule, tenantId }, 'ortak numara: dükkan yanıt üretmedi, platform yol gösterdi');
+  });
 }
 
 /**

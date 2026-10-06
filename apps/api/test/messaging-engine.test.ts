@@ -1,12 +1,14 @@
 // Konuşma motoru: kanonik sıra ve sıklık kuralları (sahte saat), karşılama/menü linki, insana devir, opt-out,
 // kara liste/askı, kapalı/duraklatılmış, açık sipariş kartı, medya, echo, kimlik birleştirme.
+// Sessizlik kuralı (2026-10-06): bot açıkken hiçbir mesaj yanıtsız kalmaz — özel yanıt soğumadaysa kısa yardım (M01N).
 
-import { branches, branchEvents, conversations, customers, messages, notifications, openingHours, storefrontLinkTokens, tenants } from '@siparis/db';
+import { branches, branchEvents, conversations, customers, messages, notifications, openingHours, orders, storefrontLinkTokens, tenants } from '@siparis/db';
 import { and, eq, inArray } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { enqueueJob } from '../src/lib/jobs';
 import { sha256Hex } from '../src/lib/tokens';
 import type { OutboundPayload } from '../src/services/messaging/outbound';
+import { handleInboundMessage } from '../src/services/messaging/engine';
 import { createTestContext, expectError, type TestContext } from './helpers';
 import {
   HOUR,
@@ -20,6 +22,7 @@ import {
   plus,
   runJobs,
   setupWaTenant,
+  silentLog,
   threadRows,
   type WaSetup,
 } from './wa-helpers';
@@ -85,35 +88,49 @@ describe('karşılama ve sıklık (12 sa / 30 dk)', () => {
     expect(evs.filter((e) => (e.payload as { conversationId?: string }).conversationId === conv!.id).length).toBeGreaterThanOrEqual(2);
   });
 
-  it('30 dk içinde sessiz, sonra kısa yanıt (M01K), 12 sa sonra yeniden tam karşılama (aydınlatmasız)', async () => {
+  it('karşılama soğumasında yanıtsız kalmaz: M01N, 30 dk sonra M01K, 12 sa sonra tam karşılama (aydınlatmasız)', async () => {
     const phone = nextPhone();
     const t0 = new Date();
     await inbound(ctx, t.account, { phone }, text('merhaba'), { now: t0 });
-    await inbound(ctx, t.account, { phone }, text('orada mısınız'), { now: plus(t0, 10 * MIN) });
-    await inbound(ctx, t.account, { phone }, text('?'), { now: plus(t0, 29 * MIN) });
     const conv = await conversationFor(ctx.db, t.account, phone);
     expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01']);
-    await inbound(ctx, t.account, { phone }, text('menü'), { now: plus(t0, 31 * MIN) });
-    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01', 'M01K']);
-    await inbound(ctx, t.account, { phone }, text('x'), { now: plus(t0, 50 * MIN) });
-    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01', 'M01K']);
-    await inbound(ctx, t.account, { phone }, text('y'), { now: plus(t0, 62 * MIN) });
-    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01', 'M01K', 'M01K']);
+    // Mesaj patlaması: son yanıttan 2 dk geçmeden ikinci otomatik yanıt gitmez
+    await inbound(ctx, t.account, { phone }, text('orada mısınız'), { now: plus(t0, MIN) });
+    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01']);
+    // Karşılama soğuması (30 dk) içinde: eskiden TAM SESSİZLİK vardı, artık kısa yardım
+    await inbound(ctx, t.account, { phone }, text('a'), { now: plus(t0, 10 * MIN) });
+    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01', 'M01N']);
+    const help = await lastOut(ctx.db, conv!.id);
+    expect(help!.body).toContain('tam olarak anlayamadık');
+    expect(help!.body).toContain('menümüzü açabilirsiniz');
+    expect(help!.body).toContain('"yetkili"');
+    const helpSpec = (help!.payload as unknown as OutboundPayload).spec;
+    expect(helpSpec.type === 'interactive' && helpSpec.interactive.url?.label).toBe('Menüyü aç');
+    // Yardım yanıtından hemen sonra gelen mesaj sessiz (patlama koruması)
+    await inbound(ctx, t.account, { phone }, text('?'), { now: plus(t0, 11 * MIN) });
+    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01', 'M01N']);
+    // 30 dk geçti → kısa karşılama (M01K); 12 sa geçti → tam karşılama, aydınlatma satırı yok
+    await inbound(ctx, t.account, { phone }, text('menü'), { now: plus(t0, 35 * MIN) });
+    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01', 'M01N', 'M01K']);
     await inbound(ctx, t.account, { phone }, text('iyi akşamlar'), { now: plus(t0, 12 * HOUR + MIN) });
-    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01', 'M01K', 'M01K', 'M01']);
+    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01', 'M01N', 'M01K', 'M01']);
     const last = await lastOut(ctx.db, conv!.id);
     expect(last!.body).not.toContain('Kişisel verileriniz');
   });
 
-  it('request_welcome tam karşılama sayılır', async () => {
+  it('request_welcome tam karşılama sayılır; sohbeti yeniden açmak "anlayamadık" yanıtı üretmez', async () => {
     const phone = nextPhone();
     const t0 = new Date();
     await inbound(ctx, t.account, { phone }, { type: 'request_welcome' }, { now: t0 });
     const conv = await conversationFor(ctx.db, t.account, phone);
     expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01']);
     expect(conv!.unreadCount).toBe(0);
+    // Yazılan mesaj soğuma içinde de yanıt alır (M01N)
     await inbound(ctx, t.account, { phone }, text('merhaba'), { now: plus(t0, 5 * MIN) });
-    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01']);
+    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01', 'M01N']);
+    // request_welcome bir mesaj değil (müşteri yalnız sohbeti açtı): soğuma içinde sessiz kalır
+    await inbound(ctx, t.account, { phone }, { type: 'request_welcome' }, { now: plus(t0, 20 * MIN) });
+    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01', 'M01N']);
   });
 
   it('teslim edilmiş siparişi olan müşteri → M02 (son sipariş, tutarsız)', async () => {
@@ -180,7 +197,10 @@ describe('insana devir', () => {
     const rows = await threadRows(ctx.db, conv!.id);
     expect(rows[0]).toMatchObject({ direction: 'out', kind: 'echo', sentBy: 'business_phone', body: 'Merhaba, siparişiniz hazırlanıyor', status: 'sent' });
     await inbound(ctx, t.account, { phone }, text('teşekkürler'), { now: plus(t0, 5 * MIN) });
-    expect((await threadRows(ctx.db, conv!.id)).filter((r) => r.direction === 'out')).toHaveLength(1);
+    const after = await threadRows(ctx.db, conv!.id);
+    expect(after.filter((r) => r.direction === 'out')).toHaveLength(1);
+    // Döngü koruması: kendi giden mesajımıza (echo) bot yanıtı ÜRETİLMEZ
+    expect(after.filter((r) => r.sentBy === 'bot')).toHaveLength(0);
   });
 });
 
@@ -251,11 +271,14 @@ describe('şube durumu ve açık sipariş', () => {
     const phone = nextPhone();
     const t0 = new Date();
     await inbound(ctx, s.account, { phone }, text('merhaba'), { now: t0 });
-    await inbound(ctx, s.account, { phone }, text('merhaba'), { now: plus(t0, 5 * HOUR) });
     const conv = await conversationFor(ctx.db, s.account, phone);
     expect(await outCodes(ctx.db, conv!.id)).toEqual(['M03']);
+    // Kapalı bilgisi 6 sa'te 1: soğuma içinde M03 yinelenmez ama müşteri yanıtsız da kalmaz (M01N kapalı varyantı)
+    await inbound(ctx, s.account, { phone }, text('merhaba'), { now: plus(t0, 5 * HOUR) });
+    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M03', 'M01N']);
+    expect((await lastOut(ctx.db, conv!.id))!.body).toContain('Şu an sipariş alamıyoruz');
     await inbound(ctx, s.account, { phone }, text('merhaba'), { now: plus(t0, 6 * HOUR + MIN) });
-    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M03', 'M03']);
+    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M03', 'M01N', 'M03']);
 
     // Açık sipariş: kapalı şubede bile durum kartı
     const phone2 = nextPhone();
@@ -266,14 +289,21 @@ describe('şube durumu ve açık sipariş', () => {
     const out = await lastOut(ctx.db, conv2!.id);
     expect((out!.payload as unknown as OutboundPayload).code).toBe('M26');
     expect(out!.body).toContain(`#${order.number} numaralı siparişinizin durumu: Onaylandı`);
-    // 15 dk'da 1
+    // Durum kartı 15 dk'da 1: soğuma içinde kart yinelenmez, yerine takip bağlantılı yardım gider
     await inbound(ctx, s.account, { phone: phone2 }, text('?'), { now: plus(t0, 10 * MIN) });
-    expect(await outCodes(ctx.db, conv2!.id)).toEqual(['M26']);
+    expect(await outCodes(ctx.db, conv2!.id)).toEqual(['M26', 'M01N']);
+    const help = await lastOut(ctx.db, conv2!.id);
+    expect(help!.body).toContain('takip edebilirsiniz');
+    // Anlaşılan mesaja "anlayamadık" denmez: yalnız durum kartı soğumada (M01N'in anlasildi varyantı)
+    expect(help!.body).not.toContain('anlayamadık');
+    const helpSpec = (help!.payload as unknown as OutboundPayload).spec;
+    expect(helpSpec.type === 'interactive' && helpSpec.interactive.url?.label).toBe('Siparişi takip et');
     await inbound(ctx, s.account, { phone: phone2 }, text('?'), { now: plus(t0, 16 * MIN) });
-    expect(await outCodes(ctx.db, conv2!.id)).toEqual(['M26', 'M26']);
-    // Aktif siparişte konum → yanıt yok
+    expect(await outCodes(ctx.db, conv2!.id)).toEqual(['M26', 'M01N', 'M26']);
+    // Aktif siparişte konum: işletme panelde görür, müşteri de "ilettik" yanıtı alır (M30c)
     await inbound(ctx, s.account, { phone: phone2 }, { type: 'location', lat: 39.8, lng: 34.8 }, { now: plus(t0, 40 * MIN) });
-    expect(await outCodes(ctx.db, conv2!.id)).toEqual(['M26', 'M26']);
+    expect(await outCodes(ctx.db, conv2!.id)).toEqual(['M26', 'M01N', 'M26', 'M30c']);
+    expect((await lastOut(ctx.db, conv2!.id))!.body).toContain('Konumunuzu işletmeye ilettik');
   });
 
   it('duraklatılmış şube → M04 (12 sa\'te 1)', async () => {
@@ -282,10 +312,12 @@ describe('şube durumu ve açık sipariş', () => {
     await ctx.db.update(branches).set({ pausedUntil: plus(t0, 2 * HOUR) }).where(eq(branches.id, s.branchId));
     const phone = nextPhone();
     await inbound(ctx, s.account, { phone }, text('merhaba'), { now: t0 });
-    await inbound(ctx, s.account, { phone }, text('merhaba'), { now: plus(t0, HOUR) });
     const conv = await conversationFor(ctx.db, s.account, phone);
     expect(await outCodes(ctx.db, conv!.id)).toEqual(['M04']);
     expect((await lastOut(ctx.db, conv!.id))!.body).toContain('itibarıyla yeniden sipariş alacağız');
+    // Duraklatma bilgisi 12 sa'te 1: soğuma içinde yanıtsız kalmaz
+    await inbound(ctx, s.account, { phone }, text('merhaba'), { now: plus(t0, HOUR) });
+    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M04', 'M01N']);
   });
 
   it('açık siparişte "iptal" → M27a (onay butonları)', async () => {
@@ -299,21 +331,115 @@ describe('şube durumu ve açık sipariş', () => {
     expect(p.code).toBe('M27a');
     expect(p.spec.type === 'interactive' && p.spec.interactive.buttons?.map((b) => b.id)).toEqual([`cancel:${order.id}`, `keep:${order.id}`]);
   });
+
+  it('buton yanıtı: "Vazgeçtim" ve bayat "Beklerim" sessiz kalmaz (durum kartı)', async () => {
+    const phone = nextPhone();
+    const t0 = new Date();
+    const [cust] = await ctx.db.insert(customers).values({ tenantId: t.tenantId, phoneE164: phone }).returning();
+    const order = await ctx.createOrder({ tenantId: t.tenantId, branchId: t.branchId, status: 'new', extra: { customerId: cust!.id } });
+    await inbound(ctx, t.account, { phone }, text('iptal etmek istiyorum'), { now: t0 });
+    const conv = await conversationFor(ctx.db, t.account, phone);
+    expect((await outCodes(ctx.db, conv!.id)).at(-1)).toBe('M27a');
+    // "Vazgeçtim": kendi metni yok; eskiden TAM SESSİZLİK vardı → olağan sıra durum kartını gönderir
+    await inbound(ctx, t.account, { phone }, { type: 'button_reply', id: `keep:${order.id}` }, { now: plus(t0, 3 * MIN) });
+    expect((await outCodes(ctx.db, conv!.id)).at(-1)).toBe('M26');
+    // Bayat buton: işletme bu arada onayladı, "Beklerim" artık uygun değil → yanıtsız bırakılmaz
+    await ctx.db.update(orders).set({ status: 'accepted' }).where(eq(orders.id, order.id));
+    await inbound(ctx, t.account, { phone }, { type: 'button_reply', id: `wait:${order.id}` }, { now: plus(t0, 25 * MIN) });
+    const son = await lastOut(ctx.db, conv!.id);
+    expect((son!.payload as unknown as OutboundPayload).code).toBe('M26');
+    expect(son!.body).toContain('Onaylandı');
+  });
 });
 
 describe('medya ve desteklenmeyen', () => {
-  it('ses → M29 (30 dk\'da 1); desteklenmeyen → M30; görsel → yanıt yok', async () => {
+  it('ses → M29 (30 dk\'da 1); görsel → M30b; desteklenmeyen → M30; soğumalarda kısa yardım', async () => {
     const phone = nextPhone();
     const t0 = new Date();
     await inbound(ctx, t.account, { phone }, { type: 'audio' }, { now: t0 });
+    // Ses yanıtı 30 dk'da 1: soğuma içinde sessiz değil, kısa yardım
     await inbound(ctx, t.account, { phone }, { type: 'audio' }, { now: plus(t0, 10 * MIN) });
-    await inbound(ctx, t.account, { phone }, { type: 'image', caption: 'menü fotoğrafı' }, { now: plus(t0, 11 * MIN) });
-    await inbound(ctx, t.account, { phone }, { type: 'unsupported' }, { now: plus(t0, 12 * MIN) });
-    await inbound(ctx, t.account, { phone }, { type: 'unsupported' }, { now: plus(t0, 13 * MIN) });
+    // Görsel: eskiden HİÇ yanıt yoktu → M30b
+    await inbound(ctx, t.account, { phone }, { type: 'image', caption: 'menü fotoğrafı' }, { now: plus(t0, 20 * MIN) });
+    await inbound(ctx, t.account, { phone }, { type: 'unsupported' }, { now: plus(t0, 30 * MIN) });
+    await inbound(ctx, t.account, { phone }, { type: 'unsupported' }, { now: plus(t0, 40 * MIN) });
     const conv = await conversationFor(ctx.db, t.account, phone);
-    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M29', 'M30']);
+    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M29', 'M01N', 'M30b', 'M30', 'M01N']);
     const rows = await threadRows(ctx.db, conv!.id);
     expect(rows.filter((r) => r.direction === 'in').map((r) => r.kind)).toEqual(['audio', 'audio', 'image', 'system', 'system']);
+    const media = rows.filter((r) => r.direction === 'out').find((r) => (r.payload as unknown as OutboundPayload | null)?.code === 'M30b');
+    expect(media!.body).toContain('Gönderdiğiniz dosyayı işletmeye ilettik');
+  });
+});
+
+describe('tanınmayan mesaj: sessizlik yok (M01N), spam de yok', () => {
+  it('emoji ve tek harf de yanıt alır; ilk temasta karşılama, soğumada kısa yardım', async () => {
+    const phone = nextPhone();
+    const t0 = new Date();
+    // İlk temas: emoji de olsa tam karşılama gider
+    await inbound(ctx, t.account, { phone }, text('😀'), { now: t0 });
+    const conv = await conversationFor(ctx.db, t.account, phone);
+    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01']);
+    // Soğuma içinde tek harf / emoji: yanıtsız kalmaz
+    await inbound(ctx, t.account, { phone }, text('a'), { now: plus(t0, 5 * MIN) });
+    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01', 'M01N']);
+    await inbound(ctx, t.account, { phone }, text('🙏'), { now: plus(t0, 15 * MIN) });
+    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01', 'M01N', 'M01N']);
+  });
+
+  it('request_welcome açık siparişte de "anlayamadık" almaz (yazılmış bir mesaj yok)', async () => {
+    const phone = nextPhone();
+    const t0 = new Date();
+    const [cust] = await ctx.db.insert(customers).values({ tenantId: t.tenantId, phoneE164: phone }).returning();
+    await ctx.createOrder({ tenantId: t.tenantId, branchId: t.branchId, status: 'accepted', extra: { customerId: cust!.id } });
+    await inbound(ctx, t.account, { phone }, text('siparişim nerede'), { now: t0 });
+    const conv = await conversationFor(ctx.db, t.account, phone);
+    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M26']);
+    // Durum kartı soğuması (15 dk) içinde sohbeti yeniden açmak: müşteri bir şey YAZMADI → sessiz
+    await inbound(ctx, t.account, { phone }, { type: 'request_welcome' }, { now: plus(t0, 5 * MIN) });
+    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M26']);
+    // Yazılan mesaj aynı soğumada yanıt alır (kapı yalnız request_welcome için)
+    await inbound(ctx, t.account, { phone }, text('?'), { now: plus(t0, 6 * MIN) });
+    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M26', 'M01N']);
+  });
+
+  it('saatlik üst sınır (4) dolunca kısa süre sessiz, sonra yine yanıt verir', async () => {
+    const phone = nextPhone();
+    const t0 = new Date();
+    await inbound(ctx, t.account, { phone }, text('merhaba'), { now: t0 });
+    for (const dk of [10, 13, 16, 19, 22, 25]) {
+      await inbound(ctx, t.account, { phone }, text('aaa'), { now: plus(t0, dk * MIN) });
+    }
+    const conv = await conversationFor(ctx.db, t.account, phone);
+    // 4 yardım yanıtı gitti, 5. ve 6. mesaj sınır nedeniyle yanıtsız (müşteri son 15 dk'da 4 yanıt aldı)
+    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01', 'M01N', 'M01N', 'M01N', 'M01N']);
+    // Sınır kalıcı sessizlik DEĞİL: pencere kayınca motor yine yanıt verir
+    await inbound(ctx, t.account, { phone }, text('bbb'), { now: plus(t0, 90 * MIN) });
+    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01', 'M01N', 'M01N', 'M01N', 'M01N', 'M01K']);
+  });
+
+  it('InboundResult.replied: yanıt üretilince true, bilerek sessiz kalınca false (yönlendirici sözleşmesi)', async () => {
+    const now = new Date();
+    const deps = { db: ctx.db, config: ctx.config, log: silentLog };
+    const ev = (phone: string, wamid: string) => ({
+      type: 'message' as const,
+      phoneNumberId: null,
+      wamid,
+      from: { phone },
+      timestamp: now,
+      message: { kind: 'text' as const, text: 'merhaba' },
+    });
+    const yes = await handleInboundMessage(deps, t.account, ev(nextPhone(), 'wamid.replied.yes'), now);
+    expect(yes).toMatchObject({ status: 'processed', replied: true });
+
+    // Bot kapalı: mesaj panele düşer, yanıt üretilmez
+    const off = await setupWaTenant(ctx);
+    await ctx.db.update(tenants).set({ botEnabled: false }).where(eq(tenants.id, off.tenantId));
+    const no = await handleInboundMessage(deps, off.account, ev(nextPhone(), 'wamid.replied.no'), now);
+    expect(no).toMatchObject({ status: 'processed', replied: false });
+    // Tekrar teslim (aynı wamid) da yanıt üretmez
+    const dup = await handleInboundMessage(deps, t.account, ev('+905550000001', 'wamid.replied.yes'), now);
+    expect(dup).toMatchObject({ status: 'duplicate', replied: false });
   });
 });
 

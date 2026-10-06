@@ -515,6 +515,34 @@ export function m01kShortWelcome(v: { menuUrl: string }): WaDraft {
   return { code: 'M01K', body: 'Tekrar merhaba. Sipariş vermek için menümüzü açabilirsiniz.', cta: { label: BUTTON_TITLES.menu, url: v.menuUrl } };
 }
 
+/**
+ * M01N · Tanınmayan mesaj (selamlama, tek harf, emoji, konu dışı metin): sessiz kalmak yerine kısa yardım + çıkış
+ * yolu. Yanıt müşterinin o anki durumuna göre değişir: açık sipariş → takip bağlantısı, şube kapalı/duraklatılmış →
+ * sipariş alamadığımız bilgisi, aksi hâlde menü. "yetkili" satırı her varyantta durur (insana devir kaçışı).
+ */
+export function m01nNotUnderstood(v: { menuUrl?: string | null; trackingUrl?: string | null; kapali?: boolean; anlasildi?: boolean }): WaDraft {
+  // `anlasildi`: mesaj ANLAŞILDI ama özel yanıtı soğumada (durum kartı 15 dk, SSS 30 dk, konum 30 dk) — "nerede
+  // kaldı" diye yazan müşteriye "anlayamadık" demek yanlış olur; yanıt yine gider, yalnız ilk satır dürüstleşir.
+  const lines = [v.anlasildi ? 'Mesajınızı aldık.' : 'Mesajınızı aldık ama tam olarak anlayamadık.'];
+  if (v.trackingUrl) {
+    lines.push('Siparişinizin durumunu aşağıdaki bağlantıdan takip edebilirsiniz.');
+  } else if (v.kapali) {
+    lines.push('Şu an sipariş alamıyoruz; bu arada menümüze göz atabilirsiniz.');
+  } else {
+    lines.push('Sipariş vermek için menümüzü açabilirsiniz.');
+  }
+  lines.push('Bir yetkiliyle görüşmek isterseniz "yetkili" yazmanız yeterli.');
+  return {
+    code: 'M01N',
+    body: lines.join('\n'),
+    cta: v.trackingUrl
+      ? { label: BUTTON_TITLES.track, url: v.trackingUrl }
+      : v.menuUrl
+        ? { label: v.kapali ? BUTTON_TITLES.browseMenu : BUTTON_TITLES.menu, url: v.menuUrl }
+        : undefined,
+  };
+}
+
 export function m03Closed(v: { isletme: string; acilis?: string | null; menuUrl: string }): WaDraft {
   return {
     code: 'M03',
@@ -649,6 +677,24 @@ export function m29Voice(v: { menuUrl: string }): WaDraft {
 
 export function m30Unsupported(): WaDraft {
   return { code: 'M30', body: 'Bu içeriği okuyamadık, lütfen yazarak iletin.' };
+}
+
+/** M30b · Görsel / video / belge / çıkartma: okunamaz ama işletmeye iletildi (sessiz kalmamak için). */
+export function m30bMedia(v: { menuUrl: string }): WaDraft {
+  return {
+    code: 'M30b',
+    body: 'Gönderdiğiniz dosyayı işletmeye ilettik ama otomatik olarak okuyamıyoruz. Siparişinizi yazarak iletebilir ya da menümüzden seçim yapabilirsiniz.',
+    cta: { label: BUTTON_TITLES.menu, url: v.menuUrl },
+  };
+}
+
+/** M30c · Açık siparişte konum paylaşımı: işletmeye iletildi + takip bağlantısı. */
+export function m30cLocation(v: { trackingUrl: string }): WaDraft {
+  return {
+    code: 'M30c',
+    body: 'Konumunuzu işletmeye ilettik. Adresinizle ilgili bir değişiklik için bir yetkiliyle görüşmek isterseniz "yetkili" yazmanız yeterli.',
+    cta: { label: BUTTON_TITLES.track, url: v.trackingUrl },
+  };
 }
 
 export function m31OptOut(): WaDraft {
@@ -836,8 +882,10 @@ export const WITHDRAWAL_EXCEPTION_NOTICE =
   'Gıda siparişleri çabuk bozulabilen ürünler olduğundan cayma hakkı kapsamı dışındadır.';
 
 // ---------------------------------------------------------------------------
-// Ortak numara (00 §12a madde 8): platformun dükkan seçici mesajları. Bu mesajlar hiçbir dükkanın sohbetine girmez
-// (platform düzeyi, shared_wa_messages). Kodlar P01–P05. Dükkanın kendi mesajları dükkan adıyla başlar (brandedText).
+// Ortak numara (00 §12a madde 8): platformun dükkan seçici ve yol gösterme mesajları. Bu mesajlar hiçbir dükkanın
+// sohbetine girmez (platform düzeyi, shared_wa_messages). Kodlar P01–P08: P01 son dükkanlar, P02 liste, P03 kendi
+// numarası, P04 seçilemeyen dükkan, P05 dükkan yok, P06 seçici penceresinde kısa hatırlatma, P07 dükkan motoru yanıt
+// üretmedi, P08 dükkansız "DUR"/"BAŞLAT". Dükkanın kendi mesajları dükkan adıyla başlar (brandedText).
 
 /** Ortak numaradan giden dükkan mesajının ilk satırı (WhatsApp'ta kalın). */
 export function sharedBrandLine(shopName: string): string {
@@ -860,6 +908,14 @@ export const SHARED_PICKER_TEXTS = {
   listFirstPage: 'Listenin başı',
   matchesBody: 'Yazdığına uyan birden fazla dükkan var. Hangisinden sipariş vermek istersin?',
   codeNotFound: 'Bu sipariş kodunu bulamadık. Kodu, siparişi verdiğin sayfadan kontrol edebilirsin.',
+  /** P06 · Seçici az önce gitti, müşteri yine kodsuz yazdı: tam seçici yerine tek satırlık yol gösterme */
+  pickerRepeat: 'Dükkanları mı görmek istiyorsun? Yukarıdaki mesajdan dükkan seçebilirsin; dükkan adını ya da kodunu yazman da yeter.',
+  /** P06 · Mesaj liste sırası ("1") ya da tek harf: seçimin nasıl yapıldığını söyle */
+  pickerPickHint: 'Dükkanları mı görmek istiyorsun? Yukarıdaki "Dükkanları gör" düğmesine dokun ya da dükkan adını yaz.',
+  /** P06 · Yazılan "#KOD" hiçbir dükkana ait değil (seçicinin ya da hatırlatmanın ilk satırı) */
+  shopCodeNotFound: 'Bu dükkan kodunu bulamadık.',
+  /** P08 · "DUR"/"BAŞLAT" yazdı ama kişiye ait dükkan sohbeti yok */
+  optNoShop: 'Bu numarada sana ait bir dükkan sohbeti bulamadık. Sipariş vermek istersen "dükkanlar" yazabilirsin.',
   footer: 'Yemek Gelsin',
   /** P05 · Seçilebilir dükkan yok */
   noShops: 'Şu an bu numaradan sipariş alan dükkan yok. Daha sonra tekrar yazabilirsin.',
@@ -874,4 +930,16 @@ export function sharedOwnNumberText(v: { isletme: string; tel?: string | null; l
 /** P04 · Kodu yazılan dükkan şu an ortak numaradan sipariş almıyor (canlı değil, kapalı ya da askıda). */
 export function sharedUnavailableText(v: { isletme: string }): string {
   return `${v.isletme} şu an bu numaradan sipariş almıyor. Başka bir dükkan için "dükkanlar" yazabilirsin.`;
+}
+
+/**
+ * P07 · Dükkanın kendi sohbet motoru bu mesaja otomatik yanıt üretmedi (ör. yanıt soğuması, medya, eski buton):
+ * müşteri yanıtsız kalmasın diye platform yol gösterir. `butonlar` yoksa (dükkan artık seçilemiyor) metin yalındır.
+ */
+export function sharedContinueText(v: { isletme: string; butonlar: boolean; digerDukkanlar?: boolean }): string {
+  const ilk = `Mesajını *${v.isletme}* sohbetine ilettik.`;
+  if (!v.butonlar) return `${ilk}\nBaşka bir dükkan için "dükkanlar" yazabilirsin.`;
+  // Tek seçilebilir dükkan varsa "Diğer dükkanlar" düğmesi YOKTUR: olmayan bir seçimi vaat etmeyiz.
+  if (v.digerDukkanlar === false) return `${ilk}\nMenüyü açmak için aşağıdaki düğmeye dokunabilirsin.`;
+  return `${ilk}\nMenüyü açmak ya da başka bir dükkan seçmek için aşağıdaki düğmeleri kullanabilirsin.`;
 }

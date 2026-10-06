@@ -562,14 +562,20 @@ async function onInbound(m: InboundMessage) {
   if (m.buttonId) return routeButton(conv, m.buttonId);                       // "handoff", "order:<id>:confirm|edit|cancel", gecikme mesajındaki "Beklerim"/"İptal"…
   if (isHandoffRequest(m)) return startHandoff(conv);                         // "yetkili", "insan", "operatör"
   if (conv.mode === 'human' || conv.botMutedUntil > now() || !tenant.botEnabled) return; // bot susar
-  if (conv.customer.blocked || !tenant.canTakeOnlineOrders) return replyOnce(conv, 'ordering_unavailable', 12 * HOUR); // M33: kara liste, askı, deneme bitti, ordering_enabled kapalı
-  if (conv.activeOrderId) return replyOnce(conv, 'order_status_with_link', 15 * MIN); // açık sipariş: karşılama yerine durum kartı (M26); şube kapalıyken de gider
+  if (conv.customer.blocked || !tenant.canTakeOnlineOrders) return replyOnce(conv, 'ordering_unavailable', 12 * HOUR); // M33: kara liste, askı, deneme bitti, ordering_enabled kapalı (soğumada BİLEREK sessiz)
+  if (isMedia(m)) return replyOnce(conv, 'media', 30 * MIN) || notUnderstood(conv);  // M30b: görsel/video/belge/çıkartma (eskiden HİÇ yanıt yoktu)
+  if (conv.activeOrderId) {                                                   // açık sipariş: karşılama yerine durum kartı; şube kapalıyken de gider
+    if (m.location) return replyOnce(conv, 'location', 30 * MIN) || notUnderstood(conv, { active: true }); // M30c (eskiden HİÇ yanıt yoktu)
+    return replyOnce(conv, 'order_status_with_link', 15 * MIN) || notUnderstood(conv, { active: true });   // M26 → soğumada M01N (takip bağlantılı)
+  }
   const state = tenant.orderingState(conv.branchId);                          // open | busy | paused | closed (00 §7)
-  if (state === 'closed') return replyOnce(conv, 'closed', 6 * HOUR);          // M03; kapalılık kontrolü açık sipariş kontrolünden SONRA
-  if (state === 'paused') return replyOnce(conv, 'paused', 12 * HOUR);         // M04
-  if (isMediaOrUnsupported(m)) return handleMedia(conv, m);
+  if (state === 'closed') return replyOnce(conv, 'closed', 6 * HOUR) || notUnderstood(conv, { kapali: true });  // M03; kapalılık kontrolü açık sipariş kontrolünden SONRA
+  if (state === 'paused') return replyOnce(conv, 'paused', 12 * HOUR) || notUnderstood(conv, { kapali: true }); // M04
+  if (m.audio) return replyOnce(conv, 'voice', 30 * MIN) || notUnderstood(conv);              // M29
+  if (m.unsupported) return replyOnce(conv, 'unsupported', 24 * HOUR) || notUnderstood(conv); // M30
+  if (faqIntent(m)) return replyOnce(conv, `faq_${faqIntent(m)}`, 30 * MIN) || notUnderstood(conv); // M28a-d
   if (tenant.aiEnabled && flags.llm_parsing && looksLikeOrder(m)) return aiOrdering(conv, m); // Faz 2; kill-switch llm_parsing
-  if (autoReplySentWithin(conv, ['greeting_full', 'greeting_short'], 30 * MIN)) return;      // 30 dk'da en fazla 1 otomatik yanıt; panelde "yanıt bekliyor"
+  if (autoReplySentWithin(conv, ['greeting_full', 'greeting_short'], 30 * MIN)) return notUnderstood(conv); // M01N: eskiden TAM SESSİZLİK
   if (autoReplySentWithin(conv, ['greeting_full'], 12 * HOUR)) return send(conv, 'greeting_short'); // M01K: kısa yanıt + "Menüyü aç"
   return send(conv, 'greeting_full');                                          // M01/M02 tam karşılama (menü linkli), 12 saatte 1; konu dışı dahil; busy'de yoğunluk satırı eklenir
 }
@@ -577,7 +583,15 @@ async function onInbound(m: InboundMessage) {
 
 `replyOnce(key, cooldown)`: aynı konuşmada aynı tip otomatik yanıt soğuma süresi içinde tekrar gönderilmez (spam ve maliyet koruması). Soğuma sürelerinin tamamı işletme ayarı değil, platform konfigürasyonudur.
 
-**Karşılama sıklığı ve sıra (kanonik, [00](00-kararlar-ve-sozluk.md) §7; varyant tablosu [03](03-musteri-deneyimi-ve-storefront.md) §8.1):** (1) açık siparişi olan müşteriye karşılama yerine sipariş durumu kartı gider (15 dk'da 1), şube kapalı veya `paused` olsa bile; (2) kapalılık/`paused` kontrolü bundan sonra yapılır; (3) tam karşılama (M01/M02, menü linkli) aynı müşteriye en fazla **12 saatte bir** gider; (4) arada gelen mesajlara kısa yanıt + "Menüyü aç" (M01K) en fazla **30 dk'da bir** gider. `request_welcome` olayıyla (kullanıcı sohbeti ilk açtığında) gönderilen karşılama da tam karşılama sayılır. **Kabul kriteri:** aynı müşteri 12 saat içinde ikinci tam karşılamayı, 30 dk içinde ikinci otomatik karşılama/kısa yanıtı almaz; açık siparişi varken kapalı şubeye yazan müşteri M03 değil M26 alır (birim test).
+**Sessizlik yasağı (kanonik; 06.10.2026, canlı geri bildirim: "selam yazınca cevap gelmiyor, illa `#KOD` bekliyor").** Bot açıkken, opt-out ve insan modu dışında **hiçbir gelen mesaj yanıtsız kalmaz.** Soğuma bir yanıtı susturuyorsa (durum kartı 15 dk, kapalı 6 sa, duraklatıldı 12 sa, ses 30 dk, SSS 30 dk, karşılama 30 dk) sessizlik yerine **kısa yardım** gider: **M01N** — "Mesajınızı aldık ama tam olarak anlayamadık" + müşterinin durumuna göre bir çıkış (açık sipariş → takip bağlantısı, şube kapalı → "şu an sipariş alamıyoruz" + menü, aksi hâlde "Menüyü aç") + her varyantta `"yetkili"` satırı. Selamlama, tek harf, emoji ve konu dışı metin de bu yoldan yanıt alır; müşterinin `#KOD` yazması gerekmez. **Mesaj anlaşıldıysa ilk satır "anlayamadık" demez:** açık siparişte durum sorusu (durum kartı 15 dk), konum ve tekrarlanan SSS sorusunda metin "Mesajınızı aldık." ile başlar (`m01nNotUnderstood({ anlasildi: true })`) — anlamadığımızı söylemek yanlış olurdu; okunamayan içerikte (ses, görsel, desteklenmeyen) ve gerçekten tanınmayan metinde "tam olarak anlayamadık" kalır.
+
+**Spam ve maliyet sınırı (gerekçeli).** M01N iki kapıdan geçer: (1) **mesaj patlaması** — bu konuşmada giden son mesajdan `COOLDOWNS.notUnderstood` (2 dk) geçmeden ikinci bir yardım/karşılama yanıtı gitmez (saniyede 10 mesaj atan kişiye 10 yanıt yazılmaz); (2) **saatlik üst sınır** — aynı konuşmaya saatte en çok `NOT_UNDERSTOOD_HOURLY_LIMIT` (4) yardım yanıtı gider, çünkü aynı metnin tekrarı hem gönderim maliyeti hem Meta kalite derecesi riskidir (müşteri engelleyebilir). Sınır dolduğunda müşteri **yanıtsız sayılmaz**: son bir saatte zaten 4 yanıt almıştır, mesajı panelde okunmamış durur ve `"yetkili"` yazarak her zaman insana ulaşır. Sayaçların kaynağı soğuma defteri değil `messages` tablosudur (M05, M17b, M20 gibi soğumaya yazılmayan yanıtlar da müşterinin ekranında görünür).
+
+**Bilerek sessiz kalan yollar (değişmez).** Echo (kendi giden mesajımızın yankısı — iki bot arasında döngü yasağı), durum geri bildirimi, tekrar teslim (aynı `wamid`), insan modu, opt-out, `bot_enabled = false`, kara liste / askı (M33 soğuması içinde: bu müşteriye "menüyü açabilirsiniz" demek yanlış olur), sipariş kodu kaba kuvveti (10 dk'da 5 hatadan sonra) ve `request_welcome` (müşteri yalnız sohbeti açtı; yazdığı bir mesaj yok → "anlayamadık" denmez). Buton yanıtlarında ayrım: **bayat** buton (sipariş bulunamadı ya da durum artık uygun değil; ör. işletme onayladıktan sonra "Beklerim", iptalden sonra "Değerlendir", M27a'daki "Vazgeçtim") olağan sıraya bırakılır ve durum kartı / M01N ile yanıtlanır; **çift dokunma** (değerlendirme zaten kaydedilmiş, iptal talebi zaten alınmış) ilk yanıtla karşılanmış sayılır ve sessiz kalır.
+
+**Ortak numarada sessizlik yasağı (aynı kural, iki katman; [14](14-uygulama-sartnamesi.md) §8.1).** Ortak numarada mesaj önce yönlendiriciye (`shared-router.ts`) düşer, sonra seçilen dükkanın motoruna. Yönlendiricinin kendi sessizlikleri de kaldırıldı: dükkan seçici soğuması (60 sn) içindeki ikinci mesaj artık tam sessizlik değil tek satırlık yol gösterme alır (**P06** "Dükkanları mı görmek istiyorsun? …"; liste mesajından sonra liste sırası ya da tek harf yazıldıysa "Dükkanları gör düğmesine dokun ya da dükkan adını yaz" — bu düğme yalnız liste mesajında (P02) vardır, son dükkanlar mesajından (P01) sonra genel hatırlatma gider, seçilebilir dükkan hiç yoksa P05'in bilgisi yinelenir), dükkanı olmayan kişinin "DUR"/"BAŞLAT"ı kayıt bulunmadığı bilgisini alır (**P08**, seçici gönderilmeden) ve bilinmeyen `#KOD` seçiciye "Bu dükkan kodunu bulamadık." notuyla düşer. Motor yanıt üretmediğinde (`InboundResult.replied !== true`) yönlendirici **yedek bir yol gösterme** yazar (**P07**: "Mesajını *{Dükkan}* sohbetine ilettik" + dükkan düğmesi + "Diğer dükkanlar"), ama yalnız dükkan **son 1 saatte** hiç yazmadıysa ve sessizlik bilerek değilse — opt-out, insan modu, `bot_enabled=false`, kara liste/askı ve Akış B kodu yollarında platform da susar, yoksa motorun kararı çürütülürdü. Üst sınırlar: P06/P08 60 sn'de 1, P07 saatte 1. Bilerek sessiz kalan platform yolları: echo, durum geri bildirimi, tekrar teslim (aynı `wamid`) ve `request_welcome`.
+
+**Karşılama sıklığı ve sıra (kanonik, [00](00-kararlar-ve-sozluk.md) §7; varyant tablosu [03](03-musteri-deneyimi-ve-storefront.md) §8.1):** (1) açık siparişi olan müşteriye karşılama yerine sipariş durumu kartı gider (15 dk'da 1), şube kapalı veya `paused` olsa bile; (2) kapalılık/`paused` kontrolü bundan sonra yapılır; (3) tam karşılama (M01/M02, menü linkli) aynı müşteriye en fazla **12 saatte bir** gider; (4) arada gelen mesajlara kısa yanıt + "Menüyü aç" (M01K) en fazla **30 dk'da bir** gider. `request_welcome` olayıyla (kullanıcı sohbeti ilk açtığında) gönderilen karşılama da tam karşılama sayılır. **Kabul kriteri:** aynı müşteri 12 saat içinde ikinci tam karşılamayı, 30 dk içinde ikinci karşılama/kısa yanıtı (M01/M02/M01K) almaz; açık siparişi varken kapalı şubeye yazan müşteri M03 değil M26 alır; **karşılama soğuması içinde yazan müşteri sessizlikle değil M01N ile karşılanır ve iki mesaj arası en az 2 dk, saatte en çok 4 M01N olur** (birim test: `apps/api/test/messaging-engine.test.ts`).
 
 ### 6.3 Karşılama ve menü linki (Akış A) **[Faz 1]**
 
@@ -634,18 +648,19 @@ function matchOrderCode(m: InboundMessage): string | null {
 - Kapalı = şubenin `ordering_state` değeri `closed` (çalışma saati dışı; hesaplanır) veya `paused` (panelde "Sipariş almayı durdur"). `busy` (yoğun) sipariş almaya devam eder; karşılama uzatılmış tahmini süreyi gösterir ([00](00-kararlar-ve-sozluk.md) §7).
 - Abonelik askıdaysa (`suspended`, dunning G+21 veya deneme bitişi) ya da admin tenant için `ordering_enabled` anahtarını kapattıysa bot karşılama yerine "Şu an online sipariş alınamıyor, lütfen arayın: {telefon}" yanıtını verir (M33, 12 saatte bir); açık siparişlerin durum bildirimleri sürer ([00](00-kararlar-ve-sozluk.md) §9).
 - Açık siparişi olan müşteri kapalı şubeye yazarsa kapalı yanıtı değil sipariş durumu kartı gider (§6.2 sırası; [00](00-kararlar-ve-sozluk.md) §7).
+- Kapalı/duraklatılmış bilgisinin soğuması (6 sa / 12 sa) içinde yazan müşteri **sessiz bırakılmaz:** M01N'in kapalı varyantı gider ("Şu an sipariş alamıyoruz; bu arada menümüze göz atabilirsiniz" + "Menüye göz at"; §6.2 sessizlik yasağı).
 - Yanıt (`closed` için 6 saatte bir, M03; `paused` için 12 saatte bir, M04): kapalı olduğu, açılış saati, planlı sipariş açıksa "İleri saate sipariş ver" CTA'sı (storefront `scheduled_for` seçimiyle açılır). Kapalıyken storefront planlı sipariş dışında sipariş kabul etmez ([03](03-musteri-deneyimi-ve-storefront.md)).
 
 ### 6.7 Konu dışı, medya, ses, konum
 
 | Gelen | Faz 1 davranışı | Sonraki faz |
 |---|---|---|
-| Konu dışı metin | Tam karşılama + "Menüyü aç" (12 saatte 1), arada kısa yanıt + "Menüyü aç" (30 dk'da 1); tekrar ederse sessiz, panelde okunmamış (§6.2) | [Faz 2] AI kibar ret + menü butonu; genel sohbete girmez |
-| Görsel / video / belge | Medya indirilir (§7.7), panelde gösterilir; bot yanıtı yok | — |
-| Sesli mesaj | Panelde oynatılır; bot: "Sesli mesajınızı işletmeye ilettik. Hızlı sipariş için menüyü açabilirsiniz." (1 kez/30 dk) | [Faz 2–3] konuşmadan metne + AI (KVKK saklama kuralıyla, teyit edilmeli) |
-| Konum | Konuşmaya iliştirilir, panelde harita pini; aktif siparişte "müşteri konum paylaştı" notu | [Faz 2] storefront adres adımında "WhatsApp'ta paylaştığınız konumu kullan" |
-| Kişi kartı, tepki (reaction), çıkartma | Saklanır, yanıt yok | — |
-| Desteklenmeyen (131051) | "Bu içeriği okuyamadık, lütfen yazarak iletin." (1 kez/gün) | — |
+| Konu dışı metin, selamlama ("selam", "merhaba"), tek harf, emoji | Tam karşılama + "Menüyü aç" (12 saatte 1), arada kısa yanıt + "Menüyü aç" (30 dk'da 1); **soğuma içinde sessiz DEĞİL: kısa yardım (M01N)** — patlama koruması 2 dk, saatlik sınır 4 (§6.2 sessizlik yasağı) | [Faz 2] AI kibar ret + menü butonu; genel sohbete girmez |
+| Görsel / video / belge / çıkartma | Medya indirilir (§7.7), panelde gösterilir; bot: **M30b** "Gönderdiğiniz dosyayı işletmeye ilettik ama otomatik olarak okuyamıyoruz" + "Menüyü aç" (1 kez/30 dk, sonra M01N) | — |
+| Sesli mesaj | Panelde oynatılır; bot: "Sesli mesajınızı işletmeye ilettik. Hızlı sipariş için menüyü açabilirsiniz." (M29, 1 kez/30 dk, sonra M01N) | [Faz 2–3] konuşmadan metne + AI (KVKK saklama kuralıyla, teyit edilmeli) |
+| Konum | Konuşmaya iliştirilir, panelde harita pini; aktif siparişte "müşteri konum paylaştı" notu + bot: **M30c** "Konumunuzu işletmeye ilettik" + "Siparişi takip et" (1 kez/30 dk); açık sipariş yoksa karşılama / M01N | [Faz 2] storefront adres adımında "WhatsApp'ta paylaştığınız konumu kullan" |
+| Kişi kartı, tepki (reaction) | Saklanır; yanıt M30 (1 kez/gün), sonra M01N | — |
+| Desteklenmeyen (131051) | "Bu içeriği okuyamadık, lütfen yazarak iletin." (M30, 1 kez/gün, sonra M01N) | — |
 
 ### 6.8 REQUEST_CONTACT_INFO
 

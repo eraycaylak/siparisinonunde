@@ -1,9 +1,18 @@
 // Konuşma motoru (00 §7 kanonik sıra, 02 §6, 03 §8). Faz 1: kural tabanlı, AI yok.
 // Sıra: opt-out/opt-in komutları → kara liste / askıdaki işletme (M33, 12 sa'te 1) → sipariş kodu (Akış B, M05 anında)
-// → buton yanıtları → "yetkili" (M20, insan modu 30 dk) → insan modu / opt-out / bot kapalı → sessiz → açık sipariş
-// durum kartı (M26, 15 dk'da 1) → şube kapalı (M03, 6 sa) / duraklatılmış (M04, 12 sa) → ses (M29) / desteklenmeyen
-// (M30) → SSS niyetleri (M28) → tam karşılama (M01/M02, 12 sa'te 1) / kısa yanıt (M01K, 30 dk'da 1).
+// → buton yanıtları → "yetkili" (M20, insan modu 30 dk) → insan modu / opt-out / bot kapalı → sessiz → medya (M30b)
+// → açık sipariş durum kartı (M26, 15 dk'da 1) / konum (M30c) → şube kapalı (M03, 6 sa) / duraklatılmış (M04, 12 sa)
+// → ses (M29) / desteklenmeyen (M30) → SSS niyetleri (M28) → tam karşılama (M01/M02, 12 sa'te 1) / kısa yanıt
+// (M01K, 30 dk'da 1) → tanınmayan mesaj (M01N).
 // Echo (işletme telefonundan) → insan modu 30 dk. Durum olayları → messages.status monoton.
+//
+// SESSİZLİK KURALI (2026-10-06, canlı geri bildirim: "selam yazınca cevap yok, illa #KOD bekliyor"): bot açıkken,
+// opt-out ve insan modu dışında HİÇBİR gelen mesaj yanıtsız kalmaz. Özel bir yanıt soğumasına takılıyorsa (durum
+// kartı 15 dk, kapalı 6 sa, ses 30 dk, SSS 30 dk, karşılama 30 dk…) sessizlik yerine kısa yardım gider (M01N,
+// notUnderstood). Spam sınırı iki yerden: son giden mesajdan COOLDOWNS.notUnderstood geçmeden ikinci yardım yok ve
+// saatte en çok NOT_UNDERSTOOD_HOURLY_LIMIT yardım yanıtı. Sessiz KALAN yollar bilerek sessizdir: echo (kendi
+// mesajımız → döngü koruması), durum geri bildirimi, insan modu, opt-out, bot kapalı, kara liste/askı (M33 soğuması),
+// kod kaba kuvveti ve tekrar teslim (aynı wamid).
 
 import {
   BUTTON_IDS,
@@ -16,6 +25,7 @@ import {
   formatTL,
   m01Welcome,
   m01kShortWelcome,
+  m01nNotUnderstood,
   m02Returning,
   m03Closed,
   m04Paused,
@@ -38,6 +48,8 @@ import {
   m28dPayments,
   m29Voice,
   m30Unsupported,
+  m30bMedia,
+  m30cLocation,
   m31OptOut,
   m31aOptOutAll,
   m31bOptOutMarketingOnly,
@@ -63,7 +75,7 @@ import {
   users,
   type Database,
 } from '@siparis/db';
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, sql } from 'drizzle-orm';
 import type { FastifyBaseLogger } from 'fastify';
 import type { Config } from '../../config';
 import { appendBranchEvent } from '../../lib/events';
@@ -115,14 +127,27 @@ export const COOLDOWNS = {
   paused: 12 * HOUR,
   unavailable: 12 * HOUR,
   voice: 30 * MIN,
+  media: 30 * MIN,
+  location: 30 * MIN,
   unsupported: 24 * HOUR,
   faq: 30 * MIN,
+  /** Tanınmayan mesaja yardım yanıtı (M01N): son giden mesajdan bu kadar süre geçmeden ikincisi gitmez. */
+  notUnderstood: 2 * MIN,
   cancelIntent: 15 * MIN,
   handoffMode: 30 * MIN,
   echoMute: 30 * MIN,
   codeFailWindow: 10 * MIN,
 } as const;
 export const CODE_FAIL_LIMIT = 5;
+/**
+ * Aynı konuşmaya bir saatte gönderilecek en çok yardım yanıtı (M01N). Üst sınır gerekçesi: aynı metni ard arda
+ * yollamak hem gönderim maliyeti hem Meta kalite derecesi riskidir (müşteri engelleyebilir). Sınır dolduğunda müşteri
+ * yanıtsız SAYILMAZ: son 1 saat içinde zaten bu kadar yanıt almıştır, mesajı panele okunmamış olarak düşer ve
+ * "yetkili" yazarak her zaman insana ulaşabilir.
+ */
+export const NOT_UNDERSTOOD_HOURLY_LIMIT = 4;
+/** M01N kodu (tr.ts m01nNotUnderstood): saatlik sınır messages tablosundan sayılır. */
+const NOT_UNDERSTOOD_CODE = 'M01N';
 /** Aynı dükkanın kodu yeniden gönderilince: son otomatik yanıttan bu kadar süre geçmediyse sessiz (çift dokunma). */
 export const REPEAT_CODE_GAP_MS = 60 * 1000;
 
@@ -141,7 +166,11 @@ interface Ctx {
   msg: NormalizedWaMessage;
   /** Aynı işlemde giden mesajların sırası (createdAt = now + seq ms) */
   seq: number;
+  /** Bu gelen mesaj için müşteriye giden bir yanıt üretildi mi (InboundResult.replied) */
+  replied: boolean;
   schedule?: BranchSchedule;
+  /** Son giden mesaj + son 1 saatteki M01N sayısı (tek seferlik okuma; notUnderstood sınırları) */
+  recent?: RecentOutbound;
   /**
    * Ortak numara (00 §12a madde 8): müşteri bu mesajla dükkanı AÇIKÇA seçti (#KOD, dükkan listesi, ad eşleşmesi).
    * Soğuma süreleri beklenmeden durum kartı / kapalı bilgisi / karşılama (menü linki) gider.
@@ -166,6 +195,19 @@ export interface InboundResult {
   status: 'processed' | 'duplicate' | 'ignored';
   messageId?: string;
   conversationId?: string;
+  /**
+   * Motor bu mesaj için müşteriye giden bir yanıt ürettiyse true (ortak numara yönlendiricisi için sözleşme: 14 §8.1).
+   * Buton yanıtıyla tetiklenen iptal gibi durumlarda mesaj sipariş kancasından gider ama yine true'dur (müşteri yanıt
+   * alacak). false = motor BİLEREK sessiz kaldı (insan modu, opt-out, bot kapalı, kara liste/askı soğuması, kod kaba
+   * kuvveti, request_welcome) ya da yardım yanıtı sınırına takıldı (müşteri son dakikalarda zaten yanıt aldı).
+   * 'duplicate' / 'ignored' → false.
+   *
+   * UYARI: false "müşteri cevapsız kaldı" DEMEK DEĞİLDİR. Motor soğuma yüzünden artık susmaz; kalan false durumları
+   * ya yanıt İSTENMEYEN (opt-out, insan modu, bot kapalı) ya da bilerek sınırlanmış durumlardır. Bu yüzden ortak
+   * numara yönlendiricisinin false gördüğünde kendi mesajını göndermesi opt-out'u bozar ve spam sınırını geçersiz
+   * kılar; araya girecekse konuşmanın durumunu (mode, optedOut, botEnabled) ayrıca kontrol etmelidir (14 §8.1).
+   */
+  replied: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -189,6 +231,8 @@ type CooldownKey =
   | 'paused'
   | 'unavailable'
   | 'voice'
+  | 'media'
+  | 'location'
   | 'unsupported'
   | 'cancel_intent'
   | `faq_${string}`
@@ -241,6 +285,7 @@ async function markSent(ctx: Ctx, key: CooldownKey): Promise<void> {
 
 async function send(ctx: Ctx, draft: WaDraft | { code: string; spec: OutboundSpec }, opts: { orderId?: string | null; statusMessage?: boolean } = {}) {
   ctx.seq += 1;
+  ctx.replied = true;
   const spec = 'spec' in draft ? draft.spec : draftToSpec(draft);
   return queueOutbound(ctx.tx, {
     tenantId: ctx.tenant.id,
@@ -255,13 +300,71 @@ async function send(ctx: Ctx, draft: WaDraft | { code: string; spec: OutboundSpe
   });
 }
 
-/** Aynı tip otomatik yanıt soğuma süresi içinde tekrar gönderilmez (replyOnce). Her durumda "işlendi" sayılır. */
-async function replyOnce(ctx: Ctx, key: CooldownKey, cooldownMs: number, factory: () => Promise<WaDraft | null> | WaDraft | null): Promise<void> {
-  if (since(ctx, lastSent(ctx, key)) < cooldownMs) return;
+/**
+ * Aynı tip otomatik yanıt soğuma süresi içinde tekrar gönderilmez (replyOnce). Her durumda "işlendi" sayılır.
+ * Dönüş: yanıt gönderildi mi (false → çağıran sessiz kalmak yerine yardım yanıtına düşer).
+ */
+async function replyOnce(ctx: Ctx, key: CooldownKey, cooldownMs: number, factory: () => Promise<WaDraft | null> | WaDraft | null): Promise<boolean> {
+  if (since(ctx, lastSent(ctx, key)) < cooldownMs) return false;
   const draft = await factory();
-  if (!draft) return;
+  if (!draft) return false;
   await send(ctx, draft);
   await markSent(ctx, key);
+  return true;
+}
+
+interface RecentOutbound {
+  /** Bu konuşmada giden EN SON mesajın anı (bot, personel ya da echo — hepsi müşterinin ekranında görünür) */
+  lastOutAt: Date | null;
+  /** Son 1 saatte gönderilen yardım yanıtı (M01N) sayısı */
+  notUnderstood: number;
+}
+
+/**
+ * Yardım yanıtı sınırları için tek seferlik okuma. Kaynak soğuma defteri DEĞİL `messages` tablosudur: M05, M17b, M20
+ * gibi soğumaya yazılmayan yanıtlar da müşterinin ekranında görünür, "şimdi yazdım" sayılmalıdır.
+ */
+async function recentOutbound(ctx: Ctx): Promise<RecentOutbound> {
+  if (ctx.recent) return ctx.recent;
+  const mine = and(eq(messages.tenantId, ctx.tenant.id), eq(messages.conversationId, ctx.conv.id), eq(messages.direction, 'out'));
+  const [last] = await ctx.tx.select({ createdAt: messages.createdAt }).from(messages).where(mine).orderBy(desc(messages.createdAt)).limit(1);
+  const [cnt] = await ctx.tx
+    .select({ n: sql<number>`count(*)::int` })
+    .from(messages)
+    .where(and(mine, sql`${messages.payload}->>'code' = ${NOT_UNDERSTOOD_CODE}`, gt(messages.createdAt, new Date(ctx.now.getTime() - HOUR))));
+  ctx.recent = { lastOutAt: last?.createdAt ?? null, notUnderstood: cnt?.n ?? 0 };
+  return ctx.recent;
+}
+
+/** Son giden mesajdan COOLDOWNS.notUnderstood geçmediyse ikinci bir yardım/karşılama yanıtı gitmez (mesaj patlaması). */
+async function burstQuiet(ctx: Ctx): Promise<boolean> {
+  const recent = await recentOutbound(ctx);
+  return since(ctx, recent.lastOutAt) < COOLDOWNS.notUnderstood;
+}
+
+/** replyOnce + mesaj patlaması koruması. Bilgi taşımayan "anladım/ilettim" türü yanıtlar için (ses, medya, konum). */
+async function helpReply(ctx: Ctx, key: CooldownKey, cooldownMs: number, factory: () => Promise<WaDraft | null> | WaDraft | null): Promise<boolean> {
+  if (await burstQuiet(ctx)) return false;
+  return replyOnce(ctx, key, cooldownMs, factory);
+}
+
+/**
+ * Tanınmayan mesaj (selamlama, tek harf, emoji, konu dışı metin) ya da soğumaya takılmış özel yanıt: sessizlik yerine
+ * kısa yardım (M01N). Yanıt müşterinin durumuna göre değişir: açık sipariş → takip bağlantısı, şube kapalı →
+ * sipariş alamadığımız bilgisi, aksi hâlde menü bağlantısı; her varyantta "yetkili" çıkışı vardır.
+ */
+async function notUnderstood(ctx: Ctx, opts: { active?: OrderRow; kapali?: boolean; anlasildi?: boolean } = {}): Promise<void> {
+  // request_welcome bir mesaj DEĞİLDİR (müşteri yalnız sohbeti açtı, yazdığı bir metin yok): ona "anlayamadık"
+  // denmez (02 §6.2 bilerek sessiz kalan yollar). Kapı burada: açık siparişte durum kartı soğumasındayken ve kapalı
+  // şubede de aynı yola düşülüyor, yalnız karşılama dalında tutulması yetmiyordu.
+  if (ctx.msg.kind === 'request_welcome') return;
+  if (await burstQuiet(ctx)) return;
+  const recent = await recentOutbound(ctx);
+  if (recent.notUnderstood >= NOT_UNDERSTOOD_HOURLY_LIMIT) return;
+  const draft = opts.active
+    ? m01nNotUnderstood({ trackingUrl: orderTrackingUrl(ctx.deps.config, opts.active.id), anlasildi: opts.anlasildi === true })
+    : m01nNotUnderstood({ menuUrl: await menuLink(ctx), kapali: opts.kapali === true, anlasildi: opts.anlasildi === true });
+  await send(ctx, draft);
 }
 
 async function schedule(ctx: Ctx): Promise<BranchSchedule> {
@@ -351,12 +454,12 @@ export async function handleInboundMessage(
   opts: InboundOptions = {},
 ): Promise<InboundResult> {
   const senderKey = ev.from.bsuid ?? ev.from.phone;
-  if (!senderKey) return { status: 'ignored' };
+  if (!senderKey) return { status: 'ignored', replied: false };
   return deps.db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`wa:${account.id}:${senderKey}`}, 0))`);
     const tenant = await loadTenant(tx, account.tenantId);
     const branch = await loadBranch(tx, account.tenantId, account.branchId);
-    if (!tenant || !branch) return { status: 'ignored' };
+    if (!tenant || !branch) return { status: 'ignored', replied: false };
 
     const customer = await upsertWaCustomer(tx, tenant.id, ev.from);
     const conv0 = await upsertConversation(tx, account, customer.id);
@@ -376,7 +479,7 @@ export async function handleInboundMessage(
       })
       .onConflictDoNothing({ target: messages.wamid })
       .returning({ id: messages.id });
-    if (!inserted) return { status: 'duplicate', conversationId: conv0.id };
+    if (!inserted) return { status: 'duplicate', conversationId: conv0.id, replied: false };
 
     const inboundAt = ev.timestamp > now ? now : ev.timestamp;
     const countsUnread = ev.message.kind !== 'request_welcome';
@@ -404,7 +507,22 @@ export async function handleInboundMessage(
     await tx.update(customers).set({ lastInboundAt: inboundAt }).where(eq(customers.id, customer.id));
 
     const bot = await ensureBotState(tx, tenant.id, conv!.id);
-    const ctx: Ctx = { tx, deps, now, account, tenant, branch, customer, conv: conv!, bot, msg: ev.message, seq: 0, selected: opts.selected === true, repeatCode: opts.repeatCode === true };
+    const ctx: Ctx = {
+      tx,
+      deps,
+      now,
+      account,
+      tenant,
+      branch,
+      customer,
+      conv: conv!,
+      bot,
+      msg: ev.message,
+      seq: 0,
+      replied: false,
+      selected: opts.selected === true,
+      repeatCode: opts.repeatCode === true,
+    };
     await respond(ctx);
     // Gelen mesajın şube olayı en sonda: yanıt sırasında sipariş satırı (iptal, kod eşleşmesi) şube olay kilidinden
     // ÖNCE kilitlenir — panel işlemleriyle aynı kilit sırası (satır → şube), kilitlenme (40P01) olmaz.
@@ -416,7 +534,7 @@ export async function handleInboundMessage(
       payload: { conversationId: conv!.id, messageId: inserted.id, direction: 'in', preview, unreadCount: conv!.unreadCount, at: now.toISOString() },
     });
     if (expired) await emitConversationUpdated(tx, ctx.conv);
-    return { status: 'processed', messageId: inserted.id, conversationId: conv!.id };
+    return { status: 'processed', messageId: inserted.id, conversationId: conv!.id, replied: ctx.replied };
   });
 }
 
@@ -442,10 +560,12 @@ async function respond(ctx: Ctx): Promise<void> {
 
   const silent = humanModeActive(ctx.conv, ctx.now) || ctx.conv.optedOut || !ctx.tenant.botEnabled;
 
-  // 2) Kara liste / askıdaki işletme → M33 (12 sa'te 1)
+  // 2) Kara liste / askıdaki işletme → M33 (12 sa'te 1). Soğuma içinde BİLEREK sessiz: bu müşteriye/işletmeye
+  // "menüyü açabilirsiniz" demek yanlış olur, yardım yanıtı (M01N) bu dala eklenmez.
   if (ctx.customer.isBlocked || tenantUnavailable(ctx.tenant)) {
     if (silent) return;
-    return replyOnce(ctx, 'unavailable', COOLDOWNS.unavailable, () => m33Unavailable({ subeTel: phoneText(ctx) }));
+    await replyOnce(ctx, 'unavailable', COOLDOWNS.unavailable, () => m33Unavailable({ subeTel: phoneText(ctx) }));
+    return;
   }
 
   // 3) Sipariş kodu (Akış B) — insan modunda ve bot kapalıyken de işlenir
@@ -477,34 +597,56 @@ async function respond(ctx: Ctx): Promise<void> {
     return shopSelected(ctx, silent, { repeat: true });
   }
 
-  // 6) İnsan modu / opt-out / bot kapalı → otomatik yanıt yok
+  // 6) İnsan modu / opt-out / bot kapalı → otomatik yanıt yok (mesaj panele düşer, personel yanıtlar)
   if (silent) return;
 
-  // 7) Görsel / video / belge / çıkartma → yanıt yok (panelde görünür)
-  if (m.kind === 'image' || m.kind === 'video' || m.kind === 'document' || m.kind === 'sticker') return;
+  // 7) Görsel / video / belge / çıkartma: içeriği okuyamıyoruz ama sessiz de kalmıyoruz (M30b, 30 dk'da 1)
+  if (m.kind === 'image' || m.kind === 'video' || m.kind === 'document' || m.kind === 'sticker') {
+    if (await helpReply(ctx, 'media', COOLDOWNS.media, async () => m30bMedia({ menuUrl: await menuLink(ctx) }))) return;
+    return notUnderstood(ctx);
+  }
 
   // 8) Açık sipariş → durum kartı (15 dk'da 1; şube kapalıyken de)
   const active = await findActiveOrder(ctx.tx, ctx.tenant.id, ctx.customer.id);
   if (active) {
-    if (m.kind === 'location') return; // işletme görür
-    if (m.kind === 'text' && detectIntent(text) === 'cancel') return cancelIntent(ctx, active);
-    return replyOnce(ctx, 'status_card', COOLDOWNS.statusCard, () => statusCard(ctx, active));
+    // Konum: işletme panelde haritada görür; müşteriye de "ilettik" yanıtı gider (M30c, 30 dk'da 1)
+    if (m.kind === 'location') {
+      const trackingUrl = orderTrackingUrl(ctx.deps.config, active.id);
+      if (await helpReply(ctx, 'location', COOLDOWNS.location, () => m30cLocation({ trackingUrl }))) return;
+      return notUnderstood(ctx, { active, anlasildi: true }); // konum anlaşıldı, yalnız "ilettik" yanıtı soğumada
+    }
+    if (m.kind === 'text' && detectIntent(text) === 'cancel' && (await cancelIntent(ctx, active))) return;
+    if (await replyOnce(ctx, 'status_card', COOLDOWNS.statusCard, () => statusCard(ctx, active))) return;
+    // Açık siparişte soru soran müşteriye "anlayamadık" demeyiz: durum kartı soğumada, takip bağlantısı gider
+    return notUnderstood(ctx, { active, anlasildi: true });
   }
 
   // 9) Şube kapalı / duraklatılmış
   const sched = await schedule(ctx);
   if (sched.state === 'closed') {
-    return replyOnce(ctx, 'closed', COOLDOWNS.closed, async () => m03Closed({ isletme: ctx.tenant.name, acilis: sched.acilis, menuUrl: await menuLink(ctx) }));
+    const sent = await replyOnce(ctx, 'closed', COOLDOWNS.closed, async () =>
+      m03Closed({ isletme: ctx.tenant.name, acilis: sched.acilis, menuUrl: await menuLink(ctx) }),
+    );
+    if (sent) return;
+    return notUnderstood(ctx, { kapali: true });
   }
   if (sched.state === 'paused') {
-    return replyOnce(ctx, 'paused', COOLDOWNS.paused, async () =>
+    const sent = await replyOnce(ctx, 'paused', COOLDOWNS.paused, async () =>
       m04Paused({ devamSaati: sched.pausedUntil ? formatClockTR(sched.pausedUntil) : null, menuUrl: await menuLink(ctx) }),
     );
+    if (sent) return;
+    return notUnderstood(ctx, { kapali: true });
   }
 
   // 10) Ses / desteklenmeyen
-  if (m.kind === 'audio') return replyOnce(ctx, 'voice', COOLDOWNS.voice, async () => m29Voice({ menuUrl: await menuLink(ctx) }));
-  if (m.kind === 'unsupported') return replyOnce(ctx, 'unsupported', COOLDOWNS.unsupported, () => m30Unsupported());
+  if (m.kind === 'audio') {
+    if (await helpReply(ctx, 'voice', COOLDOWNS.voice, async () => m29Voice({ menuUrl: await menuLink(ctx) }))) return;
+    return notUnderstood(ctx);
+  }
+  if (m.kind === 'unsupported') {
+    if (await helpReply(ctx, 'unsupported', COOLDOWNS.unsupported, () => m30Unsupported())) return;
+    return notUnderstood(ctx);
+  }
 
   // 11) SSS niyetleri (M28)
   if (m.kind === 'text') {
@@ -512,7 +654,8 @@ async function respond(ctx: Ctx): Promise<void> {
     if (intent === 'hours' || intent === 'address' || intent === 'zones' || intent === 'payment') {
       const draft = await faqDraft(ctx, intent);
       if (draft) {
-        if (since(ctx, lastSent(ctx, `faq_${intent}`)) < COOLDOWNS.faq) return;
+        // Aynı SSS yanıtı 30 dk'da 1: soğuma içinde sessiz kalmak yerine kısa yardım
+        if (since(ctx, lastSent(ctx, `faq_${intent}`)) < COOLDOWNS.faq) return notUnderstood(ctx, { anlasildi: true });
         await send(ctx, draft);
         await markSent(ctx, `faq_${intent}`);
         return;
@@ -520,7 +663,7 @@ async function respond(ctx: Ctx): Promise<void> {
     }
   }
 
-  // 12) Karşılama (konum dahil)
+  // 12) Karşılama (konum dahil); karşılama soğumasındaysa kısa yardım (M01N)
   return welcome(ctx, { force: false });
 }
 
@@ -537,7 +680,8 @@ async function shopSelected(ctx: Ctx, silent: boolean, opts: { repeat?: boolean 
   if (silent) return;
   const active = await findActiveOrder(ctx.tx, ctx.tenant.id, ctx.customer.id);
   if (active) {
-    if (ctx.msg.kind === 'text' && detectIntent(ctx.msg.text) === 'cancel') return cancelIntent(ctx, active);
+    // İptal isteği soğuma içindeyse (15 dk) seçim yanıtsız kalmasın: durum kartı gider
+    if (ctx.msg.kind === 'text' && detectIntent(ctx.msg.text) === 'cancel' && (await cancelIntent(ctx, active))) return;
     await send(ctx, await statusCard(ctx, active));
     await markSent(ctx, 'status_card');
     return;
@@ -564,8 +708,11 @@ async function shopSelected(ctx: Ctx, silent: boolean, opts: { repeat?: boolean 
 
 async function welcome(ctx: Ctx, opts: { force: boolean }): Promise<void> {
   if (!opts.force) {
+    if (await burstQuiet(ctx)) return; // son mesajımız birkaç dakika önce gitti: üstüne yazmıyoruz
     const lastAuto = laterOf(ctx.conv.lastWelcomeAt, ctx.conv.lastNudgeAt);
-    if (since(ctx, lastAuto) < COOLDOWNS.anyAutoReply) return; // sessiz; panelde "yanıt bekliyor"
+    // Karşılama soğuması (30 dk): eskiden burada TAM SESSİZLİK vardı ("selam"a yanıt yok) → kısa yardım.
+    // (request_welcome istisnası notUnderstood'un kendi kapısındadır: tüm çağrı yerleri için geçerli.)
+    if (since(ctx, lastAuto) < COOLDOWNS.anyAutoReply) return notUnderstood(ctx);
     if (since(ctx, ctx.conv.lastWelcomeAt) < COOLDOWNS.fullWelcome) {
       await send(ctx, m01kShortWelcome({ menuUrl: await menuLink(ctx) }));
       await markSent(ctx, 'short');
@@ -670,15 +817,19 @@ async function statusCard(ctx: Ctx, order: OrderRow): Promise<WaDraft> {
   });
 }
 
-/** "iptal" niyeti (açık sipariş): new → M27a (onay butonları); accepted+ → M27b + iptal talebi + insana devir. */
-async function cancelIntent(ctx: Ctx, order: OrderRow): Promise<void> {
-  if (since(ctx, lastSent(ctx, 'cancel_intent')) < COOLDOWNS.cancelIntent) return;
+/**
+ * "iptal" niyeti (açık sipariş): new → M27a (onay butonları); accepted+ → M27b + iptal talebi + insana devir.
+ * Dönüş: iptal yanıtı gönderildi mi (false → soğuma içinde; çağıran durum kartına / yardıma düşer).
+ */
+async function cancelIntent(ctx: Ctx, order: OrderRow): Promise<boolean> {
+  if (since(ctx, lastSent(ctx, 'cancel_intent')) < COOLDOWNS.cancelIntent) return false;
   if (order.status === 'new') {
     await send(ctx, m27aCancelConfirm({ no: formatOrderNo(order.number), orderId: order.id }), { orderId: order.id });
   } else {
     await requestCancellation(ctx, order);
   }
   await markSent(ctx, 'cancel_intent');
+  return true;
 }
 
 async function requestCancellation(ctx: Ctx, order: OrderRow): Promise<void> {
@@ -821,6 +972,11 @@ async function ownOrder(ctx: Ctx, orderId: string): Promise<OrderRow | null> {
   return o;
 }
 
+/**
+ * Buton yanıtı. Dönüş false → mesaj olağan sıraya bırakılır (durum kartı / yardım). Ayrım: BAYAT buton (sipariş
+ * bulunamadı, durum artık uygun değil — ör. onaylandıktan sonra "Beklerim") yanıtsız kalmamalı; ÇİFT DOKUNMA
+ * (değerlendirme zaten kaydedilmiş, "Beklerim" yanıtı zaten gitmiş) için ilk yanıt yeterlidir → true, sessiz.
+ */
 async function routeButton(ctx: Ctx, id: string): Promise<boolean> {
   if (id === BUTTON_IDS.menu) {
     if (!humanModeActive(ctx.conv, ctx.now)) await welcome(ctx, { force: true });
@@ -833,36 +989,33 @@ async function routeButton(ctx: Ctx, id: string): Promise<boolean> {
   let m: RegExpExecArray | null;
   if ((m = RE_REVIEW.exec(id))) {
     const order = await ownOrder(ctx, m[1]!.toLowerCase());
-    if (order) await handleReview(ctx, order, m[2] as 'good' | 'ok' | 'bad');
-    return true;
+    return order ? handleReview(ctx, order, m[2] as 'good' | 'ok' | 'bad') : false;
   }
   if ((m = RE_REVIEW_REASON.exec(id))) {
     const order = await ownOrder(ctx, m[1]!.toLowerCase());
-    if (order) await handleReviewReason(ctx, order, m[2]!);
-    return true;
+    return order ? handleReviewReason(ctx, order, m[2]!) : false;
   }
   if ((m = RE_WAIT.exec(id))) {
     const order = await ownOrder(ctx, m[1]!.toLowerCase());
-    if (order) await handleWait(ctx, order);
-    return true;
+    return order ? handleWait(ctx, order) : false;
   }
   if ((m = RE_CANCEL.exec(id))) {
     const order = await ownOrder(ctx, m[1]!.toLowerCase());
-    if (order) await handleCancel(ctx, order);
-    return true;
+    return order ? handleCancel(ctx, order) : false;
   }
-  if (RE_KEEP.test(id)) return true; // "Vazgeçtim": yanıt yok
+  // "Vazgeçtim" (iptalden vazgeçti): kendi metni yok, olağan sıra siparişin durum kartını gönderir
+  if (RE_KEEP.test(id)) return false;
   return false;
 }
 
-async function handleReview(ctx: Ctx, order: OrderRow, rating: 'good' | 'ok' | 'bad'): Promise<void> {
-  if (order.status !== 'delivered') return;
+async function handleReview(ctx: Ctx, order: OrderRow, rating: 'good' | 'ok' | 'bad'): Promise<boolean> {
+  if (order.status !== 'delivered') return false; // bayat buton
   const inserted = await ctx.tx
     .insert(reviews)
     .values({ tenantId: order.tenantId, orderId: order.id, customerId: ctx.customer.id, rating, createdAt: ctx.now })
     .onConflictDoNothing({ target: reviews.orderId })
     .returning({ id: reviews.id });
-  if (!inserted.length) return; // zaten değerlendirilmiş (takip sayfası ya da önceki buton)
+  if (!inserted.length) return true; // zaten değerlendirilmiş (takip sayfası ya da önceki buton): çift dokunma
   if (rating === 'good') {
     await send(ctx, m10aReviewGood(), { orderId: order.id });
   } else if (rating === 'ok') {
@@ -895,25 +1048,27 @@ async function handleReview(ctx: Ctx, order: OrderRow, rating: 'good' | 'ok' | '
       { orderId: order.id },
     );
   }
+  return true;
 }
 
-async function handleReviewReason(ctx: Ctx, order: OrderRow, reasonId: string): Promise<void> {
+async function handleReviewReason(ctx: Ctx, order: OrderRow, reasonId: string): Promise<boolean> {
   const reason = M10B_REASONS.find((r) => r.id === reasonId);
-  if (!reason) return;
+  if (!reason) return false;
   const key = `review_reason:${order.id}` as const;
-  if (lastSent(ctx, key)) return;
+  if (lastSent(ctx, key)) return true; // çift dokunma
   await ctx.tx
     .update(reviews)
     .set({ comment: sql`case when ${reviews.comment} is null or ${reviews.comment} = '' then ${reason.title} else ${reviews.comment} || '; ' || ${reason.title} end` })
     .where(and(eq(reviews.orderId, order.id), eq(reviews.tenantId, order.tenantId)));
   await send(ctx, m10cReviewThanks({ isletme: ctx.tenant.name, other: reason.id === 'other' }), { orderId: order.id });
   await markSent(ctx, key);
+  return true;
 }
 
-async function handleWait(ctx: Ctx, order: OrderRow): Promise<void> {
-  if (order.status !== 'new') return;
+async function handleWait(ctx: Ctx, order: OrderRow): Promise<boolean> {
+  if (order.status !== 'new') return false; // işletme bu arada onayladı/iptal etti: bayat buton
   const key = `wait:${order.id}` as const;
-  if (lastSent(ctx, key)) return;
+  if (lastSent(ctx, key)) return true; // çift dokunma
   await ctx.tx.insert(orderEvents).values({
     tenantId: order.tenantId,
     orderId: order.id,
@@ -925,9 +1080,10 @@ async function handleWait(ctx: Ctx, order: OrderRow): Promise<void> {
   await emitOrderUpdated(ctx.tx, { order, change: 'customer_waiting' });
   await send(ctx, m13aWaiting(), { orderId: order.id });
   await markSent(ctx, key);
+  return true;
 }
 
-async function handleCancel(ctx: Ctx, order: OrderRow): Promise<void> {
+async function handleCancel(ctx: Ctx, order: OrderRow): Promise<boolean> {
   if (order.status === 'new' || order.status === 'awaiting_customer') {
     // Müşteri iptali; M12b sipariş bildirim kancasından gider
     await transitionOrder(ctx.tx, {
@@ -939,12 +1095,15 @@ async function handleCancel(ctx: Ctx, order: OrderRow): Promise<void> {
       cancelledBy: 'customer',
       now: ctx.now,
     });
-    return;
+    ctx.replied = true; // M12b sipariş bildirim kancasından gider: müşteri yanıtsız kalmaz
+    return true;
   }
   if (order.status === 'accepted' || order.status === 'preparing' || order.status === 'ready' || order.status === 'on_the_way') {
-    if (order.cancelRequestedAt) return;
+    if (order.cancelRequestedAt) return true; // iptal talebi zaten alındı: çift dokunma
     await requestCancellation(ctx, order);
+    return true;
   }
+  return false; // teslim edilmiş / iptal edilmiş sipariş: bayat buton
 }
 
 // ---------------------------------------------------------------------------
@@ -1022,7 +1181,7 @@ export async function handleEcho(
   now: Date = new Date(),
 ): Promise<InboundResult> {
   const key = ev.to.bsuid ?? ev.to.phone;
-  if (!key) return { status: 'ignored' };
+  if (!key) return { status: 'ignored', replied: false };
   return deps.db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`wa:${account.id}:${key}`}, 0))`);
     const customer = await upsertWaCustomer(tx, account.tenantId, ev.to);
@@ -1044,7 +1203,7 @@ export async function handleEcho(
       })
       .onConflictDoNothing({ target: messages.wamid })
       .returning({ id: messages.id });
-    if (!inserted) return { status: 'duplicate', conversationId: conv0.id };
+    if (!inserted) return { status: 'duplicate', conversationId: conv0.id, replied: false };
     const keepIndefinite = conv0.mode === 'human' && conv0.humanUntil == null;
     const until = keepIndefinite ? null : new Date(Math.max(now.getTime() + COOLDOWNS.echoMute, conv0.humanUntil?.getTime() ?? 0));
     const preview = previewText(body);
@@ -1060,7 +1219,8 @@ export async function handleEcho(
       payload: { conversationId: conv!.id, messageId: inserted.id, direction: 'out', preview, unreadCount: conv!.unreadCount, at: now.toISOString() },
     });
     await emitConversationUpdated(tx, conv!);
-    return { status: 'processed', messageId: inserted.id, conversationId: conv!.id };
+    // Echo kendi giden mesajımızdır: bot YANIT ÜRETMEZ (iki bot arasında döngü yasağı), yalnız insan moduna geçer
+    return { status: 'processed', messageId: inserted.id, conversationId: conv!.id, replied: false };
   });
 }
 

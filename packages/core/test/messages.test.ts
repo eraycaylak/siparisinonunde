@@ -9,8 +9,10 @@ import {
   m10Delivered,
   m11Rejected,
   m12Cancelled,
+  m01nNotUnderstood,
   paymentDetailText,
   rejectionReasonText,
+  sharedContinueText,
   sms03bCancelled,
   templateForStatus,
   templateParams,
@@ -52,6 +54,36 @@ describe('mesaj metinleri', () => {
       "Kapıda nakit · 500,00 TL'ye para üstü hazırlandı",
     );
     expect(m10Delivered({ orderId: 'o1' }).buttons?.map((b) => b.id)).toEqual(['review:o1:good', 'review:o1:ok', 'review:o1:bad']);
+  });
+
+  it('M01N yardım yanıtı: her varyantta "yetkili" çıkışı ve duruma uygun CTA', () => {
+    const menu = m01nNotUnderstood({ menuUrl: 'http://x' });
+    expect(menu.code).toBe('M01N');
+    expect(menu.body).toContain('tam olarak anlayamadık');
+    expect(menu.body).toContain('"yetkili"');
+    expect(menu.cta?.label).toBe(BUTTON_TITLES.menu);
+    expect(EMOJI.test(menu.body)).toBe(false);
+    const kapali = m01nNotUnderstood({ menuUrl: 'http://x', kapali: true });
+    expect(kapali.body).toContain('Şu an sipariş alamıyoruz');
+    expect(kapali.cta?.label).toBe(BUTTON_TITLES.browseMenu);
+    const takip = m01nNotUnderstood({ trackingUrl: 'http://t' });
+    expect(takip.cta?.label).toBe(BUTTON_TITLES.track);
+    expect(takip.body).toContain('"yetkili"');
+    // Anlaşılmış mesaj (SSS / durum kartı soğuması): "anlayamadık" demek yanlış olurdu
+    const anlasildi = m01nNotUnderstood({ trackingUrl: 'http://t', anlasildi: true });
+    expect(anlasildi.body).not.toContain('anlayamadık');
+    expect(anlasildi.body).toContain('Mesajınızı aldık.');
+    expect(anlasildi.body).toContain('"yetkili"');
+    // Bağlantı yoksa CTA da yok (boş düğme gönderilmez)
+    expect(m01nNotUnderstood({}).cta).toBeUndefined();
+  });
+
+  it('P07 yol gösterme: olmayan düğmeyi vaat etmez', () => {
+    // Tek seçilebilir dükkan → yalnız dükkan düğmesi var, "Diğer dükkanlar" YOK
+    expect(sharedContinueText({ isletme: 'Bozok', butonlar: true, digerDukkanlar: false })).not.toContain('başka bir dükkan');
+    expect(sharedContinueText({ isletme: 'Bozok', butonlar: true, digerDukkanlar: true })).toContain('başka bir dükkan seçmek');
+    // Dükkan artık seçilemiyor → düğme yok, metin "dükkanlar" yazmayı söyler
+    expect(sharedContinueText({ isletme: 'Bozok', butonlar: false })).toContain('"dükkanlar" yazabilirsin');
   });
 
   it('şablonlar', () => {
