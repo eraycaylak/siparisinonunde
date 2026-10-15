@@ -101,6 +101,38 @@ describe('sms.send', () => {
     expect(await handleSmsSend(deps(), { tenantId: t.tenantId, to: 'abc', body: 'x', purpose: 'status' })).toMatchObject({ status: 'skipped', reason: 'invalid_phone' });
   });
 
+  // SMS pompalama (toll fraud) kapısı: ülke kısıtı EN ALT katmanda olmalı. Önceden burada
+  // `normalizePhone(p.to) ?? (/^\+\d{8,15}$/.test(p.to) ? p.to : null)` vardı; kardeş proje USTAG'da aynı kalıp
+  // pahalı ülkelere OTP SMS'i attırdı (Ekim faturası 5-14 $ → 82 $, sağlayıcı hesabı askıya alındı). Üst katman
+  // (OTP ucu) TR-only idi ama `sms.send` işini doğrudan kuyruğa atan akışlar o kapıyı atlıyordu. Bu test
+  // kaçış kapısının geri açılmasını engeller.
+  it('yabancı numara alt katmanda da reddedilir (SMS pompalama kapısı)', async () => {
+    const yabanci = [
+      '+447700900123', // Birleşik Krallık
+      '+22507000000', // Fildişi Sahili (pahalı tarife)
+      '+37260000000', // Estonya
+      '0044 7700 900123', // "00" önekiyle uluslararası
+      '+9705321112233', // ülke kodu 90'a benzeyen tuzak
+    ];
+    for (const to of yabanci) {
+      expect(await handleSmsSend(deps(), { tenantId: t.tenantId, to, body: 'Kod 123456', purpose: 'otp' })).toMatchObject({
+        status: 'skipped',
+        reason: 'invalid_phone',
+      });
+    }
+    // Reddedilen numara için SMS kaydı DA açılmaz (kota ve denetim izi kirlenmesin).
+    for (const to of yabanci) {
+      expect(await ctx.db.select().from(smsMessages).where(eq(smsMessages.toPhone, to))).toHaveLength(0);
+    }
+    // TR sabit hat da cep değildir: OTP/durum SMS'i sabit hatta gitmez.
+    expect(await handleSmsSend(deps(), { tenantId: t.tenantId, to: '+903122222222', body: 'x', purpose: 'status' })).toMatchObject({
+      status: 'skipped',
+      reason: 'invalid_phone',
+    });
+    // Kontrol: TR cep hâlâ geçer (kapı fazla kapanmadı).
+    expect(await handleSmsSend(deps(), { tenantId: t.tenantId, to: '0532 444 55 66', body: 'Kod 123456', purpose: 'alarm' })).toMatchObject({ status: 'sent' });
+  });
+
   // Denetim 2026-10-04 madde 4.4: canlı ortamda SMS_PROVIDER=mock iken kayıt 'sent' işaretleniyor ve günlüğe
   // "SMS gönderildi" yazılıyordu; müşteri gelmeyen kodu bekliyordu. Bu test o yalanın geri dönmesini engeller.
   it('canlı ortamda taklit sağlayıcı: "gönderildi" DENMEZ, kayıt failed, loga hata yazılır', async () => {

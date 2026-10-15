@@ -11,7 +11,7 @@
 // (`services/orders/verification.ts` → `loadVerificationChannels`), yani müşteri bu noktaya hiç gelmemelidir;
 // burası ikinci savunma hattıdır (doğrudan çağıran bir akış kapıyı atlarsa yine yalan söylenmez).
 
-import { maskPhone, normalizePhone, type SmsPurpose } from '@siparis/core';
+import { maskPhone, normalizeTrMobile, type SmsPurpose } from '@siparis/core';
 import { notifications, smsMessages, type Database } from '@siparis/db';
 import { and, eq, gte } from 'drizzle-orm';
 import type { FastifyBaseLogger } from 'fastify';
@@ -83,7 +83,19 @@ async function quotaCheck(deps: SmsDeps, tenantId: string, now: Date): Promise<v
 }
 
 export async function handleSmsSend(deps: SmsDeps, p: SmsSendPayload, now: Date = new Date()): Promise<SmsOutcome> {
-  const to = normalizePhone(p.to) ?? (/^\+\d{8,15}$/.test(p.to) ? p.to : null);
+  // ⚠️⚠️ YALNIZ TR CEP — ÜLKE KAPISI EN ALT KATMANDA (SMS pompalama / toll fraud).
+  // Önceden burada `normalizePhone(p.to) ?? (/^\+\d{8,15}$/.test(p.to) ? p.to : null)` vardı: `normalizePhone`
+  // seçeneksiz çağrıldığı için her ülkeyi kabul ediyordu, kaçış kalıbı da kalanı geçiriyordu. Kardeş proje
+  // USTAG'da tam bu kalıp (`/^\+\d{10,15}$/`) saldırganın pahalı ülkelere OTP SMS'i attırmasına izin verdi:
+  // Ekim faturası 5-14 $'dan 82 $'a çıktı (segment başına ~0,31 $ / TR tarifesi ~0,035 $) ve paylaşılan
+  // sağlayıcı hesabı bakiye borcundan askıya alındı. Kapı ÜST katmanda (OTP ucu `normalizeTrMobile` ile TR-only)
+  // zaten vardı; burası ikinci savunma hattıdır: `sms.send` işini doğrudan kuyruğa atan HER akış (durum SMS'i,
+  // işletme alarmı, elle/telefon siparişi) o kapıyı atlıyordu. Ülke kısıtı en alt katmanda olmalı ki yeni bir
+  // çağıran eklendiğinde kapıyı yeniden yazmak gerekmesin.
+  // Bu depo SMS'i Netgsm'den gönderir (SMS_PROVIDER: mock | netgsm), yani USTAG'ı askıya aldıran hesap
+  // etkilenmiyordu — ama fatura yine bize gelir. Yabancı numaraya SMS gerekirse kısıt BURADA gevşetilmez,
+  // ayrı bir amaç (`purpose`) ve kendi kotası ile açılır.
+  const to = normalizeTrMobile(p.to);
   if (!to) return { status: 'skipped', reason: 'invalid_phone' };
   const body = String(p.body ?? '').trim();
   if (!body) return { status: 'skipped', reason: 'empty_body' };

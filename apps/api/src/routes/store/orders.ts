@@ -9,7 +9,6 @@ import {
   createOrderResponseSchema,
   maskPhone,
   nonNegativeKurusSchema,
-  normalizePhone,
   normalizeTrMobile,
   okResponseSchema,
   quoteRequestSchema,
@@ -254,7 +253,11 @@ const routes: FastifyPluginAsyncZod = async (app) => {
           .where(and(eq(customers.id, token.customerId), eq(customers.tenantId, tenant.id)));
         rawPhone = known?.phone ?? undefined;
       }
-      const phone = normalizePhone(rawPhone);
+      // ⚠️ TR CEP ZORUNLU: hata metni zaten "10 haneli olmalı (5xx xxx xx xx)" diyordu ama `normalizePhone`
+      // seçeneksiz çağrıldığı için her ülkeyi geçiriyordu (mesaj ile davranış uyuşmuyordu). Yabancı numarayla
+      // açılan sipariş doğrulanamıyor (SMS OTP ucu TR-only) ve durum SMS'i yurt dışına çıkmaya çalışıyordu;
+      // `sms.send` alt katmanı artık bunu reddeder, burası da kullanıcıya ucu açık söz vermeyi bırakıyor.
+      const phone = normalizeTrMobile(rawPhone);
       if (!phone) throw fieldError('customerPhone', 'Telefon numarası 10 haneli olmalı (5xx xxx xx xx).');
       enforceRateLimit(ipLimiter, clientIp(request));
       enforceRateLimit(phoneLimiter, phone);

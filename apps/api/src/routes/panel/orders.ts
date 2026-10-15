@@ -18,7 +18,7 @@ import {
   idSchema,
   localDateString,
   mealCardBrandSchema,
-  normalizePhone,
+  normalizeTrMobile,
   nonNegativeKurusSchema,
   paymentMethodSchema,
   rejectOrderRequestSchema,
@@ -499,7 +499,12 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         .where(and(eq(orders.tenantId, auth.tenantId), eq(orders.idempotencyKey, body.idempotencyKey)));
       if (dup) return { order: await cardOf(app.db, dup, auth.role) };
     }
-    const phone = normalizePhone(body.customerPhone);
+    // ⚠️ `normalizeTrMobile`, `normalizePhone` DEĞİL. Aynı sınıfın üçüncü noktası:
+    // hata metni "10 haneli olmalı (5xx…)" derken kod her ülke kodunu geçiriyordu,
+    // yani mesaj ile davranış uyuşmuyordu. Para sızıntısı alt katmanda
+    // (`services/messaging/sms-send.ts`) zaten kapandı; burası personelin yanlışlıkla
+    // yabancı numara kaydedip sonra "SMS neden gitmedi" dememesi için.
+    const phone = normalizeTrMobile(body.customerPhone);
     if (!phone) throw fieldError('customerPhone', 'Telefon numarası 10 haneli olmalı (5xx xxx xx xx).');
     if (body.fulfillmentType === 'delivery' && (!body.addressLine || body.addressLine.trim().length < 3)) {
       throw fieldError('addressLine', 'Teslimat adresini yazın.');
