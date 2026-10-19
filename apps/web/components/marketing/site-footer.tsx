@@ -1,9 +1,14 @@
 import Link from 'next/link';
 import { Logo } from '@/components/brand/logo';
-import { LEGAL_ENTITY, LEGAL_NAV, MARKETING_NAV, PILOT_AREA, SITE_NAME, SITE_TAGLINE } from '@/lib/site';
+import { getLegalEntity } from '@/lib/legal-entity';
+import { LEGAL_NAV, MARKETING_NAV, PILOT_AREA, SITE_NAME, SITE_TAGLINE } from '@/lib/site';
 
-/** Altbilgi: ürün ve yasal bağlantılar, künye özeti, Meta ücreti notu (05 C.3.1). */
-export function SiteFooter() {
+/**
+ * Altbilgi: ürün ve yasal bağlantılar, künye özeti, Meta ücreti notu (05 C.3.1). Künye özeti istek anında okunur
+ * (`getLegalEntity`, 15 §4): bu yüzden altbilgiyi taşıyan pazarlama sayfaları dinamik çizilir.
+ */
+export async function SiteFooter() {
+  const entity = await getLegalEntity();
   const year = 2026;
   return (
     <footer className="border-t border-border bg-surface print:hidden">
@@ -41,7 +46,7 @@ export function SiteFooter() {
       <div className="border-t border-border">
         <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-6 text-xs text-fg-muted sm:flex-row sm:items-center sm:justify-between">
           <p>
-            © {year} {LEGAL_ENTITY.title} · {LEGAL_ENTITY.address}
+            © {year} {entity.title} · {entity.address}
           </p>
           <p>Bu sitede yalnız zorunlu çerezler kullanılır.</p>
         </div>

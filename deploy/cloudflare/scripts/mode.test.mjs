@@ -355,29 +355,76 @@ test('wrangler.jsonc: künye, canary ve kota değişkenleri vars\'ta TANIMLI ama
   assert.equal(vars.LEGAL_ENTITY_NAME, '', 'künye değeri depoya yazılmamalı (şirket belgesinden girilir)');
 });
 
-// Künyenin İKİNCİ yarısı: web tarafı. /kunye ve /yasal/* dinamik API kullanmayan sunucu bileşenleridir, yani
-// `next build` bunları statik HTML'e çevirir — çalışma zamanı ortam değişkeni o HTML'i DEĞİŞTİREMEZ. Bu yüzden
-// künye, isteğe bağlı VPS yolunda derleme argümanı olarak geçer (docker-compose.yml → docker/web.Dockerfile).
-// Bu vaka o zinciri çivileyerek "API kapısı açıldı ama sayfa hâlâ 'Eksik yapılandırma' basıyor" durumunun
-// sessizce geri dönmesini engeller (15 §4).
-test('künye web derlemesine de geçer: docker-compose web.build.args → docker/web.Dockerfile ARG/ENV (VPS yolu)', () => {
+// Künyenin İKİNCİ yarısı: web tarafı. /kunye, /yasal/* ve pazarlama altbilgisi künyeyi İSTEK ANINDA okur
+// (apps/web/lib/legal-entity.ts + app/(marketing)/yasal/layout.tsx → connection()), yani tek kaynak web sürecinin
+// ÇALIŞMA ZAMANI ortamıdır. Eskiden bu sayfalar `next build`'de statik HTML'e dönüşüyordu: canlı ortamda (Cloudflare)
+// vars dolu, API kapısı açıkken sayfalar "Eksik yapılandırma: LEGAL_ENTITY_*" basardı. Aşağıdaki vakalar zinciri
+// iki dağıtım yolunda da çiviler ve derlemeye gömülen ikinci bir kopyanın (ayrışma kaynağı) geri gelmesini engeller.
+function legalEntityEnvNames() {
   const site = readFileSync(new URL('apps/web/lib/site.ts', ROOT), 'utf8');
   const blok = site.slice(site.indexOf('const LEGAL_ENTITY_FIELDS = {'), site.indexOf('} satisfies Record<string, LegalEntityFieldSpec>'));
   const alanlar = [...new Set([...blok.matchAll(/env: '([A-Z][A-Z0-9_]*)'/g)].map((m) => m[1]))];
   assert.equal(alanlar.length, 10, `site.ts LEGAL_ENTITY_FIELDS 10 alan bekleniyordu, ${alanlar.length} bulundu`);
+  return alanlar;
+}
 
+test('künye web tarafı (canlı ortam, Cloudflare): container ortamından çalışma zamanında okunur, imaja gömülmez', () => {
+  const alanlar = legalEntityEnvNames();
+  // 1) vars → container: containerEnv beyaz listesi (yukarıdaki "beyaz liste kapısı" vakası da sınar)
+  const env = containerEnv('domain', FULL_INPUTS, { PLATFORM_WA_PROVIDER: 'mock' });
+  for (const name of alanlar) assert.equal(env[name], FULL_INPUTS[name], `künye container ortamına geçmiyor: ${name}`);
+
+  // 2) container → web süreci: entrypoint.sh web'i ortamı SİLMEDEN başlatır (env -i / env -u yok, ortam devralınır)
+  const entrypoint = readFileSync(new URL('../entrypoint.sh', import.meta.url), 'utf8');
+  const webSatiri = entrypoint.split('\n').find((line) => line.includes('apps/web/server.js'));
+  assert.ok(webSatiri, 'entrypoint.sh web sürecini başlatan satır bulunamadı (apps/web/server.js)');
+  assert.doesNotMatch(webSatiri, /\benv\s+-(i|u)\b|--ignore-environment|--unset/, 'web süreci ortamı silinerek başlatılıyor: künye web\'e ulaşmaz');
+  for (const name of alanlar) {
+    assert.doesNotMatch(entrypoint, new RegExp(`\\bunset\\b[^\\n]*\\b${name}\\b`), `entrypoint.sh ${name}'i siliyor`);
+  }
+
+  // 3) imaja derleme anında gömülmez: Dockerfile ARG/ENV'inde ve image_vars'ta künye YOK
+  // Yorum satırları hariç (açıklama künyeden söz edebilir); ENV'in devam satırları da kapsanır
+  const dockerfile = readFileSync(new URL('../Dockerfile', import.meta.url), 'utf8')
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('#'))
+    .join('\n');
+  const config = JSON.parse(stripJsonc(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8')));
+  const imageVars = Object.keys(config.containers?.[0]?.image_vars ?? {});
+  for (const name of alanlar) {
+    assert.equal(dockerfile.includes(name), false, `deploy/cloudflare/Dockerfile künyeyi gömmemeli (ARG/ENV): ${name}`);
+    assert.equal(imageVars.some((k) => k === name || k === `NEXT_PUBLIC_${name}`), false, `image_vars künye taşımamalı: ${name}`);
+  }
+});
+
+test('künye web tarafı (VPS yolu): compose web.environment ile çalışma zamanında verilir, derleme argümanı değildir', () => {
+  const alanlar = legalEntityEnvNames();
   const compose = readFileSync(new URL('docker-compose.yml', ROOT), 'utf8');
   const web = compose.slice(compose.indexOf('\n  web:'), compose.indexOf('\n  caddy:'));
-  const dockerfile = readFileSync(new URL('docker/web.Dockerfile', ROOT), 'utf8');
-  for (const name of alanlar) {
-    assert.match(web, new RegExp(`^ {8}${name}: \\$\\{${name}:-\\}$`, 'm'), `docker-compose web.build.args içinde eksik: ${name}`);
-    // Derleme aşaması VE çalışma imajı: statik HTML ile çalışan sürecin ortamı tek kaynaktan beslenir
-    assert.equal((dockerfile.match(new RegExp(`^ARG ${name}=$`, 'gm')) ?? []).length, 2, `docker/web.Dockerfile'da ${name} için iki ARG bekleniyor (derleme + çalışma imajı)`);
-    assert.equal((dockerfile.match(new RegExp(`${name}="\\$${name}"`, 'g')) ?? []).length, 2, `docker/web.Dockerfile'da ${name} ENV olarak iki kez yazılmalı (tırnaklı: adres ve unvan boşluk içerir)`);
-  }
-  // Künye web servisine ÇALIŞMA zamanı değişkeni olarak verilmez: statik sayfayı değiştirmez, yalnız ayrışma üretir
+  const args = web.slice(web.indexOf('      args:'), web.indexOf('    environment:'));
   const env = web.slice(web.indexOf('    environment:'), web.indexOf('    depends_on:'));
-  for (const name of alanlar) assert.equal(env.includes(name), false, `web.environment künye taşımamalı: ${name}`);
+  assert.ok(args.includes('NEXT_PUBLIC_SITE_URL') && env.includes('NODE_ENV'), 'docker-compose web servisinin args/environment blokları bulunamadı');
+  const dockerfile = readFileSync(new URL('docker/web.Dockerfile', ROOT), 'utf8');
+  const runner = dockerfile.slice(dockerfile.indexOf(' AS runner'));
+  // Derleme aşaması (yorumlar hariç): künye ne düz adla ne NEXT_PUBLIC_ önekiyle görünmez — NEXT_PUBLIC_LEGAL_* derlemede
+  // koda satır içi gömülür ve çalışma zamanı değerini gölgeler (apps/web/lib/legal-entity-env.ts)
+  const builder = dockerfile
+    .slice(0, dockerfile.indexOf(' AS runner'))
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('#'))
+    .join('\n');
+  for (const name of alanlar) {
+    assert.equal(builder.includes(name), false, `docker/web.Dockerfile derleme aşaması künye taşımamalı: ${name}`);
+    // Çalışma zamanı: api ile aynı .env kaynağı; künye değişince `docker compose up -d web` yeter
+    assert.match(env, new RegExp(`^ {6}${name}: \\$\\{${name}:-\\}$`, 'm'), `docker-compose web.environment içinde eksik: ${name}`);
+    // Derleme argümanı olarak gömülmez (ikinci kopya = ayrışma)
+    assert.equal(args.includes(name), false, `docker-compose web.build.args künye taşımamalı: ${name}`);
+    // docker/web.Dockerfile: yalnız çalışma imajında isteğe bağlı varsayılan (compose dışı `docker run`); derleme
+    // aşamasında YOK, yani `next build` künyeyi görmez
+    assert.equal((dockerfile.match(new RegExp(`^ARG ${name}=$`, 'gm')) ?? []).length, 1, `docker/web.Dockerfile'da ${name} için tek ARG bekleniyor (çalışma imajı)`);
+    assert.match(runner, new RegExp(`^ARG ${name}=$`, 'm'), `docker/web.Dockerfile ${name} ARG'ı çalışma imajında olmalı`);
+    assert.equal((runner.match(new RegExp(`${name}="\\$${name}"`, 'g')) ?? []).length, 1, `docker/web.Dockerfile'da ${name} çalışma imajında ENV olarak (tırnaklı) yazılmalı`);
+  }
 });
 
 // --- Sağlık ucunun ayrıntılı ölçüm belirteci (denetim 2026-10-05 bulgu A-2) ----------------------------------

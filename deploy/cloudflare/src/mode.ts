@@ -60,6 +60,8 @@ export interface ContainerInputs {
   // REQUIRED_LEGAL_ENTITY_ENVS ile BİREBİR aynıdır; sapmayı scripts/mode.test.mjs "beyaz liste kapısı" yakalar.
   // GİZLİ DEĞİLLER (kanunen kamuya açık) → Worker secret'ı değil wrangler.jsonc vars.
   // Zorunlu altısı eksikken canlı dağıtımda (DEPLOY_ENV=production) sipariş ucu KALICI 503 döner (fail-closed).
+  // Web de (/kunye, /yasal/*, altbilgi) aynı değeri buradan, istek anında okur (apps/web/lib/legal-entity.ts):
+  // imaja derleme argümanı olarak GİRMEZ, tek kaynak bu container ortamıdır (15 §4).
   /** Künye unvanı; şirket belgesindeki unvanla birebir aynı (tahminle doldurulmaz). */
   LEGAL_ENTITY_NAME?: string;
   /** Şirket türü (ör. "Şahıs şirketi"). */

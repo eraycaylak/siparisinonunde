@@ -106,7 +106,7 @@ LEGAL_ENTITY_MERSIS= / LEGAL_ENTITY_CHAMBER= / LEGAL_ENTITY_KEP=   # isteğe ba�
 LEGAL_SUPPORT_EMAIL=                        # künye ve KVKK başvuru adresi; boşsa destek@yemekgelsin.net
 ```
 
-**Künye (`LEGAL_*`) ve yasal metin sürümü (08 §4.7, §7.5):** künye değerleri yalnız buradan gelir, kodda yer tutucu yoktur (`apps/web/lib/site.ts` → `resolveLegalEntity`); web imajı derleme anında okur. Yasal metin sürümü ise bilerek ortam değişkeni **değildir**: `packages/core/src/enums.ts` → `LEGAL_DOCUMENT_VERSION` tek kaynaktır, çünkü aynı sürüm hem kabul kaydına hem istemci paketine girer. `scripts/check-legal.ts` ikisini birden denetler ve eksikte çıkış kodu 1 verir (15 §4).
+**Künye (`LEGAL_*`) ve yasal metin sürümü (08 §4.7, §7.5):** künye değerleri yalnız buradan gelir, kodda yer tutucu yoktur (`apps/web/lib/site.ts` → `resolveLegalEntity`); web bunları derleme anında değil, istek anında okur (`apps/web/lib/legal-entity.ts` → `getLegalEntity`, `app/(marketing)/yasal/layout.tsx`; 15 §4), yani değer değişince yeniden derleme gerekmez. Yasal metin sürümü ise bilerek ortam değişkeni **değildir**: `packages/core/src/enums.ts` → `LEGAL_DOCUMENT_VERSION` tek kaynaktır, çünkü aynı sürüm hem kabul kaydına hem istemci paketine girer. `scripts/check-legal.ts` ikisini birden denetler ve eksikte çıkış kodu 1 verir (15 §4).
 
 ## 4. Veritabanı (Faz 1 tablo seti)
 

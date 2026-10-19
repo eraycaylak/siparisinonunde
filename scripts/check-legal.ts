@@ -13,6 +13,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { LEGAL_DOCUMENTS, LEGAL_DOCUMENT_VERSION, isDraftLegalVersion } from '../packages/core/src/enums';
+import { readLegalEntityEnv } from '../apps/web/lib/legal-entity-env';
 import { LEGAL_NAV, resolveLegalEntity } from '../apps/web/lib/site';
 
 const ROOT = resolve(import.meta.dirname, '..');
@@ -76,7 +77,9 @@ function read(path: string): string {
 
 // 1 — Künye
 function checkEntity(): void {
-  const entity = resolveLegalEntity();
+  // Web'in istek anı okumasıyla (getLegalEntity) ve API kapısıyla aynı: yalnız düz LEGAL_* sayılır, NEXT_PUBLIC_LEGAL_*
+  // yedeği "tam" sonucunu veremez (15 §4).
+  const entity = resolveLegalEntity(readLegalEntityEnv());
   if (entity.isConfigured) {
     notes.push('Künye tam: zorunlu alanların hepsi yapılandırılmış.');
     return;

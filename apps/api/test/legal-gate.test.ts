@@ -48,12 +48,22 @@ describe('künye zorunlu alanları', () => {
     expect([...REQUIRED_LEGAL_ENTITY_ENVS]).toEqual(expected);
   });
 
-  it('boş, yalnız boşluk ve tanımsız değerler eksik sayılır; NEXT_PUBLIC_ öneki kabul edilir', () => {
+  it('boş, yalnız boşluk ve tanımsız değerler eksik sayılır', () => {
     expect(missingLegalEntityEnvs({})).toEqual([...REQUIRED_LEGAL_ENTITY_ENVS]);
     expect(missingLegalEntityEnvs(FULL_ENTITY_ENV)).toEqual([]);
     expect(missingLegalEntityEnvs({ ...FULL_ENTITY_ENV, LEGAL_ENTITY_ADDRESS: '   ' })).toEqual(['LEGAL_ENTITY_ADDRESS']);
-    const viaPublic = { ...FULL_ENTITY_ENV, LEGAL_ENTITY_TAX_NO: '', NEXT_PUBLIC_LEGAL_ENTITY_TAX_NO: 'dolu' };
-    expect(missingLegalEntityEnvs(viaPublic)).toEqual([]);
+  });
+
+  // Web künyeyi yalnız LEGAL_* adından okur (apps/web/lib/legal-entity-env.ts; aynı vaka apps/web/lib/legal-entity.test.ts'te
+  // web tarafı için sınanır). Kapı yedek adı kabul etseydi compose'un ürettiği LEGAL_X="" + NEXT_PUBLIC_LEGAL_X dolu
+  // ortamında sipariş alınırken /kunye "Eksik yapılandırma" basardı (6563 m.3).
+  it('NEXT_PUBLIC_LEGAL_* kabul edilmez: düz ad boş ya da tanımsızsa alan eksiktir (web ile aynı sonuç)', () => {
+    const emptyPlusPublic = { ...FULL_ENTITY_ENV, LEGAL_ENTITY_TAX_NO: '', NEXT_PUBLIC_LEGAL_ENTITY_TAX_NO: 'dolu' };
+    expect(missingLegalEntityEnvs(emptyPlusPublic)).toEqual(['LEGAL_ENTITY_TAX_NO']);
+    const withoutName: Record<string, string> = { ...FULL_ENTITY_ENV };
+    delete withoutName.LEGAL_ENTITY_NAME;
+    expect(missingLegalEntityEnvs({ ...withoutName, NEXT_PUBLIC_LEGAL_ENTITY_NAME: 'dolu' })).toEqual(['LEGAL_ENTITY_NAME']);
+    expect(legalOrderingGate(LIVE, emptyPlusPublic).blocked).toBe(true);
   });
 });
 

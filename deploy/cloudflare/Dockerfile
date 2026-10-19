@@ -6,6 +6,10 @@
 # lead formu açık, WhatsApp simülatörü derlenmez. NEXT_PUBLIC_DEMO_BANNER=1 ve NEXT_PUBLIC_DEV_TOOLS=1 yalnız demo verili
 # gizli staging'de (isteğe bağlı VPS yolu; apps/web/components/common/demo-notice.tsx, app/dev/whatsapp).
 # İsteğe bağlı Türkiye VPS yolu bu imajı kullanmaz (docker/*.Dockerfile + docker-compose.yml; 15 §14).
+# Künye (LEGAL_*) burada derleme argümanı DEĞİLDİR: Worker'ın vars'ından src/mode.ts containerEnv ile container
+# ortamına gelir, entrypoint.sh'un başlattığı web süreci onu devralır ve /kunye, /yasal/*, altbilgi istek anında
+# okur (apps/web/lib/legal-entity.ts; 15 §4). Buraya künye ARG/ENV'i eklemeyin: imaja gömülen ikinci bir kopya
+# yalnız ayrışma üretir (scripts/mode.test.mjs çiviler).
 
 ARG NODE_VERSION=22
 

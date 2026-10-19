@@ -46,9 +46,14 @@ export function legalTextDigest(version: string = LEGAL_DOCUMENT_VERSION): strin
   return LEGAL_TEXT_DIGESTS[version] ?? null;
 }
 
-/** Künyenin eksik zorunlu alanlarının ortam değişkeni adları. `NEXT_PUBLIC_` öneki de kabul edilir (site.ts ile aynı). */
+/**
+ * Künyenin eksik zorunlu alanlarının ortam değişkeni adları. Yalnız düz `LEGAL_*` adı sayılır; `NEXT_PUBLIC_LEGAL_*`
+ * KABUL EDİLMEZ. Web künyeyi istek anında yalnız `LEGAL_*`'dan okur (`apps/web/lib/legal-entity-env.ts`; 15 §4):
+ * kapı yedek adı kabul etseydi sipariş alınırken /kunye ve /yasal/* "Eksik yapılandırma" basabilirdi (6563 m.3).
+ * "Kapı açık" ⇒ web de künyeyi görür; ayrışma yalnız fail-closed yönde olabilir (kapı kapalı).
+ */
 export function missingLegalEntityEnvs(env: Record<string, string | undefined> = process.env): string[] {
-  return REQUIRED_LEGAL_ENTITY_ENVS.filter((name) => !(env[name]?.trim() || env[`NEXT_PUBLIC_${name}`]?.trim()));
+  return REQUIRED_LEGAL_ENTITY_ENVS.filter((name) => !env[name]?.trim());
 }
 
 /** Canlı dağıtım mı: gerçek işletmeler ve gerçek tüketiciler. Gizli staging (`DEPLOY_ENV=dev`) buna dahil DEĞİLDİR. */

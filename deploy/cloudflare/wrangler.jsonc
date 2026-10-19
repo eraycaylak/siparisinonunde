@@ -85,11 +85,11 @@
     // Zorunlu altısı (NAME, TYPE, ADDRESS, PHONE, TAX_OFFICE, TAX_NO) eksikken canlı ortamda sipariş ucu
     // KALICI 503 döner (apps/api/src/services/orders/legal-gate.ts — fail-closed: eksik künyeyle sözleşme
     // kurulmasın). Yani aşağısı dolmadan vitrin sipariş ALMAZ; dağıtım yine yeşil yanar.
-    // ⚠️ DIŞ BAĞIMLILIK: pazarlama sitesinin /kunye ve /yasal/* sayfaları STATİK üretilir (next build), yani
-    // bu değerler ayrıca DERLEME anında gerekir. Bunun için deploy/cloudflare/Dockerfile'a ARG/ENV satırları
-    // ve buradaki containers[].image_vars'a NEXT_PUBLIC_LEGAL_* karşılıkları eklenmelidir (ya da apps/web bu
-    // sayfaları çalışma zamanında okur hâle getirilmelidir). O yapılmadan API kapısı açılır ama sayfalar
-    // "Eksik yapılandırma: LEGAL_ENTITY_*" basmaya devam eder (docs/15 §4, §13).
+    // Web tarafı da AYNI değeri ÇALIŞMA zamanında okur: /kunye, /yasal/* ve pazarlama altbilgisi istek anında
+    // çizilir (apps/web/lib/legal-entity.ts, app/(marketing)/yasal/layout.tsx → connection()); container'daki web
+    // süreci bu ortamı entrypoint.sh'tan devralır. Tek kaynak burasıdır: değer değişince yeni dağıtım yeter, imaj
+    // yeniden derlenmez. Künye containers[].image_vars'a ya da Dockerfile ARG'ına EKLENMEZ (derlemeye gömülen ikinci
+    // bir kopya yalnız ayrışma üretirdi; scripts/mode.test.mjs bunu çiviler — docs/15 §4, §13).
     "LEGAL_ENTITY_NAME": "",
     "LEGAL_ENTITY_TYPE": "",
     "LEGAL_ENTITY_ADDRESS": "",
