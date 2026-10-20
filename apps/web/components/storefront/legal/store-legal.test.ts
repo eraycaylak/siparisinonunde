@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { StorefrontView } from '@siparis/core/menu/contracts';
 import { LEGAL_DOCUMENT_VERSION, isDraftLegalVersion } from '@siparis/core/enums';
+import { STOREFRONT_SIGNATURE, storefrontSignature } from '@siparis/core/messages/tr';
 import {
   IMPRINT_PLACEHOLDERS,
   STORE_LEGAL_DOCS,
@@ -275,5 +276,27 @@ describe('sürüm ve içerik özeti (08 §7.5; denetim B2, H19)', () => {
     const once = legalDocumentPlainText(buildStoreLegalDocument('aydinlatma', store()));
     const twice = legalDocumentPlainText(buildStoreLegalDocument('aydinlatma', store()));
     expect(once).toBe(twice);
+  });
+});
+
+// O3 (00 §7, §12a madde 11): altbilgideki işletmeci beyanı ile vitrin yasal metinlerindeki platform rolü cümlesi aynı şeyi
+// söyler — satıcı işletmedir, Yemek Gelsin yalnız yazılım altyapısı sağlar, satıcı ya da aracı değildir. Bu dosyadaki
+// metinler yasal içerik özetine girer (scripts/check-legal.ts): hizalama metni DEĞİŞTİRMEDEN test ile kilitlenir.
+describe('işletmeci beyanı ile platform rolü hizalı', () => {
+  it('ön bilgilendirme ve mesafeli satış: platform yazılım altyapısıdır, satıcı/aracı/taraf değildir, ödeme almaz', () => {
+    const statement = storefrontSignature('Bozok Pide');
+    expect(statement).toContain('yalnız yazılım altyapısı sağlar');
+    for (const doc of ['on-bilgilendirme', 'mesafeli-satis'] as const) {
+      const text = legalDocumentPlainText(buildStoreLegalDocument(doc, store()));
+      expect(text, doc).toContain(`${STOREFRONT_SIGNATURE.platform} yazılım altyapısıyla çalışır`);
+      expect(text, doc).toContain('satıcı ya da aracı değildir, satış sözleşmesinin tarafı değildir ve ödeme almaz');
+    }
+  });
+
+  it('aydınlatma metni: veri sorumlusu işletme, platform yazılım altyapısı ve veri işleyen', () => {
+    const text = legalDocumentPlainText(buildStoreLegalDocument('aydinlatma', store()));
+    expect(text).toContain(`${STOREFRONT_SIGNATURE.platform} yazılım altyapısıyla çalışır`);
+    expect(text).toContain('veri işleyendir');
+    expect(text).not.toMatch(/Altyapı: Yemek Gelsin/);
   });
 });

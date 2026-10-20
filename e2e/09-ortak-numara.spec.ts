@@ -1,8 +1,11 @@
-// Senaryo 9 — Ortak numara (00 §12a madde 8; 14 §8.1): tüm dükkanlar platformun tek WhatsApp numarasını kullanır.
-// (a) Müşteri Bozok'un QR'ını okutur (#BOZOK) → Bozok adına karşılama → menüden sipariş → sipariş Bozok panelinde,
-//     Çamlık Döner panelinde yok. Aynı müşteri Döner'in QR'ını okutur (#DONER) → Döner adına karşılama.
-//     "Ertesi gün" kodsuz yazar → dükkan seçici son dükkanları sorar → Bozok seçilir → mesajlar Bozok'a gider.
-// (b) İşletme sahibi (360 px): WhatsApp sayfasında ortak numara, dükkan kodu, müşteri bağlantısı, QR indirme.
+// Senaryo 9 — Ortak numara (00 §12a madde 8, geçiş: madde 11; 14 §8.1): dükkanlar geçiş boyunca platformun tek WhatsApp
+// numarasını kullanır; DİZİN YOK (O2).
+// (a) Müşteri Bozok'un kodunu yazar (#BOZOK) → Bozok adına karşılama → menüden sipariş → sipariş Bozok panelinde,
+//     Çamlık Döner panelinde yok. Aynı müşteri #DONER yazar → Döner adına karşılama. "Ertesi gün" kodsuz yazar →
+//     dükkan listesi / son dükkanlar düğmesi GELMEZ, tek nötr yanıt gelir → müşteri #BOZOK'u yeniden yazar → Bozok.
+// (b) QR kısa bağlantısı (O4): /q/<kod> → 302 vitrin (?src=qr); vitrin altbilgisinde işletmeci beyanı (O3); bilinmeyen
+//     kod listesiz nötr sayfa.
+// (c) İşletme sahibi (360 px): WhatsApp sayfasında ortak numara, dükkan kodu, müşteri bağlantısı (/q/<kod>), QR indirme.
 
 import { expect, test } from './support/test';
 import { apiLogin, newApiContext, sharedThread, toE164, uniqueName, uniquePhone } from './support/api';
@@ -14,7 +17,7 @@ interface ActiveOrders {
   items: { number: number; customerName: string | null }[];
 }
 
-test('Ortak numara: QR ile dükkan seçimi, dükkana özel sipariş, kodsuz dönüşte dükkan seçici', async ({ page, openContext, request }) => {
+test('Ortak numara: #KOD ile dükkan seçimi, dükkana özel sipariş, kodsuz dönüşte listesiz nötr yanıt', async ({ page, openContext, request }) => {
   const customer = { phone: uniquePhone(), name: uniqueName('Zeynep') };
   await openSimulator(page, customer);
 
@@ -70,18 +73,18 @@ test('Ortak numara: QR ile dükkan seçimi, dükkana özel sipariş, kodsuz dön
   const welcomes = afterDoner.messages.filter((m) => m.direction === 'out' && m.code === 'M01').map((m) => m.tenantName);
   expect(welcomes).toEqual([DEMO.tenantName, DONER.tenantName]);
 
-  // 4) "Sonra bir gün" kodsuz yazar → etkin dükkan süresi geçmiş: dükkan seçici son dükkanları sorar (en yeni önce)
+  // 4) "Sonra bir gün" kodsuz yazar → etkin dükkan süresi geçmiş: dükkan listesi ya da son dükkanlar düğmesi YOK (O2);
+  // tek nötr yanıt gelir, başka dükkanın adı geçmez
   await ageSharedRoute(toE164(customer.phone), 25);
   await simulatorSend(page, 'merhaba');
-  const picker = page.getByRole('listitem').filter({ hasText: 'Hangi dükkandan sipariş vermek istersin?' });
-  await expect(picker).toBeVisible();
+  const neutral = page.getByRole('listitem').filter({ hasText: 'Sipariş vermek için işletmenin QR kodunu okutun ya da işletmenin paylaştığı bağlantıyı açın.' });
+  await expect(neutral).toBeVisible();
+  await expect(neutral.getByRole('button')).toHaveCount(0);
+  await expect(page.getByText('Hangi dükkandan sipariş vermek istersin?')).toHaveCount(0);
   await expect(page.getByText(`Son dükkan: ${DONER.tenantName} (24 saat geçti)`)).toBeVisible();
-  const choices = picker.getByRole('button');
-  await expect(choices.nth(0)).toHaveText(DONER.tenantName);
-  await expect(choices.nth(1)).toHaveText(DEMO.tenantName);
 
-  // 5) Bozok seçilir → Bozok'a bağlanır; açık siparişi olduğu için durum kartı Bozok adına gelir
-  await picker.getByRole('button', { name: DEMO.tenantName, exact: true }).click();
+  // 5) Müşteri Bozok'un kodunu yeniden yazar → Bozok'a bağlanır; açık siparişi olduğu için durum kartı Bozok adına gelir
+  await scanShopQr(page, DEMO.waCode);
   await expect(page.getByText(`Etkin dükkan: ${DEMO.tenantName}`)).toBeVisible();
   await expect
     .poll(async () => {
@@ -91,26 +94,64 @@ test('Ortak numara: QR ile dükkan seçimi, dükkana özel sipariş, kodsuz dön
     })
     .toEqual([DEMO.tenantName, DEMO.tenantName, false, DEMO.tenantName]);
   const final = await sharedThread(request, customer.phone);
-  // Seçici mesajları platform düzeyinde (hiçbir dükkanın sohbetine girmez), seçimin kendisi Bozok'a yazılır
-  expect(final.messages.filter((m) => m.platform && m.direction === 'out').map((m) => m.code)).toEqual(['P01']);
+  // Platform yanıtı (nötr, P09) platform düzeyinde; hiçbir dükkanın sohbetine girmez, dükkan adı taşımaz
+  const platformOut = final.messages.filter((m) => m.platform && m.direction === 'out');
+  expect(platformOut.map((m) => m.code)).toEqual(['P09']);
+  expect(JSON.stringify(platformOut)).not.toContain(DEMO.tenantName);
+  expect(JSON.stringify(platformOut)).not.toContain(DONER.tenantName);
   const reply = final.messages.filter((m) => m.direction === 'in').at(-1)!;
-  expect([reply.kind, reply.tenantName]).toEqual(['button_reply', DEMO.tenantName]);
+  expect([reply.kind, reply.tenantName]).toEqual(['text', DEMO.tenantName]);
 
   await doner.dispose();
+});
+
+test('QR kısa bağlantısı: /q/<kod> vitrine yönlenir (işletmeci beyanıyla); bilinmeyen kod listesiz nötr sayfa', async ({ page, request }) => {
+  // API düzeyinde 302 (küçük harf kod da çözülür)
+  const res = await request.get(`/q/${DEMO.waCode.toLowerCase()}`, { maxRedirects: 0 });
+  expect(res.status()).toBe(302);
+  expect(res.headers()['location']).toMatch(new RegExp(`/s/${DEMO.slug}\\?src=qr$`));
+
+  await page.goto(`/q/${DEMO.waCode}`);
+  await expect(page).toHaveURL(new RegExp(`/s/${DEMO.slug}\\?src=qr$`));
+  await expect(page.getByTestId('operator-statement')).toHaveText(
+    `Bu sayfa ${DEMO.tenantName} tarafından işletilir; Yemek Gelsin yalnız yazılım altyapısı sağlar.`,
+  );
+  await expect(page.getByText('Altyapı: Yemek Gelsin')).toHaveCount(0);
+
+  await page.goto('/q/YOKBOYLE');
+  await expect(page.getByRole('heading', { name: 'QR kodu bulunamadı' })).toBeVisible();
+  await expect(page).toHaveTitle('QR kodu bulunamadı');
+  await expect(page.getByRole('main').getByRole('link')).toHaveCount(0);
+  await expect(page.getByText(DEMO.tenantName)).toHaveCount(0);
+
+  // Bilinmeyen vitrin: platform/panel bağlantısı yok
+  await page.goto('/s/boyle-bir-dukkan-yok');
+  await expect(page.getByRole('heading', { name: 'Sayfa bulunamadı' })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'İşletme paneli' })).toHaveCount(0);
+
+  // Geçerli vitrin altında eşleşmeyen yol da vitrinin nötr 404'üdür (kök 404'ün platform/panel bağlantıları yok)
+  const miss = await page.goto(`/s/${DEMO.slug}/olmayan-sayfa`);
+  expect(miss?.status()).toBe(404);
+  await expect(page.getByText('Bu adreste bir sipariş sayfası yok.', { exact: false })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'İşletme paneli' })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Ana sayfaya dön' })).toHaveCount(0);
+  await expect(page).toHaveTitle('Sayfa bulunamadı');
 });
 
 test.describe('İşletme sahibi 360 px', () => {
   test.use({ viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 });
 
-  test('WhatsApp sayfası: ortak numara, dükkan kodu, müşteri bağlantısı, QR indirme ve masa kartı', async ({ page }) => {
+  test('WhatsApp sayfası: ortak numara, dükkan kodu, müşteri bağlantısı (/q/), QR indirme ve masa kartı', async ({ page }) => {
     await loginPanel(page, DEMO.owner);
     await page.goto('/panel/ayarlar/whatsapp');
-    await expect(page.getByText('Siparişleriniz ortak Yemek Gelsin numarasından gelir.')).toBeVisible();
+    await expect(page.getByText('WhatsApp mesajlarınız ortak Yemek Gelsin numarasından gider.')).toBeVisible();
     await expect(page.getByText(`#${DEMO.waCode}`, { exact: true }).first()).toBeVisible();
+    // Müşteri bağlantısı QR kısa bağlantısıdır (O4): menüye açılır; ortak numaranın wa.me bağlantısı paylaşılmaz
     const link = await page.getByRole('textbox', { name: 'Müşteri bağlantısı' }).inputValue();
-    expect(link).toMatch(new RegExp(`^https://wa\\.me/${DEMO.waDisplayPhone.replace('+', '')}\\?text=`));
-    expect(new URL(link).searchParams.get('text')).toBe(`Merhaba, ${DEMO.tenantName} için sipariş vermek istiyorum. #${DEMO.waCode}`);
+    expect(link).toMatch(new RegExp(`/q/${DEMO.waCode}$`));
+    expect(link).not.toContain('wa.me');
     await expect(page.getByRole('button', { name: 'Bağlantıyı kopyala' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Menüyü aç' })).toHaveAttribute('href', link);
 
     // QR indirme (oturum çereziyle, aynı köken)
     const png = page.getByRole('link', { name: 'PNG indir' });
@@ -118,13 +159,15 @@ test.describe('İşletme sahibi 360 px', () => {
     const res = await page.request.get('/api/v1/panel/whatsapp/qr?format=png');
     expect(res.status()).toBe(200);
     expect(res.headers()['content-type']).toBe('image/png');
-    expect(res.headers()['content-disposition']).toContain(`whatsapp-qr-${DEMO.waCode.toLowerCase()}.png`);
+    expect(res.headers()['content-disposition']).toContain(`menu-qr-${DEMO.waCode.toLowerCase()}.png`);
 
-    // Masa kartı: dükkan adı, "Sipariş vermek için okut", kod
+    // Masa kartı: dükkan adı, "Sipariş vermek için okut", QR kısa bağlantısı; platform adı ve ortak numara yok
     const card = page.locator('#print-table-card');
     await expect(card).toContainText(DEMO.tenantName);
     await expect(card).toContainText('Sipariş vermek için okut');
-    await expect(card).toContainText(`Dükkan kodu: #${DEMO.waCode}`);
+    await expect(card).toContainText(`/q/${DEMO.waCode}`);
+    await expect(card).not.toContainText('Yemek Gelsin');
+    await expect(card).not.toContainText('Dükkan kodu');
     await expect(page.getByRole('button', { name: /^Masa kartını yazdır/ })).toBeVisible();
     // Kendi numara ikincil bölüm olarak durur
     await expect(page.getByRole('heading', { name: 'Kendi numaranızı bağlayın' })).toBeVisible();

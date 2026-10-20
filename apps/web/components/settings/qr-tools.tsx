@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { toast } from 'sonner';
 import { Copy, Download, Printer, TriangleAlert } from 'lucide-react';
-import { normalizeTrMobile, SHARED_WA_DISPLAY_NAME, sharedWaLink } from '@siparis/core';
+import { normalizeTrMobile } from '@siparis/core';
 import { brandPalette } from '@siparis/core/settings/brand';
 import { Button } from '@/components/ui/button';
 import { Field } from '@/components/ui/field';
@@ -13,7 +13,7 @@ import { RadioGroup } from '@/components/ui/radio-group';
 import { formatPhone } from '@/lib/format';
 import { useOnboarding, useTenantSettings } from './api';
 import { Section, SettingsError, SettingsLoading } from './settings-shell';
-import { publicStorefrontUrl, waMeUrl } from './urls';
+import { displayUrl, publicQrUrl, publicStorefrontUrl, waMeUrl } from './urls';
 
 const HEADLINES = ['WhatsApp’tan doğrudan sipariş verin', 'Menümüz cebinizde', 'Komisyonsuz, doğrudan bizden sipariş'];
 
@@ -38,7 +38,11 @@ function useQr(text: string | null) {
   return src;
 }
 
-/** QR, afiş ve paket kartı oluşturucu (04 §12.1, 12 §7). */
+/**
+ * QR, afiş ve paket kartı oluşturucu (04 §12.1, 12 §7). Menü QR'ı QR kısa bağlantısını (…/q/<KOD> → vitrin; 00 §12a
+ * madde 11, O4) kodlar: işletmenin modu ya da vitrin adresi değişince yeniden basım gerekmez. Ortak numaranın wa.me
+ * bağlantısı basılı malzemeye girmez; kendi numaralı işletmede "WhatsApp'tan yaz" QR'ı işletmenin kendi numarasıdır.
+ */
 export function QrTools() {
   const tenant = useTenantSettings();
   const onboarding = useOnboarding();
@@ -56,16 +60,20 @@ export function QrTools() {
   }, [tenant.data, onboarding.data, waNumber]);
 
   const slug = tenant.data?.slug ?? '';
-  const storeUrl = slug && origin ? publicStorefrontUrl(slug, '?src=afis') : null;
-  const standUrl = slug && origin ? publicStorefrontUrl(slug, '?src=stand') : null;
-  // Ortak numara (00 §12a madde 8): QR platform numarasına dükkan kodlu ön-dolu mesajla açılır (#KOD); numara elle girilmez
   const wa = onboarding.data?.whatsapp;
-  const shared = wa?.mode === 'shared' && wa.connected && wa.displayPhone && wa.code && tenant.data ? { phone: wa.displayPhone, code: wa.code } : null;
-  const e164 = shared ? shared.phone : normalizeTrMobile(waNumber);
-  const waUrl = shared ? sharedWaLink(shared.phone, tenant.data!.name, shared.code) : e164 ? waMeUrl(e164) : null;
+  // QR kısa bağlantısı (O4): kod varsa menü QR'ı /q/<KOD>'u kodlar; kod yoksa (eski kayıt) vitrin adresi
+  const qrUrl = wa?.code && origin ? publicQrUrl(wa.code) : null;
+  const storeUrl = qrUrl ?? (slug && origin ? publicStorefrontUrl(slug, '?src=afis') : null);
+  const standUrl = slug && origin ? publicStorefrontUrl(slug, '?src=stand') : null;
+  // Ortak numara (geçiş, 00 §12a madde 11): basılı malzemede yalnız menü QR'ı; ortak numaranın wa.me bağlantısı kodlanmaz
+  const shared = wa?.mode === 'shared';
+  const e164 = shared ? null : normalizeTrMobile(waNumber);
+  const waUrl = !shared && e164 ? waMeUrl(e164) : null;
   const storeQr = useQr(storeUrl);
   const standQr = useQr(standUrl);
   const waQr = useQr(waUrl);
+  // Paket kartı: kendi numarada WhatsApp QR'ı, ortak numarada menü QR'ı
+  const cardQr = shared ? storeQr : waQr;
 
   useEffect(() => {
     if (!printTarget) return;
@@ -81,8 +89,9 @@ export function QrTools() {
   const t = tenant.data;
   const palette = brandPalette(t.brandColor);
   const kvkk = shared
-    ? `Sohbette “${SHARED_WA_DISPLAY_NAME}” adı görünür; numaranızı yalnız ${t.name} siparişiniz için kullanır.`
+    ? `Siparişinizi ${t.name} alır; bilgileriniz yalnız siparişiniz için kullanılır.`
     : `WhatsApp'tan yazdığınızda numaranız yalnız ${t.name} tarafından siparişiniz için kullanılır.`;
+  const shortUrl = qrUrl ? displayUrl(qrUrl) : null;
 
   async function copy(text: string | null) {
     if (!text) return;
@@ -107,19 +116,21 @@ export function QrTools() {
 
       <Section title="Bağlantılar ve QR kodlar" description="QR kodları PNG olarak indirip matbaaya verebilir ya da hazır şablonları yazdırabilirsiniz.">
         <div className="grid gap-4 md:grid-cols-2">
-          <QrCard title="Mağaza (menü) bağlantısı" url={storeUrl} qr={storeQr} fileName={`${slug}-menu-qr.png`} onCopy={() => void copy(storeUrl)} />
+          <QrCard title="Menü bağlantısı (QR)" url={storeUrl} qr={storeQr} fileName={`${slug}-menu-qr.png`} onCopy={() => void copy(storeUrl)} />
           <div className="flex flex-col gap-3">
             {shared ? (
               <p className="rounded-md bg-info-bg p-3 text-sm text-fg">
-                Ortak numara ({SHARED_WA_DISPLAY_NAME}) · {formatPhone(shared.phone)} · Dükkan kodu <strong className="font-mono">#{shared.code}</strong>. Müşteri QR’ı
-                okutunca WhatsApp dükkan kodunuzla açılır ve bot dükkanınızın adıyla yanıt verir.
+                QR kodunuz menünüzü açar{shortUrl ? <> (<span className="break-all font-mono">{shortUrl}</span>)</> : null}; müşteri siparişini oradan verir.
+                Bağlantı, ileride WhatsApp ayarınız değişse de aynı kalır; yeniden bastırmanız gerekmez.
               </p>
             ) : (
-              <Field label="WhatsApp numaranız" hint="Müşteri QR'ı okutunca bu numaraya “Merhaba” yazar." error={waNumber && !e164 ? 'Geçerli bir cep numarası girin.' : undefined}>
-                <Input value={waNumber ? formatPhone(waNumber) : ''} onChange={(e) => setWaNumber(e.target.value)} inputMode="tel" placeholder="0532 000 00 00" />
-              </Field>
+              <>
+                <Field label="WhatsApp numaranız" hint="Müşteri QR'ı okutunca bu numaraya “Merhaba” yazar." error={waNumber && !e164 ? 'Geçerli bir cep numarası girin.' : undefined}>
+                  <Input value={waNumber ? formatPhone(waNumber) : ''} onChange={(e) => setWaNumber(e.target.value)} inputMode="tel" placeholder="0532 000 00 00" />
+                </Field>
+                <QrCard title="WhatsApp sohbet bağlantısı" url={waUrl} qr={waQr} fileName={`${slug}-whatsapp-qr.png`} onCopy={() => void copy(waUrl)} />
+              </>
             )}
-            <QrCard title="WhatsApp sohbet bağlantısı" url={waUrl} qr={waQr} fileName={`${slug}-whatsapp-qr.png`} onCopy={() => void copy(waUrl)} />
           </div>
         </div>
         {standQr ? (
@@ -129,14 +140,7 @@ export function QrTools() {
         ) : null}
       </Section>
 
-      <Section
-        title="Afiş ve paket kartı"
-        description={
-          shared
-            ? 'İşletme adınız ve renginiz öne çıkar; platform adı yalnız müşterinin WhatsApp’ta göreceği sohbet adını açıklayan küçük notta geçer.'
-            : 'İşletme adınız ve renginiz öne çıkar; basılı materyalde platform adı yer almaz.'
-        }
-      >
+      <Section title="Afiş ve paket kartı" description="İşletme adınız ve renginiz öne çıkar; platform logosu ya da tanıtımı basılmaz. QR’ı okutamayan müşteri için QR’ın kısa bağlantısı (alan adıyla) yazılır.">
         <RadioGroup legend="Başlık" variant="chips" value={headline} onValueChange={setHeadline} options={HEADLINES.map((h) => ({ value: h, label: h }))} />
         <Field label="Alt satır (isteğe bağlı)" hint="Ör. Bu kartla siparişe ayran bizden.">
           <Input value={subline} onChange={(e) => setSubline(e.target.value)} maxLength={60} />
@@ -170,16 +174,18 @@ export function QrTools() {
               <div className="flex flex-1 flex-col items-center justify-center gap-[3cqw] px-[6cqw]">
                 <span className="text-[6cqw] font-bold leading-tight">{headline}</span>
                 {subline ? <span className="text-[4cqw]">{subline}</span> : null}
-                <div className="grid w-full grid-cols-2 gap-[4cqw]">
-                  <PosterQr label="Menüye bak" qr={storeQr} />
-                  <PosterQr label="WhatsApp’tan yaz" qr={waQr} />
-                </div>
-                {e164 ? (
-                  <span className="text-[4.5cqw] font-semibold">
-                    {formatPhone(e164)}
-                    {shared ? ` · #${shared.code}` : ''}
-                  </span>
-                ) : null}
+                {shared ? (
+                  <div className="w-[56cqw]">
+                    <PosterQr label="Menüye bak, sipariş ver" qr={storeQr} />
+                  </div>
+                ) : (
+                  <div className="grid w-full grid-cols-2 gap-[4cqw]">
+                    <PosterQr label="Menüye bak" qr={storeQr} />
+                    <PosterQr label="WhatsApp’tan yaz" qr={waQr} />
+                  </div>
+                )}
+                {shared && shortUrl ? <span className="break-all font-mono text-[4cqw] font-semibold">{shortUrl}</span> : null}
+                {e164 ? <span className="text-[4.5cqw] font-semibold">{formatPhone(e164)}</span> : null}
               </div>
               <p className="px-[6cqw] pb-[4cqw] text-[2.4cqw] leading-snug text-[#374151]">{kvkk}</p>
             </div>
@@ -203,25 +209,21 @@ export function QrTools() {
                   </span>
                   <span className="text-[4.8cqw] font-bold leading-tight">{headline}</span>
                   {subline ? <span className="text-[3.8cqw]">{subline}</span> : null}
-                  {e164 ? (
-                    <span className="text-[4.2cqw] font-semibold">
-                      {formatPhone(e164)}
-                      {shared ? ` · #${shared.code}` : ''}
-                    </span>
-                  ) : null}
+                  {shared && shortUrl ? <span className="break-all font-mono text-[3.6cqw] font-semibold">{shortUrl}</span> : null}
+                  {e164 ? <span className="text-[4.2cqw] font-semibold">{formatPhone(e164)}</span> : null}
                   <span className="mt-auto text-[2.6cqw] leading-snug text-[#374151]">{kvkk}</span>
                 </div>
                 <div className="flex w-[32cqw] items-center">
-                  {waQr ? (
+                  {cardQr ? (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={waQr} alt="WhatsApp QR" className="w-full" />
+                    <img src={cardQr} alt={shared ? 'Menü QR' : 'WhatsApp QR'} className="w-full" />
                   ) : (
-                    <span className="text-[3cqw] text-[#6b7280]">Numara girin</span>
+                    <span className="text-[3cqw] text-[#6b7280]">{shared ? 'QR hazırlanıyor' : 'Numara girin'}</span>
                   )}
                 </div>
               </div>
             </div>
-            <Button variant="secondary" onClick={() => setPrintTarget('card')} disabled={!waQr}>
+            <Button variant="secondary" onClick={() => setPrintTarget('card')} disabled={!cardQr}>
               <Printer aria-hidden />
               Kartı yazdır
             </Button>

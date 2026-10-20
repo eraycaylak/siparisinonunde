@@ -25,17 +25,23 @@ import {
   type SuspensionReason,
   type WaMode,
 } from '@siparis/core';
-import { auditLog, subscriptions, tenants } from '@siparis/db';
-import { and, eq, ne, sql } from 'drizzle-orm';
+import { auditLog, retiredWaCodes, subscriptions, tenants } from '@siparis/db';
+import { and, eq, sql } from 'drizzle-orm';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { AppError, badRequest, conflict, forbidden, notFound } from '../../lib/errors';
 import { currentSubscription, listTenantOrders, listTenants, loadTenantDetail } from '../../services/admin/tenants';
 import { adminActor, adminAudit, auditSensitiveRead, requireAdmin } from '../../services/admin/util';
-import { applyWaMode } from '../../services/messaging/shared';
+import { applyWaMode, waCodeOwner } from '../../services/messaging/shared';
 
 const paramsSchema = z.object({ id: z.uuid() });
-const waCodeTaken = () => conflict('wa_code_taken', 'Bu dükkan kodu başka bir işletmede kullanılıyor.');
+const waCodeTaken = (retired = false) =>
+  conflict(
+    'wa_code_taken',
+    retired
+      ? 'Bu kod başka bir işletmenin eski kodu: sahadaki QR\'ları o işletmeye yönlenir, başka işletmeye verilemez.'
+      : 'Bu dükkan kodu başka bir işletmede kullanılıyor.',
+  );
 const DAY_MS = 86400000;
 
 type Change = { from: unknown; to: unknown };
@@ -60,7 +66,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     },
     async (request) => {
       const actor = adminActor(request);
-      const detail = await loadTenantDetail(app.db, request.params.id, actor.role);
+      const detail = await loadTenantDetail(app.db, request.params.id, actor.role, app.config.APP_BASE_URL);
       if (!detail) throw notFound('İşletme bulunamadı.');
       await auditSensitiveRead(app.db, actor, detail.tenant.id, 'admin.tenant_view');
       return detail;
@@ -233,7 +239,10 @@ const routes: FastifyPluginAsyncZod = async (app) => {
           }
         }
 
-        // Ortak numara (00 §12a madde 8): dükkan kodu (tekil, QR'daki #KOD) ve WhatsApp modu
+        // QR kısa kodu (00 §12a madde 11; geçişte ortak numaradaki #KOD) ve WhatsApp modu. Kod basılı QR'ların kalıcı
+        // anahtarıdır: değişince eski kod emekliye ayrılır (retired_wa_codes; 00 §3 "Emekli QR kodu") ve başka işletmeye
+        // hiçbir zaman verilmez; başka işletmenin güncel ya da emekli kodu atanamaz, işletme kendi eski koduna dönebilir.
+        let waCodeRetire: { old: string | null; reclaim: boolean } | null = null;
         if (body.waCode !== undefined) {
           const code = normalizeWaCode(body.waCode);
           const problem = code ? waCodeProblem(code) : 'format';
@@ -243,10 +252,11 @@ const routes: FastifyPluginAsyncZod = async (app) => {
           }
           if (code !== t.waCode) {
             need('tenants:whatsapp', 'Dükkan kodunu yalnız platform yöneticisi değiştirebilir.');
-            const [taken] = await tx.select({ id: tenants.id }).from(tenants).where(and(eq(tenants.waCode, code), ne(tenants.id, tenantId)));
-            if (taken) throw waCodeTaken();
+            const owner = await waCodeOwner(tx, code);
+            if (owner && owner.tenantId !== tenantId) throw waCodeTaken(owner.retired);
             tenantPatch.waCode = code;
             tenantChanges.waCode = { from: t.waCode ?? null, to: code };
+            waCodeRetire = { old: t.waCode ?? null, reclaim: owner?.retired === true };
           }
         }
         let waModeChange: WaMode | null = null;
@@ -272,6 +282,17 @@ const routes: FastifyPluginAsyncZod = async (app) => {
             .update(tenants)
             .set({ ...tenantPatch, version: sql`${tenants.version} + 1` })
             .where(eq(tenants.id, tenantId));
+          if (waCodeRetire) {
+            // Kendi eski koduna dönüş: emekli satır kalkar. Eski kod emekliye ayrılır (aynı işletme; tekrar teslimde no-op).
+            if (waCodeRetire.reclaim && tenantPatch.waCode) {
+              await tx
+                .delete(retiredWaCodes)
+                .where(and(eq(retiredWaCodes.code, tenantPatch.waCode), eq(retiredWaCodes.tenantId, tenantId)));
+            }
+            if (waCodeRetire.old) {
+              await tx.insert(retiredWaCodes).values({ tenantId, code: waCodeRetire.old }).onConflictDoNothing({ target: retiredWaCodes.code });
+            }
+          }
           // Mod değişince WhatsApp hesap satırı da çevrilir (ortak numara satırı açılır ya da kapatılır)
           if (waModeChange) await applyWaMode(tx, app.config, tenantId, waModeChange);
           await adminAudit(tx, actor, {
@@ -315,12 +336,12 @@ const routes: FastifyPluginAsyncZod = async (app) => {
         }
       });
       await saved.catch((err: unknown) => {
-        // Eşzamanlı aynı kod: benzersiz indeks (tenants_wa_code_uk)
+        // Eşzamanlı aynı kod: benzersiz indeks (tenants_wa_code_uk / retired_wa_codes_code_uk)
         if ((err as { code?: string } | null)?.code === '23505') throw waCodeTaken();
         throw err;
       });
 
-      const detail = await loadTenantDetail(app.db, tenantId, role);
+      const detail = await loadTenantDetail(app.db, tenantId, role, app.config.APP_BASE_URL);
       if (!detail) throw notFound('İşletme bulunamadı.');
       return detail;
     },

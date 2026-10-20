@@ -34,7 +34,7 @@ export interface MessageBubbleProps {
   showCode?: boolean;
   /** CTA bağlantıları açılabilir mi (panelde müşteri token'ı tüketilmesin diye kapalı). */
   openLinks?: boolean;
-  /** Başlık satırında ek etiket (simülatör: ortak numarada mesajın dükkanı / dükkan seçici). */
+  /** Başlık satırında ek etiket (simülatör: ortak numarada mesajın dükkanı / platform yanıtı). */
   tag?: ReactNode;
 }
 

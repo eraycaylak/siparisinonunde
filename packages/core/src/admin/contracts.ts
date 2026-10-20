@@ -244,9 +244,9 @@ export const adminWaSharedNumberSchema = z.object({
   webhookUrlMasked: z.string().nullable(),
   /** Ortak webhook'a son olay */
   lastWebhookAt: isoOrNull,
-  /** Ortak numaradaki işletmeler / dükkan listesinde seçilebilenler */
+  /** Ortak numaradaki işletmeler / şu an #KOD ile sipariş alabilenler (dükkan listesi yok, O2) */
   shops: z.object({ total: int, selectable: int }),
-  /** Platform düzeyi mesajlar (dükkan seçici, yönlendirilemeyen gelenler), son 24 saat */
+  /** Platform düzeyi mesajlar (nötr yanıt P09 ve diğer platform yanıtları, yönlendirilemeyen gelenler), son 24 saat */
   platform24h: z.object({ inbound: int, outbound: int, failed: int }),
   health: z.enum(['red', 'yellow', 'green']),
   /** Türkçe sorun/uyarı satırları (boşsa sorun yok) */
@@ -475,8 +475,10 @@ export const adminTenantDetailSchema = z.object({
     waMode: z.enum(WA_MODES),
     /** Dükkan kodu; yalnız platform yöneticisi değiştirir (PATCH waCode) */
     waCode: z.string().nullable(),
-    /** Ortak numarada QR bağlantısı (wa.me/<ortak numara>?text=…#KOD); kendi numarada ya da numara yoksa null */
+    /** Ortak numaranın #KOD'lu wa.me bağlantısı (geçiş, 00 §12a madde 11); kendi numarada ya da numara yoksa null. QR bunu kodlamaz. */
     sharedWaLink: z.string().nullable(),
+    /** QR kısa bağlantısı (APP_BASE_URL/q/<kod>; O4): QR'ların kodladığı, vitrine yönlendiren bağlantı; her modda. Kod yoksa null */
+    qrUrl: z.string().nullable(),
     createdAt: iso,
     updatedAt: iso,
   }),

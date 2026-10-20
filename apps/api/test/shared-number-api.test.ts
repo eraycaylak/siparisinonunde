@@ -162,10 +162,11 @@ describe('panel WhatsApp ayarları (ortak numara)', () => {
     expect(body.providers.map((x: { value: string }) => x.value)).toEqual(['mock', 'd360', 'cloud']);
   });
 
-  it('canlı değilse listede görünmez uyarısı; kendi numara modunda shared null', async () => {
+  it('canlı değilse #KOD ile sipariş alınmaz uyarısı (dükkan listesi metni yok); kendi numara modunda shared null', async () => {
     await ctx.db.update(tenants).set({ webLiveAt: null }).where(eq(tenants.id, B.tenantId));
     const res = (await get(B.ownerCookie)).json();
-    expect(res.shared).toMatchObject({ selectable: false, selectableReason: 'Canlıya geçince ortak numaradaki dükkan listesinde görünürsünüz.' });
+    expect(res.shared).toMatchObject({ selectable: false, selectableReason: 'Canlıya geçince ortak numaraya #KOD yazan müşterileriniz de sipariş verebilir; QR kodunuz menünüzü açar.' });
+    expect(JSON.stringify(res)).not.toMatch(/dükkan listesi/i);
     expect(res.health.level).toBe('warning');
     await ctx.db.update(tenants).set({ webLiveAt: new Date() }).where(eq(tenants.id, B.tenantId));
     const o = (await get(own.ownerCookie)).json();
@@ -181,17 +182,17 @@ describe('panel WhatsApp ayarları (ortak numara)', () => {
     expect(acc).toMatchObject({ provider: 'shared', status: 'connected' });
   });
 
-  it('QR indirme: SVG ve PNG (owner, manager); kasiyer 403; kendi işletmesinin kodu', async () => {
+  it('QR indirme: SVG ve PNG (owner, manager); kasiyer 403; kendi işletmesinin kodu (QR /q/<kod> kodlar, O4)', async () => {
     const svg = await ctx.request({ method: 'GET', url: '/api/v1/panel/whatsapp/qr?format=svg', cookie: A.ownerCookie });
     expect(svg.statusCode).toBe(200);
     expect(svg.headers['content-type']).toContain('image/svg+xml');
-    expect(svg.headers['content-disposition']).toBe('attachment; filename="whatsapp-qr-bozok.svg"');
+    expect(svg.headers['content-disposition']).toBe('attachment; filename="menu-qr-bozok.svg"');
     expect(svg.body).toMatch(/^<svg/);
     const manager = await ctx.createStaff(B.tenantId, 'manager');
     const png = await ctx.request({ method: 'GET', url: '/api/v1/panel/whatsapp/qr?format=png', cookie: manager.cookie });
     expect(png.statusCode).toBe(200);
     expect(png.headers['content-type']).toBe('image/png');
-    expect(png.headers['content-disposition']).toBe('attachment; filename="whatsapp-qr-doner.png"');
+    expect(png.headers['content-disposition']).toBe('attachment; filename="menu-qr-doner.png"');
     expect(png.rawPayload.subarray(1, 4).toString()).toBe('PNG');
     const cashier = await ctx.createStaff(A.tenantId, 'cashier');
     expectError(await ctx.request({ method: 'GET', url: '/api/v1/panel/whatsapp/qr', cookie: cashier.cookie }), 403, 'forbidden');
@@ -304,19 +305,26 @@ describe('admin: dükkan kodu ve WhatsApp modu', () => {
       waCode: 'BOZOKPIDE',
       waMode: 'shared',
       sharedWaLink: `https://wa.me/905550000000?text=${encodeURIComponent(sharedPrefillText('Bozok Pide Salonu', 'BOZOKPIDE'))}`,
+      // QR'ın kodladığı bağlantı: /q/<kod> (O4); kod değişince yeni kodla
+      qrUrl: `${ctx.config.APP_BASE_URL.replace(/\/$/, '')}/q/BOZOKPIDE`,
     });
     const [log] = await ctx.db.select().from(auditLog).where(and(eq(auditLog.tenantId, A.tenantId), eq(auditLog.action, 'admin.tenant_update')));
     expect((log!.data as { changes: Record<string, unknown> }).changes).toMatchObject({ waCode: { from: 'BOZOK', to: 'BOZOKPIDE' } });
     const list = (await ctx.request({ method: 'GET', url: '/api/v1/admin/tenants?q=bozok', cookie: p.platform_admin.cookie })).json();
     expect(list.items.find((x: { id: string }) => x.id === A.tenantId)).toMatchObject({ waMode: 'shared', waCode: 'BOZOKPIDE' });
-    // Eski kod artık dükkan seçmez, yenisi seçer
+    // Yeni kod seçer; eski kod emekliye ayrıldı (retired_wa_codes) ve sahadaki eski QR'lar için yine bu dükkanı seçer
     const phone = nextPhone();
     await sharedInbound(ctx, { phone }, { type: 'text', text: '#BOZOKPIDE' });
     expect(await findSharedRoute(ctx.db, { phone })).toMatchObject({ currentTenantId: A.tenantId });
+    const phone2 = nextPhone();
+    await sharedInbound(ctx, { phone: phone2 }, { type: 'text', text: '#BOZOK' });
+    expect(await findSharedRoute(ctx.db, { phone: phone2 })).toMatchObject({ currentTenantId: A.tenantId });
   });
 
   it('tekillik 409; biçim/komut/sipariş koduna benzeyen 400; yetkisiz rol 403', async () => {
     expectError(await patch(B.tenantId, p.platform_admin.cookie, { waCode: 'bozokpide' }), 409, 'wa_code_taken');
+    // A'nın emekli kodu (BOZOK) da başka işletmeye verilmez
+    expectError(await patch(B.tenantId, p.platform_admin.cookie, { waCode: 'bozok' }), 409, 'wa_code_taken');
     expectError(await patch(B.tenantId, p.platform_admin.cookie, { waCode: 'ab' }), 400, 'invalid_wa_code');
     expectError(await patch(B.tenantId, p.platform_admin.cookie, { waCode: 'liste' }), 400, 'invalid_wa_code');
     expectError(await patch(B.tenantId, p.platform_admin.cookie, { waCode: 'K7M2Q9' }), 400, 'invalid_wa_code');
@@ -333,13 +341,14 @@ describe('admin: dükkan kodu ve WhatsApp modu', () => {
   it('mod: own → ortak numara satırı kapanır (bağlantısız), shared → satır ortak numaraya çevrilir; seçicide görünürlük', async () => {
     const off = await patch(B.tenantId, p.platform_owner.cookie, { waMode: 'own' });
     expect(off.statusCode, off.body).toBe(200);
-    expect(off.json().tenant).toMatchObject({ waMode: 'own', sharedWaLink: null });
+    // Kendi numaraya geçince ortak numara bağlantısı kalkar; QR kısa bağlantısı aynı kalır (yeniden basım gerekmez)
+    expect(off.json().tenant).toMatchObject({ waMode: 'own', sharedWaLink: null, qrUrl: expect.stringMatching(/\/q\/DONER$/) });
     const [acc1] = await ctx.db.select().from(waAccounts).where(eq(waAccounts.tenantId, B.tenantId));
     expect(acc1).toMatchObject({ id: B.account.id, provider: 'mock', status: 'disconnected', displayPhone: null });
     const phone = nextPhone();
     await sharedInbound(ctx, { phone }, { type: 'text', text: '#DONER' });
     const [pm] = await ctx.db.select().from(sharedWaMessages).where(and(eq(sharedWaMessages.direction, 'out'), sql`${sharedWaMessages.payload}->>'code' = 'P03'`));
-    expect(pm!.body).toBe('Çamlık Döner şu an bu numaradan sipariş almıyor. Başka bir dükkan için "dükkanlar" yazabilirsin.');
+    expect(pm!.body).toBe('Çamlık Döner şu an bu numaradan sipariş almıyor.');
     const on = await patch(B.tenantId, p.platform_owner.cookie, { waMode: 'shared' });
     expect(on.statusCode, on.body).toBe(200);
     const [acc2] = await ctx.db.select().from(waAccounts).where(eq(waAccounts.tenantId, B.tenantId));
@@ -449,7 +458,7 @@ describe('kayıt: dükkan kodu ve ortak numara satırı', () => {
 
 // ---------------------------------------------------------------------------
 describe('dev simülatörü (ortak numara)', () => {
-  it('shared: true ile yazılır, ortak sohbet tüm dükkanları ve platform seçicisini tek akışta gösterir', async () => {
+  it('shared: true ile yazılır, ortak sohbet tüm dükkanları ve platform yanıtını (listesiz) tek akışta gösterir', async () => {
     const phone = nextPhone();
     const send = (message: Record<string, unknown>, extra: Record<string, unknown> = { shared: true }) =>
       ctx.request({ method: 'POST', url: '/api/v1/dev/wa/inbound?sync=1', body: { ...extra, from: { phone, name: 'Sim' }, message } });
@@ -462,15 +471,15 @@ describe('dev simülatörü (ortak numara)', () => {
     const seqs = thread.messages.map((m: { direction: string; platform: boolean; tenantName: string | null; code: string | null }) => [m.direction, m.platform ? 'platform' : m.tenantName, m.code]);
     expect(seqs).toEqual([
       ['in', 'platform', null],
-      ['out', 'platform', 'P02'],
+      ['out', 'platform', 'P09'],
       ['in', 'Çamlık Döner', null],
       ['out', 'Çamlık Döner', 'M01'],
       ['in', 'Bozok Pide Salonu', null],
       ['out', 'Bozok Pide Salonu', 'M01'],
     ]);
-    expect(thread.messages[1].list.rows.length).toBeGreaterThan(0);
-    // Liste satırları bölüm başlığını taşır ("İlçe, Şehir"); giden mesajın wamid'i simülatörün yanıt bağlamı içindir
-    expect(thread.messages[1].list.rows[0].section).toEqual(expect.any(String));
+    // Platform yanıtı düz nötr metindir: liste ya da dükkan adı yok (O2); giden mesajın wamid'i simülatörün yanıt bağlamı içindir
+    expect(thread.messages[1].list ?? null).toBeNull();
+    expect(thread.messages[1].body).toBe('Sipariş vermek için işletmenin QR kodunu okutun ya da işletmenin paylaştığı bağlantıyı açın.');
     expect(thread.messages[3].wamid).toEqual(expect.any(String));
     expect(thread.messages[3]).toMatchObject({ brand: 'Çamlık Döner', status: 'sent' });
     expect(thread.route).toMatchObject({ currentTenantId: A.tenantId, currentTenantName: 'Bozok Pide Salonu' });

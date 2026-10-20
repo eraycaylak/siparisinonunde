@@ -42,7 +42,7 @@ interface AccountsResponse {
   sharedNumber?: { displayName: string; displayPhone: string | null; displayPhoneFormatted: string | null; shops: SharedShop[] };
 }
 
-/** Ortak sohbette mesaj: hangi dükkanın konuşmasında ya da platform düzeyinde (dükkan seçici). */
+/** Ortak sohbette mesaj: hangi dükkanın konuşmasında ya da platform düzeyinde (yol gösterme). */
 type ThreadMessage = ChatMessage & { tenantId?: string | null; tenantName?: string | null; platform?: boolean; wamid?: string | null };
 
 interface ThreadResponse {
@@ -103,7 +103,7 @@ function routeTag(m: ThreadMessage) {
   if (m.platform) {
     return (
       <Badge variant="info" size="sm">
-        {m.direction === 'in' ? 'Dükkan seçilmedi' : 'Yemek Gelsin · dükkan seçici'}
+        {m.direction === 'in' ? 'Dükkan seçilmedi' : 'Yemek Gelsin · yol gösterme'}
       </Badge>
     );
   }
@@ -118,8 +118,8 @@ function routeTag(m: ThreadMessage) {
 
 /**
  * /dev/whatsapp: müşteri gibi yazma, butonlara ve liste satırlarına basma, SMS kutusu, platform uyarıları.
- * Ortak numara (varsayılan): tek sohbet; QR çipleri dükkanın ön-dolu mesajını (#KOD) gönderir, dükkan seçici ve dükkan
- * mesajları aynı akışta görünür. Kendi numaralı işletme: işletmenin hesabı + işletme telefonundan yazma (echo).
+ * Ortak numara (geçiş, 00 §12a madde 11): tek sohbet; QR çipleri dükkanın ön-dolu mesajını (#KOD) gönderir, platform
+ * yol gösterme mesajları ve dükkan mesajları aynı akışta görünür (dükkan listesi yok, O2). Kendi numaralı işletme: işletmenin hesabı + işletme telefonundan yazma (echo).
  */
 export function WhatsappSimulator() {
   const accounts = useApiQuery<AccountsResponse>(['dev', 'wa', 'accounts'], '/dev/wa/accounts');
@@ -247,7 +247,7 @@ export function WhatsappSimulator() {
   const conv = thread.data?.conversation ?? null;
   const route = thread.data?.route ?? null;
   const humanActive = conv?.mode === 'human' && (!conv.humanUntil || new Date(conv.humanUntil) > new Date());
-  // Yönlendirici kodsuz mesajı son 24 saatte konuşulan dükkana verir (14 §8.1); sonrası dükkan seçici
+  // Yönlendirici kodsuz mesajı son 24 saatte konuşulan dükkana verir (14 §8.1); sonrası listesiz nötr yanıt
   const routeActive = !!route?.currentTenantName && !!route.lastRoutedAt && Date.now() - Date.parse(route.lastRoutedAt) <= ROUTE_ACTIVE_MS;
   const targetOptions = [
     ...(shared ? [{ value: SHARED, label: `${shared.displayName} · ortak numara` }] : []),
@@ -265,8 +265,8 @@ export function WhatsappSimulator() {
           <CardHeader>
             <CardTitle>Numara ve müşteri</CardTitle>
             <CardDescription>
-              Müşteri gibi yazın; mesajlar gerçek webhook hattından geçer. Ortak numarada dükkanı QR çipiyle (#KOD) seçin ya da kodsuz yazıp dükkan seçiciyi
-              görün.
+              Müşteri gibi yazın; mesajlar gerçek webhook hattından geçer. Ortak numarada dükkanı QR çipiyle (#KOD) seçin; kodsuz yazan müşteri listesiz nötr bir
+              yanıt alır.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
@@ -277,14 +277,14 @@ export function WhatsappSimulator() {
             {isShared && shared ? (
               <div className="flex flex-col gap-1 text-sm text-fg-muted">
                 <p>
-                  Ortak numarada {shops.length} işletme · {shops.filter((s) => s.selectable).length} tanesi dükkan listesinde. Sohbetin altındaki QR çipi
-                  (#KOD), dükkanın QR’ı okutulunca WhatsApp’ta hazır gelen mesajı gönderir.
+                  Ortak numarada {shops.length} işletme · {shops.filter((s) => s.selectable).length} tanesi şu an #KOD ile sipariş alıyor. Sohbetin altındaki QR çipi
+                  (#KOD), ortak numaranın wa.me bağlantısındaki hazır #KOD mesajını gönderir (basılı QR artık menüyü açar: /q/&lt;kod&gt;).
                 </p>
                 <ul className="flex flex-col gap-0.5">
                   {shops.map((s) => (
                     <li key={s.tenantId}>
                       <span className="font-mono font-semibold text-fg">#{s.code ?? '—'}</span> {s.tenantName}
-                      {!s.selectable ? ' · listede değil' : ''}
+                      {!s.selectable ? ' · sipariş almıyor' : ''}
                     </li>
                   ))}
                 </ul>

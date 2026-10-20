@@ -335,7 +335,10 @@ function WhatsappStep({ status, onChanged }: { status: OnboardingStatus; onChang
   );
 }
 
-/** Ortak numarada WhatsApp adımı: yapılacak bir şey yok; dükkan kodu ve QR (GET /panel/whatsapp/qr, owner + manager). */
+/**
+ * Ortak numarada WhatsApp adımı: yapılacak bir şey yok; dükkan kodu ve QR (GET /panel/whatsapp/qr, owner + manager). QR
+ * menüye açılan QR kısa bağlantısını (/q/<KOD>; 00 §12a madde 11, O4) kodlar.
+ */
 function SharedWhatsappReady({ code, displayPhone, isOwner }: { code: string | null; displayPhone: string | null; isOwner: boolean }) {
   const [qrFailed, setQrFailed] = useState(false);
   return (
@@ -349,7 +352,7 @@ function SharedWhatsappReady({ code, displayPhone, isOwner }: { code: string | n
           </Badge>
         </span>
       }
-      description="Siparişleriniz ortak Yemek Gelsin numarasından gelir; ayrıca numara bağlamanız gerekmez."
+      description="QR kodunuz menünüzü açar, siparişleriniz oradan gelir; WhatsApp mesajları ortak Yemek Gelsin numarasından gider, ayrıca numara bağlamanız gerekmez."
     >
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
         {!qrFailed ? (
@@ -374,7 +377,7 @@ function SharedWhatsappReady({ code, displayPhone, isOwner }: { code: string | n
             ) : null}
           </p>
           <ul className="flex list-disc flex-col gap-1 ps-5 text-sm text-fg">
-            <li>Müşteri QR kodunuzu okutunca WhatsApp dükkan kodunuzla açılır; bot dükkanınızın adıyla karşılar ve menü bağlantısını gönderir.</li>
+            <li>Müşteri QR kodunuzu okutunca menünüz açılır ve siparişini oradan verir; WhatsApp ayarınız değişse de QR aynı kalır.</li>
             <li>Her mesajda dükkanınızın adı görünür; siparişler bu panele düşer, başka dükkanlarla karışmaz.</li>
             <li>QR’ı masaya, kapıya ve paketlere koyun; afiş ve masa kartı hazır.</li>
           </ul>

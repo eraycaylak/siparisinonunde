@@ -100,8 +100,9 @@ export async function setOwnNumberNotConnected(slug: string): Promise<void> {
 }
 
 /**
- * Ortak numara yönlendirme kaydını geriye alır ("ertesi gün"): son yönlendirme `hours` saat önceye çekilir, seçici
- * soğuması temizlenir. Böylece kodsuz mesaj etkin dükkana değil dükkan seçiciye düşer (24 saat kuralı, 14 §8.1).
+ * Ortak numara yönlendirme kaydını geriye alır ("ertesi gün"): son yönlendirme `hours` saat önceye çekilir, nötr yanıt
+ * soğuması (`last_picker_at`) temizlenir. Böylece kodsuz mesaj etkin dükkana değil listesiz nötr yanıta (P09) düşer
+ * (24 saat kuralı, 14 §8.1; dükkan seçici O2 ile kalktı).
  */
 export async function ageSharedRoute(phoneE164: string, hours: number): Promise<void> {
   await withSql(async (sql) => {

@@ -62,9 +62,43 @@ export function enforceRateLimit(limiter: RateLimiter, key: string, cost = 1): v
   if (!r.ok) throw tooManyRequests(r.retryAfterSec);
 }
 
-/** İstemci IP'si (Caddy arkasında trustProxy ile X-Forwarded-For). */
+/** İstemci IP'si (Caddy arkasında trustProxy ile X-Forwarded-For). Kayıt/denetim için tam adres. */
 export function clientIp(request: FastifyRequest): string {
   return request.ip || 'unknown';
+}
+
+/**
+ * Oran sınırı kovası için IP anahtarı: IPv4 olduğu gibi; IPv6 /64 önekine indirgenir (bir abone/cihaz genellikle tüm
+ * /64 bloğunu alır — tam adresle her istek ayrı adresten atılıp sınır aşılabilirdi). IPv4-eşlemeli IPv6 (::ffff:a.b.c.d)
+ * IPv4'e döner. Ayrıştırılamayan değer olduğu gibi kalır. Yalnız kova anahtarıdır; kayda tam adres (clientIp) yazılır.
+ */
+export function rateLimitIpKey(ip: string): string {
+  const v = ip.trim().toLowerCase();
+  if (!v.includes(':')) return v;
+  const addr = v.split('%')[0]!;
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/.exec(addr);
+  if (mapped) return mapped[1]!;
+  const parts = addr.split('::');
+  if (parts.length > 2) return v;
+  const groupsOf = (x: string | undefined): string[] => {
+    if (!x) return [];
+    return x.split(':').flatMap((g) => (g.includes('.') ? ['0', '0'] : [g]));
+  };
+  const head = groupsOf(parts[0]);
+  const tail = parts.length === 2 ? groupsOf(parts[1]) : [];
+  const fill = parts.length === 2 ? 8 - head.length - tail.length : 0;
+  if (fill < 0 || head.length + tail.length + fill !== 8) return v;
+  const groups = [...head, ...Array<string>(fill).fill('0'), ...tail];
+  if (!groups.every((g) => /^[0-9a-f]{1,4}$/.test(g))) return v;
+  return `${groups
+    .slice(0, 4)
+    .map((g) => parseInt(g, 16).toString(16))
+    .join(':')}::/64`;
+}
+
+/** İsteğin oran sınırı IP anahtarı (rateLimitIpKey(clientIp)). */
+export function rateLimitIp(request: FastifyRequest): string {
+  return rateLimitIpKey(clientIp(request));
 }
 
 /** 14 §5 sınırları. */

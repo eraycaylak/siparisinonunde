@@ -4,7 +4,7 @@
 // Ortak numara (00 §12a madde 8): `shared: true` ya da ortak numara işletmesinin hesap kimliği → mesaj ortak numaraya
 // gider (yönlendirici dükkanı seçer). Hesap kimliğiyle yazmak müşterinin o dükkanın QR'ından geldiği anlamına gelir
 // (etkin dükkanı yoksa yönlendirme o dükkana hazırlanır); `shared: true` gerçek kodsuz deneyimdir. Sohbet görünümü
-// müşterinin ortak numaradaki TEK sohbetidir (tüm dükkanlar + platform seçici mesajları, zaman sırasıyla; her mesajda
+// müşterinin ortak numaradaki TEK sohbetidir (tüm dükkanlar + platform yanıtları — nötr yanıt P09 vb. —, zaman sırasıyla; her mesajda
 // tenantName, platform mesajında platform=true).
 
 import { SHARED_WA_DISPLAY_NAME, formatPhone, normalizePhone } from '@siparis/core';
@@ -94,7 +94,7 @@ type SharedThreadMessage = MessageView & { tenantId: string | null; tenantName: 
 
 /**
  * Müşterinin ortak numaradaki sohbeti (müşteri tarafı görünüm): ortak numara işletmelerindeki konuşmalar + platform
- * seçici mesajları, zaman sırasıyla. Yalnız geliştirme simülatörü içindir (üretimde /dev kapalı).
+ * yanıtları (nötr yanıt P09 vb.; dükkan seçici O2 ile kalktı), zaman sırasıyla. Yalnız geliştirme simülatörü içindir (üretimde /dev kapalı).
  */
 async function sharedThread(app: FastifyInstance, who: { phone: string | null; bsuid: string | null }, limit: number) {
   const conds = [];
@@ -254,7 +254,7 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       });
       const { payload, wamid } = built;
       // Dükkan hesabıyla yazmak = müşteri o dükkanın QR'ından geldi: etkin dükkanı yoksa yönlendirme bu dükkana hazırlanır
-      // (`shared: true` ise hazırlık yok — gerçek ortak numara deneyimi: kodsuz ilk mesaja dükkan seçici gider)
+      // (`shared: true` ise hazırlık yok — gerçek ortak numara deneyimi: kodsuz ilk mesaja listesiz nötr yanıt gider)
       if (acc?.provider === 'shared' && request.body.shared !== true) {
         await rememberSharedTenant(app.db, { ...(from.phone ? { phone: from.phone } : {}), ...(from.bsuid ? { bsuid: from.bsuid } : {}) }, acc.tenantId);
       }

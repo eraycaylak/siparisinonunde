@@ -7,6 +7,13 @@
 
 ## 1. Neden
 
+> **Geçiş notu (00 §12a madde 11, 20.10.2026):** müşteriye dönük ortak numara kapanıyor; link modeli varsayılan olacak.
+> Twilio bugün canlıdaki ortak numaranın yoludur (+1 850 909 9295) ve geçiş boyunca (A3'e kadar) öyle kalır. A3'ten
+> sonra aynı Twilio hesabı yalnız **platform uyarı ve destek numarasıdır** (`isletme_*`, `kurye_giris_v1`); müşteri
+> şablonları bu hesaptan gönderilmez, ortak webhook (`/shared/:token`) durum geri bildirimi ve işletme sahiplerinin
+> yanıtları için kalır. Twilio'nun KVKK kapsamı daralır (son müşteri alt işleyeni olmaktan çıkar; metinler O5).
+> "360dialog varsayılan" ifadeleri tarihçedir. Türkiye platform numarası açık karardır (00 §13 madde 18).
+
 Ortak numara (00 §12a madde 8) bugüne kadar iki yoldan bağlanabiliyordu: **360dialog** (varsayılan) ve
 **Meta Cloud API doğrudan**. Twilio üçüncü yoldur ve şu durumlarda seçilir:
 

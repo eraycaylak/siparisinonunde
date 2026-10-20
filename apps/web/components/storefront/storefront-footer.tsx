@@ -8,7 +8,7 @@ import { ImprintDetails, StoreLegalLinks } from './legal/store-legal-links';
 /**
  * Storefront altbilgisi (03 §4.0): her sayfada aynı yerde "WhatsApp'tan yaz" / "İşletmeyi ara" (tutarlı yardım, WCAG 3.2.6),
  * işletme künyesi (6563 m.3 / 03 §4.9) ve işletmenin yasal metinleri (S-10: aydınlatma, ön bilgilendirme, mesafeli satış).
- * Platform imzası StorefrontShell'de ayrıca durur.
+ * İşletmeci beyanı (00 §7, §12a madde 11) StorefrontShell'de ayrıca durur.
  */
 export function StorefrontFooter({ store }: { store: StorefrontView }) {
   const phone = store.branch.phone ?? store.tenant.phone;

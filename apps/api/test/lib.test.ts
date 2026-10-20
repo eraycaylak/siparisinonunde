@@ -8,7 +8,7 @@ import { devToolsAllowed, loadConfig, platformDisplayPhone, productionConfigWarn
 import { createEncryptor } from '../src/lib/encryption';
 import { redactUrlForLog } from '../src/lib/log';
 import { hashPassword, verifyPassword } from '../src/lib/password';
-import { createRateLimiter } from '../src/lib/rate-limit';
+import { createRateLimiter, rateLimitIpKey } from '../src/lib/rate-limit';
 import { ORDER_CODE_ALPHABET, generateNumericCode, generateOrderCode, randomToken, sha256Hex } from '../src/lib/tokens';
 import { createTrackingToken, parseTrackingToken, trackingUrl } from '../src/lib/tracking';
 import { hashPasswordForSeed } from '@siparis/db';
@@ -97,6 +97,26 @@ describe('rate limiter', () => {
     expect(rl.take('b').ok).toBe(true);
     rl.reset('a');
     expect(rl.take('a').ok).toBe(true);
+  });
+});
+
+describe('oran sınırı IP anahtarı (IPv6 /64)', () => {
+  it('IPv4 olduğu gibi; IPv6 /64 önekine indirgenir; aynı /64 içindeki adresler tek kova', () => {
+    expect(rateLimitIpKey('203.0.113.7')).toBe('203.0.113.7');
+    expect(rateLimitIpKey('2001:db8:abcd:12::1')).toBe('2001:db8:abcd:12::/64');
+    expect(rateLimitIpKey('2001:0DB8:abcd:0012:ffff:1:2:3')).toBe('2001:db8:abcd:12::/64');
+    expect(rateLimitIpKey('2001:db8:abcd:12:aaaa::9')).toBe(rateLimitIpKey('2001:db8:abcd:12:bbbb::7'));
+    expect(rateLimitIpKey('2001:db8:abcd:13::1')).not.toBe(rateLimitIpKey('2001:db8:abcd:12::1'));
+    expect(rateLimitIpKey('::1')).toBe('0:0:0:0::/64');
+    expect(rateLimitIpKey('fe80::1%eth0')).toBe('fe80:0:0:0::/64');
+    expect(rateLimitIpKey('::ffff:198.51.100.4')).toBe('198.51.100.4');
+    expect(rateLimitIpKey('64:ff9b::192.0.2.33')).toBe('64:ff9b:0:0::/64');
+  });
+
+  it('ayrıştırılamayan değer olduğu gibi kalır (unknown, bozuk adres)', () => {
+    expect(rateLimitIpKey('unknown')).toBe('unknown');
+    expect(rateLimitIpKey('1::2::3')).toBe('1::2::3');
+    expect(rateLimitIpKey('zz::1')).toBe('zz::1');
   });
 });
 

@@ -1,9 +1,9 @@
 'use client';
 
-// Ortak numara (00 §12a madde 8) dükkan QR'ı: müşteri bağlantısı (kopyala), QR önizleme + PNG/SVG indirme ve masaya/tezgâha
-// konan yazdırılabilir A5/A6 kart ("Sipariş vermek için okut", dükkan adı, dükkan kodu). QR içeriği API'nin ürettiği
-// wa.me/<ortak numara>?text=…#KOD bağlantısıdır; müşteri okutunca ortak numaraya dükkan koduyla yazar, bot o dükkan
-// adına yanıt verir. Panel WhatsApp ayarları, kurulum sihirbazı ve "QR ve afiş" sayfası kullanır.
+// Dükkan QR'ı: müşteri bağlantısı (kopyala), QR önizleme + PNG/SVG indirme ve masaya/tezgâha konan yazdırılabilir A5/A6
+// kart ("Sipariş vermek için okut", dükkan adı, QR kısa bağlantısı). QR içeriği API'nin ürettiği QR kısa bağlantısıdır
+// (APP_BASE_URL/q/<KOD> → işletmenin vitrini; 00 §12a madde 11, O4) — ortak numaranın wa.me bağlantısı DEĞİL; işletmenin
+// modu değişince yeniden basım gerekmez. Panel WhatsApp ayarları, kurulum sihirbazı ve "QR ve afiş" sayfası kullanır.
 
 import { useEffect, useState } from 'react';
 import { Copy, Download, ExternalLink, Printer } from 'lucide-react';
@@ -32,8 +32,8 @@ async function copyText(text: string, done = 'Bağlantı kopyalandı.') {
   }
 }
 
-/** Müşteri bağlantısı: salt okunur alan + Kopyala + WhatsApp'ta aç. */
-export function CustomerLinkField({ link, label = 'Müşteri bağlantısı' }: { link: string; label?: string }) {
+/** Müşteri bağlantısı: salt okunur alan + Kopyala + aç (varsayılan "WhatsApp'ta aç"; menü bağlantısında "Menüyü aç"). */
+export function CustomerLinkField({ link, label = 'Müşteri bağlantısı', openLabel = 'WhatsApp’ta aç' }: { link: string; label?: string; openLabel?: string }) {
   return (
     <div className="flex flex-col gap-2 sm:flex-row">
       <label className="min-w-0 flex-1">
@@ -47,7 +47,7 @@ export function CustomerLinkField({ link, label = 'Müşteri bağlantısı' }: {
         </Button>
         <a href={link} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: 'ghost' })}>
           <ExternalLink aria-hidden />
-          WhatsApp&apos;ta aç
+          {openLabel}
         </a>
       </div>
     </div>
@@ -79,17 +79,16 @@ const CARD_SIZES: Record<TableCardSize, { label: string; description: string; wi
 
 export interface TableCardProps {
   shopName: string;
-  code: string;
   qrSrc: string;
-  /** Ortak numara (biçimli); QR okumayan müşteri için "numaraya #KOD yazın" satırı */
-  phoneFormatted?: string | null;
+  /** QR kısa bağlantısının elle yazılabilir biçimi ("yemekgelsin.net/q/BOZOK"); QR okumayan müşteri için */
+  shortUrl?: string | null;
   brandColor?: string | null;
   logoUrl?: string | null;
   size: TableCardSize;
 }
 
 /** Yazdırılabilir masa kartı (önizleme ekranda ölçeklenir; baskıda gerçek boyut). */
-export function TableCard({ shopName, code, qrSrc, phoneFormatted, brandColor, logoUrl, size }: TableCardProps) {
+export function TableCard({ shopName, qrSrc, shortUrl, brandColor, logoUrl, size }: TableCardProps) {
   const palette = brandPalette(brandColor);
   const dims = CARD_SIZES[size];
   return (
@@ -108,21 +107,16 @@ export function TableCard({ shopName, code, qrSrc, phoneFormatted, brandColor, l
       <div className="flex w-full flex-1 flex-col items-center justify-evenly gap-[1.5cqw] px-[6cqw] py-[2cqw]">
         <span className="text-[6.4cqw] font-extrabold leading-tight">Sipariş vermek için okut</span>
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={qrSrc} alt={`${shopName} WhatsApp sipariş QR kodu`} className="aspect-square w-[52cqw]" />
-        <span className="text-[5cqw] font-bold leading-tight">
-          Dükkan kodu: <span className="font-mono tracking-wide">#{code}</span>
-        </span>
-        <span className="text-[3.3cqw] leading-snug text-[#374151]">
-          Telefon kameranızla okutun, WhatsApp&apos;ta açılan mesajı gönderin; menü bağlantısı gelir.
-        </span>
-        {phoneFormatted ? (
+        <img src={qrSrc} alt={`${shopName} menü ve sipariş QR kodu`} className="aspect-square w-[52cqw]" />
+        <span className="text-[3.3cqw] leading-snug text-[#374151]">Telefon kameranızla okutun; menü açılır, siparişinizi oradan verin.</span>
+        {shortUrl ? (
           <span className="text-[3.1cqw] leading-snug text-[#374151]">
-            QR okumazsa WhatsApp&apos;tan <strong className="whitespace-nowrap">{phoneFormatted}</strong> numarasına <strong>#{code}</strong> yazın.
+            QR okumazsa: <strong className="break-all font-mono">{shortUrl}</strong>
           </span>
         ) : null}
       </div>
       <p className="px-[6cqw] pb-[3.5cqw] text-[2.4cqw] leading-snug text-[#4b5563]">
-        Sohbette “Yemek Gelsin” adını görürsünüz; mesajlarınız yalnız {shopName} işletmesine iletilir ve numaranız yalnız siparişiniz için kullanılır.
+        Siparişiniz yalnız {shopName} işletmesine iletilir; bilgileriniz yalnız siparişiniz için kullanılır.
       </p>
     </div>
   );

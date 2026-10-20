@@ -164,6 +164,8 @@ Roller [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §4'ten. ✓ tam, �
 
 ## 3. Onboarding sihirbazı: "10 dakikada ilk sipariş" **[Faz 1]**
 
+> **Geçiş notu ([00](00-kararlar-ve-sozluk.md) §12a madde 11, 20.10.2026):** müşteriye dönük ortak numara kapanıyor; link modeli varsayılan olacak. Link modunda **adım 6** "WhatsApp'ı bağla" yerine işletmenin kendi WhatsApp Business numarasını iletişim bağlantısı olarak kaydetmesi (`tenants.wa_contact_phone`, yalnız düz `wa.me`; doğrulama ya da bildirim kanalı değildir), `/q/<kod>` QR'ını indirmesi ve "WhatsApp Business profiline menü bağlantısını koy" rehberidir; **adım 7** test siparişi SMS doğrulamalı web siparişiyle yapılır. Link modunda Kapı 2 (`live`) ölçütü **SMS hazır + test siparişidir**; WhatsApp canlı kapısı ve Meta kartı şartı kalkar (§3.6 bu modelde olağan yoldur, arıza rozeti gösterilmez). Embedded Signup, Coexistence ve Meta kartı adımları (§3.2 adım 6, §3.4.2, §3.5'teki adım 6 satırları) üst paketin (kendi numara, resmi Cloud API) adımlarıdır. Uygulama A2 (API) ve A5 (panel) paketlerindedir.
+
 ### 3.1 Hedef ve ilkeler
 - **Hedef:** Kayıttan ilk test siparişinin "ding" sesine kadar 10 dk [T]. Bu hedef yalnız **menü hazır geldiğinde** (ekip concierge ile hazırladıysa ya da ≤ 15 ürünlük menü elle girildiyse) gerçekçidir. Asıl süre riski Meta bağlantısı ve kart ekleme adımındadır (A05 §8.5; D02 §3.8 kabul kriteri: ES başlangıcından "Canlıya hazır"a < 15 dk).
 - **İki kapılı canlıya geçiş:** (1) storefront + panel + telefon siparişi hemen canlı olabilir ("WhatsApp'sız mod", §3.6); (2) WhatsApp bağlantısı hazır olunca devreye girer. Meta gecikmesi aktivasyonu durdurmaz (A06 §5.7).
@@ -777,7 +779,7 @@ Salt-okunur abonelik modunda (G+10) menü, fiyat, ayar, bölge, personel ekranla
   - **Kapak görseli:** önerilen 1200×630 px (1,91:1), en az 800×420 px; JPEG, PNG veya WebP, ≤ 5 MB. Görselde yazı olmamalı. Menü üst görseli ve link önizlemesi olarak kullanılır.
   - Boyut yetersizse yükleme reddedilmez; "Bu görsel bulanık görünebilir" uyarısı çıkar. Önizleme telefon çerçevesinde gösterilir ([Müşteri gibi gör], §6.9).
   - Tek şubeli işletmede marka alanları işletme düzeyindedir. Şube bazında farklı logo ve renk çoklu şubeyle **[Faz 2]** gelir ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 "Storefront imzası").
-  - Storefront altbilgisindeki "Altyapı: Yemek Gelsin" imzası işletme ayarıyla kaldırılamaz ([03](03-musteri-deneyimi-ve-storefront.md) §4.0).
+  - Storefront altbilgisindeki ~~"Altyapı: Yemek Gelsin" imzası~~ işletmeci beyanı ("Bu sayfa {İşletme} tarafından işletilir; Yemek Gelsin yalnız yazılım altyapısı sağlar."; [00](00-kararlar-ve-sozluk.md) §7, §12a madde 11; uygulandı O3) işletme ayarıyla kaldırılamaz ([03](03-musteri-deneyimi-ve-storefront.md) §4.0).
 - **Künye** (6563 m.3): unvan veya ad-soyad, VKN/TCKN, vergi dairesi, MERSİS no, meslek odası, e-posta, işletme kayıt no (opsiyonel). Eksikse storefront yayında değildir ve kırmızı kart gösterilir ([08](08-mevzuat-kvkk-odeme-fatura.md) §4.7).
 - **Slug** değişikliği uyarılı: "Adresiniz değişecek; basılı QR'lar eski adrese yönlenir (30 gün yönlendirme) ve WhatsApp şablonları yeniden onaya girer" (D02 §5.1) [T].
 
@@ -1115,6 +1117,8 @@ Kullanım koşullarındaki "verilerinizi dışa aktarabilirsiniz" taahhüdünün
 
 ### 12.1 QR, afiş ve paket kartı oluşturucu (P-36) **[Faz 1]**
 GTM'in kilit aracı (A02 §9.2).
+
+> **Geçiş notu ([00](00-kararlar-ve-sozluk.md) §12a madde 11):** müşteriye dönük ortak numara kapanıyor; link modeli varsayılan olacak. Tüm QR şablonları `yemekgelsin.net/q/<kod>` yönlendirmesini kodlar (kod = `tenants.wa_code`; hedef işletmenin vitrini), böylece mod ya da vitrin adresi değişince yeniden basım gerekmez (O4; uygulandı 20.10.2026: panel QR indirmesi `GET /panel/whatsapp/qr` — dosya adı `menu-qr-<kod>` —, WhatsApp ayarlarındaki müşteri bağlantısı ve masa kartı, "QR ve afiş" sayfası, kurulum sihirbazı ve admin işletme detayı `/q/<kod>`'u gösterir/kodlar; ortak numarada afiş tek QR'lıdır ve ortak numaranın wa.me bağlantısı basılı malzemeye girmez). Aşağıdaki `wa.me` hedefli şablonlar üst paketin (kendi numara, resmi API) Akış A yoludur; link modunda "WhatsApp'tan yaz" düz `wa.me/<işletme numarası>` bağlantısıdır ve sipariş vitrinden gelir.
 
 | Şablon | Boyut | Hedef link | `src` |
 |---|---|---|---|

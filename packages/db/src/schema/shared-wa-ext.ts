@@ -6,8 +6,11 @@
 //   (BSUID/telefon + dükkan listesi); platform genelinde müşteri profili DEĞİLDİR: ad, adres, sipariş tutmaz. 24 ay
 //   hareketsizlikte silinir (cron.retention → retention.shared_wa_routes); bir dükkan müşterisini KVKK ile silince o
 //   dükkan kaydın listesinden çıkarılır (services/customers eraseCustomer).
-// - shared_wa_messages: hiçbir dükkanın sohbetine girmeyen platform düzeyi mesajlar (dükkan seçici, "kod bulunamadı",
-//   dükkana yönlenmemiş gelen mesaj). 30 gün sonra silinir (retention.technical.shared_wa_messages).
+// - shared_wa_messages: hiçbir dükkanın sohbetine girmeyen platform düzeyi mesajlar (nötr yanıt P09, hatırlatma P06,
+//   "kod bulunamadı", dükkana yönlenmemiş gelen mesaj; dükkan seçici O2 ile kalktı). 30 gün sonra silinir
+//   (retention.technical.shared_wa_messages).
+//
+// Tenant'a bağlı tablo (küresel değil): retired_wa_codes (0905) — emekli QR kısa kodları, en altta.
 
 import {
   MESSAGE_DIRECTIONS,
@@ -36,7 +39,10 @@ export const sharedWaRoutes = pgTable(
     recentTenantIds: uuid('recent_tenant_ids').array().notNull().default(sql`'{}'::uuid[]`),
     lastRoutedAt: tstz('last_routed_at'),
     lastInboundAt: tstz('last_inbound_at'),
-    /** Son otomatik dükkan seçici (aynı kişiye kısa sürede tekrar gönderilmez) */
+    /**
+     * Son kendiliğinden nötr yanıt (P09; aynı kişiye 60 sn'de en çok 1). Kolon adı O2 ile kalkan dükkan seçiciden
+     * kalır (yeniden adlandırma göç ister; tablo O6'da imha edilir).
+     */
     lastPickerAt: tstz('last_picker_at'),
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -51,7 +57,7 @@ export const sharedWaRoutes = pgTable(
 
 /** Giden platform mesajının yükü (outbox; services/messaging/shared-router.ts). */
 export interface SharedWaMessagePayload {
-  /** P01–P05 */
+  /** Platform yanıt kodu: P03, P04, P06–P09 (P01/P02/P05 O2 ile kalktı; eski kayıtlarda görülebilir) */
   code?: string | null;
   /** Gönderim tanımı (OutboundSpec ile aynı biçim) */
   spec?: Record<string, unknown>;
@@ -89,5 +95,29 @@ export const sharedWaMessages = pgTable(
     enumCheck('shared_wa_messages_direction_ck', t.direction, MESSAGE_DIRECTIONS),
     enumCheck('shared_wa_messages_kind_ck', t.kind, MESSAGE_KINDS),
     enumCheck('shared_wa_messages_status_ck', t.status, MESSAGE_STATUSES),
+  ],
+);
+
+/**
+ * Emekli QR kısa kodları (00 §3 "Emekli QR kodu", §12a madde 11; migrations/0905_retired_wa_codes.sql). Platform
+ * yöneticisi işletmenin `wa_code`'unu değiştirince eski kod işletmesiyle buraya yazılır: hiçbir zaman başka işletmeye
+ * verilmez (generateWaCode ve admin ataması dolu sayar) ve `/q/<eski kod>` ile `#<eski kod>` eski sahibine çözülür
+ * (sahadaki basılı QR'lar rakibe gitmez). Tenant'a bağlıdır (tenant_id NOT NULL; küresel tablo istisnası değildir).
+ */
+export const retiredWaCodes = pgTable(
+  'retired_wa_codes',
+  {
+    id: pk(),
+    tenantId: uuid('tenant_id')
+      .notNull()
+      .references(() => tenants.id, { onDelete: 'cascade' }),
+    /** `tenants.wa_code` biçimi (A–Z0–9, 3–12, en az bir harf); tüm işletmelerde tekil */
+    code: text('code').notNull(),
+    retiredAt: tstz('retired_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('retired_wa_codes_code_uk').on(t.code),
+    index('retired_wa_codes_tenant_idx').on(t.tenantId),
+    check('retired_wa_codes_code_ck', sql`${t.code} ~ '^[A-Z0-9]{3,12}$' and ${t.code} ~ '[A-Z]'`),
   ],
 );

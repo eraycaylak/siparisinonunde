@@ -6,6 +6,7 @@ import { StorefrontFooter } from '@/components/storefront/storefront-footer';
 import { StorefrontShell } from '@/components/storefront/storefront-shell';
 
 // Storefront düzeni (/s/{slug}; alt alan adı proxy.ts ile buraya yazılır). Menü (S-01) ve checkout (dilim 2) bunu paylaşır.
+// Altbilgide işletmeci beyanı (00 §7, §12a madde 11). Bilinmeyen slug → app/s/not-found.tsx (platform/panel bağlantısı yok).
 // İşletme markası önde: ana renk paleti (12 §5.1) SSR'da hesaplanır ve satır içi yazılır; istemci JS'i gerekmez.
 // Palet değişkenleri: --brand, --brand-contrast, --brand-strong, --brand-ui, --brand-subtle ([data-sf-theme] altında).
 export default async function StorefrontLayout({ children, params }: { children: ReactNode; params: Promise<{ slug: string }> }) {
@@ -17,7 +18,9 @@ export default async function StorefrontLayout({ children, params }: { children:
   return (
     <div data-sf-theme="">
       <style dangerouslySetInnerHTML={{ __html: brandPaletteCss(palette, '[data-sf-theme]') }} />
-      <StorefrontShell footer={store ? <StorefrontFooter store={store} /> : null}>{children}</StorefrontShell>
+      <StorefrontShell footer={store ? <StorefrontFooter store={store} /> : null} businessName={store?.tenant.name ?? null}>
+        {children}
+      </StorefrontShell>
     </div>
   );
 }

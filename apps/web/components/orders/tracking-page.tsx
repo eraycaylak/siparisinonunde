@@ -5,7 +5,10 @@
 // 3 butonlu değerlendirme. 15 sn'de bir yenilenir (doğrulama beklerken 3 sn). Süresi dolmuş link: kişisel veri yok.
 // `awaiting_customer` iken Akış B doğrulama ekranı (S-06B/C) BU adreste gösterilir: /t/<token> doğrulamanın da
 // kalıcı adresidir (denetim 2026-10-04 madde 3.1 / H6) — sekme yenilenince kod ve kalan süre kaybolmaz.
-// Altta satıcı künyesi (business.legal) ve işletmenin yasal metinleri (/s/{slug}/yasal/*; satıcı ve veri sorumlusu işletme).
+// Altta satıcı künyesi (business.legal), işletmenin yasal metinleri (/s/{slug}/yasal/*; satıcı ve veri sorumlusu işletme)
+// ve işletmeci beyanı (00 §7, §12a madde 11: "Bu sayfa {İşletme} tarafından işletilir; Yemek Gelsin yalnız yazılım
+// altyapısı sağlar."). Düzen (app/t/[token]/layout.tsx) işletme adını bilmediği için beyan burada, her durumda
+// (doğrulama, takip, süresi dolmuş bağlantı) işletme adı biliniyorsa yazılır.
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Check, Circle, Frown, Meh, MessageCircle, Phone, Smile, TimerOff } from 'lucide-react';
@@ -19,6 +22,7 @@ import { storefrontHref } from '@/lib/storefront-url';
 import { VerificationScreen } from './verification-screen';
 import { availableImprintRows } from '@/components/storefront/legal/store-legal';
 import { ImprintDetails, StoreLegalLinks } from '@/components/storefront/legal/store-legal-links';
+import { PlatformSignature } from '@/components/storefront/platform-signature';
 import { orderWaHref, reorderWaHref } from '@/lib/wa-links';
 import { changeText, paymentShort, telHref } from './labels';
 
@@ -52,7 +56,12 @@ export function TrackingPage({ token }: { token: string }) {
     body =
       data.order.status === 'awaiting_customer' ? (
         // Akış B doğrulama ekranı (S-06B/C) kalıcı adreste yaşar: /t/<token> (denetim 3.1).
-        <VerificationScreen token={token} track={data} onChanged={() => void q.refetch()} />
+        <>
+          <VerificationScreen token={token} track={data} onChanged={() => void q.refetch()} />
+          <footer className="mt-6 flex justify-center border-t border-border pt-3 text-center">
+            <PlatformSignature businessName={data.business.name} />
+          </footer>
+        </>
       ) : (
         <TrackingView token={token} data={data} refetch={() => void q.refetch()} />
       );
@@ -104,6 +113,7 @@ function ExpiredView({ business }: { business: TrackExpiredDetails['business'] |
         ) : null}
       </div>
       {business ? <StoreLegalLinks slug={business.slug} /> : null}
+      <PlatformSignature businessName={business?.name} />
     </div>
   );
 }
@@ -325,6 +335,7 @@ function TrackingView({ token, data, refetch }: { token: string; data: TrackResp
           rows={availableImprintRows({ name: data.business.name, legal: data.business.legal ?? {}, phone: data.business.phone })}
         />
         <StoreLegalLinks slug={data.business.slug} label="Satıcının yasal metinleri" />
+        <PlatformSignature businessName={data.business.name} />
       </footer>
 
       <ConfirmDialog

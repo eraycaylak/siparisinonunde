@@ -194,6 +194,11 @@ gerekmez) ve bu turda `apps/api/src/config.ts` şemasına da eklendi: geçersiz 
 > Adaptörün iç ayrıntısı ve kurulum ekranları: [16](16-twilio-whatsapp.md) ve 15 §6.2. Burada yalnız
 > "hangi değişken, nereden, çalışmazsa ne olur" satırları var.
 
+> **Geçiş notu (00 §12a madde 11, 20.10.2026):** müşteriye dönük ortak numara kapanıyor; link modeli varsayılan olacak.
+> A3'ten sonra bu sağlayıcı yalnız platform uyarı ve destek numarasını taşır (alarm zincirinin 2 dk halkası, kurye
+> girişi); vitrin ve Akış B WhatsApp'a bağlı olmaz. Link modelinde müşteri tarafının zorunlu sağlayıcısı SMS'tir (§2):
+> SMS canlıya bağlanıp OTP duman testi geçmeden ortak numara müşteriye kapatılmaz (A0 → A3).
+
 | | |
 |---|---|
 | **Ne işe yarar** | **Ortak numaranın** (00 §12a madde 8) mesaj iletimi: gönderim, gelen mesaj ve teslim durumu webhook'ları, şablon onayı. Üç yol: `twilio` (varsayılan), `d360` (360dialog), `cloud` (Meta'ya doğrudan) |

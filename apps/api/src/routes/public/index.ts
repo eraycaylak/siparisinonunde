@@ -2,6 +2,9 @@
 // GET /public/signup-status: yeni işletme kaydı açık mı (signup_open; 00 §12a madde 10). Kayıt sayfası sunucu tarafında
 // sorar; kapalıysa form yerine "Kayıtlar çok yakında açılıyor" bilgisini gösterir. Kişisel veri içermez.
 // GET /public/menu-link/:token: WhatsApp'taki kısa menü bağlantısının (/m/<token>) dükkan adresi; token tüketilmez.
+// GET /public/q/:code: QR kısa bağlantısının (yemekgelsin.net/q/<kod>; 00 §12a madde 11, O4) dükkan adresi. Kod
+// büyük/küçük harf duyarsız; bilinmeyen kod 404; yanıt yalnız slug; IP (IPv6 /64) başına dakikada 60 (web sunucusu müşterinin
+// X-Forwarded-For'unu iletir). Sipariş almayan işletmede de slug döner (vitrin bandı gösterir).
 // POST /public/leads: demo formu + hesaplayıcı lead'i (05 C.5.1, C.4.5). PUBLIC_LEADS_ENABLED=0 iken (operatörün formu
 // geçici olarak kapattığı ortam; canlı ortamda açık, 00 §12a madde 10) hiçbir şey saklanmaz: 403 leads_closed. Bal küpü
 // doluysa 204 (sessiz);
@@ -16,11 +19,18 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { AppError } from '../../lib/errors';
 import { isFlagEnabled } from '../../lib/flags';
-import { clientIp, createRateLimiter, enforceRateLimit } from '../../lib/rate-limit';
+import { clientIp, createRateLimiter, enforceRateLimit, rateLimitIp } from '../../lib/rate-limit';
+import { findSlugByQrCode } from '../../services/storefront/qr';
 import { findMenuLinkSlug } from '../../services/storefront/session';
 
 /** 5 istek / saat / IP (görev tanımı). */
 export const PUBLIC_LEAD_RATE_LIMIT = { limit: 5, windowMs: 60 * 60_000 } as const;
+/**
+ * QR kısa bağlantısı çözümlemesi: IP başına dakikada 60 (IPv6'da /64 öneki başına; rateLimitIp). Sınır yalnız kötüye
+ * kullanımı (otomatik tarama, yük) YAVAŞLATIR; bir gizlilik güvencesi değildir: yanıt herkese açık vitrin slug'ıdır ve
+ * kodlar slug'dan türediği için tahmin edilebilir (vitrin adresleri zaten herkese açıktır, 00 §12a madde 11).
+ */
+export const PUBLIC_QR_RATE_LIMIT = { limit: 60, windowMs: 60_000 } as const;
 const MAX_CALCULATOR_JSON = 4000;
 
 function validationError(path: string, message: string): AppError {
@@ -45,6 +55,20 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       reply.header('cache-control', 'no-store');
       const slug = await findMenuLinkSlug(app.db, request.params.token, new Date());
       if (!slug) throw new AppError(404, 'not_found', 'Bağlantının süresi dolmuş ya da bağlantı geçersiz.');
+      return { slug };
+    },
+  );
+
+  // QR kısa bağlantısı (/q/<kod>): yalnız slug; bilinmeyen ya da biçimsiz kod 404 (hangi kodların var olduğu dışında bilgi yok)
+  const qrLimiter = createRateLimiter(PUBLIC_QR_RATE_LIMIT);
+  app.get(
+    '/q/:code',
+    { schema: { params: z.object({ code: z.string().min(1).max(64) }), response: { 200: z.object({ slug: z.string() }).strict() } } },
+    async (request, reply) => {
+      enforceRateLimit(qrLimiter, `qr_code:${rateLimitIp(request)}`);
+      reply.header('cache-control', 'no-store');
+      const slug = await findSlugByQrCode(app.db, request.params.code);
+      if (!slug) throw new AppError(404, 'not_found', 'Bu QR kodu bir işletmeye ait değil.');
       return { slug };
     },
   );

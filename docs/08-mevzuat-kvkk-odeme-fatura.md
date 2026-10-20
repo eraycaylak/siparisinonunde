@@ -35,7 +35,7 @@
 3. **Veri minimizasyonu varsayılandır, otomatik silme işleri [Faz 1]'de gelir:** Coexistence geçmiş senkronu kapalı, yapılandırılmış alerji alanı yok, sipariş notu 30 gün, medya ve konum 30 gün, mesaj içeriği 6 ay, hareketsiz müşteri 24 ay sonra anonimleştirilir (§2.8).
 4. **Olay ve başvuru süreleri:** Veri ihlalinde işletmeye **24 saat**, Kurul'a **72 saat**; ilgili kişi başvurusuna **30 gün**. Panelde dışa aktar, düzelt ve sil/anonimleştir var (§2.9, §2.10).
 5. **Sipariş durum mesajları saf bilgilendirmedir.** Şablon editörü promosyon içeriğini engeller. Kampanya modülü **[Faz 2]**'de gelir: işletmenin İYS kaydı, önceden onay, her mesajda ret yolu, gönderim öncesi İYS sorgusu ve audit log şartıyla. WhatsApp, SMS gibi operatörün İYS filtresinden geçmez (§3).
-6. **Pazaryeri değiliz.** Vitrin işletmenin künyesiyle yayınlanır, satıcı işletmedir. ETAHS sayılma riskini doğuran özellikler "kırmızı çizgi"dir (§4.2).
+6. **Pazaryeri değiliz; yalnız yazılım satarız** ([00](00-kararlar-ve-sozluk.md) §12a madde 11, 20.10.2026). Vitrin işletmenin künyesiyle ve işletmeci beyanıyla yayınlanır, satıcı işletmedir. ETAHS sayılma riskini doğuran özellikler "kırmızı çizgi"dir (§4.2); müşteriye dönük ortak numara ve dükkan listesi bu yüzden kapanıyor.
 7. **Her siparişte mesafeli satış onay adımı var:** özet, KDV dahil toplam, teslimat ücreti, cayma hakkı istisnası notu, ön bilgilendirme linki ve onay eylemi: storefront'ta "Siparişi onayla" butonu ve hemen altında "ödeme yükümlülüğü doğar" ibaresi; WhatsApp AI özetinde [Faz 2] **[Onayla] [Düzenle] [İptal]** butonları ve gövdede aynı ibare. Onay kanıtı saklanır (§4.4).
 8. **Müşteri parası hiçbir koşulda bizim hesabımıza girmez (6493).** [Faz 1]'de ödeme kapıda alınır. [Faz 2]'de işletme kendi PayTR hesabını, ardından iyzico hesabını bağlar. [Faz 3]'te Craftgate gelir. Gıdada taksit yok; alkol ve tütün teknik olarak engellidir (§4.6, §5).
 9. **Abonelik:** Faturalama motoru bizde, kart tokenı tek PSP'de, yıllık planda havale/EFT seçeneği var, e-Fatura/e-Arşiv Paraşüt API ile kesilir. Dunning kademelidir ve **sipariş alma hemen kesilmez**: G+1/G+3/G+7 yeniden deneme, G+10'da salt-okunur mod, G+21'de askı, G+75'te hesap kapanışı ve veri silme (§6.3). Deneme bitişinde 3 gün uyarı bandı, ardından askı; 90 gün içinde plan seçilirse veri aynen döner, sonra silinir (§6.2). SMS OTP ve kritik durum SMS'lerinin maliyeti platformdadır (§8.6).
@@ -48,6 +48,8 @@
 Dayanak: 6698 sayılı Kanun (RG 07.04.2016) [Y]; 7499 sayılı Kanun'la yapılan 2024 değişikliği (RG 12.03.2024, yürürlük 01.06.2024) [O]. Ayrıntı: A03 §2.
 
 ### 2.1 Roller: kim veri sorumlusu, kim veri işleyen?
+
+> **"Yalnız yazılım" konumu ([00](00-kararlar-ve-sozluk.md) §12a madde 11, 20.10.2026):** müşteriye dönük ortak numara kapanıyor; link modeli varsayılan olacak. Bu konumda son müşteri verisinde **satıcı ve veri sorumlusu işletmedir, biz yalnız veri işleyeniz**; aşağıdaki ilk satır her kademede geçerlidir. Değişen alt işleyen kapsamıdır: link modelinde (API yok) Meta ve WhatsApp iş çözümü sağlayıcısı son müşteri verisini işlemez, SMS sağlayıcısı (OTP ve durum SMS'i) ana alt işleyenlerden olur; Meta/BSP yalnız üst pakette (işletmenin kendi numarası, resmi API) son müşteri alt işleyenidir. A3'ten sonra platform numarası üzerinden Twilio ve Meta'nın amacı platform numarasından işletme yetkilisine giden uyarılar ve destekle sınırlıdır (tablodaki "Platform WABA'sından … uyarılar" satırı). Ortak numaranın yönlendirme kaydında (`shared_wa_routes`) bugün platformun veri sorumlusu olduğu kayıt geçiş sonunda imha edilir (O6). Tablonun, §2.4 aydınlatma metinlerinin, DPA'nın ve §2.11 envanterinin yeniden yazımı **O5'tedir**; avukat soruları §11.1-13…17, teyitler [13](13-varsayim-ve-teyit-kaydi.md) V-095…V-099, V-104.
 
 | Veri / işleme | VS | Vİ (ve alt işleyenler) | Hukuki sebep | Not |
 |---|---|---|---|---|
@@ -239,6 +241,8 @@ Dayanak: m.11, m.13 ve Başvuru Tebliği (RG 10.03.2018). Cevap süresi en geç 
 
 ### 2.11 Yurt dışına aktarım (m.9) ve alt işleyen envanteri
 
+> **Geçiş notu ([00](00-kararlar-ve-sozluk.md) §12a madde 11):** müşteriye dönük ortak numara kapanıyor; link modeli varsayılan olacak. Aşağıdaki envanter bugünkü (ortak numaralı) durumu yazar. A3'ten sonra platform numarası üzerinden Twilio ve Meta'nın amacı işletme yetkilisi uyarıları ve destekle sınırlanır: Twilio son müşteri alt işleyen listesinden çıkar, Meta ve BSP (360dialog) yalnız üst paketteki (kendi numara, resmi API) işletmeler için son müşteri alt işleyeni kalır. Envanter, `/yasal/alt-isleyenler` ve aydınlatma metinleri O5'te birlikte güncellenir (değişmez kural 7).
+
 **Çerçeve [O]:** 7499 ile m.9 baştan yazıldı; ayrıntılar Yurt Dışına Aktarım Yönetmeliği'nde (RG 10.07.2024). Mekanizmalar sırasıyla şunlardır:
 1. **Yeterlilik kararı:** Bilgi kesimi itibarıyla hiçbir ülke için yayınlanmadı [O] (teyit edilmeli).
 2. **Uygun güvence:** Pratikte tek yol, **Kurul'un standart sözleşmesi** (VS→VS, VS→Vİ, Vİ→Vİ, Vİ→VS modülleri) [O]. Metin değiştirilmeden kullanılır ve imzadan itibaren **5 iş günü içinde Kurum'a bildirilir** [Y]. Bildirim yapılmazsa m.18 cezası uygulanır: 2024 nominal tutarı 50.000–1.000.000 TL, her yıl yeniden değerlenir [O]. Bildirim yöntemi (KEP, e-imza vb.) [D?] (teyit edilmeli).
@@ -425,12 +429,14 @@ Net işlem hacmi 10 milyar TL'yi aşan ETAHS'ler için lisans ve kademeli yükü
 
 **Senaryo A'yı güçlendiren önlemler [Faz 1]:** Vitrin altbilgisinde beyan: *"Bu sayfa {İşletme Unvanı} tarafından işletilmektedir. Yemek Gelsin yalnızca yazılım altyapısı sağlar."* Ayrıca vitrinde işletmenin künyesi (§4.7), işletme adına düzenlenen ön bilgilendirme ve sözleşme, işletmenin kendi hesabına ödeme.
 
+> **"Yalnız yazılım" konumu ([00](00-kararlar-ve-sozluk.md) §12a madde 11, 20.10.2026):** proje sahibi Senaryo A'yı açıkça seçti: Yemek Gelsin yalnız yazılım satar. Müşteriye dönük ortak numara kapanıyor; link modeli varsayılan olacak. Ortak numaradaki dükkan listesi ve seçici Senaryo B'ye (pasif dizin) yaklaşan bir görünümdü; O2 ile kalkar. Geçiş yanıtlayıcısı (A3, 30 gün) yalnız müşterinin yazdığı kodun işletmesine bağlantı verir, liste ya da öneri göndermez. Vitrin ve takip sayfası altbilgisindeki beyanın kısa biçimi 00 §7'dedir ("Bu sayfa {İşletme} tarafından işletilir; Yemek Gelsin yalnız yazılım altyapısı sağlar."; uygulama O3). Platform başlıklı SMS ve `/q/<kod>` yönlendirmesinin bu konumu etkileyip etkilemediği avukata sorulur (§11.1-13, -15; [13](13-varsayim-ve-teyit-kaydi.md) V-095, V-097). Yasal metinlerin bu konuma göre yeniden yazımı **O5'tedir**.
+
 ### 4.2 Kırmızı çizgiler (yapmayacaklarımız)
 
 | # | Yapmayacağız | Neden | Yerine |
 |---|---|---|---|
 | 1 | Tüketiciye yönelik ortak uygulama, ortak müşteri hesabı | ETAHS görünümü; son müşteri verisinde VS rolü | Her işletmenin kendi vitrini; kimlik `(tenant_id, wa_bsuid)` |
-| 2 | Keşif/dizin sayfası | Aracılık unsuru tartışmaya açılır [K02]; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9 bunu "yapılmaz" listesine koyar | Yapılmaz. Karar ileride değişirse önce 00 güncellenir; o durumda avukat görüşüyle, Senaryo B sınırında: yalnız yönlendirme, ücretsiz sıralama, kişisel veri toplamama |
+| 2 | Keşif/dizin sayfası (WhatsApp'taki dükkan listesi ve seçici dahil) | Aracılık unsuru tartışmaya açılır [K02]; [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9 bunu "yapılmaz" listesine koyar. Ortak numaranın dükkan listesi bu çizgiye yakındı; 00 §12a madde 11 ile O2'de kalkar | Yapılmaz. Karar ileride değişirse önce 00 güncellenir; o durumda avukat görüşüyle, Senaryo B sınırında: yalnız yönlendirme, ücretsiz sıralama, kişisel veri toplamama |
 | 3 | Birden çok işletmeden ortak sepet | Pazaryeri | Tek işletmeli sepet |
 | 4 | Müşteri parasını toplama, işletmeye dağıtma | 6493 lisans riski (§5.1) | Para doğrudan işletmenin hesabına |
 | 5 | Pazaryeri / alt üye işyeri ödeme modeli | ETAHS görünümü, "komisyonsuz" çelişkisi | Yalnız strateji "platform payı"na dönerse ve hukuki görüşle ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §9) |
@@ -933,6 +939,14 @@ Belirli parayı içeren imzalı sözleşmelerde oran **binde 9,48**'dir; e-imzal
 10. Müşteri SMS OTP'si, WhatsApp'sız modda onay/iptal SMS'i ve işletmeye alarm SMS'i İYS açısından bilgilendirme sayılır mı? SMS'i platformun hesabından ve gönderici başlığıyla (işletme adı gövdede) göndermek rol dağılımını (VS/Vİ) veya ETK sorumluluğunu değiştirir mi?
 11. Storefront ve panelde çerezsiz, PII'siz ürün analitiği (`analytics_events`, 90 gün; §2.8 satır 20) için `sessionStorage`'da tutulan rastgele sekme oturumu kimliği, Çerez Rehberi'ndeki "benzeri teknolojiler" kapsamında açık rıza gerektirir mi? (§12 #19)
 12. POS entegrasyon ortaklarıyla NDA ve partner sözleşmesi şablonu: KVKK rolleri (sipariş verisinin POS'a aktarımı işletmenin talimatıyla mı, bizim alt işleyenimiz mi?), gelir paylaşımı ve marka kullanımı nasıl yazılmalı? (§12 #20)
+
+*"Yalnız yazılım" konumu için (00 §12a madde 11, 20.10.2026; O5 metinleriyle birlikte tek pakette sorulur):*
+
+13. Link modelinde (işletmenin kendi WhatsApp Business numarası, sipariş işletmenin vitrininden, satış sözleşmesi işletmeyle) Yemek Gelsin ETAHS ve aracı hizmet sağlayıcı kapsamı dışında mı (§4.1 Senaryo A)? Ortak numaranın geçiş yanıtlayıcısı (A3'ten sonra 30 gün, `#KOD` yazana yalnız o işletmenin vitrin bağlantısı) bu konumu bozar mı? ([13](13-varsayim-ve-teyit-kaydi.md) V-095)
+14. Veri işleyen konumu ve DPA: link modelinde DPA'nın veri kategorileri ve alt işleyen listesi yeterli mi? Ortak numaranın yönlendirme kaydında (`shared_wa_routes`) bugün platformun veri sorumlusu olduğu kayıt, geçiş sonunda imhayla kapatılabilir mi; geçiş süresince aydınlatma nasıl yapılır? Twilio ve Meta'nın son müşteri verisindeki rolü bitince (yalnız işletme yetkilisi uyarıları ve destek) standart sözleşme modülü ve Kurum bildirimi güncellenmeli mi? (V-096, V-104)
+15. Platform adlı SMS başlığı (ör. "YEMEKGELSIN"; gövdede işletme adı) ve platform alan adındaki `yemekgelsin.net/q/<kod>` yönlendirmesi "yalnız yazılım" konumunu ya da VS/Vİ rol dağılımını değiştirir mi? Nötr bir başlık gerekir mi? (madde 10'un devamı; V-097)
+16. Link modelinde WhatsApp özeti olmadan **SMS + takip sayfası** (ve sipariş sonrası ön bilgilendirme bağlantısı) "kalıcı veri saklayıcı" şartını karşılar mı? (madde 6'nın link modeli karşılığı; V-098)
+17. Yeniden yazılan metin setinin yayın sürümü onayı (taslak sürüm anahtarı → tarihli yayın sürümü; canlıdaki yasal kapı taslak sürümle web siparişini kapatıyor, §7.5) ve kullanım koşullarındaki yetkili mahkeme yer tutucusu. (V-099)
 
 ### 11.2 Mali müşavire
 

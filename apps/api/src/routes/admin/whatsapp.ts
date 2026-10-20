@@ -12,7 +12,10 @@ import { requireAdmin } from '../../services/admin/util';
 import { loadWaHealth } from '../../services/admin/wa-health';
 import { selectableSharedShops } from '../../services/messaging/shared';
 
-/** Ortak numara özeti: yapılandırma (env), son ortak webhook olayı, dükkan sayıları, platform mesajları (24 sa). */
+/**
+ * Ortak numara özeti: yapılandırma (env), son ortak webhook olayı, işletme sayıları (ortak modda / şu an #KOD ile sipariş
+ * alan; dükkan listesi O2 ile kalktı, 00 §12a madde 11), platform yanıtları (24 sa). Yalnız admin görür.
+ */
 async function sharedNumberSummary(app: FastifyInstance, now = new Date()): Promise<AdminWaSharedNumber> {
   const cfg = app.config;
   const display = platformDisplayPhone(cfg);
@@ -45,7 +48,7 @@ async function sharedNumberSummary(app: FastifyInstance, now = new Date()): Prom
     if (cfg.PLATFORM_WA_PROVIDER !== 'mock') health = 'red';
   }
   if (platform24h.failed > 0) {
-    problems.push(`Son 24 saatte ${platform24h.failed} platform mesajı (dükkan seçici) gönderilemedi.`);
+    problems.push(`Son 24 saatte ${platform24h.failed} platform mesajı (yol gösterme) gönderilemedi.`);
     if (health === 'green') health = 'yellow';
   }
   if (cfg.PLATFORM_WA_PROVIDER === 'mock') {

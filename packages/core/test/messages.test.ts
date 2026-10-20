@@ -12,7 +12,12 @@ import {
   m01nNotUnderstood,
   paymentDetailText,
   rejectionReasonText,
+  SHARED_PLATFORM_TEXTS,
+  STOREFRONT_SIGNATURE,
+  storefrontSignature,
   sharedContinueText,
+  sharedOwnNumberText,
+  sharedUnavailableText,
   sms03bCancelled,
   templateForStatus,
   templateParams,
@@ -78,12 +83,34 @@ describe('mesaj metinleri', () => {
     expect(m01nNotUnderstood({}).cta).toBeUndefined();
   });
 
-  it('P07 yol gösterme: olmayan düğmeyi vaat etmez', () => {
-    // Tek seçilebilir dükkan → yalnız dükkan düğmesi var, "Diğer dükkanlar" YOK
-    expect(sharedContinueText({ isletme: 'Bozok', butonlar: true, digerDukkanlar: false })).not.toContain('başka bir dükkan');
-    expect(sharedContinueText({ isletme: 'Bozok', butonlar: true, digerDukkanlar: true })).toContain('başka bir dükkan seçmek');
-    // Dükkan artık seçilemiyor → düğme yok, metin "dükkanlar" yazmayı söyler
-    expect(sharedContinueText({ isletme: 'Bozok', butonlar: false })).toContain('"dükkanlar" yazabilirsin');
+  it('P07 yol gösterme: olmayan düğmeyi vaat etmez, başka dükkan önermez (00 §12a madde 11, O2)', () => {
+    const withButton = sharedContinueText({ isletme: 'Bozok', buton: true });
+    expect(withButton).toBe('Mesajınızı *Bozok* sohbetine ilettik.\nMenüyü açmak için aşağıdaki düğmeye dokunabilirsiniz.');
+    // Dükkan artık seçilemiyor → düğme yok, yalın bilgi
+    expect(sharedContinueText({ isletme: 'Bozok', buton: false })).toBe('Mesajınızı *Bozok* sohbetine ilettik.');
+    for (const t of [withButton, sharedContinueText({ isletme: 'Bozok', buton: false })]) {
+      expect(t).not.toMatch(/dükkanlar|başka bir dükkan|diğer dükkan/i);
+    }
+  });
+
+  it('vitrin işletmeci beyanı (00 §7, §12a madde 11): satıcı işletme, Yemek Gelsin yalnız yazılım altyapısı', () => {
+    expect(storefrontSignature('Bozok Pide Salonu')).toBe('Bu sayfa Bozok Pide Salonu tarafından işletilir; Yemek Gelsin yalnız yazılım altyapısı sağlar.');
+    expect(storefrontSignature('  Bozok  ')).toBe('Bu sayfa Bozok tarafından işletilir; Yemek Gelsin yalnız yazılım altyapısı sağlar.');
+    expect(STOREFRONT_SIGNATURE.platform).toBe('Yemek Gelsin');
+    // Eski "Altyapı: Yemek Gelsin" imzası kalktı; aracı/pazaryeri çağrışımı yok
+    expect(storefrontSignature('X')).not.toMatch(/Altyapı:|pazaryeri|aracı/i);
+  });
+
+  it('ortak numara platform metinleri liste/dükkan seçici önermez (O2)', () => {
+    const all = [
+      ...Object.values(SHARED_PLATFORM_TEXTS),
+      sharedUnavailableText({ isletme: 'Kapalı Kebap' }),
+      sharedOwnNumberText({ isletme: 'Kendi Lokanta' }),
+      sharedOwnNumberText({ isletme: 'Kendi Lokanta', tel: '0555 000 00 99', link: 'https://wa.me/905550000099' }),
+    ];
+    for (const t of all) expect(t).not.toMatch(/"dükkanlar"|dükkan listesi|diğer dükkanlar|başka bir dükkan|dükkan adını/i);
+    expect(SHARED_PLATFORM_TEXTS.neutral).toBe('Sipariş vermek için işletmenin QR kodunu okutun ya da işletmenin paylaştığı bağlantıyı açın.');
+    expect(sharedUnavailableText({ isletme: 'Kapalı Kebap' })).toBe('Kapalı Kebap şu an bu numaradan sipariş almıyor.');
   });
 
   it('şablonlar', () => {

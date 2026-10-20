@@ -1,5 +1,6 @@
-// Ortak WhatsApp numarası (00 §12a madde 8): dükkan kodu (tenants.wa_code), QR/wa.me ön-dolu metni ve dükkan seçme
-// komutları. Saf fonksiyonlar; API (yönlendirici, panel, vitrin) ve web aynı kuralları kullanır.
+// Ortak WhatsApp numarası (00 §12a madde 8, geçiş: madde 11): dükkan kodu (tenants.wa_code; `/q/<kod>` QR kısa kodu),
+// QR/wa.me ön-dolu metni ve #KOD ayrıştırma. Dükkan listesi/seçici komutları O2 ile kalktı. Saf fonksiyonlar; API
+// (yönlendirici, panel, vitrin, /q/ yönlendirmesi) ve web aynı kuralları kullanır.
 
 import { toWaMeDigits } from './phone';
 import { slugifyTr } from './slug';
@@ -99,6 +100,20 @@ export async function pickWaCode(slugOrName: string, taken: (code: string) => bo
   throw new Error('Dükkan kodu üretilemedi');
 }
 
+/**
+ * QR kısa bağlantısının yolu (00 §2, §12a madde 11; O4): `/q/<KOD>`. Basılı QR'lar ve paylaşılan bağlantılar bunu kodlar;
+ * `yemekgelsin.net/q/<kod>` işletmenin vitrinine yönlendirir (302, `?src=qr`). İşletmenin modu ya da vitrin adresi
+ * değişince yeniden basım gerekmez. Kod büyük/küçük harf duyarsızdır (normalizeWaCode).
+ */
+export function qrLinkPath(code: string): string {
+  return `/q/${encodeURIComponent(code)}`;
+}
+
+/** QR kısa bağlantısı: `<kök adres>/q/<KOD>` (kök: APP_BASE_URL / NEXT_PUBLIC_SITE_URL). */
+export function qrLinkUrl(baseUrl: string, code: string): string {
+  return `${baseUrl.replace(/\/+$/, '')}${qrLinkPath(code)}`;
+}
+
 /** QR/bağlantının ön-dolu mesajı: dükkan adı + #KOD (yönlendirici #KOD'u okur). */
 export function sharedPrefillText(shopName: string, code: string): string {
   return `Merhaba, ${shopName.trim()} için sipariş vermek istiyorum. #${code}`;
@@ -124,15 +139,11 @@ export function extractHashCodes(text: string): string[] {
   return out;
 }
 
-/** Dükkan seçici komutları (mesajın tamamı; Türkçe karakter ve büyük/küçük harf duyarsız, katlanmış biçim). */
-export const SHOP_LIST_COMMANDS: ReadonlySet<string> = new Set(['dukkanlar', 'liste', 'dukkan listesi', 'tum dukkanlar']);
-export const SHOP_PICKER_COMMANDS: ReadonlySet<string> = new Set(['dukkan', 'degistir', 'baska dukkan', 'dukkan degistir', 'dukkan sec']);
-
-/** Dükkan seçici buton/liste kimlikleri (ortak numara; 14 §8). */
+/**
+ * Ortak numara buton kimlikleri (14 §8). Dükkan listesi ve seçici kalktı (00 §12a madde 11, O2): `shops:list`,
+ * `shops:page:*`, `shops:m:*` artık üretilmez. `shop:<id>` yalnız müşterinin GÜNCEL dükkanına devam düğmesidir (P07);
+ * eski bir liste mesajındaki satıra dokunulursa yalnız müşterinin kendi son dükkanlarından biriyse işlenir.
+ */
 export const SHARED_BUTTON_IDS = {
   shop: (tenantId: string) => `shop:${tenantId}`,
-  list: 'shops:list',
-  page: (n: number) => `shops:page:${n}`,
-  /** Ad eşleşmesi listesinin sayfası: eşleşen dükkanlar ilk listenin platform mesajında (shared_wa_messages) saklıdır */
-  matchPage: (listId: string, n: number) => `shops:m:${listId}:${n}`,
 } as const;

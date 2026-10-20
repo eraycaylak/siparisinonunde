@@ -42,6 +42,7 @@ import { apiFetch, errorMessage, fieldErrorsOf, isApiError, useApiQuery } from '
 import { formatDateTime, formatRelative } from '@/lib/format';
 import { supportWhatsappHref } from '@/lib/site';
 import { useQueryClient } from '@tanstack/react-query';
+import { displayUrl } from '@/components/settings/urls';
 import { CustomerLinkField, QrDownloadLinks, svgDataUri, TableCardPrinter } from './shop-qr';
 
 /** Kendi numara için sağlayıcılar (ortak numara satırı 'shared' bu formda seçilmez). */
@@ -486,10 +487,11 @@ function SharedNumberCard({ data, shared }: { data: WhatsappSettings; shared: Sh
             {tone.label}
           </Badge>
         </div>
-        <p className="text-lg font-bold text-fg">Siparişleriniz ortak {shared.displayName} numarasından gelir.</p>
+        <p className="text-lg font-bold text-fg">WhatsApp mesajlarınız ortak {shared.displayName} numarasından gider.</p>
         <CardDescription>
-          Ayrı bir WhatsApp numarası bağlamanız gerekmez. Müşteriniz QR kodunuzu okutunca ya da dükkan kodunuzu yazınca doğrudan size bağlanır;
-          her mesajda dükkanınızın adı görünür ve siparişler bu panele düşer. Başka dükkanların müşterileri ve siparişleri sizinkilerden ayrıdır.
+          Ayrı bir WhatsApp numarası bağlamanız gerekmez. QR kodunuz ve müşteri bağlantınız menünüzü açar, sipariş oradan gelir; ortak numaraya
+          dükkan kodunuzu (#KOD) yazan müşteri de doğrudan size bağlanır. Her mesajda dükkanınızın adı görünür ve siparişler bu panele düşer.
+          Başka dükkanların müşterileri ve siparişleri sizinkilerden ayrıdır.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -512,7 +514,7 @@ function SharedNumberCard({ data, shared }: { data: WhatsappSettings; shared: Sh
           <Alert variant={health.level === 'error' ? 'danger' : 'warning'}>{health.message}</Alert>
         ) : null}
         <p className="text-sm text-fg-muted">
-          Dükkan kodunu yalnız Yemek Gelsin ekibi değiştirebilir; kod değişirse eski QR’lar çalışmaz. Son 24 saat: {health.sentLast24h} mesaj gönderildi
+          Dükkan kodunu yalnız Yemek Gelsin ekibi değiştirebilir; kod değişirse eski kod size ayrılmış kalır ve eski QR’lar yine menünüzü açar. Son 24 saat: {health.sentLast24h} mesaj gönderildi
           {health.failedLast24h ? ` · ${health.failedLast24h} gönderilemedi` : ''}
           {health.lastInboundAt ? ` · son gelen mesaj ${formatRelative(health.lastInboundAt)}` : ''}.
         </p>
@@ -523,15 +525,15 @@ function SharedNumberCard({ data, shared }: { data: WhatsappSettings; shared: Sh
 
 function SharedHowItWorks({ shared }: { shared: SharedInfo }) {
   const steps = [
-    { Icon: QrCode, text: 'Müşteri masadaki, kapıdaki ya da paketteki QR kodunuzu okutur.' },
+    { Icon: QrCode, text: 'Müşteri masadaki, kapıdaki ya da paketteki QR kodunuzu okutur; menünüz açılır ve siparişini oradan verir.' },
     {
       Icon: MessageCircle,
-      text: `WhatsApp, “${shared.prefillText ?? `#${shared.code ?? ''}`}” mesajıyla ${shared.displayName} numarasına açılır; müşteri gönder’e basar.`,
+      text: `Ortak ${shared.displayName} numarasına “#${shared.code ?? 'KOD'}” yazan müşteriye bot dükkanınızın adıyla yanıt verir ve “Menüyü aç” bağlantısını gönderir.`,
     },
-    { Icon: Smartphone, text: 'Bot dükkanınızın adıyla karşılar ve “Menüyü aç” bağlantısını gönderir; sipariş panelinize sesli düşer.' },
+    { Icon: Smartphone, text: 'Sipariş panelinize sesli düşer; durum bildirimleri dükkanınızın adıyla gider.' },
     {
       Icon: Users,
-      text: 'Müşteri sonra kodsuz yazarsa son sipariş verdiği dükkanlar düğme olarak sorulur; dükkan adınızı ya da kodunuzu yazması da yeterlidir.',
+      text: 'Müşteri son 24 saat içinde kodsuz yazarsa sohbet dükkanınızla sürer; daha sonra yazarsa QR kodunuzu yeniden okutması ya da kodunuzu (#KOD) yazması yeterlidir. Ortak numara müşteriye hiçbir zaman dükkan listesi göstermez.',
     },
   ];
   return (
@@ -558,27 +560,28 @@ function SharedHowItWorks({ shared }: { shared: SharedInfo }) {
   );
 }
 
-function SharedLinkCard({ shared }: { shared: SharedInfo }) {
+/** Müşteri bağlantısı = QR kısa bağlantısı (/q/<KOD> → menü; 00 §12a madde 11, O4); ortak numaranın wa.me bağlantısı paylaşılmaz. */
+function SharedLinkCard({ qrUrl }: { qrUrl: string | null }) {
   return (
     <Card>
       <CardHeader>
         <CardTitle>Müşteri bağlantısı</CardTitle>
         <CardDescription>
-          Instagram profilinize, Google işletme kaydınıza ya da müşterilerinize gönderin. Bağlantı WhatsApp’ı dükkan kodunuzla açar.
+          Instagram profilinize, Google işletme kaydınıza ya da müşterilerinize gönderin. Bağlantı menünüzü açar; QR kodunuz da aynı bağlantıyı taşır.
         </CardDescription>
       </CardHeader>
       <CardContent>
-        {shared.waLink ? (
-          <CustomerLinkField link={shared.waLink} />
+        {qrUrl ? (
+          <CustomerLinkField link={qrUrl} openLabel="Menüyü aç" />
         ) : (
-          <Alert variant="warning">Ortak numara henüz yapılandırılmadığı için bağlantı oluşturulamadı.</Alert>
+          <Alert variant="warning">Dükkan kodunuz tanımlı olmadığı için bağlantı oluşturulamadı. Bizimle iletişime geçin.</Alert>
         )}
       </CardContent>
     </Card>
   );
 }
 
-function SharedQrCard({ shared }: { shared: SharedInfo }) {
+function SharedQrCard({ shared, qrUrl }: { shared: SharedInfo; qrUrl: string | null }) {
   const tenant = useTenantSettings();
   const qrSrc = shared.qrSvg ? svgDataUri(shared.qrSvg) : null;
   return (
@@ -596,22 +599,21 @@ function SharedQrCard({ shared }: { shared: SharedInfo }) {
             <img src={qrSrc} alt={`Dükkan QR kodu (#${shared.code ?? ''})`} width={176} height={176} className="size-44 shrink-0 self-center rounded-md border border-border bg-white sm:self-auto" />
             <div className="flex min-w-0 flex-1 flex-col gap-3">
               <p className="text-sm text-fg-muted">
-                Okutunca WhatsApp’ta hazır mesaj: <span className="font-semibold text-fg">{shared.prefillText}</span>
+                Okutunca menünüz açılır: <span className="break-all font-mono font-semibold text-fg">{qrUrl ? displayUrl(qrUrl) : '—'}</span>
               </p>
               <QrDownloadLinks />
             </div>
           </div>
         ) : (
-          <Alert variant="warning">QR kodu oluşturulamadı: ortak numara henüz yapılandırılmadı.</Alert>
+          <Alert variant="warning">QR kodu oluşturulamadı: dükkan kodunuz tanımlı değil.</Alert>
         )}
-        {qrSrc && shared.code ? (
+        {qrSrc ? (
           <div className="flex flex-col gap-2 border-t border-border pt-4">
             <h3 className="text-base font-semibold text-fg">Masa kartı</h3>
             <TableCardPrinter
               shopName={tenant.data?.name ?? 'İşletmeniz'}
-              code={shared.code}
               qrSrc={qrSrc}
-              phoneFormatted={shared.displayPhoneFormatted}
+              shortUrl={qrUrl ? displayUrl(qrUrl) : null}
               brandColor={tenant.data?.brandColor}
               logoUrl={tenant.data?.logoUrl}
             />
@@ -655,13 +657,13 @@ function SharedModeView({ data, shared }: { data: WhatsappSettings; shared: Shar
   return (
     <>
       <SharedNumberCard data={data} shared={shared} />
-      <SharedLinkCard shared={shared} />
-      <SharedQrCard shared={shared} />
+      <SharedLinkCard qrUrl={data.qrUrl} />
+      <SharedQrCard shared={shared} qrUrl={data.qrUrl} />
       <SharedHowItWorks shared={shared} />
       <TestCard
         enabled={!!data.account && data.account.status === 'connected'}
         disabledHint="Ortak numara henüz hazır değil."
-        description={`Ortak numaradan (${shared.displayName}) test mesajı gönderir. Boş bırakırsanız hesabınızdaki telefona gider; başka bir numaraya yalnız son 24 saatte size yazmış bir müşterinize gönderebilirsiniz (10 dakikada en çok 3 test). Gerçek numarada, test telefonundan son 24 saatte ortak numaraya yazılmış olmalıdır (ör. QR kodunuzu okutup mesajı gönderin).`}
+        description={`Ortak numaradan (${shared.displayName}) test mesajı gönderir. Boş bırakırsanız hesabınızdaki telefona gider; başka bir numaraya yalnız son 24 saatte size yazmış bir müşterinize gönderebilirsiniz (10 dakikada en çok 3 test). Gerçek numarada, test telefonundan son 24 saatte ortak numaraya yazılmış olmalıdır: test telefonundan ortak numaraya “#${shared.code ?? 'KOD'}” yazın (QR kodunuz menünüzü açar, ortak numaraya mesaj göndermez).`}
       />
       <OwnNumberOffer />
     </>

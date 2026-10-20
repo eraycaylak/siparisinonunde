@@ -15,6 +15,8 @@
 
 **Kaynaklar ve atıf biçimi:** `A05` = [arastirma/05-urun-ux.md](arastirma/05-urun-ux.md) (ana kaynak: §2, §3, §7, §8). `A01`, `A03`, `A04`, `A06` = araştırma raporları 01, 03, 04, 06. `D02`, `D06`, `D07`, `D08` = plan dokümanları. Yalnız `§x` = bu dokümanın bölümü. **[T]** = tasarım önerisi (veriyle doğrulanmadı, pilotta kalibre edilir). **(teyit edilmeli)** = canlıya çıkmadan önce birincil kaynaktan doğrulanır. Örnekler kurgusaldır: işletme "Lezzet Dürüm", müşteri "Ayşe" ([01](01-vizyon-pazar-is-modeli.md) §5.4 personası).
 
+> **Geçiş notu ([00](00-kararlar-ve-sozluk.md) §12a madde 11, 20.10.2026):** müşteriye dönük ortak numara kapanıyor; link modeli varsayılan olacak. Link modelinde (API yok) müşteri işletmenin kendi WhatsApp Business numarasından menü bağlantısını alır, siparişi vitrinden verir (Akış B), **SMS OTP** ile doğrular (§3.2.1 bu modelde olağan yoldur) ve durumu takip sayfasından + kritik durum SMS'iyle izler; "WhatsApp'tan yaz" düz `wa.me/<işletme numarası>` bağlantısıdır. **Akış A (§3.1), Akış B'nin WhatsApp doğrulaması ve §9.2–§9.4'teki WhatsApp mesajları üst paketin** (işletmenin kendi numarası, resmi Cloud API) akışlarıdır. Basılı QR'lar `yemekgelsin.net/q/<kod>` yönlendirmesini kullanır (§2). Altbilgideki "Altyapı: Yemek Gelsin" imzasının yerini işletmeci beyanı alır (§4.0 "Platform imzası"). Metinlerin tam yeniden yazımı A6 paketindedir.
+
 ---
 
 ## 1. Müşteri tarafı ilkeler
@@ -60,6 +62,7 @@ flowchart LR
 | Telefon | İşletmeyi arar | Kasiyer panelden girer | E | `manual` | — | 1 | Takip linkiyle kanala çekilir (§3.5) |
 
 **Link ve QR kuralları [Faz 1]:**
+- **Geçiş notu (00 §12a madde 11):** basılı QR'lar ve paylaşılan bağlantılar `yemekgelsin.net/q/<kod>` yönlendirmesini kullanır (kod = `tenants.wa_code`); yönlendirme işletmenin vitrinine gider (`?src=qr`), mod ya da vitrin adresi değişince yeniden basım gerekmez. Bilinmeyen kod nötr sayfa gösterir. Aşağıdaki `wa.me`'ye giden paket kartı akışı üst paketin (kendi numara, resmi API) yoludur.
 - `src` parametresi ilk açılışta oturuma yazılır ve siparişin kaynak alanına kopyalanır (alan adı D07'de). Panelin QR/afiş oluşturucusu `src` değerini otomatik ekler ([04](04-isletme-paneli.md)).
 - **Paket kartı QR'ı** önce kendi kısa yönlendirme adresimize gider. Okutma sayısı sunucuda sayılır, ardından `wa.me` açılır. Ön dolu metin: `Merhaba! Menüyü görmek istiyorum. (Q1)` [T]. Bot, parantez içindeki etiketi (`Q1` paket, `Q2` magnet, `Q3` afiş) `src` olarak kaydeder ve cevabında etiketi tekrar etmez. Müşteri etiketi silerse `src` boş kalır.
 - **Talep doğrulama deneyi (Seviye 0 concierge)** aynı kartları kullanır; QR işletmenin mevcut WhatsApp'ına gider, sayım etiketle elle yapılır ([00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §11). **Çoklu şube [Faz 2]:** storefront şubeyi adresin düştüğü bölgeye göre seçer ([04](04-isletme-paneli.md)/[07](07-veri-modeli-ve-api.md)).
@@ -90,6 +93,8 @@ flowchart LR
 Takip sayfasının adım çubuğu: **Alındı → Onaylandı → (Hazırlanıyor) → Yolda / Hazır → Teslim edildi**. "Hazırlanıyor" adımı yalnız işletme bu adımı kullanıyorsa görünür.
 
 ### 3.1 Akış A — Sohbet + web sepeti [Faz 1] (birincil)
+
+> **Geçiş notu (00 §12a madde 11):** müşteriye dönük ortak numara kapanıyor; link modeli varsayılan olacak. Akış A link modelinde yoktur; yalnız üst pakette (kendi numara, resmi Cloud API) ve geçiş boyunca (A3'e kadar) ortak numaradaki işletmede çalışır.
 
 ```mermaid
 sequenceDiagram
@@ -371,6 +376,8 @@ sequenceDiagram
 | S-13 | Masa modu | `/?masa=` | 3 |
 
 **Ortak bileşenler [Faz 1]:** üst çubuk (logo, ad, "Bilgi" → S-14); her sayfada aynı yerde duran **yardım menüsü** ("İşletmeyi ara" `tel:`, "WhatsApp'tan yaz"; WCAG 3.2.6); yapışkan sepet çubuğu; 5 sn'lik "Geri al" şeridi; alt sayfa (odak tuzaklı, ESC ve geri tuşuyla kapanır); altbilgi (künye, yasal linkler, "İçerik bildir" [D08 §4.7](08-mevzuat-kvkk-odeme-fatura.md), "Altyapı: Yemek Gelsin"). Tema işletmenin marka rengidir (`brand_color`, logo ve kapak görseli şube/işletme ayarındadır, [D07](07-veri-modeli-ve-api.md) `tenants`); buton metninin rengi kontrasta göre otomatik seçilir (§10.3, [12](12-marka-tasarim-ve-kullanilabilirlik.md) §5.1).
+
+> **Geçiş notu (00 §7 "Storefront imzası", §12a madde 11):** aşağıdaki "Altyapı: Yemek Gelsin" imzasının yerini işletmeci beyanı alır: **"Bu sayfa {İşletme} tarafından işletilir; Yemek Gelsin yalnız yazılım altyapısı sağlar."** Yer, boyut ve bağlantı kuralları (yalnız vitrin ve takip sayfası altbilgisi, küçük, logosuz, `rel="nofollow"`) aynen geçerlidir; uygulama O3.
 
 **Platform imzası (tek metin, [00-kararlar-ve-sozluk.md](00-kararlar-ve-sozluk.md) §7 "Storefront imzası"):** Metin her yerde aynen **"Altyapı: Yemek Gelsin"**dir; başka varyant ("… ile çalışır", "Powered by") kullanılmaz. Yalnız storefront ve takip sayfası (S-07) altbilgisinde, küçük (12–13 px), logosuz ve tek satır durur; pazarlama sitesine `rel="nofollow"` bağlantıyla ve `?src=sf_footer` parametresiyle gider ([05](05-admin-paneli-ve-pazarlama-sitesi.md) C.6.1). Checkout başlığında, onay butonu çevresinde, WhatsApp mesajlarında, SMS'te ve basılı materyalde yer almaz; işletme markası her zaman öndedir (İ5; kural ve gerekçe [12](12-marka-tasarim-ve-kullanilabilirlik.md) §5.3).
 

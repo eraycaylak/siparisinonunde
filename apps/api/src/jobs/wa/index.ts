@@ -19,7 +19,7 @@ export function registerWaJobs(): void {
     await performWaSend({ db, config, log, lastAttempt: job.attempts >= job.maxAttempts }, payload.messageId);
   });
 
-  // Ortak numara: platform düzeyi mesaj (dükkan seçici vb.) → platform sağlayıcısı (wa-outbound)
+  // Ortak numara: platform düzeyi mesaj (yol gösterme vb.) → platform sağlayıcısı (wa-outbound)
   registerJobHandler<{ messageId: string }>('wa.send_shared', async (payload, { db, config, log, job }) => {
     if (!payload.messageId) return;
     await performSharedSend({ db, config, log, lastAttempt: job.attempts >= job.maxAttempts }, payload.messageId);

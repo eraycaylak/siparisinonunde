@@ -26,7 +26,7 @@ export const messageViewSchema = z.object({
   list: z
     .object({
       buttonTitle: z.string(),
-      /** Satırlar bölüm sırasıyla; `section` bölüm başlığı (ortak numara dükkan listesinde "İlçe, Şehir") */
+      /** Satırlar bölüm sırasıyla; `section` bölüm başlığı (liste mesajının bölümü) */
       rows: z.array(z.object({ id: z.string(), title: z.string(), description: z.string().optional(), section: z.string().optional() })),
     })
     .optional(),
@@ -94,7 +94,7 @@ export function toMessageView(row: MessageRow, extra: { sentByName?: string | nu
   return view;
 }
 
-/** Ortak numaranın platform düzeyi mesajı (dükkan seçici vb.; shared_wa_messages) → aynı görünüm. */
+/** Ortak numaranın platform düzeyi mesajı (yol gösterme vb.; shared_wa_messages) → aynı görünüm. */
 export function toPlatformMessageView(row: typeof sharedWaMessages.$inferSelect): MessageView {
   return toMessageView({
     id: row.id,

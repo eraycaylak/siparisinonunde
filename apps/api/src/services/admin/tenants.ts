@@ -14,6 +14,7 @@ import {
   type SuspensionReason,
   type WaAccountStatus,
   sharedWaLink,
+  qrLinkUrl,
   type WaMode,
 } from '@siparis/core';
 import { adminNotes, branches, memberships, orders, sessions, subscriptions, tenants, users, waAccounts, type Database } from '@siparis/db';
@@ -236,7 +237,13 @@ export function allowedTransitions(
   });
 }
 
-export async function loadTenantDetail(db: Database, tenantId: string, viewerRole: PlatformRole | null): Promise<AdminTenantDetail | null> {
+/** `appBaseUrl`: QR kısa bağlantısının kökü (APP_BASE_URL; /q/<kod>, 00 §12a madde 11). */
+export async function loadTenantDetail(
+  db: Database,
+  tenantId: string,
+  viewerRole: PlatformRole | null,
+  appBaseUrl: string,
+): Promise<AdminTenantDetail | null> {
   const [t] = await db.select().from(tenants).where(eq(tenants.id, tenantId));
   if (!t) return null;
   const now = new Date();
@@ -298,7 +305,8 @@ export async function loadTenantDetail(db: Database, tenantId: string, viewerRol
     .where(and(eq(sessions.tenantId, tenantId), eq(sessions.kind, 'impersonation'), gt(sessions.expiresAt, now)))
     .orderBy(desc(sessions.createdAt));
 
-  // Ortak numarada QR bağlantısı (satırın gösterim numarası = platform numarası; syncSharedWaAccounts)
+  // Ortak numaranın #KOD'lu wa.me bağlantısı (geçiş; satırın gösterim numarası = platform numarası). QR bunu değil
+  // QR kısa bağlantısını (qrUrl, /q/<kod>) kodlar (O4).
   const [sharedAcc] =
     t.waMode === 'shared'
       ? await db
@@ -332,6 +340,7 @@ export async function loadTenantDetail(db: Database, tenantId: string, viewerRol
       waMode: t.waMode,
       waCode: t.waCode ?? null,
       sharedWaLink: sharedAcc?.displayPhone && t.waCode ? sharedWaLink(sharedAcc.displayPhone, t.name, t.waCode) : null,
+      qrUrl: t.waCode ? qrLinkUrl(appBaseUrl, t.waCode) : null,
       createdAt: iso(t.createdAt),
       updatedAt: iso(t.updatedAt),
     },

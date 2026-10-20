@@ -63,7 +63,7 @@ export function WhatsappHealthScreen() {
   );
 }
 
-/** Ortak numara (00 §12a madde 8): platformun tek numarasının yapılandırması ve son 24 saat. */
+/** Ortak numara (00 §12a madde 8, geçiş: madde 11): platformun tek numarasının yapılandırması ve son 24 saat. */
 function SharedNumberSummary({ s }: { s: AdminWaSharedNumber }) {
   return (
     <Card className="mb-4">
@@ -72,7 +72,9 @@ function SharedNumberSummary({ s }: { s: AdminWaSharedNumber }) {
           <CardTitle>Ortak numara · {s.displayName}</CardTitle>
           <HealthBadge health={s.health} />
         </div>
-        <CardDescription>Ortak numaradaki işletmelerin tümü bu numaradan mesaj alır ve gönderir; dükkan seçici mesajları platform düzeyindedir.</CardDescription>
+        <CardDescription>
+          Ortak numaradaki işletmelerin tümü bu numaradan mesaj alır ve gönderir; yol gösterme mesajları platform düzeyindedir. Dükkan listesi yoktur.
+        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {s.problems.length ? (
@@ -90,9 +92,9 @@ function SharedNumberSummary({ s }: { s: AdminWaSharedNumber }) {
             {s.lastWebhookAt ? <span title={formatDateTime(s.lastWebhookAt)}>{formatRelative(s.lastWebhookAt)}</span> : 'Hiç gelmedi'}
           </InfoRow>
           <InfoRow label="İşletmeler">
-            {s.shops.total} işletme · {s.shops.selectable} tanesi dükkan listesinde
+            {s.shops.total} işletme · {s.shops.selectable} tanesi şu an #KOD ile sipariş alıyor
           </InfoRow>
-          <InfoRow label="Seçici mesajları (24 sa)">
+          <InfoRow label="Platform yanıtları (24 sa)">
             {s.platform24h.inbound} gelen / {s.platform24h.outbound} giden
             {s.platform24h.failed ? ` · ${s.platform24h.failed} başarısız` : ''}
           </InfoRow>

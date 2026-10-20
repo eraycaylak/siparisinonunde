@@ -8,6 +8,7 @@ export const metadata: Metadata = {
   referrer: 'no-referrer',
 };
 
+// İşletmeci beyanı (00 §7, §12a madde 11) takip sayfasının kendi altbilgisindedir: düzen işletme adını bilmez.
 export default function TrackingLayout({ children }: { children: ReactNode }) {
   return <StorefrontShell>{children}</StorefrontShell>;
 }

@@ -11,8 +11,17 @@ const RESERVED = new Set(['www', 'api', 'hooks', 'status', 'static', 'cdn', 'mai
 
 const SLUG_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 
-/** Alt alan adında olduğu gibi bırakılan yollar (takip sayfası, API, statik dosyalar). */
-const PASSTHROUGH = ['/t/', '/s/', '/m/', '/api/', '/_next/', '/brand/'];
+/**
+ * Alt alan adında olduğu gibi bırakılan yollar (takip sayfası, kısa menü bağlantısı, QR kısa bağlantısı, API, statik
+ * dosyalar). `/q/<kod>` (00 §12a madde 11, O4) her host'ta aynı yönlendirmedir: alt alan adında da vitrin yoluna
+ * yazılmaz, route handler kodu çözüp vitrine yönlendirir.
+ */
+export const PASSTHROUGH = ['/t/', '/s/', '/m/', '/q/', '/api/', '/_next/', '/brand/'] as const;
+
+/** Yol alt alan adında vitrine yazılmadan olduğu gibi mi bırakılır? */
+export function isPassthroughPath(pathname: string): boolean {
+  return PASSTHROUGH.some((p) => pathname.startsWith(p));
+}
 
 export function resolveSubdomain(host: string, rootDomain: string): string | null {
   if (!rootDomain) return null;
@@ -36,7 +45,7 @@ export function proxy(request: NextRequest) {
   }
 
   if (!SLUG_RE.test(sub)) return NextResponse.next();
-  if (PASSTHROUGH.some((p) => pathname.startsWith(p))) return NextResponse.next();
+  if (isPassthroughPath(pathname)) return NextResponse.next();
 
   const target = new URL(`/s/${sub}${pathname === '/' ? '' : pathname}${search}`, request.url);
   return NextResponse.rewrite(target);

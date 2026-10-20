@@ -94,7 +94,7 @@ export async function waThread(api: APIRequestContext, waAccountId: string, phon
 }
 
 export interface SharedThreadMessage extends ThreadMessage {
-  /** Mesajın dükkanı (platform düzeyi dükkan seçici mesajında null) */
+  /** Mesajın dükkanı (platform düzeyi mesajda — nötr yanıt P09 vb. — null) */
   tenantName: string | null;
   platform: boolean;
   brand?: string;
@@ -105,7 +105,7 @@ export interface SharedThread {
   route: { currentTenantId: string | null; currentTenantName: string | null; recentTenantIds: string[] } | null;
 }
 
-/** Müşterinin ortak numaradaki tek sohbeti (tüm dükkanlar + dükkan seçici; 00 §12a madde 8). */
+/** Müşterinin ortak numaradaki tek sohbeti (tüm dükkanlar + platform yanıtları; 00 §12a madde 8, geçiş: madde 11). */
 export async function sharedThread(api: APIRequestContext, phone: string): Promise<SharedThread> {
   return json<SharedThread>(await api.get('/api/v1/dev/wa/thread', { params: { shared: '1', phone } }), 'dev/wa/thread (ortak)');
 }

@@ -34,7 +34,7 @@ export const RETENTION_DAYS = {
   locationsMedia: 30,
   /** Sipariş notu ve ürün notu: final durumdan (teslim, ret, iptal) itibaren (08 §2.8 satır 1 retention.order_notes, §2.7) */
   orderNotes: 30,
-  /** Ortak numaranın platform düzeyi mesajları (dükkan seçici, yönlenmemiş gelen mesaj; 00 §12a madde 8) */
+  /** Ortak numaranın platform düzeyi mesajları (yol gösterme, yönlenmemiş gelen mesaj; 00 §12a madde 8) */
   sharedWaMessages: 30,
 } as const;
 
@@ -242,7 +242,7 @@ export async function runRetention(db: Database, log: FastifyBaseLogger): Promis
     sql`delete from courier_login_links where expires_at < now() - make_interval(days => ${r.courierLoginLinks}) returning id`,
   );
   await step('retention.technical.sessions', sql`delete from sessions where expires_at < now() returning id`);
-  // Ortak numara (00 §12a madde 8): platform düzeyi mesajlar (dükkan seçici vb.) 30 gün
+  // Ortak numara (00 §12a madde 8): platform düzeyi mesajlar (yol gösterme vb.) 30 gün
   await step(
     'retention.technical.shared_wa_messages',
     sql`delete from shared_wa_messages where created_at < now() - make_interval(days => ${r.sharedWaMessages}) returning id`,

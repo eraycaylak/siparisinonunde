@@ -172,8 +172,8 @@ interface Ctx {
   /** Son giden mesaj + son 1 saatteki M01N sayısı (tek seferlik okuma; notUnderstood sınırları) */
   recent?: RecentOutbound;
   /**
-   * Ortak numara (00 §12a madde 8): müşteri bu mesajla dükkanı AÇIKÇA seçti (#KOD, dükkan listesi, ad eşleşmesi).
-   * Soğuma süreleri beklenmeden durum kartı / kapalı bilgisi / karşılama (menü linki) gider.
+   * Ortak numara (00 §12a madde 8): müşteri bu mesajla dükkanı AÇIKÇA seçti (#KOD, güncel dükkana devam düğmesi;
+   * dükkan listesi ve ad eşleşmesi O2 ile kalktı). Soğuma süreleri beklenmeden durum kartı / kapalı bilgisi / karşılama (menü linki) gider.
    */
   selected?: boolean;
   /**
@@ -671,8 +671,8 @@ async function respond(ctx: Ctx): Promise<void> {
 // Karşılama
 
 /**
- * Ortak numarada dükkan seçimi (QR'daki #KOD, dükkan listesi, ad): müşteri bu dükkanla konuşmaya BAŞLADI; sessiz kalmak
- * yanlış olur. İnsan modu / opt-out / bot kapalıysa yine sessiz (personel görür). Sıra 00 §7 ile aynı: açık sipariş
+ * Ortak numarada dükkan seçimi (QR'daki #KOD, güncel dükkana devam düğmesi): müşteri bu dükkanla konuşmaya BAŞLADI;
+ * sessiz kalmak yanlış olur. İnsan modu / opt-out / bot kapalıysa yine sessiz (personel görür). Sıra 00 §7 ile aynı: açık sipariş
  * durum kartı (mesaj iptal isteğiyse iptal akışı) → şube kapalı / duraklatılmış → tam karşılama (menü linki; Akış A).
  * "yetkili" isteği bundan önce işlenir (respond 5).
  */

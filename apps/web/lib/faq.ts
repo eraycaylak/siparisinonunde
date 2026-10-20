@@ -1,5 +1,7 @@
-// SSS (05 C.3.4; kısa cevaplar). Hitap "sen" (05 C.3). Varsayılan WhatsApp modeli ortak numaradır (00 §12a madde 8):
-// tüm dükkanlar tek "Yemek Gelsin" numarasında, dükkan kodu/QR ile; işletmenin kendi numarası isteğe bağlıdır.
+// SSS (05 C.3.4; kısa cevaplar). Hitap "sen" (05 C.3). "Aynı numarada başka dükkanlar" sorusu O2 ile kaldırıldı
+// (00 §12a madde 11: tek numarada çok dükkan izlenimi dizin/pazaryeri görünümüdür). AÇIK NOT (O7, kapsam dışı): aşağıdaki
+// "numara-gerekir-mi", "meta-ucreti" ve "kart-ekleme" cevapları hâlâ madde 8'in "varsayılan ortak numara" modelini
+// anlatır; link modeli ve fiyat/SMS kotası kararından (00 §13 madde 17) sonra O7'de yeniden yazılır.
 
 export interface FaqItem {
   id: string;
@@ -12,11 +14,6 @@ export const FAQ: readonly FaqItem[] = [
     id: 'numara-gerekir-mi',
     q: 'WhatsApp numarası bağlamam gerekiyor mu?',
     a: 'Hayır. Varsayılan olarak tüm dükkanlar tek Yemek Gelsin WhatsApp numarasını kullanır. Sana özel bir dükkan kodu, müşteri bağlantısı ve QR verilir; müşterin QR’ını okutunca ya da bağlantına dokununca sohbet senin dükkanınla açılır ve her mesaj dükkanının adıyla başlar. Telefonundaki WhatsApp’a dokunulmaz.',
-  },
-  {
-    id: 'baska-dukkan',
-    q: 'Aynı numarada başka dükkanlar da var; müşterim karışır mı?',
-    a: 'Senin QR’ını ya da bağlantını kullanan müşteri doğrudan senin dükkanına bağlanır, siparişi yalnız senin paneline düşer. Müşteri kodsuz yazarsa ya da “dükkanlar” derse hangi dükkandan sipariş vereceği sorulur. Müşteri listen, sohbetlerin ve siparişlerin başka dükkanlarla paylaşılmaz.',
   },
   {
     id: 'kendi-numara',

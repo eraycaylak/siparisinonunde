@@ -4,8 +4,9 @@ import { describe, expect, it } from 'vitest';
 import {
   CUSTOMER_TEMPLATES,
   RESERVED_WA_CODES,
-  SHOP_LIST_COMMANDS,
-  SHOP_PICKER_COMMANDS,
+  SHARED_BUTTON_IDS,
+  qrLinkPath,
+  qrLinkUrl,
   brandedText,
   extractHashCodes,
   looksLikeOrderCode,
@@ -96,10 +97,16 @@ describe('ön-dolu metin ve bağlantı', () => {
     expect(extractHashCodes('Sipariş no: #1047 hakkında #BOZOK')).toEqual(['BOZOK']);
   });
 
-  it('komut kümeleri katlanmış biçimde', () => {
-    expect(SHOP_LIST_COMMANDS.has('dukkanlar')).toBe(true);
-    expect(SHOP_PICKER_COMMANDS.has('baska dukkan')).toBe(true);
-    expect(SHOP_PICKER_COMMANDS.has('degistir')).toBe(true);
+  it('QR kısa bağlantısı /q/<KOD> (00 §12a madde 11, O4): kök adresin sonundaki eğik çizgi yinelenmez', () => {
+    expect(qrLinkPath('BOZOK')).toBe('/q/BOZOK');
+    expect(qrLinkUrl('https://yemekgelsin.net', 'BOZOK')).toBe('https://yemekgelsin.net/q/BOZOK');
+    expect(qrLinkUrl('https://yemekgelsin.net///', 'DONER')).toBe('https://yemekgelsin.net/q/DONER');
+    expect(qrLinkPath('A/B')).toBe('/q/A%2FB');
+  });
+
+  it('dükkan listesi/seçici kimlikleri ve komutları yok (00 §12a madde 11, O2); yalnız güncel dükkana devam düğmesi', () => {
+    expect(Object.keys(SHARED_BUTTON_IDS)).toEqual(['shop']);
+    expect(SHARED_BUTTON_IDS.shop('t1')).toBe('shop:t1');
   });
 
   it('dükkan adlı metin: kalın ilk satır', () => {

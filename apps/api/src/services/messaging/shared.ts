@@ -14,7 +14,7 @@ import {
   type WaMode,
 } from '@siparis/core';
 import { ORDERING_BLOCKED_STAGES, isOrderingBlockedStage } from '@siparis/core/admin/lifecycle';
-import { branches, tenants, waAccounts, type Database } from '@siparis/db';
+import { branches, retiredWaCodes, tenants, waAccounts, type Database } from '@siparis/db';
 import { and, asc, desc, eq, inArray, isNotNull, isNull, ne, notInArray, sql } from 'drizzle-orm';
 import { platformDisplayPhone, type Config } from '../../config';
 import { randomToken } from '../../lib/tokens';
@@ -23,9 +23,9 @@ import type { WaAccountRow } from '../../wa/registry';
 type TenantRow = typeof tenants.$inferSelect;
 
 /**
- * Ortak numara listesinde görünmeyen (sipariş almayan) yaşam döngüsü aşamaları. TEK KAYNAK: 00 §9
+ * Ortak numarada #KOD ile seçilemeyen (sipariş almayan) yaşam döngüsü aşamaları. TEK KAYNAK: 00 §9
  * `ORDERING_BLOCKED_STAGES`. Denetim 04.10.2026 (D) öncesinde liste burada elle kopyalanmıştı; kopya,
- * 00 §9 değiştiğinde dükkan seçicinin vitrinden ayrışmasına (sipariş almayan dükkanın listede kalmasına)
+ * 00 §9 değiştiğinde ortak numaranın vitrinden ayrışmasına (sipariş almayan dükkanın seçilebilmesine)
  * yol açardı. `tenantSelectableReason` türetilmiş `isOrderingBlockedStage()`'i, SQL süzgeci aynı listeyi kullanır.
  */
 const NOT_SELECTABLE_STAGES = ORDERING_BLOCKED_STAGES;
@@ -135,16 +135,28 @@ export async function syncSharedWaAccounts(db: Database, config: Config): Promis
   return rows.length;
 }
 
-/** Kayıtta dükkan kodu: slug'dan, çakışmada rakam soneki (core pickWaCode; migration 0900 ile aynı kural). */
+/**
+ * Kod kimin: güncel `tenants.wa_code` ya da emekli kod (`retired_wa_codes`, 00 §3 "Emekli QR kodu"). Emekli kod
+ * hiçbir zaman başka işletmeye verilmez; basılı QR'ların kalıcı anahtarıdır (00 §12a madde 11).
+ */
+export async function waCodeOwner(db: Database, code: string): Promise<{ tenantId: string; retired: boolean } | null> {
+  const [cur] = await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.waCode, code)).limit(1);
+  if (cur) return { tenantId: cur.id, retired: false };
+  const [old] = await db.select({ tenantId: retiredWaCodes.tenantId }).from(retiredWaCodes).where(eq(retiredWaCodes.code, code)).limit(1);
+  return old ? { tenantId: old.tenantId, retired: true } : null;
+}
+
+/**
+ * Kayıtta dükkan kodu: slug'dan, çakışmada rakam soneki (core pickWaCode; migration 0900 ile aynı kural). Emekli
+ * kodlar da dolu sayılır: başka işletmenin sahadaki QR'ı yeni işletmeye yönlenmesin.
+ */
 export async function generateWaCode(db: Database, slugOrName: string): Promise<string> {
-  return pickWaCode(slugOrName, async (code) => {
-    const [hit] = await db.select({ id: tenants.id }).from(tenants).where(eq(tenants.waCode, code)).limit(1);
-    return Boolean(hit);
-  });
+  return pickWaCode(slugOrName, async (code) => Boolean(await waCodeOwner(db, code)));
 }
 
 // ---------------------------------------------------------------------------
-// Seçilebilir dükkanlar (dükkan seçici, #KOD, ad eşleşmesi)
+// Seçilebilir dükkanlar (#KOD ile seçim, güncel dükkana devam). Dükkan listesi/seçici ve ad eşleşmesi O2 ile kalktı
+// (00 §12a madde 11): bu sorgu müşteriye hiçbir zaman liste olarak gösterilmez.
 
 export interface SharedShop {
   tenantId: string;
@@ -158,13 +170,16 @@ export interface SharedShop {
   city: string;
 }
 
-/** Ortak numarada seçilebilir mi: ortak mod + canlı (web_live_at) + sipariş açık + askı/salt-okunur/kapanış değil. */
+/**
+ * Ortak numarada #KOD ile seçilebilir mi: ortak mod + canlı (web_live_at) + sipariş açık + askı/salt-okunur/kapanış
+ * değil. Sebep metni işletme paneline gösterilir (müşteriye değil).
+ */
 export function tenantSelectableReason(t: Pick<TenantRow, 'waMode' | 'orderingEnabled' | 'webLiveAt' | 'lifecycleStage' | 'suspensionReason'>): string | null {
   if (t.waMode !== 'shared') return 'İşletme kendi WhatsApp numarasını kullanıyor.';
-  if (!t.webLiveAt) return 'Canlıya geçince ortak numaradaki dükkan listesinde görünürsünüz.';
-  if (!t.orderingEnabled) return 'Online sipariş kapalı olduğu için dükkan listesinde görünmüyorsunuz.';
+  if (!t.webLiveAt) return 'Canlıya geçince ortak numaraya #KOD yazan müşterileriniz de sipariş verebilir; QR kodunuz menünüzü açar.';
+  if (!t.orderingEnabled) return 'Online sipariş kapalı olduğu için ortak numaradan sipariş alınmıyor; #KOD yazan müşteri bilgilendirilir.';
   if (t.suspensionReason || isOrderingBlockedStage(t.lifecycleStage)) {
-    return 'Hesap askıda ya da salt-okunur olduğu için dükkan listesinde görünmüyorsunuz.';
+    return 'Hesap askıda ya da salt-okunur olduğu için ortak numaradan sipariş alınmıyor.';
   }
   return null;
 }
@@ -200,9 +215,14 @@ export async function selectableSharedShops(db: Database, opts: { tenantIds?: st
   return rows.sort((a, b) => a.name.localeCompare(b.name, 'tr'));
 }
 
-/** Kodla işletme (her modda; kod yoksa null). */
+/**
+ * Kodla işletme (her modda; kod yoksa null). Emekli kod (`retired_wa_codes`) eski sahibine çözülür: kodu değişen
+ * işletmenin sahadaki "#ESKİKOD" QR'ları yine o işletmeye gider, başka işletmeye asla.
+ */
 export async function tenantByWaCode(db: Database, code: string): Promise<TenantRow | null> {
-  const [t] = await db.select().from(tenants).where(eq(tenants.waCode, code)).limit(1);
+  const owner = await waCodeOwner(db, code);
+  if (!owner) return null;
+  const [t] = await db.select().from(tenants).where(eq(tenants.id, owner.tenantId)).limit(1);
   return t ?? null;
 }
 

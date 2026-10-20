@@ -871,8 +871,25 @@ export function templateForStatus(status: OrderStatus, ctx: { cancelReason?: Can
   }
 }
 
-/** Storefront altbilgisi imzası (00 §7). */
-export const STOREFRONT_SIGNATURE = 'Altyapı: Yemek Gelsin';
+/**
+ * Vitrin ve takip sayfası altbilgisindeki işletmeci beyanı (00 §7 "Storefront imzası", §12a madde 11): satıcı ve son
+ * müşteri verisinin sorumlusu işletmedir, Yemek Gelsin yalnız yazılım altyapısı sağlar (veri işleyen; uzun biçimi
+ * 08 §4.1). Parçalı tutulur: web bileşeni işletme adını vurgular ve platform adını pazarlama sitesine bağlar, düz metin
+ * `storefrontSignature` ile birebir aynıdır (birim testli). Vitrin yasal metnindeki platform rolü cümlesi
+ * ("… yazılım altyapısıyla çalışır …satıcı ya da aracı değildir…") bununla uyumludur.
+ */
+export const STOREFRONT_SIGNATURE = {
+  before: 'Bu sayfa ',
+  after: ' tarafından işletilir; ',
+  platform: 'Yemek Gelsin',
+  role: ' yalnız yazılım altyapısı sağlar.',
+} as const;
+
+/** İşletmeci beyanının düz metni: "Bu sayfa {İşletme} tarafından işletilir; Yemek Gelsin yalnız yazılım altyapısı sağlar." */
+export function storefrontSignature(isletme: string): string {
+  const s = STOREFRONT_SIGNATURE;
+  return `${s.before}${isletme.trim()}${s.after}${s.platform}${s.role}`;
+}
 
 /** Mesafeli satış onay ibaresi (00 §9). */
 export const PAYMENT_OBLIGATION_NOTICE = 'Siparişi onayladığınızda ödeme yükümlülüğü doğar.';
@@ -882,10 +899,13 @@ export const WITHDRAWAL_EXCEPTION_NOTICE =
   'Gıda siparişleri çabuk bozulabilen ürünler olduğundan cayma hakkı kapsamı dışındadır.';
 
 // ---------------------------------------------------------------------------
-// Ortak numara (00 §12a madde 8): platformun dükkan seçici ve yol gösterme mesajları. Bu mesajlar hiçbir dükkanın
-// sohbetine girmez (platform düzeyi, shared_wa_messages). Kodlar P01–P08: P01 son dükkanlar, P02 liste, P03 kendi
-// numarası, P04 seçilemeyen dükkan, P05 dükkan yok, P06 seçici penceresinde kısa hatırlatma, P07 dükkan motoru yanıt
-// üretmedi, P08 dükkansız "DUR"/"BAŞLAT". Dükkanın kendi mesajları dükkan adıyla başlar (brandedText).
+// Ortak numara (00 §12a madde 8, geçiş: madde 11): platformun yol gösterme mesajları. Bu mesajlar hiçbir dükkanın
+// sohbetine girmez (platform düzeyi, shared_wa_messages). Dükkan listesi, son dükkanlar düğmeleri ve dükkan seçici
+// O2 ile KALKTI (dizin görünümü; 08 §4.2 kırmızı çizgi #2): platform mesajı başka bir dükkanın adını ya da dükkan
+// sayısını hiçbir zaman taşımaz. Kodlar: P03 kendi numarası, P04 seçilemeyen dükkan, P06 yol gösterme penceresinde
+// kısa hatırlatma, P07 dükkan motoru yanıt üretmedi, P08 dükkansız "DUR"/"BAŞLAT", P09 kodsuz ve dükkansız mesaja
+// listesiz nötr yanıt. (P01 son dükkanlar, P02 liste ve P05 "dükkan yok" kullanılmaz.) Dükkanın kendi mesajları dükkan
+// adıyla başlar (brandedText).
 
 /** Ortak numaradan giden dükkan mesajının ilk satırı (WhatsApp'ta kalın). */
 export function sharedBrandLine(shopName: string): string {
@@ -897,49 +917,38 @@ export function brandedText(shopName: string, text: string): string {
   return `${sharedBrandLine(shopName)}\n${text}`;
 }
 
-export const SHARED_PICKER_TEXTS = {
-  /** P01 · Son dükkanlar (reply butonları) */
-  question: 'Hangi dükkandan sipariş vermek istersin?',
-  otherShops: 'Diğer dükkanlar',
-  /** P02 · Dükkan listesi */
-  listBody: 'Sipariş vermek istediğin dükkanı listeden seç. Dükkan adını ya da kodunu da yazabilirsin.',
-  listButton: 'Dükkanları gör',
-  listNextPage: 'Diğer dükkanlar',
-  listFirstPage: 'Listenin başı',
-  matchesBody: 'Yazdığına uyan birden fazla dükkan var. Hangisinden sipariş vermek istersin?',
-  codeNotFound: 'Bu sipariş kodunu bulamadık. Kodu, siparişi verdiğin sayfadan kontrol edebilirsin.',
-  /** P06 · Seçici az önce gitti, müşteri yine kodsuz yazdı: tam seçici yerine tek satırlık yol gösterme */
-  pickerRepeat: 'Dükkanları mı görmek istiyorsun? Yukarıdaki mesajdan dükkan seçebilirsin; dükkan adını ya da kodunu yazman da yeter.',
-  /** P06 · Mesaj liste sırası ("1") ya da tek harf: seçimin nasıl yapıldığını söyle */
-  pickerPickHint: 'Dükkanları mı görmek istiyorsun? Yukarıdaki "Dükkanları gör" düğmesine dokun ya da dükkan adını yaz.',
-  /** P06 · Yazılan "#KOD" hiçbir dükkana ait değil (seçicinin ya da hatırlatmanın ilk satırı) */
+export const SHARED_PLATFORM_TEXTS = {
+  /** P09 · Kodsuz ve güncel dükkanı olmayan mesaj: tek, listesiz, nötr yol gösterme (başka dükkan adı/sayısı yok) */
+  neutral: 'Sipariş vermek için işletmenin QR kodunu okutun ya da işletmenin paylaştığı bağlantıyı açın.',
+  /** P06 · Nötr yanıt az önce gitti, müşteri yine kodsuz yazdı: tek satırlık hatırlatma */
+  neutralRepeat: 'Siparişi işletmenin QR kodundan ya da paylaştığı bağlantıdan verebilirsiniz.',
+  /** P09/P06 ilk satırı · Akış B kodu hiçbir bekleyen siparişe ait değil */
+  codeNotFound: 'Bu sipariş kodunu bulamadık. Kodu, siparişi verdiğiniz sayfadan kontrol edebilirsiniz.',
+  /** P09/P06 ilk satırı · Yazılan "#KOD" hiçbir dükkana ait değil */
   shopCodeNotFound: 'Bu dükkan kodunu bulamadık.',
   /** P08 · "DUR"/"BAŞLAT" yazdı ama kişiye ait dükkan sohbeti yok */
-  optNoShop: 'Bu numarada sana ait bir dükkan sohbeti bulamadık. Sipariş vermek istersen "dükkanlar" yazabilirsin.',
+  optNoShop: 'Bu numarada size ait bir işletme sohbeti bulamadık. Sipariş vermek için işletmenin QR kodunu okutun ya da işletmenin paylaştığı bağlantıyı açın.',
   footer: 'Yemek Gelsin',
-  /** P05 · Seçilebilir dükkan yok */
-  noShops: 'Şu an bu numaradan sipariş alan dükkan yok. Daha sonra tekrar yazabilirsin.',
 } as const;
 
 /** P03 · Kodu yazılan dükkan kendi numarasından sipariş alıyor. */
 export function sharedOwnNumberText(v: { isletme: string; tel?: string | null; link?: string | null }): string {
-  if (!v.tel || !v.link) return `${v.isletme} şu an bu numaradan sipariş almıyor. Başka bir dükkan için "dükkanlar" yazabilirsin.`;
-  return `${v.isletme} siparişlerini kendi WhatsApp numarasından alıyor: ${v.tel}\nBu bağlantıdan yazabilirsin: ${v.link}`;
+  if (!v.tel || !v.link) return sharedUnavailableText(v);
+  return `${v.isletme} siparişlerini kendi WhatsApp numarasından alıyor: ${v.tel}\nBu bağlantıdan yazabilirsiniz: ${v.link}`;
 }
 
-/** P04 · Kodu yazılan dükkan şu an ortak numaradan sipariş almıyor (canlı değil, kapalı ya da askıda). */
+/** P04 · Kodu yazılan dükkan şu an ortak numaradan sipariş almıyor (canlı değil, kapalı ya da askıda). Liste önerilmez. */
 export function sharedUnavailableText(v: { isletme: string }): string {
-  return `${v.isletme} şu an bu numaradan sipariş almıyor. Başka bir dükkan için "dükkanlar" yazabilirsin.`;
+  return `${v.isletme} şu an bu numaradan sipariş almıyor.`;
 }
 
 /**
  * P07 · Dükkanın kendi sohbet motoru bu mesaja otomatik yanıt üretmedi (ör. yanıt soğuması, medya, eski buton):
- * müşteri yanıtsız kalmasın diye platform yol gösterir. `butonlar` yoksa (dükkan artık seçilemiyor) metin yalındır.
+ * müşteri yanıtsız kalmasın diye platform yol gösterir. `buton`: güncel dükkana devam düğmesi (tek düğme; "Diğer
+ * dükkanlar" O2 ile kalktı). Düğme yoksa (dükkan artık seçilemiyor) metin yalındır.
  */
-export function sharedContinueText(v: { isletme: string; butonlar: boolean; digerDukkanlar?: boolean }): string {
-  const ilk = `Mesajını *${v.isletme}* sohbetine ilettik.`;
-  if (!v.butonlar) return `${ilk}\nBaşka bir dükkan için "dükkanlar" yazabilirsin.`;
-  // Tek seçilebilir dükkan varsa "Diğer dükkanlar" düğmesi YOKTUR: olmayan bir seçimi vaat etmeyiz.
-  if (v.digerDukkanlar === false) return `${ilk}\nMenüyü açmak için aşağıdaki düğmeye dokunabilirsin.`;
-  return `${ilk}\nMenüyü açmak ya da başka bir dükkan seçmek için aşağıdaki düğmeleri kullanabilirsin.`;
+export function sharedContinueText(v: { isletme: string; buton: boolean }): string {
+  const ilk = `Mesajınızı *${v.isletme}* sohbetine ilettik.`;
+  if (!v.buton) return ilk;
+  return `${ilk}\nMenüyü açmak için aşağıdaki düğmeye dokunabilirsiniz.`;
 }

@@ -1,7 +1,8 @@
 // Twilio ortak numara uçtan uca (docs/16): Twilio'nun GERÇEK gelen mesaj yükü (form-encoded, SmsStatus=received dahil)
 // imzalı olarak ortak webhook'a gelir → ham olay + iş → worker yönlendirici dükkanı seçer → Twilio Messages.json'a
 // cevap gider. Canlıda "#DENEME yazdım, cevap gelmedi" hatasının yeniden üretimi: ayrıştırıcı SmsStatus=received
-// alanını durum bildirimi sanıp mesajı atıyordu.
+// alanını durum bildirimi sanıp mesajı atıyordu. Dizin yok (00 §12a madde 11, O2): kodsuz yazan yeni müşteriye Twilio'dan
+// listesiz tek nötr metin gider; dükkan adı, listesi ya da sayısı gitmez.
 
 import { waWebhookEvents } from '@siparis/db';
 import { eq } from 'drizzle-orm';
@@ -38,14 +39,14 @@ afterAll(async () => {
 afterEach(() => setHttpFetch(null));
 
 /** Twilio'nun WhatsApp gelen mesaj webhook'unun alanları (canlıda görülen biçim). */
-function inboundForm(sid: string, body: string): Record<string, string> {
+function inboundForm(sid: string, body: string, waId = '905321112233'): Record<string, string> {
   return {
     SmsMessageSid: sid,
     NumMedia: '0',
     ProfileName: 'Eray',
     MessageType: 'text',
     SmsSid: sid,
-    WaId: '905321112233',
+    WaId: waId,
     SmsStatus: 'received',
     Body: body,
     To: 'whatsapp:+18509099295',
@@ -53,7 +54,7 @@ function inboundForm(sid: string, body: string): Record<string, string> {
     ReferralNumMedia: '0',
     MessageSid: sid,
     AccountSid: ACCOUNT_SID,
-    From: 'whatsapp:+905321112233',
+    From: `whatsapp:+${waId}`,
     ApiVersion: '2010-04-01',
   };
 }
@@ -108,6 +109,21 @@ describe('Twilio ortak numara: gelen mesaj → cevap (uçtan uca)', () => {
     }
     // Ortak numarada mesajlar dükkanın adını taşır (00 §12a madde 8)
     expect(forms.some((f) => (f.Body ?? f.ContentVariables ?? '').includes('Deneme Pide Salonu'))).toBe(true);
+  });
+
+  it('kodsuz "Selam" yazan yeni müşteriye Twilio üzerinden listesiz nötr metin gider (dükkan adı yok)', async () => {
+    const calls = fakeTwilio();
+    const res = await postSigned(inboundForm('SMin0003', 'Selam', '905329998877'));
+    expect(res.statusCode, res.body).toBe(200);
+    await runJobs(ctx, ['wa.process_inbound']);
+    await runJobs(ctx, ['wa.send_shared']);
+    const sends = calls.filter((c) => c.url.endsWith(`/Accounts/${ACCOUNT_SID}/Messages.json`));
+    expect(sends).toHaveLength(1);
+    const form = Object.fromEntries(new URLSearchParams(sends[0]!.body));
+    expect(form.To).toBe('whatsapp:+905329998877');
+    expect(form.Body).toBe('Sipariş vermek için işletmenin QR kodunu okutun ya da işletmenin paylaştığı bağlantıyı açın.');
+    expect(form.ContentSid ?? null).toBeNull();
+    expect(JSON.stringify(form)).not.toContain('Deneme Pide Salonu');
   });
 
   it('yanlış imza 401: olay kaydedilmez', async () => {

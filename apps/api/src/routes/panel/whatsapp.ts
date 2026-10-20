@@ -5,12 +5,15 @@
 // POST /panel/whatsapp/disconnect: bağlantıyı keser (status 'disconnected', anahtar silinir, webhook belirteci yenilenir;
 // satır geçmiş için kalır). POST /panel/whatsapp/rotate-webhook-token: yeni gizli webhook adresi (eskisi hemen geçersiz).
 // Ortak numara (00 §12a madde 8): işletme varsayılan olarak platformun numarasını kullanır; dükkan kodunu yalnız platform
-// yöneticisi değiştirir. GET /panel/whatsapp/qr?format=svg|png (owner, manager): QR'ı indirir. Kendi numaraya geçiş
-// yöneticidir (admin PATCH waMode); PUT / disconnect / rotate ortak numarada 409 wa_shared_mode.
+// yöneticisi değiştirir. GET /panel/whatsapp/qr?format=svg|png (owner, manager): QR'ı indirir. QR her modda QR kısa
+// bağlantısını (APP_BASE_URL/q/<kod> → vitrin; 00 §12a madde 11, O4) kodlar, ortak numaranın wa.me bağlantısını değil:
+// mod değişince yeniden basım gerekmez. Kendi numaraya geçiş yöneticidir (admin PATCH waMode); PUT / disconnect /
+// rotate ortak numarada 409 wa_shared_mode.
 
 import {
   SHARED_WA_DISPLAY_NAME,
   WA_ACCOUNT_STATUS_LABELS,
+  qrLinkUrl,
   WA_OWN_PROVIDERS,
   WA_PROVIDER_LABELS,
   formatPhone,
@@ -65,9 +68,14 @@ async function loadTenantRow(db: Database, tenantId: string) {
   return t;
 }
 
-/** Ortak numarada QR (SVG metni; beyaz zemin, siyah modül). */
+/** QR (SVG metni; beyaz zemin, siyah modül). */
 export function qrSvgFor(link: string): Promise<string> {
   return QRCode.toString(link, { type: 'svg', errorCorrectionLevel: 'M', margin: 2, color: { dark: '#000000', light: '#ffffff' } });
+}
+
+/** QR kısa bağlantısı (APP_BASE_URL/q/<kod>); kod yoksa null. */
+function qrUrlOf(app: FastifyInstance, t: { waCode: string | null }): string | null {
+  return t.waCode ? qrLinkUrl(app.config.APP_BASE_URL, t.waCode) : null;
 }
 
 function sharedModeConflict(): AppError {
@@ -144,9 +152,11 @@ async function buildResponse(app: FastifyInstance, tenantId: string, acc: WaAcco
     }
   }
   const smsActive = (!acc || acc.status !== 'connected') && t.smsFallbackEnabled && platformEnabled;
+  const qrUrl = qrUrlOf(app, t);
   return {
     mode: t.waMode,
     code: t.waCode ?? null,
+    qrUrl,
     shared: shared
       ? {
           code: shared.code,
@@ -155,7 +165,8 @@ async function buildResponse(app: FastifyInstance, tenantId: string, acc: WaAcco
           displayPhoneFormatted: shared.displayPhoneFormatted,
           prefillText: shared.prefillText,
           waLink: shared.waLink,
-          qrSvg: shared.waLink ? await qrSvgFor(shared.waLink) : null,
+          // QR ortak numaranın wa.me bağlantısını değil QR kısa bağlantısını (/q/<kod>) kodlar (O4)
+          qrSvg: qrUrl ? await qrSvgFor(qrUrl) : null,
           selectable: !selectableReason,
           selectableReason,
           canEditCode: false,
@@ -217,7 +228,8 @@ const routes: FastifyPluginAsyncZod = async (app) => {
     return buildResponse(app, auth.tenantId, acc);
   });
 
-  // GET /whatsapp/qr?format=svg|png — dükkan QR'ı (ortak numarada #KOD'lu bağlantı, kendi numarada wa.me) indirilir
+  // GET /whatsapp/qr?format=svg|png — dükkan QR'ı indirilir: her modda QR kısa bağlantısı (/q/<kod> → vitrin; O4). Kodu
+  // olmayan (eski) kendi numaralı işletmede bağlı numaranın wa.me bağlantısı yedektir.
   app.get(
     '/whatsapp/qr',
     { preHandler: requireTenantRole(['owner', 'manager']), schema: { querystring: panelWhatsappQrQuerySchema } },
@@ -226,9 +238,9 @@ const routes: FastifyPluginAsyncZod = async (app) => {
       const branchId = await branchFor(app, auth);
       const t = await loadTenantRow(app.db, auth.tenantId);
       const acc = await findAccount(app.db, auth.tenantId, branchId);
-      const link = t.waMode === 'shared' ? sharedLinkInfo(app.config, t).waLink : acc && acc.status === 'connected' ? whatsappLinkFor(acc, t) : null;
-      if (!link) throw conflict('wa_link_unavailable', 'WhatsApp bağlantısı hazır değil; QR üretilemedi.');
-      const name = `whatsapp-qr-${(t.waCode ?? t.slug).toLowerCase()}`;
+      const link = qrUrlOf(app, t) ?? (t.waMode !== 'shared' && acc && acc.status === 'connected' ? whatsappLinkFor(acc, t) : null);
+      if (!link) throw conflict('wa_link_unavailable', 'QR bağlantısı hazır değil; QR üretilemedi.');
+      const name = `${t.waCode ? 'menu' : 'whatsapp'}-qr-${(t.waCode ?? t.slug).toLowerCase()}`;
       reply.header('cache-control', 'no-store');
       if (request.query.format === 'png') {
         const png = await QRCode.toBuffer(link, { type: 'png', errorCorrectionLevel: 'M', margin: 2, width: 1024 });

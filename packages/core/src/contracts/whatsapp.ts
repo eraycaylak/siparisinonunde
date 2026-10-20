@@ -39,9 +39,12 @@ export const panelWhatsappSharedSchema = z.object({
   prefillText: z.string().nullable(),
   /** wa.me/<ortak numara>?text=<ön-dolu mesaj> (QR içeriği) */
   waLink: z.string().nullable(),
-  /** waLink'in QR kodu (SVG metni); indirme: GET /panel/whatsapp/qr?format=svg|png */
+  /**
+   * QR kodu (SVG metni): QR kısa bağlantısını (`qrUrl`, /q/<kod>) kodlar — ortak numara wa.me bağlantısını DEĞİL
+   * (00 §12a madde 11, O4). İndirme: GET /panel/whatsapp/qr?format=svg|png
+   */
   qrSvg: z.string().nullable(),
-  /** Dükkan ortak numaranın dükkan listesinde görünüyor ve seçilebiliyor mu (canlı + sipariş açık) */
+  /** Dükkan ortak numarada #KOD ile seçilebiliyor mu (canlı + sipariş açık); dükkan listesi yoktur (00 §12a madde 11) */
   selectable: z.boolean(),
   /** selectable false ise Türkçe sebep */
   selectableReason: z.string().nullable(),
@@ -52,8 +55,13 @@ export type PanelWhatsappShared = z.infer<typeof panelWhatsappSharedSchema>;
 export const panelWhatsappResponseSchema = z.object({
   /** 'shared': ortak numara (varsayılan) · 'own': işletmenin kendi numarası */
   mode: waModeSchema,
-  /** Dükkan kodu (her iki modda; ortak numarada QR'da kullanılır) */
+  /** Dükkan kodu / QR kısa kodu (her modda; tenants.wa_code) */
   code: z.string().nullable(),
+  /**
+   * QR kısa bağlantısı (APP_BASE_URL/q/<kod>; 00 §12a madde 11, O4): basılı QR'lar ve paylaşılan bağlantılar bunu kodlar,
+   * işletmenin vitrinine yönlendirir; mod değişince yeniden basım gerekmez. Kod yoksa null.
+   */
+  qrUrl: z.string().nullable(),
   shared: panelWhatsappSharedSchema.nullable(),
   account: panelWhatsappAccountSchema.nullable(),
   health: z.object({

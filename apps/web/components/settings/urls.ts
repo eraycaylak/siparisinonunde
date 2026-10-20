@@ -1,6 +1,7 @@
 // Paylaşılacak bağlantılar (QR, afiş, kurulum): alt alan adı varsa onu, yoksa tarayıcının kökenini kullanır.
 
-import { ROOT_DOMAIN } from '@/lib/site';
+import { qrLinkPath } from '@siparis/core';
+import { ROOT_DOMAIN, getSiteUrl } from '@/lib/site';
 import { storefrontPublicUrl } from '@/lib/storefront-url';
 
 export function publicStorefrontUrl(slug: string, query = ''): string {
@@ -8,6 +9,21 @@ export function publicStorefrontUrl(slug: string, query = ''): string {
     return `${window.location.origin}/s/${encodeURIComponent(slug)}${query}`;
   }
   return `${storefrontPublicUrl(slug)}${query}`;
+}
+
+/**
+ * QR kısa bağlantısı (00 §12a madde 11, O4): <kök>/q/<KOD> → işletmenin vitrini. Basılı QR'lar bunu kodlar; mod ya da
+ * vitrin adresi değişince yeniden basım gerekmez. Kök: yapılandırılmış site adresi; yerelde (alt alan adı yokken)
+ * tarayıcının kökeni.
+ */
+export function publicQrUrl(code: string): string {
+  const base = !ROOT_DOMAIN && typeof window !== 'undefined' ? window.location.origin : getSiteUrl();
+  return `${base}${qrLinkPath(code)}`;
+}
+
+/** QR'ın altına yazılan, elle yazılabilir kısa biçim: "yemekgelsin.net/q/BOZOK" (protokolsüz). */
+export function displayUrl(url: string): string {
+  return url.replace(/^https?:\/\//, '');
 }
 
 /** wa.me bağlantısı; hazır mesaj ASCII (12 §7.2 — QR yoğunlaşmasın). */

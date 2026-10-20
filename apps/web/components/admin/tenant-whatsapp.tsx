@@ -75,9 +75,9 @@ export function TenantWhatsappCard({ detail }: { detail: AdminTenantDetail }) {
   const dirty = codeChanged || modeChanged;
 
   const copyLink = async () => {
-    if (!t.sharedWaLink) return;
+    if (!t.qrUrl) return;
     try {
-      await navigator.clipboard.writeText(t.sharedWaLink);
+      await navigator.clipboard.writeText(t.qrUrl);
       toast.success('Bağlantı kopyalandı.');
     } catch {
       toast.error('Kopyalanamadı.');
@@ -118,8 +118,8 @@ export function TenantWhatsappCard({ detail }: { detail: AdminTenantDetail }) {
           <Badge variant={t.waMode === 'shared' ? 'info' : 'outline'}>{WA_MODE_LABELS[t.waMode]}</Badge>
         </div>
         <CardDescription>
-          Ortak numarada müşteri QR’ı okutunca ya da #KOD yazınca bu işletmeye bağlanır. Kod değişirse işletmenin basılı QR’ları ve paylaştığı bağlantılar
-          çalışmaz.
+          Basılı QR’lar ve paylaşılan bağlantılar /q/&lt;kod&gt; bağlantısını taşır ve işletmenin vitrinine açılır; mod değişince yeniden basım gerekmez.
+          Ortak numarada müşteri #KOD yazınca da bu işletmeye bağlanır. Kod değişirse eski kod bu işletmeye ayrılmış kalır: eski QR’lar ve bağlantılar yine bu işletmeyi açar, eski kod başka bir işletmeye hiçbir zaman verilmez. Başka işletmenin eski kodu atanamaz.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -127,26 +127,29 @@ export function TenantWhatsappCard({ detail }: { detail: AdminTenantDetail }) {
           <InfoRow label="Mod">{WA_MODE_LABELS[t.waMode]}</InfoRow>
           <InfoRow label="Dükkan kodu">{t.waCode ? <span className="font-mono font-semibold">#{t.waCode}</span> : null}</InfoRow>
           <InfoRow label="QR bağlantısı">
-            {t.sharedWaLink ? (
+            {t.qrUrl ? (
               <span className="flex flex-col gap-2">
-                <span className="break-all font-mono text-sm">{t.sharedWaLink}</span>
+                <span className="break-all font-mono text-sm">{t.qrUrl}</span>
                 <span className="flex flex-wrap gap-2">
                   <Button variant="secondary" size="sm" onClick={() => void copyLink()}>
                     <Copy aria-hidden />
                     Kopyala
                   </Button>
-                  <a href={t.sharedWaLink} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
+                  <a href={t.qrUrl} target="_blank" rel="noopener noreferrer" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
                     <ExternalLink aria-hidden />
                     Aç
                   </a>
                 </span>
               </span>
-            ) : t.waMode === 'shared' ? (
-              'Ortak numara yapılandırılmadı'
             ) : (
-              'Kendi numarasında QR, işletmenin numarasına açılır'
+              'Dükkan kodu yok: QR bağlantısı oluşmaz'
             )}
           </InfoRow>
+          {t.waMode === 'shared' ? (
+            <InfoRow label="Ortak numara bağlantısı (geçiş)">
+              {t.sharedWaLink ? <span className="break-all font-mono text-sm">{t.sharedWaLink}</span> : 'Ortak numara yapılandırılmadı'}
+            </InfoRow>
+          ) : null}
         </dl>
 
         {canEdit ? (

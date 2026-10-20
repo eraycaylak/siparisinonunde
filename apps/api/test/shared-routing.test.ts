@@ -1,11 +1,14 @@
-// Ortak numara yönlendiricisi (00 §12a madde 8; 14 §8.1): QR/#KOD ile dükkan seçimi, ikinci kodla dükkan değişimi,
-// 24 saat içinde güncel dükkana devam, eski yönlendirmede son dükkanlar butonu, tüm liste ve sayfalama, komutlar,
-// ad eşleşmesi, Akış B kodunun global araması, etkileşimli yanıtın doğru dükkana gitmesi, dükkan adıyla marka,
-// platform mesajlarının hiçbir dükkanın sohbetine girmemesi ve tenant yalıtımı. Kendi numaralı işletme etkilenmez.
+// Ortak numara yönlendiricisi (00 §12a madde 8, geçiş: madde 11; 14 §8.1): QR/#KOD ile dükkan seçimi, ikinci kodla
+// dükkan değişimi, 24 saat içinde güncel dükkana devam, Akış B kodunun global araması, etkileşimli yanıtın doğru
+// dükkana gitmesi, dükkan adıyla marka, platform mesajlarının hiçbir dükkanın sohbetine girmemesi ve tenant yalıtımı.
+// Kendi numaralı işletme etkilenmez.
+// DİZİN YOK (O2, 20.10.2026): kodsuz ve güncel dükkanı olmayan mesaj LİSTESİZ tek nötr yanıt alır (P09); son dükkanlar
+// düğmeleri, dükkan listesi, sayfalama, "dükkanlar / liste / değiştir" komutları ve dükkan adı eşleşmesi yoktur; platform
+// mesajı başka bir dükkanın adını ya da dükkan sayısını taşımaz; eski liste düğmeleri dizin olarak kullanılamaz.
 // Ayrıca: MÜŞTERİ YANITSIZ KALMAZ (06.10.2026) — "selam", "a", "1", emoji, medya ve etkin dükkana yazılan tanınmayan
 // metin hep bir yanıt alır; yalnız kendi trafiğimiz sessiz kalır (echo, durum geri bildirimi, tekrar teslim).
 
-import { sharedPrefillText } from '@siparis/core';
+import { SHARED_PLATFORM_TEXTS, sharedPrefillText } from '@siparis/core';
 import { conversations, customers, messages, orders, reviews, sharedWaMessages, tenants } from '@siparis/db';
 import { and, asc, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -68,7 +71,21 @@ async function platformRows(phone: string, direction: 'in' | 'out' = 'out'): Pro
 const lastPlatform = async (phone: string) => (await platformRows(phone)).at(-1);
 const specOf = (m: { payload: unknown } | undefined) => (m!.payload as { spec: ListSpec }).spec;
 const codeOf = (m: { payload: unknown } | undefined) => (m!.payload as { code?: string }).code;
-const listRows = (m: PlatformRow | undefined) => specOf(m).interactive.list!.sections.flatMap((s) => s.rows);
+const NEUTRAL = SHARED_PLATFORM_TEXTS.neutral;
+const ALL_SHOP_NAMES = ['Bozok Pide Salonu', 'Çamlık Döner', 'Yozgat Pide Evi', 'Kapalı Kebap', 'Kendi Numaralı Lokanta'];
+/**
+ * Dizin yok (O2): platform mesajı düz metindir (liste/düğme değil) ve `allowed` dışında hiçbir dükkanın adını, kodunu
+ * ya da dükkan sayısını taşımaz (kişinin kendi yazdığı kodun dükkanı `allowed` ile verilir).
+ */
+function expectNoDirectory(rows: readonly PlatformRow[], allowed: readonly string[] = []) {
+  for (const r of rows) {
+    const spec = specOf(r) as unknown as { type: string };
+    if (codeOf(r) !== 'P07') expect(spec.type, String(r.body)).toBe('text');
+    const blob = `${r.body ?? ''}\n${JSON.stringify(spec)}`;
+    for (const name of ALL_SHOP_NAMES) if (!allowed.includes(name)) expect(blob, name).not.toContain(name);
+    expect(blob).not.toMatch(/shops:|dükkan listesi|Diğer dükkanlar|Dükkanları gör|"dükkanlar"|\d+ (dükkan|işletme)/);
+  }
+}
 const convOf = (t: WaSetup, phone: string) => conversationFor(ctx.db, t.account, phone);
 async function countMessages(t: WaSetup): Promise<number> {
   return (await ctx.db.select({ id: messages.id }).from(messages).where(eq(messages.tenantId, t.tenantId))).length;
@@ -160,7 +177,7 @@ describe('dükkan seçimi (QR / #KOD)', () => {
     expect(await platformRows(phone)).toHaveLength(0);
   });
 
-  it('listeden aynı dükkanı tekrar seçmek soğuma beklemeden karşılar (seçim zorlanır)', async () => {
+  it('güncel dükkana devam düğmesi (kişinin kendi son dükkanı) soğuma beklemeden karşılar (seçim zorlanır)', async () => {
     await sharedInbound(ctx, { phone }, list(`shop:${A.tenantId}`), { now: plus(t0, 3 * MIN) });
     const conv = await convOf(A, phone);
     expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01', 'M01']);
@@ -187,54 +204,59 @@ describe('dükkan seçimi (QR / #KOD)', () => {
     expect(await repliesAfter(p2, t2, E)).toHaveLength(1);
   });
 
-  it('24 saatten eski yönlendirme: son 2 dükkan + "Diğer dükkanlar" butonu (P01); dükkan sohbetlerine girmez', async () => {
+  it('24 saatten eski yönlendirme: son dükkanlar düğmesi YOK, listesiz nötr yanıt (P09); dükkan sohbetlerine girmez', async () => {
     const [ba, bb] = [await countMessages(A), await countMessages(B)];
     await sharedInbound(ctx, { phone }, text('merhaba'), { now: plus(t0, 25 * HOUR) });
     const p = await lastPlatform(phone);
-    expect(codeOf(p)).toBe('P01');
-    expect(specOf(p).interactive).toMatchObject({
-      kind: 'buttons',
-      body: 'Hangi dükkandan sipariş vermek istersin?',
-      buttons: [
-        { id: `shop:${A.tenantId}`, title: 'Bozok Pide Salonu' },
-        { id: `shop:${B.tenantId}`, title: 'Çamlık Döner' },
-        { id: 'shops:list', title: 'Diğer dükkanlar' },
-      ],
-    });
-    expect(p!.body).toBe('Hangi dükkandan sipariş vermek istersin?');
+    expect(codeOf(p)).toBe('P09');
+    expect(specOf(p)).toEqual({ type: 'text', text: NEUTRAL });
+    expect(p!.body).toBe(NEUTRAL);
+    expectNoDirectory(await platformRows(phone));
     expect([await countMessages(A), await countMessages(B)]).toEqual([ba, bb]);
     // Gelen mesaj platform düzeyinde kalır
     expect((await platformRows(phone, 'in')).map((m) => m.body)).toEqual(['merhaba']);
   });
 
-  it('"Diğer dükkanlar" → liste (P02): yalnız ortak numarada canlı dükkanlar, bölüm başlığıyla', async () => {
+  it('eski liste mesajının düğmeleri dizin olarak kullanılamaz: "Diğer dükkanlar", sayfa ve başka dükkan satırı nötr yanıt alır', async () => {
+    // Eski "Diğer dükkanlar" düğmesi (shops:list): liste gitmez
     await sharedInbound(ctx, { phone }, button('shops:list'), { now: plus(t0, 25 * HOUR + MIN) });
-    const p = await lastPlatform(phone);
-    expect(codeOf(p)).toBe('P02');
-    const rows = listRows(p);
-    expect(rows.map((r) => r.title)).toEqual(['Bozok Pide Salonu', 'Çamlık Döner', 'Yozgat Pide Evi']);
-    expect(rows.map((r) => r.id)).toEqual([`shop:${A.tenantId}`, `shop:${B.tenantId}`, `shop:${E.tenantId}`]);
-    expect(specOf(p).interactive.list!.sections[0]!.title).toBe('Merkez, Yozgat');
-    expect(rows.some((r) => r.title === 'Kapalı Kebap' || r.title === 'Kendi Numaralı Lokanta')).toBe(false);
+    expect(codeOf(await lastPlatform(phone))).toBe('P09');
+    // Eski bir listedeki, kişinin HİÇ konuşmadığı dükkanın satırı (Yozgat Pide Evi): seçim yapılmaz, ad sızmaz
+    await sharedInbound(ctx, { phone }, list(`shop:${E.tenantId}`), { now: plus(t0, 25 * HOUR + MIN + 10_000) });
+    expect(codeOf(await lastPlatform(phone))).toBe('P06');
+    expect(await convOf(E, phone)).toBeUndefined();
+    // Sayfa düğmesi: pencere içinde ikinci hatırlatma gitmez (dakikada en çok 2 platform mesajı)
+    await sharedInbound(ctx, { phone }, list('shops:page:2'), { now: plus(t0, 25 * HOUR + MIN + 20_000) });
+    const rows = await platformRows(phone);
+    expect(rows.map(codeOf)).toEqual(['P09', 'P09', 'P06']);
+    expectNoDirectory(rows);
+    expect(await findSharedRoute(ctx.db, { phone })).toMatchObject({ currentTenantId: A.tenantId });
   });
 });
 
 // ---------------------------------------------------------------------------
-describe('seçici: kayıtsız müşteri, soğuma, komutlar', () => {
-  it('ilk kez kodsuz yazan → tüm liste; 60 sn içinde ikinci seçici gitmez; "dükkanlar" komutu her zaman yanıtlanır', async () => {
+describe('kayıtsız müşteri: nötr yanıt, soğuma, kaldırılan komutlar', () => {
+  it('ilk kez kodsuz yazan → listesiz nötr yanıt (P09); 60 sn içinde tek hatırlatma (P06); "dükkanlar"/"liste" artık liste göndermez', async () => {
     const phone = nextPhone();
     const t = new Date();
     await sharedInbound(ctx, { phone }, text('selam'), { now: t });
-    expect((await platformRows(phone)).map(codeOf)).toEqual(['P02']);
-    // Soğuma TAM seçiciyi yineletmez ama müşteriyi sessiz bırakmaz: tek satırlık hatırlatma (P06)
+    expect((await platformRows(phone)).map(codeOf)).toEqual(['P09']);
+    expect((await lastPlatform(phone))!.body).toBe('Sipariş vermek için işletmenin QR kodunu okutun ya da işletmenin paylaştığı bağlantıyı açın.');
+    // Soğuma nötr yanıtı yineletmez ama müşteriyi sessiz bırakmaz: tek satırlık hatırlatma (P06)
     await sharedInbound(ctx, { phone }, text('selam'), { now: plus(t, 10_000) });
     const hint = await platformRows(phone);
-    expect(hint.map(codeOf)).toEqual(['P02', 'P06']);
-    expect(hint.at(-1)!.body).toBe(
-      'Dükkanları mı görmek istiyorsun? Yukarıdaki mesajdan dükkan seçebilirsin; dükkan adını ya da kodunu yazman da yeter.',
-    );
+    expect(hint.map(codeOf)).toEqual(['P09', 'P06']);
+    expect(hint.at(-1)!.body).toBe(SHARED_PLATFORM_TEXTS.neutralRepeat);
+    // Eski liste komutu pencere içinde: üst sınır (dakikada 2 platform mesajı) korunur
     await sharedInbound(ctx, { phone }, text('Dükkanlar'), { now: plus(t, 20_000) });
-    expect((await platformRows(phone)).map(codeOf)).toEqual(['P02', 'P06', 'P02']);
+    expect((await platformRows(phone)).map(codeOf)).toEqual(['P09', 'P06']);
+    // Pencere dışında "liste", "değiştir", "başka dükkan": yine yalnız nötr yanıt, liste yok
+    await sharedInbound(ctx, { phone }, text('liste'), { now: plus(t, 61_000) });
+    await sharedInbound(ctx, { phone }, text('başka dükkan'), { now: plus(t, 122_000) });
+    await sharedInbound(ctx, { phone }, text('değiştir'), { now: plus(t, 183_000) });
+    const rows = await platformRows(phone);
+    expect(rows.map(codeOf)).toEqual(['P09', 'P06', 'P09', 'P09', 'P09']);
+    expectNoDirectory(rows);
     // Hiçbir dükkanda konuşma açılmadı
     for (const s of [A, B, E]) expect(await convOf(s, phone)).toBeUndefined();
   });
@@ -253,50 +275,49 @@ describe('seçici: kayıtsız müşteri, soğuma, komutlar', () => {
 // Müşteri yanıtsız kalmaz (06.10.2026 canlı geri bildirimi: "whatsapp selam yazınca bile cevap versin, a yazsa bile
 // cevap versin; illa #KOD yazmamızı bekliyor"). Senaryolar 14 §8.1 "yanıtsız kalmaz" tablosuyla birebir.
 describe('müşteri yanıtsız kalmaz', () => {
-  it('(a,b,e,g) ilk temas: "selam" → liste; "a", emoji ve "1" sessiz kalmaz; dakikada en çok 2 yanıt', async () => {
+  it('(a,b,e,g) ilk temas: "selam" → nötr yanıt; "a", emoji ve "1" sessiz kalmaz; dakikada en çok 2 yanıt', async () => {
     const phone = nextPhone();
     const t = new Date();
     // (a) ilk temas
     await sharedInbound(ctx, { phone }, text('selam'), { now: t });
-    expect((await platformRows(phone)).map(codeOf)).toEqual(['P02']);
-    // (b,g) tek harf: eskiden picker_cooldown yüzünden TAM SESSİZLİK; artık listeden nasıl seçildiği söylenir
+    expect((await platformRows(phone)).map(codeOf)).toEqual(['P09']);
+    // (b,g) tek harf: eskiden picker_cooldown yüzünden TAM SESSİZLİK; artık tek satırlık hatırlatma
     await sharedInbound(ctx, { phone }, text('a'), { now: plus(t, 10_000) });
     const pick = await platformRows(phone);
-    expect(pick.map(codeOf)).toEqual(['P02', 'P06']);
-    expect(pick.at(-1)!.body).toBe('Dükkanları mı görmek istiyorsun? Yukarıdaki "Dükkanları gör" düğmesine dokun ya da dükkan adını yaz.');
+    expect(pick.map(codeOf)).toEqual(['P09', 'P06']);
+    expect(pick.at(-1)!.body).toBe('Siparişi işletmenin QR kodundan ya da paylaştığı bağlantıdan verebilirsiniz.');
     // Üst sınır: aynı 60 sn penceresinde ikinci hatırlatma gitmez (spam ve Meta kalite derecesi koruması)
     await sharedInbound(ctx, { phone }, text('1'), { now: plus(t, 20_000) });
     await sharedInbound(ctx, { phone }, { type: 'sticker' }, { now: plus(t, 30_000) });
-    expect((await platformRows(phone)).map(codeOf)).toEqual(['P02', 'P06']);
-    // 60 sn geçince tam seçici, ardından pencere yeniden açıldığı için hatırlatma da yeniden gider
+    expect((await platformRows(phone)).map(codeOf)).toEqual(['P09', 'P06']);
+    // 60 sn geçince nötr yanıt, ardından pencere yeniden açıldığı için hatırlatma da yeniden gider
     await sharedInbound(ctx, { phone }, text('1'), { now: plus(t, 61_000) });
-    expect((await platformRows(phone)).map(codeOf)).toEqual(['P02', 'P06', 'P02']);
-    // (e) yalnız emoji: anlamsız metin de yanıt alır (genel hatırlatma)
+    expect((await platformRows(phone)).map(codeOf)).toEqual(['P09', 'P06', 'P09']);
+    // (e) yalnız emoji: anlamsız metin de yanıt alır
     await sharedInbound(ctx, { phone }, text('😀'), { now: plus(t, 71_000) });
     const emoji = await platformRows(phone);
-    expect(emoji.map(codeOf)).toEqual(['P02', 'P06', 'P02', 'P06']);
-    expect(emoji.at(-1)!.body!.startsWith('Dükkanları mı görmek istiyorsun? Yukarıdaki mesajdan')).toBe(true);
+    expect(emoji.map(codeOf)).toEqual(['P09', 'P06', 'P09', 'P06']);
+    expectNoDirectory(emoji);
     // Platform düzeyi: hiçbir dükkanın sohbetine girmedi
     for (const sh of [A, B, E]) expect(await convOf(sh, phone)).toBeUndefined();
   });
 
-  it('(c) 24 saatten eski oturumda "selam" → son dükkanlar butonu', async () => {
+  it('(c) 24 saatten eski oturumda "selam" → nötr yanıt (son dükkanlar düğmesi yok; eski dükkanın adı da yazılmaz)', async () => {
     const phone = nextPhone();
     const t = new Date();
     await sharedInbound(ctx, { phone }, text('#DONER'), { now: t });
     const t2 = plus(t, 25 * HOUR);
     await sharedInbound(ctx, { phone }, text('selam'), { now: t2 });
     const p = await lastPlatform(phone);
-    expect(codeOf(p)).toBe('P01');
-    expect(specOf(p).interactive.buttons!.map((b) => b.id)).toEqual([`shop:${B.tenantId}`, 'shops:list']);
-    // Hatırlatma, az önce gönderilen seçiciye uymalı: son dükkanlar mesajında (P01) "Dükkanları gör" düğmesi YOKTUR
-    // (o düğme yalnız liste mesajındadır, P02) — tek harf yazılsa bile genel hatırlatma gider.
+    expect(codeOf(p)).toBe('P09');
+    expect(p!.body).toBe(NEUTRAL);
     await sharedInbound(ctx, { phone }, text('a'), { now: plus(t2, 10_000) });
     const hint = await lastPlatform(phone);
     expect(codeOf(hint)).toBe('P06');
-    expect(hint!.body).toBe(
-      'Dükkanları mı görmek istiyorsun? Yukarıdaki mesajdan dükkan seçebilirsin; dükkan adını ya da kodunu yazman da yeter.',
-    );
+    expectNoDirectory(await platformRows(phone));
+    // QR'ı yeniden okutmak (#DONER) dükkanı yine seçer
+    await sharedInbound(ctx, { phone }, text('#DONER'), { now: plus(t2, 20_000) });
+    expect(await findSharedRoute(ctx.db, { phone })).toMatchObject({ currentTenantId: B.tenantId });
   });
 
   it('(d,f) etkin dükkana yazan müşteri: tanınmayan metin, konum ve fotoğraf yanıtsız kalmaz', async () => {
@@ -350,23 +371,23 @@ describe('müşteri yanıtsız kalmaz', () => {
     const wamid = `wamid.nosilence.${Date.now()}`;
     const deps = { db: ctx.db, config: ctx.config, log: silentLog };
     await sharedInbound(ctx, { phone }, text('selam'), { now: t, wamid });
-    expect((await platformRows(phone)).map(codeOf)).toEqual(['P02']);
+    expect((await platformRows(phone)).map(codeOf)).toEqual(['P09']);
     // 1) Tekrar teslim (aynı wamid): yanıt yinelenmez
     const again = await sharedInbound(ctx, { phone }, text('selam'), { now: plus(t, 5_000), wamid });
     expect(again.summary).toMatchObject({ messages: 0, duplicates: 1 });
-    expect((await platformRows(phone)).map(codeOf)).toEqual(['P02']);
-    // 2) Gönderdiğimiz seçicinin durum geri bildirimi: yalnız durum yazılır, yanıt üretilmez
+    expect((await platformRows(phone)).map(codeOf)).toEqual(['P09']);
+    // 2) Gönderdiğimiz nötr yanıtın durum geri bildirimi: yalnız durum yazılır, yanıt üretilmez
     expect(await runJobs(ctx, ['wa.send_shared'])).toBeGreaterThan(0);
     const sent = await lastPlatform(phone);
     const st = await ingestSharedWebhookPayload(ctx.db, buildStatusPayload(SHARED_DEV_ACCOUNT, { wamid: sent!.wamid!, status: 'delivered' }));
     expect(await processWebhookEvent(deps, st.webhookEventId, { now: plus(t, 10_000) })).toMatchObject({ messages: 0, statuses: 1 });
-    expect((await platformRows(phone)).map(codeOf)).toEqual(['P02']);
+    expect((await platformRows(phone)).map(codeOf)).toEqual(['P09']);
     expect((await lastPlatform(phone))!.status).toBe('delivered');
     // 3) Giden mesajın echo'su: yok sayılır (iki bot arasında döngü kurulamaz)
     const { payload: echoPayload } = buildEchoPayload(SHARED_DEV_ACCOUNT, { phone }, 'Siparişiniz hazırlanıyor', { at: plus(t, 20_000) });
     const echo = await ingestSharedWebhookPayload(ctx.db, echoPayload);
     expect(await processWebhookEvent(deps, echo.webhookEventId, { now: plus(t, 20_000) })).toMatchObject({ messages: 0, echoes: 0 });
-    expect((await platformRows(phone)).map(codeOf)).toEqual(['P02']);
+    expect((await platformRows(phone)).map(codeOf)).toEqual(['P09']);
   });
 });
 
@@ -420,49 +441,67 @@ describe('Akış B ve etkileşimli yanıtlar', () => {
 });
 
 // ---------------------------------------------------------------------------
-describe('dükkan adı ve komutlar', () => {
-  it('adın tamamı → tek eşleşme seçilir (karşılama)', async () => {
+describe('dükkan adı eşleşmesi ve liste komutları yok (O2)', () => {
+  it('dükkanın tam adı yazılsa da dükkan seçilmez: nötr yanıt, ad geri yazılmaz', async () => {
     const phone = nextPhone();
     await sharedInbound(ctx, { phone }, text("Çamlık Döner'den sipariş vermek istiyorum"));
-    const conv = await convOf(B, phone);
-    expect(await outCodes(ctx.db, conv!.id)).toEqual(['M01']);
-    expect(await platformRows(phone)).toHaveLength(0);
+    expect(await convOf(B, phone)).toBeUndefined();
+    const rows = await platformRows(phone);
+    expect(rows.map(codeOf)).toEqual(['P09']);
+    expectNoDirectory(rows);
   });
 
-  it('küçük yazım hatası ve ek tolere edilir ("bozokdan")', async () => {
+  it('yazım hatalı ad ("bozokdan") ve ortak sözcük ("pide") hiçbir dükkanı seçmez ve eşleşenleri listelemez', async () => {
     const phone = nextPhone();
     await sharedInbound(ctx, { phone }, text('bozokdan'));
-    expect(await outCodes(ctx.db, (await convOf(A, phone))!.id)).toEqual(['M01']);
+    expect(await convOf(A, phone)).toBeUndefined();
+    const phone2 = nextPhone();
+    await sharedInbound(ctx, { phone: phone2 }, text('pide'));
+    for (const sh of [A, E]) expect(await convOf(sh, phone2)).toBeUndefined();
+    const rows = [...(await platformRows(phone)), ...(await platformRows(phone2))];
+    expect(rows.map(codeOf)).toEqual(['P09', 'P09']);
+    expectNoDirectory(rows);
   });
 
-  it('birden çok eşleşme → yalnız eşleşen dükkanların listesi', async () => {
-    const phone = nextPhone();
-    await sharedInbound(ctx, { phone }, text('pide'));
-    const p = await lastPlatform(phone);
-    expect(codeOf(p)).toBe('P02');
-    expect(specOf(p).interactive.body).toBe('Yazdığına uyan birden fazla dükkan var. Hangisinden sipariş vermek istersin?');
-    expect(listRows(p).map((r) => r.title)).toEqual(['Bozok Pide Salonu', 'Yozgat Pide Evi']);
+  it("'#'siz yalın kod sözcüğü hiçbir dükkanı seçmez ve P03/P04 ile başka dükkanın adını yazmaz (ad araması yok)", async () => {
+    // Kodlar slug'ın ilk sözcüğünden türer (waCodeBase: 'pide-salonu' → PIDE): "pide" yazan, QR okutmamış müşteriye
+    // platform bir işletme seçmez. Fixture'da kodu tam olarak PIDE olan bir dükkan var; test bu yüzden anlamlıdır.
+    const P = await setupSharedTenant(ctx, { name: 'Pide Salonu', code: 'PIDE' });
+    const words = ['doner', 'döner', 'pide', 'bozok', 'kendi', 'kapali'];
+    const phones = words.map(() => nextPhone());
+    for (let i = 0; i < words.length; i++) await sharedInbound(ctx, { phone: phones[i]! }, text(words[i]!));
+    for (const ph of phones) {
+      for (const sh of [A, B, C, D, E, P]) expect(await convOf(sh, ph)).toBeUndefined();
+      expect(await findSharedRoute(ctx.db, { phone: ph })).toMatchObject({ currentTenantId: null, recentTenantIds: [] });
+      const rows = await platformRows(ph);
+      expect(rows.map(codeOf)).toEqual(['P09']);
+      expect(rows[0]!.body).toBe(NEUTRAL);
+      expectNoDirectory(rows);
+      expect(rows[0]!.body).not.toContain('Pide Salonu');
+    }
   });
 
-  it('yalın kod sözcüğü yalnız etkin dükkan yokken seçer; etkin oturumda "#KOD" gerekir', async () => {
+  it('etkin oturumda yalın kod sözcüğü güncel dükkanın sohbetinde kalır; dükkan değiştirmek için "#KOD" gerekir', async () => {
     const phone = nextPhone();
-    await sharedInbound(ctx, { phone }, text('doner'));
+    await sharedInbound(ctx, { phone }, text('#doner'));
     expect(await findSharedRoute(ctx.db, { phone })).toMatchObject({ currentTenantId: B.tenantId });
     await sharedInbound(ctx, { phone }, text('bozok'));
     const bIns = (await threadRows(ctx.db, (await convOf(B, phone))!.id)).filter((m) => m.direction === 'in').map((m) => m.body);
-    expect(bIns).toEqual(['doner', 'bozok']);
+    expect(bIns).toEqual(['#doner', 'bozok']);
     expect(await convOf(A, phone)).toBeUndefined();
     await sharedInbound(ctx, { phone }, text('#bozok'));
     expect(await findSharedRoute(ctx.db, { phone })).toMatchObject({ currentTenantId: A.tenantId });
   });
 
-  it('"başka dükkan" 24 saat içinde bile seçici gösterir (son dükkan önde)', async () => {
+  it('"başka dükkan" 24 saat içinde seçici göstermez: mesaj güncel dükkanın sohbetine gider', async () => {
     const phone = nextPhone();
     await sharedInbound(ctx, { phone }, text('#DONER'));
     await sharedInbound(ctx, { phone }, text('Başka dükkan'));
-    const p = await lastPlatform(phone);
-    expect(codeOf(p)).toBe('P01');
-    expect(specOf(p).interactive.buttons!.map((b) => b.id)).toEqual([`shop:${B.tenantId}`, 'shops:list']);
+    const ins = (await threadRows(ctx.db, (await convOf(B, phone))!.id)).filter((m) => m.direction === 'in').map((m) => m.body);
+    expect(ins.at(-1)).toBe('Başka dükkan');
+    expect((await platformRows(phone)).filter((r) => codeOf(r) !== 'P07')).toEqual([]);
+    expectNoDirectory(await platformRows(phone), ['Çamlık Döner']);
+    expect(await findSharedRoute(ctx.db, { phone })).toMatchObject({ currentTenantId: B.tenantId });
   });
 });
 
@@ -474,34 +513,37 @@ describe('kodun işletmesi seçilemiyorsa', () => {
     const p = await lastPlatform(phone);
     expect(codeOf(p)).toBe('P03');
     expect(p!.body).toBe(
-      'Kendi Numaralı Lokanta siparişlerini kendi WhatsApp numarasından alıyor: 0555 000 00 99\nBu bağlantıdan yazabilirsin: https://wa.me/905550000099',
+      'Kendi Numaralı Lokanta siparişlerini kendi WhatsApp numarasından alıyor: 0555 000 00 99\nBu bağlantıdan yazabilirsiniz: https://wa.me/905550000099',
     );
     expect(await conversationFor(ctx.db, C.account, phone)).toBeUndefined();
   });
 
-  it('canlı olmayan dükkanın kodu (P04) ve listeden seçilmeye çalışılması', async () => {
+  it('canlı olmayan dükkanın kodu (P04, başka dükkan önerilmez) ve eski listeden seçilmeye çalışılması', async () => {
     const phone = nextPhone();
-    await sharedInbound(ctx, { phone }, text('kapali'));
+    await sharedInbound(ctx, { phone }, text('#kapali'));
     const p = await lastPlatform(phone);
     expect(codeOf(p)).toBe('P04');
-    expect(p!.body).toBe('Kapalı Kebap şu an bu numaradan sipariş almıyor. Başka bir dükkan için "dükkanlar" yazabilirsin.');
+    expect(p!.body).toBe('Kapalı Kebap şu an bu numaradan sipariş almıyor.');
+    // Eski liste satırı: kişinin kendi son dükkanı değil → seçim yok, nötr yanıt
     await sharedInbound(ctx, { phone }, list(`shop:${D.tenantId}`));
     const p2 = await lastPlatform(phone);
-    expect(specOf(p2).interactive.body.startsWith('Kapalı Kebap şu an bu numaradan sipariş almıyor.')).toBe(true);
+    expect(codeOf(p2)).toBe('P09');
     expect(await convOf(D, phone)).toBeUndefined();
+    expectNoDirectory(await platformRows(phone), ['Kapalı Kebap']);
   });
 
-  it('bilinmeyen #kod seçiciye düşer; bulunamayan Akış B kodu listede not düşer', async () => {
+  it('bilinmeyen #kod ve bulunamayan Akış B kodu nötr yanıta sebebini yazar (liste yok)', async () => {
     const phone = nextPhone();
     await sharedInbound(ctx, { phone }, text('#YOKBOYLE'));
     const unknown = await lastPlatform(phone);
-    expect(codeOf(unknown)).toBe('P02');
-    // Sebep yazılır: "#DENEM" gibi bir yazım hatasında müşteri eskiden neden listeye düştüğünü hiç öğrenmiyordu
-    expect(specOf(unknown).interactive.body.startsWith('Bu dükkan kodunu bulamadık.')).toBe(true);
+    expect(codeOf(unknown)).toBe('P09');
+    // Sebep yazılır: "#DENEM" gibi bir yazım hatasında müşteri eskiden sebebini hiç öğrenmiyordu
+    expect(unknown!.body).toBe(`Bu dükkan kodunu bulamadık. ${NEUTRAL}`);
     const phone2 = nextPhone();
     await sharedInbound(ctx, { phone: phone2 }, text('Sipariş kodu: ZZ9ZZ9'));
     const p = await lastPlatform(phone2);
-    expect(specOf(p).interactive.body.startsWith('Bu sipariş kodunu bulamadık.')).toBe(true);
+    expect(p!.body).toBe('Bu sipariş kodunu bulamadık. Kodu, siparişi verdiğiniz sayfadan kontrol edebilirsiniz.');
+    expectNoDirectory([...(await platformRows(phone)), ...(await platformRows(phone2))]);
   });
 });
 
@@ -512,14 +554,13 @@ describe('opt-out, durum olayları, gönderim', () => {
     await sharedInbound(ctx, { phone }, text('#DONER'));
     await sharedInbound(ctx, { phone }, text('DUR'));
     expect((await outCodes(ctx.db, (await convOf(B, phone))!.id)).at(-1)).toBe('M31');
-    // Dükkanı olmayan kişi de yanıtsız kalmaz: kayıt bulunmadığı söylenir (P08). Seçici GÖNDERİLMEZ — "DUR" diyene
-    // dükkan listesi yollamak izin isteği gibi okunurdu.
+    // Dükkanı olmayan kişi de yanıtsız kalmaz: kayıt bulunmadığı söylenir (P08); liste/dükkan önerisi yoktur.
     const lonely = nextPhone();
     const tl = new Date();
     await sharedInbound(ctx, { phone: lonely }, text('DUR'), { now: tl });
     const opt = await platformRows(lonely);
     expect(opt.map(codeOf)).toEqual(['P08']);
-    expect(opt[0]!.body).toBe('Bu numarada sana ait bir dükkan sohbeti bulamadık. Sipariş vermek istersen "dükkanlar" yazabilirsin.');
+    expect(opt[0]!.body).toBe('Bu numarada size ait bir işletme sohbeti bulamadık. Sipariş vermek için işletmenin QR kodunu okutun ya da işletmenin paylaştığı bağlantıyı açın.');
     expect(opt[0]!.kind).toBe('text');
     // Üst sınır: 60 sn içinde ikinci "DUR" aynı bilgiyi yinelemez
     await sharedInbound(ctx, { phone: lonely }, text('DUR'), { now: plus(tl, 10_000) });
@@ -653,26 +694,27 @@ describe('tenant yalıtımı', () => {
 });
 
 // ---------------------------------------------------------------------------
-describe('sayfalama (10\'dan fazla dükkan)', () => {
-  it('ilk sayfa 9 dükkan + "Diğer dükkanlar"; son sayfadan başa dönülür; her mesajda en çok 10 satır', async () => {
-    for (let i = 1; i <= 9; i++) await setupSharedTenant(ctx, { name: `Test Lokantası ${String.fromCharCode(64 + i)}`, code: `TESTLOK${String.fromCharCode(64 + i)}` });
+describe('dizin sızıntısı yok (10\'dan fazla dükkan)', () => {
+  it('çok dükkan olsa da kodsuz mesaj tek düz nötr metin alır: dükkan adı, kodu, sayısı ya da sayfa düğmesi yok', async () => {
+    const extra: string[] = [];
+    for (let i = 1; i <= 9; i++) {
+      const name = `Test Lokantası ${String.fromCharCode(64 + i)}`;
+      extra.push(name);
+      await setupSharedTenant(ctx, { name, code: `TESTLOK${String.fromCharCode(64 + i)}` });
+    }
     const phone = nextPhone();
-    await sharedInbound(ctx, { phone }, text('iyi günler'));
+    const t = new Date();
+    await sharedInbound(ctx, { phone }, text('iyi günler'), { now: t });
     const p1 = await lastPlatform(phone);
-    const rows1 = listRows(p1);
-    expect(rows1).toHaveLength(10);
-    expect(rows1.slice(0, 9).every((r) => r.id.startsWith('shop:'))).toBe(true);
-    expect(rows1[9]).toMatchObject({ id: 'shops:page:2', title: 'Diğer dükkanlar', description: 'Sayfa 2/2' });
-    expect(specOf(p1).interactive.body).toContain('(Sayfa 1/2)');
-    await sharedInbound(ctx, { phone }, list('shops:page:2'));
-    const rows2 = listRows(await lastPlatform(phone));
-    expect(rows2).toHaveLength(4);
-    expect(rows2.at(-1)).toMatchObject({ id: 'shops:page:1', title: 'Listenin başı' });
-    const all = [...rows1.slice(0, 9), ...rows2.slice(0, 3)].map((r) => r.id);
-    expect(new Set(all).size).toBe(12);
-    // Seçim listeden: ikinci sayfadaki dükkan
-    const pick = rows2[0]!.id;
-    await sharedInbound(ctx, { phone }, list(pick));
-    expect(await findSharedRoute(ctx.db, { phone })).toMatchObject({ currentTenantId: pick.slice(5) });
+    expect(codeOf(p1)).toBe('P09');
+    expect(specOf(p1)).toEqual({ type: 'text', text: NEUTRAL });
+    // Eski sayfa ve ad eşleşmesi sayfası düğmeleri (shops:page:*, shops:m:*) liste döndürmez
+    await sharedInbound(ctx, { phone }, list('shops:page:2'), { now: plus(t, 61_000) });
+    await sharedInbound(ctx, { phone }, list(`shops:m:${A.tenantId}:2`), { now: plus(t, 122_000) });
+    const rows = await platformRows(phone);
+    expect(rows.map(codeOf)).toEqual(['P09', 'P09', 'P09']);
+    expectNoDirectory(rows);
+    for (const r of rows) for (const name of extra) expect(`${r.body}${JSON.stringify(r.payload)}`).not.toContain(name);
+    expect(await findSharedRoute(ctx.db, { phone })).toMatchObject({ currentTenantId: null, recentTenantIds: [] });
   });
 });

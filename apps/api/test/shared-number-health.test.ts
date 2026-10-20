@@ -107,59 +107,60 @@ afterEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// İş 3.2 — seçici soğuması yalnız kendiliğinden seçiciye
+// İş 3.2 — soğuma yalnız kendiliğinden gönderilen nötr yanıta (dükkan seçici O2 ile kalktı; `last_picker_at` kolonu
+// aynı soğumayı ölçer)
 
-describe('seçici soğuması (auto)', () => {
-  it('platform BİLGİ yanıtı soğumayı başlatmaz: hemen ardından gelen kodsuz mesaj seçici alır', async () => {
+describe('nötr yanıt soğuması (auto)', () => {
+  it('platform BİLGİ yanıtı soğumayı başlatmaz: hemen ardından gelen kodsuz mesaj nötr yanıt alır', async () => {
     const phone = nextPhone();
     const t0 = new Date('2026-10-05T12:00:00Z');
-    // 1) "#KAPALI": dükkan var ama ortak numarada seçilemez → P04 bilgi mesajı (kendiliğinden seçici DEĞİL)
+    // 1) "#KAPALI": dükkan var ama ortak numarada seçilemez → P04 bilgi mesajı (kendiliğinden yanıt DEĞİL)
     await sharedInbound(ctx, { phone }, text('#KAPALI'), { now: t0 });
     expect(codesOf(await platformRows(ctx.db, phone))).toEqual(['P04']);
     expect(await findSharedRoute(ctx.db, { phone })).toMatchObject({ lastPickerAt: null });
 
-    // 2) 5 sn sonra kodsuz mesaj: eskiden 60 sn boyunca SESSİZ kalıyordu (H15) — artık seçici gelir
+    // 2) 5 sn sonra kodsuz mesaj: eskiden 60 sn boyunca SESSİZ kalıyordu (H15) — artık nötr yanıt gelir
     await sharedInbound(ctx, { phone }, text('iyi günler kolay gelsin'), { now: plus(t0, 5_000) });
     const after = await platformRows(ctx.db, phone);
-    expect(codesOf(after)).toEqual(['P04', 'P02']);
+    expect(codesOf(after)).toEqual(['P04', 'P09']);
     expect((await findSharedRoute(ctx.db, { phone }))?.lastPickerAt).toEqual(plus(t0, 5_000));
-    // Seçici gerçekten seçilebilir dükkanları sunuyor (seçilemeyen #KAPALI listede yok)
-    const rows = (after[1]!.payload as { spec: { interactive: { list: { sections: { rows: { id: string }[] }[] } } } }).spec.interactive.list.sections.flatMap(
-      (s) => s.rows.map((r) => r.id),
-    );
-    expect(rows).toContain(`shop:${A.tenantId}`);
-    expect(rows).toContain(`shop:${B.tenantId}`);
-    expect(rows).not.toContain(`shop:${KAPALI.tenantId}`);
+    // Nötr yanıt listesiz düz metindir: hiçbir dükkanın adını ya da kimliğini taşımaz (O2)
+    const blob = JSON.stringify(after[1]!.payload);
+    expect((after[1]!.payload as { spec: { type: string } }).spec.type).toBe('text');
+    expect(blob).not.toContain(A.tenantId);
+    expect(blob).not.toContain(B.tenantId);
+    expect(blob).not.toMatch(/shop:|shops:/);
   });
 
-  it('kendiliğinden gönderilen seçici soğumayı başlatır: 60 sn içinde TAM seçici yinelenmez, kısa hatırlatma gider', async () => {
+  it('kendiliğinden gönderilen nötr yanıt soğumayı başlatır: 60 sn içinde yinelenmez, kısa hatırlatma gider', async () => {
     const phone = nextPhone();
     const t0 = new Date('2026-10-05T13:00:00Z');
     await sharedInbound(ctx, { phone }, text('iyi günler kolay gelsin'), { now: t0 });
-    expect(codesOf(await platformRows(ctx.db, phone))).toEqual(['P02']);
+    expect(codesOf(await platformRows(ctx.db, phone))).toEqual(['P09']);
 
     const r = await sharedInbound(ctx, { phone }, text('bir şey sormak istiyorum'), { now: plus(t0, 10_000) });
     expect(r.summary).toMatchObject({ messages: 1 });
-    // Tam seçici (liste) yinelenmez ama müşteri SESSİZ KALMAZ: tek satırlık hatırlatma (P06, 06.10.2026)
-    expect(codesOf(await platformRows(ctx.db, phone))).toEqual(['P02', 'P06']);
-    // Soğuma anı ilerlemedi: hatırlatma kendiliğinden seçici değildir
+    // Nötr yanıt yinelenmez ama müşteri SESSİZ KALMAZ: tek satırlık hatırlatma (P06, 06.10.2026)
+    expect(codesOf(await platformRows(ctx.db, phone))).toEqual(['P09', 'P06']);
+    // Soğuma anı ilerlemedi: hatırlatma kendiliğinden yanıt değildir
     expect((await findSharedRoute(ctx.db, { phone }))?.lastPickerAt).toEqual(t0);
 
     // Hatırlatma da 60 sn'de en çok 1 (üst sınır: kişiye dakikada 2 platform mesajı)
     await sharedInbound(ctx, { phone }, text('bir şey sormak istiyorum'), { now: plus(t0, 20_000) });
-    expect(codesOf(await platformRows(ctx.db, phone))).toEqual(['P02', 'P06']);
+    expect(codesOf(await platformRows(ctx.db, phone))).toEqual(['P09', 'P06']);
 
-    // 60 sn geçince yeniden seçici gelir
+    // 60 sn geçince yeniden nötr yanıt gelir
     await sharedInbound(ctx, { phone }, text('bir şey sormak istiyorum'), { now: plus(t0, 61_000) });
-    expect(codesOf(await platformRows(ctx.db, phone))).toEqual(['P02', 'P06', 'P02']);
+    expect(codesOf(await platformRows(ctx.db, phone))).toEqual(['P09', 'P06', 'P09']);
   });
 
-  it('müşterinin kendi istediği seçici (komut) de soğuma başlatmaz', async () => {
+  it('eski liste komutu ("dükkanlar") artık liste göndermez: kodsuz mesaj gibi nötr yanıt alır', async () => {
     const phone = nextPhone();
     const t0 = new Date('2026-10-05T14:00:00Z');
     await sharedInbound(ctx, { phone }, text('dükkanlar'), { now: t0 });
-    expect(codesOf(await platformRows(ctx.db, phone))).toEqual(['P02']);
-    expect(await findSharedRoute(ctx.db, { phone })).toMatchObject({ lastPickerAt: null });
+    const rows = await platformRows(ctx.db, phone);
+    expect(codesOf(rows)).toEqual(['P09']);
+    expect((rows[0]!.payload as { spec: { type: string } }).spec.type).toBe('text');
   });
 });
 
