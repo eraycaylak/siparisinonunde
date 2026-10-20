@@ -24,6 +24,10 @@
 //     webhook'unu yeniden teslim etmediği için bu tampon olmadan o mesaj kalıcı olarak kayboluyordu.
 //   - 5 dakikalık cron turunda container'ı uyanık tutar, YEDEK YAŞINI yoklar (eskidiyse `yedek_eskidi` uyarısı; saatte
 //     bir, damga Durable Object deposunda) ve webhook tamponunu boşaltır (aşağıda `scheduled`).
+//   - Aynı turda SÜRÜM EŞİTLER: çalışan container'ın sürümü (`/api/v1/health` version + imaja gömülü imageVersion)
+//     Worker'ın APP_VERSION'ından farklıysa, yedek zinciri sağlıklıysa onu SIGTERM ile durdurur, ÇIKMASINI (kapanış
+//     yedeği dahil) bekler ve yeni sürümle başlatır. Cloudflare'in uygulama çapındaki rollout'u 15.10.2026'dan beri
+//     çalışan örneği değiştirmiyor; kurallar src/surum-yenileme.ts.
 // Ortak numara (WhatsApp) alan adı kipinde (src/whatsapp-env.ts): GitHub secret'ları D360_API_KEY ve WA_PHONE tamsa
 // 360dialog (varsayılan yol, 15 §6.2); META_WA_TOKEN, META_WA_PHONE_NUMBER_ID, META_APP_SECRET ve WA_PHONE (+ isteğe bağlı
 // META_WA_WABA_ID) tamsa Meta Cloud API doğrudan (15 §6.2b); ikisi birlikte verilirse iş akışı durur. Hiçbiri tam değilse
@@ -31,12 +35,17 @@
 
 import { Container, ContainerProxy, getContainer, switchPort } from '@cloudflare/containers';
 import {
+  BACKUP_TUR_HEADER,
+  backupLatestKey,
+  epochPrefix,
   isDevToolsPath,
   isNavigation,
   isWebhookPath,
   normalizeDeployMode,
   normalizeEpoch,
   parseBackupPath,
+  parseBackupTur,
+  r2ProbeKey,
   redirectFor,
   requiresAuth,
 } from './access';
@@ -49,6 +58,18 @@ import {
 } from './alert';
 import { containerEnv, modeSettings, type ModeSettings } from './mode';
 import { applySecurityHeaders, type SecurityHeaderOptions } from './security-headers';
+import {
+  SURUM_KAYIT_ANAHTARI,
+  kapanisKaniti,
+  saglikYanitiniOku,
+  surumEsitlemeTuru,
+  yedekGuvenliginiOku,
+  type KapanisKaniti,
+  type SurumKaydi,
+  type SurumOkumasi,
+  type TurSonucu,
+  type YedekGuvenligi,
+} from './surum-yenileme';
 import {
   DRAIN_HEADER,
   DRAIN_PATH,
@@ -72,6 +93,12 @@ interface Env {
   DATA_EPOCH: string;
   /** Dağıtılan commit (prepare-config yazar); container'da APP_VERSION, sağlık ucunda görünür */
   APP_VERSION?: string;
+  /**
+   * Dağıtımın kimliği (iş akışı: GitHub run kimliği-denemesi; prepare-config yazar). Container'a GEÇMEZ: yalnız sürüm
+   * eşitlemenin döngü korumasının anahtarıdır (src/surum-yenileme.ts) — aynı commit'in yeniden dağıtımı yeni deneme
+   * hakkı alır.
+   */
+  DEPLOY_ID?: string;
   /**
    * domain (canlı ortam, yemekgelsin.net; DEPLOY_ENV=production) | staging (gizli, workers.dev, demo verili; DEPLOY_ENV=dev).
    * Container'ın DEPLOY_ENV, DEV_TOOLS, ADMIN_TOTP_REQUIRED değerleri ve noindex bu kipten türetilir (src/mode.ts).
@@ -155,7 +182,7 @@ async function handleBackup(request: Request, env: Env): Promise<Response> {
   if (!target) return new Response('bilinmeyen yedek', { status: 404 });
   const { prefix, kind } = target;
   const ext = kind === 'db' ? 'dump' : 'tar.gz';
-  const latestKey = `${prefix}${kind}/son.${ext}`;
+  const latestKey = backupLatestKey(prefix, kind);
 
   if (request.method === 'GET') {
     const obj = await env.BACKUPS.get(latestKey);
@@ -166,8 +193,12 @@ async function handleBackup(request: Request, env: Env): Promise<Response> {
     const body = await request.arrayBuffer();
     if (body.byteLength === 0) return new Response('boş yedek', { status: 400 });
     const day = new Date().getUTCDay();
-    await env.BACKUPS.put(latestKey, body);
-    await env.BACKUPS.put(`${prefix}${kind}/gun-${day}.${ext}`, body);
+    // Yedeğin türü (kapanış/döngü) nesnenin üst verisine yazılır: sürüm eşitlemenin kapanış yedeği kanıtı buna bakar
+    // (src/access.ts BACKUP_TUR_HEADER). Başlıksız eski entrypoint'in yedeği işaretsiz kalır.
+    const tur = parseBackupTur(request.headers.get(BACKUP_TUR_HEADER));
+    const options: R2PutOptions = tur ? { customMetadata: { tur } } : {};
+    await env.BACKUPS.put(latestKey, body, options);
+    await env.BACKUPS.put(`${prefix}${kind}/gun-${day}.${ext}`, body, options);
     return new Response(null, { status: 204 });
   }
   return new Response('yöntem desteklenmiyor', { status: 405 });
@@ -219,10 +250,15 @@ export class AppContainer extends Container<Env> {
     this.envVars = containerEnv(mode, { ...env, DATA_EPOCH: safeEpoch(env.DATA_EPOCH) }, wa.env);
   }
 
-  /** Container çalışıp iki port da dinliyor mu; değilse başlatır (ilk açılış: geri yükleme + migration ~1 dk). */
+  /**
+   * Container çalışıp iki port da dinliyor mu; değilse başlatır (ilk açılış: geri yükleme + migration ~1 dk).
+   * `healthy` kaydı tek başına yetmez: kütüphanenin `stop()`'u durumu değiştirmez ve kayıt, çıkış olayı işlenene kadar
+   * `healthy` kalabilir. Süreç gerçekten çıktıysa (`running` false) başlatma yoluna girilir; `startAndWaitForPorts`
+   * önce bekleyen durma olaylarını işler (syncPendingStoppedEvents), sonra başlatır.
+   */
   async ensureReady(): Promise<boolean> {
     const state = await this.getState();
-    if (state.status === 'healthy') return true;
+    if (state.status === 'healthy' && this.ctx.container?.running !== false) return true;
     try {
       await this.startAndWaitForPorts({ ports: [WEB_PORT, API_PORT], cancellationOptions: { portReadyTimeoutMS: 150_000 } });
       return true;
@@ -282,6 +318,93 @@ export class AppContainer extends Container<Env> {
     if (!yedekUyarisiGerekir({ yasSn: null, esikSn: null, eskidi: true }, sonUyariMs, simdiMs, sogumaMs)) return false;
     await this.ctx.storage.put(anahtar, simdiMs);
     return true;
+  }
+
+  // --- Sürüm eşitleme (uygulama kontrollü yeniden başlatma; kurallar ve gerekçe src/surum-yenileme.ts) ----------
+  // Tek container örneği ("main") olduğu için bu Durable Object tek kapıdır. Tur SIGTERM'den sonra çıkışı ve yeni
+  // container'ın açılışını beklerken 5 dakikayı aşabilir: üst üste gelen cron turu yeni bir tur AÇMAZ, süreni bekler.
+  #surum: Promise<TurSonucu> | null = null;
+
+  /** Sürüm eşitleme turu (5 dakikalık cron'dan). Bir tur sürüyorsa onun sonucu döner. */
+  async surumuEsitle(): Promise<TurSonucu> {
+    const calisan = this.#surum;
+    if (calisan) return calisan;
+    const tur = this.#surumTuru();
+    this.#surum = tur;
+    try {
+      return await tur;
+    } finally {
+      if (this.#surum === tur) this.#surum = null;
+    }
+  }
+
+  /**
+   * Çalışan container'a DOĞRUDAN portundan sorar (`ctx.container.getTcpPort`). `containerFetch` KULLANILMAZ: o,
+   * container çalışmıyor ya da `healthy` değilse önce BAŞLATIR — kapanış sırasında istemeden yeni container açardı.
+   */
+  async #containerGovdesi(yol: string): Promise<{ status: number; govde: unknown } | null> {
+    const c = this.ctx.container;
+    if (!c?.running) return null;
+    try {
+      const res = await c.getTcpPort(API_PORT).fetch(`http://container${yol}`, { signal: AbortSignal.timeout(10_000) });
+      return { status: res.status, govde: await res.json().catch(() => null) };
+    } catch {
+      return null;
+    }
+  }
+
+  #surumTuru(): Promise<TurSonucu> {
+    return surumEsitlemeTuru({
+      hedef: this.env.APP_VERSION,
+      dagitim: this.env.DEPLOY_ID,
+      kayitOku: () => this.ctx.storage.get(SURUM_KAYIT_ANAHTARI),
+      kayitYaz: (kayit: SurumKaydi) => this.ctx.storage.put(SURUM_KAYIT_ANAHTARI, kayit),
+      durumOku: async () => ({ calisiyor: this.ctx.container?.running === true, durum: (await this.getState()).status }),
+      surumOku: async (): Promise<SurumOkumasi> => {
+        const r = await this.#containerGovdesi('/api/v1/health');
+        // 200 dışı (veritabanı düştü, açılış sürüyor) sürüm kararı için yeterli değil: okunamadı sayılır, dokunulmaz.
+        // Gövdedeki uptimeSec (503'te de var) yine okunur: kapanan container'ı trafiğin açtığı yenisinden ayırır.
+        return r ? saglikYanitiniOku(r.status, r.govde) : { okundu: false };
+      },
+      yedekOku: async (): Promise<YedekGuvenligi> => {
+        const r = await this.#containerGovdesi('/api/v1/health/worker');
+        return r ? yedekGuvenliginiOku(r.govde) : 'bilinmiyor';
+      },
+      // SIGTERM'den hemen önce R2'ye yazılabiliyor mu: kapanış yedeği aynı kovaya aynı bağlamayla gider. Yoklama nesnesi
+      // yazılıp hemen silinir; herhangi bir hata "yazılamıyor" sayılır (SIGTERM ertelenir).
+      r2Yoklama: async () => {
+        try {
+          const anahtar = r2ProbeKey(epochPrefix(normalizeEpoch(this.env.DATA_EPOCH)));
+          await this.env.BACKUPS.put(anahtar, new Date().toISOString());
+          await this.env.BACKUPS.delete(anahtar);
+          return true;
+        } catch (err) {
+          console.error('sürüm eşitleme: R2 yazma yoklaması başarısız', err);
+          return false;
+        }
+      },
+      // Yalnız SIGTERM: kütüphane `container.signal(15)` çağırıp döner (çıkışı tur bekler). destroy() YOK.
+      durdur: () => this.stop('SIGTERM'),
+      baslat: () => this.ensureReady(),
+      // Kapanış yedeği kanıtı: Worker'ın yedek işleyicisi gövdeyi R2'ye yazmadan 204 dönmez, entrypoint.sh de 204'ü
+      // beklemeden kapanmaz. SIGTERM'den SONRA yazılmış ve KAPANIŞ yedeği olarak işaretli (customMetadata.tur) döküm
+      // varsa kapanış yedeği inmiştir; zaman tek başına yetmez (süren döngü yedeği de SIGTERM'den sonra inebilir).
+      // Not: anahtar Worker'ın ŞU ANKİ dönemidir; dağıtım DATA_EPOCH'u değiştirdiyse eski container eski döneme yazar.
+      kapanisYedegi: async (sigtermMs: number): Promise<KapanisKaniti> => {
+        try {
+          const obj = await this.env.BACKUPS.head(backupLatestKey(epochPrefix(normalizeEpoch(this.env.DATA_EPOCH)), 'db'));
+          return kapanisKaniti(obj ? { yuklenmeMs: obj.uploaded.getTime(), tur: obj.customMetadata?.tur ?? null } : null, sigtermMs);
+        } catch {
+          return 'bilinmiyor';
+        }
+      },
+      uyar: (olay, ayrinti) => uyariGonder(this.env.ALERT_WEBHOOK_URL, olay, ayrinti),
+      bekle: (ms: number) =>
+        new Promise<void>((r) => {
+          setTimeout(r, ms);
+        }),
+      simdi: () => Date.now(),
+    });
   }
 
   async #tur(limit?: number): Promise<DrainOzeti> {
@@ -526,7 +649,13 @@ export default {
    * Maliyet: basic örnek sürekli açık ≈ 7 $/ay (bellek + disk sağlanan kaynağa, CPU yalnız kullanıma göre; 15 §13).
    * Gizli staging'de çalışmaz (config-modes.mjs tetikleyiciyi de siler).
    *
-   * Tur ÜÇ iş yapar, her biri kendi try'ında (biri patlayınca diğerleri çalışmalı):
+   * Tur önce SÜRÜM EŞİTLER (0), sonra ÜÇ iş yapar; her biri kendi try'ındadır (biri patlayınca diğerleri çalışmalı):
+   *   0. Sürüm eşitleme (src/surum-yenileme.ts): çalışan container'ın ortamı ya da imajı (`version`/`imageVersion`)
+   *      Worker'ın APP_VERSION'ından farklıysa (en az 4 dk süredir) yedek kapısı → SIGTERM → çıkış → yeni sürümle
+   *      başlatma. ensureReady'den ÖNCE koşar ki eski container çıktıktan sonraki başlatmayı (kapanış yedeği kanıtıyla)
+   *      kendisi yapsın. Container GERÇEKTEN kapanıyorsa (`bekle_cikis`) tur burada biter: kapanan container'a sağlık
+   *      yoklaması boşuna `uyanik_tutma_hatasi` üretirdi. Sinyal ulaşmadıysa ya da trafik yeni bir container açtıysa
+   *      karar `bekle_cikis` DEĞİLDİR (yineleme / `kapanis_bitti`), yani yoklama ve tampon boşaltma sürer.
    *   1. `/api/v1/health` — canlılık; 200 değilse `uyanik_tutma_hatasi`.
    *   2. `/api/v1/health/worker` — yedek gözcüsü; yedek eşikten eskiyse `yedek_eskidi` (soğuma: saatte bir,
    *      damga Durable Object deposunda). Yedek yaşını başka hiçbir yoklama görmüyordu (denetim 2026-10-05 bulgu B).
@@ -538,6 +667,17 @@ export default {
     ctx.waitUntil(
       (async () => {
         const app = getContainer(env.APP, INSTANCE);
+        // 0. Sürüm eşitleme: kendi try'ında, hatası uyanık tutmayı DURDURMAZ (kayıt her adımdan önce yazıldığı için
+        // sonraki tur kaldığı yerden sürer).
+        try {
+          const sonuc = await app.surumuEsitle();
+          if (sonuc.eylem === 'bekle_cikis') {
+            console.log('uyanık tutma: container sürüm yenilemesi için kapanıyor; tur atlandı (çıkış sonraki turda beklenir)');
+            return;
+          }
+        } catch (err) {
+          console.error('sürüm eşitleme hatası', err);
+        }
         try {
           if (!(await app.ensureReady())) {
             console.error('uyanık tutma: container başlatılamadı');

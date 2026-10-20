@@ -32,6 +32,7 @@ import {
   HEALTH_WARNINGS,
   WORKER_MAX_LAG_SEC,
   backupAgeSecFrom,
+  backupChainOkFrom,
   dueWarnings,
   healthLimits,
   healthWarningAlert,
@@ -55,6 +56,7 @@ const TOUCHED = [
   'HEALTH_DISK_PATH',
   'HEALTH_METRICS_TOKEN',
   'ALERT_WEBHOOK_URL',
+  'IMAGE_VERSION',
 ] as const;
 const saved: Record<string, string | undefined> = {};
 
@@ -79,7 +81,7 @@ async function workerHealth(opts: { token?: string | null } = {}): Promise<{ sta
 }
 
 /** Belirteçsiz yanıtta HER ZAMAN bulunan alanlar (dış izleme + dağıtım duman testi sözleşmesi). */
-const PUBLIC_FIELDS = ['db', 'degraded', 'jobLagSec', 'maxLagSec', 'ok', 'stuckJobs', 'time', 'warnings'] as const;
+const PUBLIC_FIELDS = ['backupOk', 'db', 'degraded', 'jobLagSec', 'maxLagSec', 'ok', 'stuckJobs', 'time', 'warnings'] as const;
 /** Yalnız belirteçle eklenen alanlar. */
 const METRIC_FIELDS = [
   'diskFreeMb',
@@ -156,6 +158,30 @@ describe('backupAgeSecFrom', () => {
     expect(backupAgeSecFrom('{"ts":"1759599700"}', now)).toBeNull();
     expect(backupAgeSecFrom('{"ts":0}', now)).toBeNull();
     expect(backupAgeSecFrom('{"ts":-5}', now)).toBeNull();
+  });
+});
+
+describe('backupChainOkFrom (son yedek turu başarılı mı; Worker\'ın sürüm eşitlemesi SIGTERM\'den önce sorar)', () => {
+  it('başarılı tur (yuklendi, degismedi, açılışta geri yüklendi) ve taze açılış (bos) → true', () => {
+    for (const note of ['yuklendi', 'degismedi', 'acilista-geri-yuklendi']) {
+      expect(backupChainOkFrom(`{"lastSuccessUnix":1,"consecutiveFailures":0,"lastResult":"ok","note":"${note}"}`)).toBe(true);
+    }
+    expect(backupChainOkFrom('{"lastSuccessUnix":0,"consecutiveFailures":0,"lastResult":"bos","note":"taze-acilis-veri-yok"}')).toBe(true);
+  });
+
+  it('İLK başarısız turda false: yaş eşiği (backup_stale) dolmadan önce de (kapanış yedeği de yazılamayabilir)', () => {
+    expect(backupChainOkFrom('{"lastSuccessUnix":1,"consecutiveFailures":1,"lastResult":"hata","note":"yedek-hatasi"}')).toBe(false);
+    expect(backupChainOkFrom('{"lastSuccessUnix":1,"consecutiveFailures":0,"lastResult":"atlandi","note":"kilit-alinamadi"}')).toBe(false);
+    // Donmuş zincir (yarım geri yükleme): lastSuccessUnix 0 → yaş null → backup_stale HİÇ üretilmez; bu alan yakalar
+    expect(backupChainOkFrom('{"lastSuccessUnix":0,"consecutiveFailures":0,"lastResult":"atlandi","note":"yarim-geri-yukleme"}')).toBe(false);
+    // Önceki hatalar sürüyorsa "ok" görünse bile (iki süreçli yazımda) false
+    expect(backupChainOkFrom('{"lastSuccessUnix":1,"consecutiveFailures":2,"lastResult":"ok","note":"yuklendi"}')).toBe(false);
+  });
+
+  it('bozuk JSON, lastResult yok (eski/VPS biçimi) ya da bilinmeyen değer → null (bilinmiyor)', () => {
+    for (const raw of ['', 'yedek yazildi', 'null', '42', '{"ts":1759600000}', '{"lastResult":"yeni-bir-sonuc"}', '{"lastResult":1}']) {
+      expect(backupChainOkFrom(raw), raw).toBeNull();
+    }
   });
 });
 
@@ -332,8 +358,19 @@ describe('GET /api/v1/health', () => {
   it('alanları ve anlamları değişmedi (dağıtım duman testi bunlara bakıyor)', async () => {
     const res = await ctx.request({ method: 'GET', url: '/api/v1/health' });
     expect(res.statusCode).toBe(200);
-    expect(Object.keys(res.json() as object).sort()).toEqual(['db', 'ok', 'time', 'uptimeSec', 'version']);
+    expect(Object.keys(res.json() as object).sort()).toEqual(['db', 'imageVersion', 'ok', 'time', 'uptimeSec', 'version']);
     expect(res.json()).toMatchObject({ ok: true, db: 'up' });
+  });
+
+  it('imageVersion imaja gömülü IMAGE_VERSION\'ı gösterir (APP_VERSION ortamdan, imaj eski kalsa da yeni SHA gösterirdi)', async () => {
+    delete process.env.IMAGE_VERSION;
+    expect((await ctx.request({ method: 'GET', url: '/api/v1/health' })).json()).toMatchObject({ imageVersion: null });
+    process.env.IMAGE_VERSION = 'b'.repeat(40);
+    try {
+      expect((await ctx.request({ method: 'GET', url: '/api/v1/health' })).json()).toMatchObject({ imageVersion: 'b'.repeat(40) });
+    } finally {
+      delete process.env.IMAGE_VERSION;
+    }
   });
 
   it('yedek eskise iki uç da 200 kalır: 503 dağıtımı geri aldırır, worker ucu degraded ile haber verir', async () => {
@@ -393,6 +430,17 @@ describe('GET /api/v1/health/worker — yedek ve kaynak görünürlüğü', () =
     expect(status, JSON.stringify(body)).toBe(200);
     expect(body).toMatchObject({ ok: true, degraded: true, warnings: ['backup_stale'], db: 'up', jobLagSec: 0, stuckJobs: 0 });
     expect(body.lastBackupAgeSec as number).toBeGreaterThan(HEALTH_LIMIT_DEFAULTS.maxBackupAgeSec);
+  });
+
+  it('backupOk: son tur başarısızsa yaş eşiğin altındayken bile false (uyarı yok, 200), dosya yoksa null', async () => {
+    await writeFile(statusFile, `{"lastSuccessUnix":${Math.floor(Date.now() / 1000) - 120},"consecutiveFailures":1,"lastResult":"hata","note":"yedek-hatasi"}\n`);
+    const kotu = await workerHealth({ token: null });
+    expect(kotu.status).toBe(200);
+    expect(kotu.body).toMatchObject({ ok: true, degraded: false, warnings: [], backupOk: false });
+    await writeFile(statusFile, `{"lastSuccessUnix":${Math.floor(Date.now() / 1000) - 30},"consecutiveFailures":0,"lastResult":"ok","note":"yuklendi"}\n`);
+    expect((await workerHealth({ token: null })).body).toMatchObject({ backupOk: true });
+    await rm(statusFile, { force: true });
+    expect((await workerHealth({ token: null })).body).toMatchObject({ backupOk: null });
   });
 
   it('eşik ortamdan gevşetilince (0 = kapalı) aynı eski yedek degraded bile olmaz', async () => {
@@ -525,6 +573,6 @@ describe('GET /api/v1/health/worker — ayrıntılı ölçüm belirteci (denetim
   it('sade `/api/v1/health` belirteçten etkilenmez (alanları değişmedi)', async () => {
     const res = await ctx.request({ method: 'GET', url: '/api/v1/health', headers: { [HEALTH_METRICS_HEADER]: METRICS_TOKEN } });
     expect(res.statusCode).toBe(200);
-    expect(Object.keys(res.json<object>()).sort()).toEqual(['db', 'ok', 'time', 'uptimeSec', 'version']);
+    expect(Object.keys(res.json<object>()).sort()).toEqual(['db', 'imageVersion', 'ok', 'time', 'uptimeSec', 'version']);
   });
 });

@@ -198,6 +198,85 @@ test('Cloudflare duman testi GERÇEKTEN dağıtılan sürümü arar (github.sha 
   assert.ok(/"\$ver"\s*=\s*"\$DEPLOY_SHA"/.test(text), 'duman testi $DEPLOY_SHA ile karşılaştırmalı');
 });
 
+test('Cloudflare duman testi yeni sürümü 30 dk bekler (Worker cron\'unun sürüm eşitlemesi için yeterli pay)', () => {
+  // 15.10.2026'dan beri yeni container'ı Cloudflare rollout'u değil Worker'ın 5 dakikalık cron'u açıyor
+  // (deploy/cloudflare/src/surum-yenileme.ts): ilk tur yalnız gözler (imaj push penceresi), ikinci tur SIGTERM →
+  // kapanış yedeği → çıkış → yeni container. 20 dk'lık pencere bir kaçan turla sağlam dağıtımı geri aldırabiliyordu.
+  const text = src(CF);
+  const m = text.match(/deadline=\$\(\(SECONDS \+ (\d+)\)\)/);
+  assert.ok(m, 'duman testinin sürüm bekleme süresi (deadline) bulunamadı');
+  assert.ok(Number(m[1]) >= 1800, `duman testi en az 30 dk beklemeli (şu an ${m[1]} sn)`);
+  assert.ok(Number(m[1]) <= 2400, 'duman testi 40 dk\'dan fazla beklememeli (iş 60 dk zaman aşımına sığmalı)');
+  assert.ok(has(text, 'Yeni sürüm 30 dk içinde devreye girmedi'), 'hata iletisi bekleme süresiyle tutarlı olmalı');
+});
+
+test('duman testi kırmızıysa GERİ ALMADAN ÖNCE container tanısı yazılır ve iş akışını bozamaz', () => {
+  const text = src(CF);
+  const tani = text.indexOf('- name: Duman testi kırmızı → container tanısı');
+  const geri = text.indexOf("- name: Duman testi kırmızı → Worker'ı geri al");
+  assert.ok(tani > 0, 'container tanısı adımı yok');
+  assert.ok(geri > tani, 'tanı adımı geri alma adımından ÖNCE olmalı (geri alma Worker\'ı değiştirir)');
+  const adim = text.slice(tani, geri);
+  // Koşul geri alma adımıyla aynı: yalnız dağıtım denendiyse ve duman testi yeşil değilse
+  assert.ok(
+    has(adim, "if: ${{ (failure() || cancelled()) && steps.dagit.outputs.attempted == 'true' && steps.duman.outcome != 'success' }}"),
+    'tanı adımının koşulu geri alma adımıyla aynı olmalı',
+  );
+  assert.ok(has(adim, 'continue-on-error: true'), 'tanı adımı iş akışının sonucunu değiştirmemeli');
+  assert.ok(/timeout-minutes:\s*\d+/.test(adim), 'tanı adımı süreyle sınırlı olmalı');
+  for (const komut of ['containers list', 'containers info', 'containers instances']) {
+    assert.ok(has(adim, `npx wrangler ${komut}`), `tanı adımı \`wrangler ${komut}\` çıktısını yazmalı`);
+  }
+  // Her wrangler çağrısı süreyle sınırlı ve hatası yutulur
+  for (const satir of adim.split('\n').filter((l) => l.includes('npx wrangler containers') && !l.includes('echo'))) {
+    assert.match(satir, /timeout \d+ npx wrangler/, `süre sınırı yok → ${satir.trim()}`);
+    assert.match(satir, /\|\| true/, `hata yutulmuyor → ${satir.trim()}`);
+  }
+  assert.ok(has(adim, '$GITHUB_STEP_SUMMARY'), 'tanı iş akışı özetine yazılmalı');
+  assert.ok(!has(adim, '${{ secrets.'), 'tanı adımı gizli değer okumamalı');
+  // İş düzeyindeki env CLOUDFLARE_API_TOKEN ve DEV_PASSWORD'ü HER adıma verir: `${{ secrets.` aramak tek başına yetmez.
+  // Adım metni bu değişkenleri açmamalı, ortamı dökmemeli; ihtiyacı olmayan DEV_PASSWORD boşaltılmalı.
+  for (const yasak of ['$CLOUDFLARE_API_TOKEN', '${CLOUDFLARE_API_TOKEN', '$DEV_PASSWORD', '${DEV_PASSWORD', 'printenv', 'env |', 'set -x', 'export -p']) {
+    assert.ok(!has(adim, yasak), `tanı adımı \`${yasak}\` içermemeli (gizli değer özete/günlüğe düşebilir)`);
+  }
+  assert.ok(/\n {8}env:\n {10}DEV_PASSWORD: ''\n/.test(adim), 'tanı adımı DEV_PASSWORD\'ü boşaltmalı (ihtiyacı yok)');
+  // Süreler geri almayı geciktirmeyecek kadar kısa: her wrangler çağrısı ≤ 60 sn, adım ≤ 5 dk
+  for (const m of adim.matchAll(/timeout (\d+) npx wrangler/g)) assert.ok(Number(m[1]) <= 60, `wrangler süre sınırı ${m[1]} sn > 60`);
+  const dk = adim.match(/timeout-minutes:\s*(\d+)/);
+  assert.ok(dk && Number(dk[1]) <= 5, 'tanı adımı en çok 5 dk sürmeli (geri almayı geciktirmesin)');
+  // `containers info` ham uygulama nesnesini döker: yalnız beyaz liste yazılmalı (gizli alan sızmasın)
+  assert.ok(/containers info[\s\S]*jq 'try \{id, name/.test(adim), '`containers info` çıktısı jq beyaz listesinden geçmeli');
+});
+
+test('Cloudflare duman testi İMAJA gömülü commit\'i de arar (ortam etiketi tek başına eski kodu gizleyebilir)', () => {
+  // APP_VERSION container'a başlarken Worker'dan gelir: imaj eski kalsa bile yeni SHA görünür. imageVersion
+  // (Dockerfile ARG/ENV IMAGE_VERSION ← prepare-config image_vars) imajın kendisini kanıtlar.
+  const text = src(CF);
+  assert.ok(has(text, "jq -r '.imageVersion // empty'"), 'duman testi imageVersion alanını okumalı');
+  assert.ok(/\[ "\$img" = "\$DEPLOY_SHA" \] \|\| fail/.test(text), 'duman testi imageVersion\'ı $DEPLOY_SHA ile karşılaştırıp düşmeli');
+  assert.ok(has(text, '[ "$code" = "200" ] && [ "$ver" = "$DEPLOY_SHA" ] && [ "$img" = "$DEPLOY_SHA" ] && break'), 'bekleme döngüsü iki alan eşleşince bitmeli');
+  // Döngü korumasının dağıtım kimliği (aynı commit'in yeniden dağıtımı yeni hak alır)
+  assert.ok(has(text, 'DEPLOY_ID="$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" node scripts/prepare-config.mjs'), 'prepare-config DEPLOY_ID almalı');
+  // Staging'de sürüm eşitleme yok: hata iletisi bunu söylemeli (yanlış yere yönlendirmesin)
+  assert.ok(has(text, "Gizli staging'de sürüm eşitleme YOK"), 'staging için ayrı hata iletisi olmalı');
+});
+
+test('`ref` sürüm eşitlemeyi içermeyen eski bir commit\'se dağıtım BAŞLAMADAN durur (tam geri alış sessizce başarısız olmasın)', () => {
+  const text = src(CF);
+  const kontrol = text.indexOf('- name: Seçilen sürüm sürüm eşitlemeyi içeriyor mu');
+  const dagit = text.indexOf('- name: Dağıt (Worker + container imajı');
+  const yapilandirma = text.indexOf('- name: Yapılandırma ve gizli değerler');
+  assert.ok(kontrol > 0, 'ref ön kontrolü yok');
+  assert.ok(kontrol < yapilandirma && kontrol < dagit, 'ön kontrol secret yüklemesinden ve dağıtımdan ÖNCE olmalı');
+  const adim = text.slice(kontrol, text.indexOf('- uses:', kontrol));
+  assert.ok(has(adim, '[ -f src/surum-yenileme.ts ]'), 'sürüm eşitleme dosyası denetlenmeli');
+  assert.ok(has(adim, "grep -q '^ARG IMAGE_VERSION=' Dockerfile"), 'imaj kanıtı denetlenmeli');
+  assert.ok(has(adim, 'exit 1'), 'eksikse iş akışı durmalı');
+  assert.ok(has(adim, 'git revert'), 'operatöre doğru yol söylenmeli');
+  // Geri alma özeti de artık rollout değil sürüm eşitleme der
+  assert.ok(!has(text, 'imaj yeniden derlenip rollout edilir'), 'özet eski rollout sözünü vermemeli');
+});
+
 test('`ref` girdisi hiçbir kabuk komutuna gömülmüyor (betik enjeksiyonu)', () => {
   // `workflow_dispatch` girdisi serbest metindir. `run:` içine `${{ inputs.ref }}` yazmak, iş akışını çalıştırabilen
   // birine runner üzerinde komut çalıştırma imkânı verir — ve bu runner'da CLOUDFLARE_API_TOKEN ile SSH parolası var.
@@ -218,7 +297,9 @@ test('dağıtım iş akışlarında gizli değer ya da kişisel veri sabitlenmem
     const assignments = text
       .split('\n')
       .filter((l) => /^\s*(WA_PHONE|VPS_PASSWORD|DEV_PASSWORD|ADMIN_PASSWORD|CLOUDFLARE_API_TOKEN|TWILIO_AUTH_TOKEN|D360_API_KEY|META_WA_TOKEN|META_APP_SECRET|SSHPASS):/.test(l))
-      .filter((l) => !/\$\{\{\s*secrets\./.test(l));
+      .filter((l) => !/\$\{\{\s*secrets\./.test(l))
+      // Bir adımda iş düzeyindeki secret'ı BOŞALTMAK (`DEV_PASSWORD: ''`) değer sabitlemek değildir (tanı adımı)
+      .filter((l) => !/:\s*''\s*$/.test(l));
     assert.deepEqual(assignments, [], `${name}: gizli değer secret dışından geliyor → ${assignments.join(' | ')}`);
   }
 });

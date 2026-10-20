@@ -24,7 +24,19 @@ export type UyariOlayi =
   /** Uyanık tutma turu hata verdi */
   | 'uyanik_tutma_hatasi'
   /** Son başarılı veritabanı yedeği eşikten eski: yedek zinciri kopmuş olabilir (aşağıdaki "Yedek gözcüsü") */
-  | 'yedek_eskidi';
+  | 'yedek_eskidi'
+  /**
+   * Bilgi: çalışan container eski sürümdeydi; Worker onu SIGTERM ile durdurup yeni sürümle (ortam VE imaj) başlattı
+   * (src/surum-yenileme.ts). Her dağıtımda bir kez gelir. `kapanisYedegi`: goruldu | belirsiz | gorulmedi | bilinmiyor
+   * — goruldu dışındakilerde elle bakın (docs/17 §2.5 madde 4).
+   */
+  | 'container_surum_yenilendi'
+  /**
+   * Sürüm eşitleme yapılamadı ya da bilerek ertelendi: `neden` = yedek_eskimis | yedek_basarisiz | r2_yazilamiyor
+   * (SIGTERM GÖNDERİLMEDİ) | durmadi (40 dk'da çıkmadı; destroy YOK) | sinyal_ulasmadi | deneme_hakki_doldu | eski_imaj
+   * (yeniden başlatmalar eski imajı getirdi) | baslatma_sonrasi_surum_farkli. Dağıtım (DEPLOY_ID) başına bir kez.
+   */
+  | 'container_surum_yenilenemedi';
 
 export type UyariAyrinti = Record<string, string | number | boolean>;
 

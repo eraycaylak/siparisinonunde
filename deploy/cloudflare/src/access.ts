@@ -131,3 +131,40 @@ export function parseBackupPath(pathname: string): BackupTarget | null {
   if (!m) return null;
   return { prefix: m[1] ? `${m[1]}/` : '', kind: m[2] as BackupTarget['kind'] };
 }
+
+/** Dönemin (doğrulanmış DATA_EPOCH) R2 anahtar öneki: "3" → "e3/", boş → "" (ilk dönemin öneksiz anahtarları). */
+export function epochPrefix(epoch: string): string {
+  return epoch ? `e${epoch}/` : '';
+}
+
+/**
+ * Son yedeğin R2 anahtarı (ör. e3/db/son.dump). TEK KAYNAK: hem yedek işleyicisi (src/index.ts handleBackup) hem de
+ * sürüm eşitlemenin kapanış yedeği kanıtı (aynı dosya, AppContainer.surumuEsitle) buradan okur.
+ */
+export function backupLatestKey(prefix: string, kind: BackupTarget['kind']): string {
+  return `${prefix}${kind}/son.${kind === 'db' ? 'dump' : 'tar.gz'}`;
+}
+
+/**
+ * Yedeğin TÜRÜNÜ taşıyan başlık: entrypoint.sh kapanış yedeğinde (`backup_now force`) `kapanis`, döngüde `dongu`
+ * gönderir; yedek işleyicisi R2 nesnesinin customMetadata'sına `tur` olarak yazar. Sürüm eşitlemenin kapanış yedeği
+ * kanıtı (src/surum-yenileme.ts `kapanisKaniti`) yalnız SIGTERM'den sonra yazılmış `kapanis` işaretli dökümü
+ * "görüldü" sayar: SIGTERM anında süren döngü yedeği de SIGTERM'den sonra yüklenebilir, zaman tek başına kanıt değildir.
+ */
+export const BACKUP_TUR_HEADER = 'x-yg-yedek-turu';
+
+export type BackupTur = 'kapanis' | 'dongu';
+
+/** Başlık değeri → yedek türü; tanımsız ya da bilinmeyen değer null (bu değişiklikten önceki entrypoint). */
+export function parseBackupTur(value: string | null | undefined): BackupTur | null {
+  const v = (value ?? '').trim().toLowerCase();
+  return v === 'kapanis' || v === 'dongu' ? v : null;
+}
+
+/**
+ * SIGTERM'den önce R2'ye yazılabildiğini denemek için kısa ömürlü yoklama nesnesinin anahtarı (yazılır ve hemen
+ * silinir; yedek ya da tampon önekleriyle çakışmaz).
+ */
+export function r2ProbeKey(prefix: string): string {
+  return `${prefix}saglik/surum-esitleme-yoklama`;
+}

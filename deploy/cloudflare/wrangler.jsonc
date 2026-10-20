@@ -126,7 +126,7 @@
   //     Verilmezse uç 404 döner ve tampon yalnız Worker'ın kendi 5 dakikalık turuyla boşalır (15 §13).
   //   - HEALTH_METRICS_TOKEN: `/api/v1/health/worker` AYRINTILI ölçümlerinin (yedek yaşı, disk, bellek ve eşikleri)
   //     belirteci. Uç kimlik doğrulamasızdır: sade alanlar (ok, degraded, warnings, db, jobLagSec, stuckJobs,
-  //     maxLagSec, time) herkese açık kalır — dış izleme ve duman testi onlara bakar —, ayrıntılar yalnız
+  //     maxLagSec, backupOk, time) herkese açık kalır — dış izleme ve duman testi onlara bakar —, ayrıntılar yalnız
   //     `x-health-metrics-token` başlığını doğru taşıyan isteğe yazılır. VERİLMEZSE ayrıntılar hiç kimseye
   //     görünmez ve uç yine 200 döner (açık varsayılan olmasın; apps/api/src/routes/health.ts `metricsAllowed`).
   //     En az 24 karakter olmalı, kısası kurulmamış sayılır: `openssl rand -hex 24`.

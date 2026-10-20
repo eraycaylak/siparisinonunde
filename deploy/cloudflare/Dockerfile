@@ -2,7 +2,8 @@
 # Yemek Gelsin — CANLI ORTAM container'ı, Cloudflare (00 §12a madde 10; 15 §13): PostgreSQL 16 + API + worker + web tek
 # imajda. Derleme bağlamı depo köküdür (wrangler.jsonc image_build_context). Wrangler, image_vars'ı --build-arg olarak
 # geçirir (scripts/config-modes.mjs: NEXT_PUBLIC_SITE_URL, NEXT_PUBLIC_DEMO_BANNER, NEXT_PUBLIC_DEMO_STORE_SLUG,
-# NEXT_PUBLIC_LEAD_FORM, NEXT_PUBLIC_DEV_TOOLS, NEXT_PUBLIC_SUPPORT_WHATSAPP). Varsayılanlar canlı ortamındır: uyarı yok,
+# NEXT_PUBLIC_LEAD_FORM, NEXT_PUBLIC_DEV_TOOLS, NEXT_PUBLIC_SUPPORT_WHATSAPP; scripts/prepare-config.mjs: IMAGE_VERSION =
+# dağıtılan commit, çalışma imajının en sonunda). Varsayılanlar canlı ortamındır: uyarı yok,
 # lead formu açık, WhatsApp simülatörü derlenmez. NEXT_PUBLIC_DEMO_BANNER=1 ve NEXT_PUBLIC_DEV_TOOLS=1 yalnız demo verili
 # gizli staging'de (isteğe bağlı VPS yolu; apps/web/components/common/demo-notice.tsx, app/dev/whatsapp).
 # İsteğe bağlı Türkiye VPS yolu bu imajı kullanmaz (docker/*.Dockerfile + docker-compose.yml; 15 §14).
@@ -97,6 +98,13 @@ COPY --from=web-build --chown=postgres:postgres /app/apps/web/.next/static ./web
 COPY --chown=postgres:postgres apps/web/public ./web/apps/web/public
 COPY --chown=postgres:postgres --chmod=755 deploy/cloudflare/entrypoint.sh /app/entrypoint.sh
 RUN mkdir -p /data && chown postgres:postgres /data
+# Dağıtılan commit'in İMAJA gömülü kopyası (wrangler image_vars ← scripts/prepare-config.mjs, APP_VERSION ile aynı
+# değer). APP_VERSION container'a BAŞLARKEN Worker'dan gelir, yani imaj eski kalsa bile yeni SHA'yı gösterirdi; bu alan
+# imajın kendisini kanıtlar (`/api/v1/health` imageVersion). Worker'ın sürüm eşitlemesi ve dağıtımın duman testi İKİSİNE
+# birden bakar (deploy/cloudflare/src/surum-yenileme.ts). src/mode.ts containerEnv bu adı ASLA geçirmez (ezilmesin).
+# En sona konur: değeri her dağıtımda değişir, önceki katmanların önbelleği bozulmaz.
+ARG IMAGE_VERSION=
+ENV IMAGE_VERSION=${IMAGE_VERSION}
 USER postgres
 EXPOSE 3000 4000
 ENTRYPOINT ["/usr/bin/tini", "--", "/app/entrypoint.sh"]

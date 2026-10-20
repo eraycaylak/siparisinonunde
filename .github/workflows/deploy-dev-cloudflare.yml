@@ -38,7 +38,9 @@
 #   - Duman testi (ya da deploy'un kendisi) kırmızıysa son adım `wrangler rollback` ile Worker'ı geri alır. YARIM bir
 #     geri alıştır: container imajı ve veritabanı geri ALINMAZ (ayrıntı o adımın yorumunda ve iş akışı özetinde).
 #   - `workflow_dispatch` > `ref`: eski bir commit SHA'sı verilirse o sürüm dağıtılır; APP_VERSION ve duman testi
-#     tetikleyen commit'i değil GERÇEKTEN dağıtılan commit'i (DEPLOY_SHA) kullanır. Tam geri alış yolu budur.
+#     tetikleyen commit'i değil GERÇEKTEN dağıtılan commit'i (DEPLOY_SHA) kullanır. Tam geri alış yolu budur. Sürüm
+#     eşitlemeyi (deploy/cloudflare/src/surum-yenileme.ts + Dockerfile IMAGE_VERSION) içermeyen eski bir commit
+#     dağıtılmadan reddedilir: container yenilenmez ve geri alma bozuk sürüme dönerdi (docs/17 §3).
 #   - Tetikleyici (ajan dalı dahil) BİLEREK değiştirilmedi; karar Eray'ın (testler.yml > DAL POLİTİKASI).
 name: Canlı ortam (Cloudflare)
 
@@ -148,6 +150,21 @@ jobs:
           # `inputs.ref` değeri KABUĞA GÖMÜLMEZ (betik enjeksiyonu): yalnız tetikleyen commit'ten farklı mı denir.
           if [ "$sha" != "$GITHUB_SHA" ]; then
             echo "::notice::Elle seçilen bir sürüm dağıtılıyor (${sha:0:12}); dalın son hâli değil. Geri alma dağıtımı ise duman testi de bu sürümü arar."
+          fi
+
+      # 15.10.2026'dan beri Cloudflare rollout'u çalışan container'ı değiştirmiyor: yenisini Worker'ın SÜRÜM EŞİTLEMESİ
+      # açar (src/surum-yenileme.ts) ve duman testi imaja gömülü commit'i (Dockerfile IMAGE_VERSION) arar. Bu ikisini
+      # içermeyen eski bir commit `ref` ile dağıtılırsa container hiç yenilenmez, duman testi 30 dk bekleyip düşer ve
+      # `wrangler rollback` Worker'ı en son yüklenen bir öncekine (yani bozuk sürüme) döndürür: "tam geri alış" SESSİZCE
+      # başarısız olur. Bu yüzden canlıda hiçbir şey değişmeden, burada açık bir hatayla durulur (docs/17 §3).
+      - name: Seçilen sürüm sürüm eşitlemeyi içeriyor mu
+        run: |
+          eksik=()
+          [ -f src/surum-yenileme.ts ] || eksik+=("deploy/cloudflare/src/surum-yenileme.ts")
+          grep -q '^ARG IMAGE_VERSION=' Dockerfile || eksik+=("deploy/cloudflare/Dockerfile IMAGE_VERSION")
+          if [ ${#eksik[@]} -gt 0 ]; then
+            echo "::error::Seçilen commit (${DEPLOY_SHA:0:12}) sürüm eşitlemeyi içermiyor (eksik: ${eksik[*]}). Dağıtılırsa çalışan container yenilenmez, duman testi düşer ve geri alma bozuk sürüme döner. Eski uygulama koduna dönmek için main'de \`git revert\` ile yeni bir commit oluşturup onu dağıtın (docs/17 §3)."
+            exit 1
           fi
 
       - uses: actions/setup-node@v4
@@ -326,7 +343,9 @@ jobs:
           META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
           WA_PHONE: ${{ secrets.WA_PHONE }}
         run: |
-          APP_VERSION="$DEPLOY_SHA" node scripts/prepare-config.mjs "$SITE_URL" --mode "$MODE"
+          # DEPLOY_ID: sürüm eşitlemenin döngü korumasının anahtarı (çalıştırma + deneme başına); aynı commit'in yeniden
+          # dağıtımı yeni deneme hakkı alır. APP_VERSION imaja da gömülür (image_vars IMAGE_VERSION; prepare-config).
+          APP_VERSION="$DEPLOY_SHA" DEPLOY_ID="$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" node scripts/prepare-config.mjs "$SITE_URL" --mode "$MODE"
           # İlk dağıtımda Worker yoktur: liste boş sayılır, tüm gizli değerler üretilir
           npx wrangler secret list -c wrangler.generated.jsonc --format json > "$RUNNER_TEMP/existing.json" 2>/dev/null || echo '[]' > "$RUNNER_TEMP/existing.json"
           # Gerçek WhatsApp secret'ları yalnız alan adı kipinde ve doluysa yüklenir (secrets.mjs; geçersiz telefon/kimlik,
@@ -392,25 +411,42 @@ jobs:
           [ "$MODE" = "staging" ] && AUTH=(-u "dev:$DEV_PASSWORD")
 
           # İlk dağıtımda özel alan adının DNS kaydı ve sertifikası birkaç dakika sürer; container ilk açılışta seed ile
-          # kurulur. Süreyle sınırlı (15 dk): container açılamazsa her istek ~150 sn bekleyip 503 döner.
+          # kurulur. Container açılamazsa her istek ~150 sn bekleyip 503 döner.
           # Eski container, yenisi devralana kadar yanıt vermeye devam eder: sürüm (APP_VERSION = DEPLOY_SHA, yani
           # gerçekten dağıtılan commit) eşleşene kadar beklenir, yoksa eski sürümü (ör. eski demo verisini) test
           # etmiş oluruz.
-          code=000; ver=""; i=0
-          deadline=$((SECONDS + 1200))
+          # SÜRE 30 dk (15.10.2026'ya kadar 20 dk): Cloudflare'in rollout'u çalışan container'ı artık değiştirmiyor;
+          # yenisini Worker'ın 5 dakikalık cron'u açıyor (deploy/cloudflare/src/surum-yenileme.ts). Uyumsuzluk ilk turda
+          # yalnız kaydedilir (imaj push penceresi; yeniden başlatma en erken 4 dk sonra), ikinci turda SIGTERM →
+          # kapanış yedeği → çıkış → yeni container (R2'den geri yükleme + migration). Beklenen: dağıtımdan 6–13 dk sonra
+          # yeni sürüm; yeniden başlatma eski imajı getirirse 4 dk sonra bir deneme daha (≈ 25 dk'ya kadar). 30 dk, bir
+          # cron turu kaçsa da sağlam bir dağıtımı geri aldırmaz.
+          # İKİ ALAN birden aranır: `version` (APP_VERSION) container'a BAŞLARKEN Worker'dan gelir, yani imaj eski kalsa
+          # da yeni SHA'yı gösterir; `imageVersion` imaja gömülüdür (Dockerfile IMAGE_VERSION) ve kodun kendisini kanıtlar.
+          # Gizli staging'de cron (dolayısıyla sürüm eşitleme) YOKTUR: container dağıtım anında uyanıksa (son 30 dk
+          # kullanıldıysa) yenisi ancak uyuyup yeniden açılınca gelir; bu yoklama da onu uyanık tutar.
+          code=000; ver=""; img=""; i=0
+          deadline=$((SECONDS + 1800))
           while [ "$SECONDS" -lt "$deadline" ]; do
             i=$((i + 1))
             left=$((deadline - SECONDS)); [ "$left" -gt 170 ] && left=170; [ "$left" -lt 10 ] && left=10
             body=$(curl -s --max-time "$left" -w '\n%{http_code}' "$SITE_URL/api/v1/health" || true)
             code=$(printf '%s' "$body" | tail -n1)
             ver=$(printf '%s' "$body" | sed '$d' | jq -r '.version // empty' 2>/dev/null || true)
-            echo "sağlık denemesi $i: HTTP $code, sürüm ${ver:-?}"
-            [ "$code" = "200" ] && [ "$ver" = "$DEPLOY_SHA" ] && break
+            img=$(printf '%s' "$body" | sed '$d' | jq -r '.imageVersion // empty' 2>/dev/null || true)
+            echo "sağlık denemesi $i: HTTP $code, sürüm ${ver:-?}, imaj ${img:-?}"
+            [ "$code" = "200" ] && [ "$ver" = "$DEPLOY_SHA" ] && [ "$img" = "$DEPLOY_SHA" ] && break
             [ $((deadline - SECONDS)) -gt 15 ] || break
             sleep 15
           done
           [ "$code" = "200" ] || fail "$SITE_URL/api/v1/health 200 dönmedi (son: $code). Özel alan adı, sertifika ya da container hazır değil (docs/15 §13 Sorun giderme)."
-          [ "$ver" = "$DEPLOY_SHA" ] || fail "Yeni sürüm 20 dk içinde devreye girmedi (yanıt veren: ${ver:-bilinmiyor}, beklenen: $DEPLOY_SHA)."
+          if [ "$ver" != "$DEPLOY_SHA" ]; then
+            if [ "$MODE" = "staging" ]; then
+              fail "Yeni sürüm 30 dk içinde devreye girmedi (yanıt veren: ${ver:-bilinmiyor}, beklenen: $DEPLOY_SHA). Gizli staging'de sürüm eşitleme YOK (cron yok): container dağıtım anında uyanıktı. Staging'i 30 dk kullanmadan bekleyip (container uyusun) iş akışını yeniden çalıştırın (docs/15 §13)."
+            fi
+            fail "Yeni sürüm 30 dk içinde devreye girmedi (yanıt veren: ${ver:-bilinmiyor}, beklenen: $DEPLOY_SHA). Worker'ın sürüm eşitlemesi container'ı yenilemedi: Worker günlüğünde 'sürüm eşitleme:' satırlarına ve aşağıdaki container tanısına bakın (docs/17 §2.5)."
+          fi
+          [ "$img" = "$DEPLOY_SHA" ] || fail "Container yeni ORTAMLA ama ESKİ İMAJLA çalışıyor (imageVersion: ${img:-yok}, beklenen: $DEPLOY_SHA): yeni APP_VERSION etiketi eski kodu gösteriyor, Cloudflare imajı bu örneğe vermedi. Aşağıdaki container tanısına ve 'sürüm eşitleme:' satırlarına (eski_imaj) bakın (docs/17 §2.5)."
 
           if [ "$MODE" = "staging" ]; then
             # Gizli: parolasız 401 (sağlık uçları açık), parolayla demo verili site
@@ -551,6 +587,68 @@ jobs:
             echo "- Yedek: R2'ye 2 dakikada bir (değişiklik varsa) ve her kapanışta/dağıtımda; beklenmedik çökmede en çok ~2 dakika kaybolabilir (docs/15 §13)."
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # Duman testi kırmızıysa GERİ ALMADAN ÖNCE container tanısı (15.10 ve 19.10: Worker yeni sürümdeydi, çalışan
+      # container eski sürümü raporluyordu). Geri almadan önce, çünkü geri alma Worker'ı değiştirir ve resim kaybolur.
+      # Yalnız OKUR ve gizli değer basmaz: uygulama/örnek kimliği, durum, sürüm, konum, zaman; `containers info`
+      # ham uygulama nesnesini döktüğü için yalnız beyaz listedeki alanlar (ve diğer alanların yalnız ADLARI) yazılır.
+      # Komutlar wrangler 4.140'ın yardımında var (containers list/info/instances, --json); hiçbiri iş akışını
+      # bozamaz: her biri süreyle sınırlı ve `|| true`, adım `continue-on-error`. Koşul geri alma adımıyla aynıdır.
+      # Süreler kısa tutulur (3 × 45 + 20 sn; adım en çok 4 dk): tanı geri almayı geciktirmemeli. Yalnız wrangler'ın
+      # ihtiyacı olan token kalır; DEV_PASSWORD bu adımda BOŞALTILIR (iş düzeyindeki env'den gelmesin).
+      - name: Duman testi kırmızı → container tanısı (geri almadan önce)
+        if: ${{ (failure() || cancelled()) && steps.dagit.outputs.attempted == 'true' && steps.duman.outcome != 'success' }}
+        continue-on-error: true
+        timeout-minutes: 4
+        env:
+          DEV_PASSWORD: ''
+        run: |
+          set +e
+          cfg=wrangler.generated.jsonc
+          [ -f "$cfg" ] || cfg=wrangler.jsonc
+          # Uygulama adı wrangler'ın ürettiği addır (Worker adı + sınıf adı; dağıtım günlüğündeki "Modified application")
+          app_name="siparisinonunde-dev-appcontainer"
+          liste=$(timeout 45 npx wrangler containers list --json -c "$cfg" 2>/dev/null || true)
+          app_id=$(printf '%s' "$liste" | jq -r --arg n "$app_name" 'try (.[] | select(.name == $n) | .id) catch empty' 2>/dev/null | head -1)
+          saglik=$(curl -s --max-time 20 "$SITE_URL/api/v1/health" || true)
+          yanit_ver=$(printf '%s' "$saglik" | jq -r 'try (.version // "?") catch "?"' 2>/dev/null | cut -c1-12)
+          yanit_img=$(printf '%s' "$saglik" | jq -r 'try (.imageVersion // "yok") catch "?"' 2>/dev/null | cut -c1-12)
+          calisma_sn=$(printf '%s' "$saglik" | jq -r 'try (.uptimeSec // "?") catch "?"' 2>/dev/null)
+          {
+            echo "### Container tanısı (duman testi kırmızı, geri almadan önce)"
+            echo ""
+            echo "- Beklenen sürüm: \`${DEPLOY_SHA:0:12}\` · yanıt veren: ortam \`${yanit_ver:-?}\`, imaj \`${yanit_img:-?}\` · container çalışma süresi: ${calisma_sn:-?} sn (küçükse container bu dağıtımda yeniden başlamış; ortam yeni ama imaj eskiyse Cloudflare imajı vermemiş)."
+            echo "- Worker'ın kararları: \`npx wrangler tail siparisinonunde-dev\` → \`sürüm eşitleme:\` satırları (gözlem → SIGTERM → çıkış → başlatma; ertelendi/vazgeçildi nedenleriyle). Runbook: docs/17 §2.5."
+            echo ""
+            echo "<details><summary>npx wrangler containers list</summary>"
+            echo ""
+            echo '```'
+            printf '%s' "$liste" | jq 'try [.[] | {id, name, state, instances, version, updated_at}] catch "okunamadı"' 2>/dev/null || echo "okunamadı"
+            echo '```'
+            echo "</details>"
+            if [ -n "$app_id" ]; then
+              bilgi=$(timeout 45 npx wrangler containers info "$app_id" --json -c "$cfg" 2>/dev/null || true)
+              ornekler=$(timeout 45 npx wrangler containers instances "$app_id" --json -c "$cfg" 2>/dev/null || true)
+              echo ""
+              echo "<details><summary>npx wrangler containers info $app_id (beyaz liste)</summary>"
+              echo ""
+              echo '```'
+              printf '%s' "$bilgi" | jq 'try {id, name, version, instances, max_instances, scheduling_policy, created_at, updated_at, active_rollout_id, health, image: .configuration.image, instance_type: .configuration.instance_type, alanlar: keys} catch "okunamadı"' 2>/dev/null || echo "okunamadı"
+              echo '```'
+              echo "</details>"
+              echo ""
+              echo "<details><summary>npx wrangler containers instances $app_id (örneğin sürümü uygulamanın sürümünden küçükse rollout örneği değiştirmemiştir)</summary>"
+              echo ""
+              echo '```'
+              printf '%s' "$ornekler" | jq 'try (if type == "array" then . else .instances end) catch "okunamadı"' 2>/dev/null || echo "okunamadı"
+              echo '```'
+              echo "</details>"
+            else
+              echo ""
+              echo "- \`$app_name\` uygulaması listede bulunamadı (token \`containers list\` iznine sahip olmayabilir)."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 0
+
       # Duman testi (ya da deploy'un kendisi) kırmızıysa Worker'ı bir önceki sürüme döndürür. Yalnız dağıtım
       # DENENDİYSE çalışır: token/izin/yapılandırma hatasında canlıda hiçbir şey değişmemiştir.
       # `wrangler rollback` (developers.cloudflare.com/workers/wrangler/commands/workers/#rollback): sürüm kimliği
@@ -586,8 +684,9 @@ jobs:
             echo "- ⚠️ \`wrangler rollback\` sürüm kimliği VERMEZ: en son sürümden önce yüklenene döner. \`wrangler deploy\` hiç sürüm YÜKLEMEDEN hata verdiyse (yapılandırma, izin ya da imaj derleme hatası) bu geri alma zaten sağlam olan sürümü bir adım geriye almış olabilir — \`npx wrangler versions list\` ile doğrulayın. Yarım bir dağıtımın canlıda kalmasındansa bu bilerek seçilmiş sınırdır."
             echo "- ⚠️ **Container imajı geri ALINMADI.** \`wrangler rollback\` yalnız Worker sürümünü döndürür; container rollout'u yalnız \`wrangler deploy\` başlatır. PostgreSQL + API + worker + web hâlâ bu çalıştırmanın imajında çalışıyor."
             echo "- ⚠️ **Veritabanı geri alınmadı.** Aşağı migration yok; bu dağıtım migration uyguladıysa şema yeni hâlindedir."
+            echo "- Geri dönülen Worker sürümünde sürüm eşitleme varsa (deploy/cloudflare/src/surum-yenileme.ts), 5 dakikalık cron container'ı ~5–10 dk içinde SIGTERM + kapanış yedeğiyle yeniden başlatır: ortam (APP_VERSION dahil) geri alınan Worker'ınkine döner, **imaj dönmez**. Sağlık ucunda \`version\` Worker'ın sürümünü, \`imageVersion\` çalışan imajı gösterir; ikisi farklıysa eşitleme en çok iki denemeden sonra \`eski_imaj\` ile vazgeçer (U-30)."
             echo ""
-            echo "**Tam geri alış (container dahil):** Actions > \"Canlı ortam (Cloudflare)\" > Run workflow > \`ref\` alanına çalışan son commit'in SHA'sını yazın. O sürümün testleri de kapıdan geçer ve imaj yeniden derlenip rollout edilir."
+            echo "**Tam geri alış (container dahil):** Actions > \"Canlı ortam (Cloudflare)\" > Run workflow > \`ref\` alanına çalışan son commit'in SHA'sını yazın. O sürümün testleri de kapıdan geçer, imaj yeniden derlenir ve container'ı Worker'ın sürüm eşitlemesi yeniler. ⚠️ \`ref\` sürüm eşitlemeyi içermeyen (20.10.2026'dan önceki) bir commit'se iş akışı dağıtmadan durur: o durumda main'de \`git revert\` ile yeni bir commit oluşturup onu dağıtın (docs/17 §3)."
             echo ""
             echo "**Durumu görmek için:** \`npx wrangler deployments list\` ve \`npx wrangler versions list\` (deploy/cloudflare dizininde)."
           } >> "$GITHUB_STEP_SUMMARY"

@@ -26,9 +26,16 @@ try {
   console.error(err instanceof Error ? err.message : String(err));
   process.exit(1);
 }
-// Dağıtılan commit (iş akışı APP_VERSION=github.sha verir): container'a geçer, /api/v1/health'te görünür; duman testi
-// eski container yerine yeni sürüm yanıt verene kadar bekler.
-config.vars = { ...config.vars, APP_VERSION: process.env.APP_VERSION ?? '' };
+// Dağıtılan commit (iş akışı APP_VERSION=DEPLOY_SHA verir): container'a BAŞLARKEN geçer, /api/v1/health `version`'da
+// görünür; duman testi eski container yerine yeni sürüm yanıt verene kadar bekler.
+// Aynı değer İMAJA da gömülür (image_vars → Dockerfile ARG/ENV IMAGE_VERSION → /api/v1/health `imageVersion`): ortam
+// her başlatmada yeni Worker'dan gelir, imaj ise rollout'a bağlıdır; ikisi birlikte "yeni kod gerçekten çalışıyor"
+// demektir (src/surum-yenileme.ts guncelMi, iş akışının duman testi).
+// DEPLOY_ID (iş akışı: GitHub run kimliği-denemesi) yalnız Worker'da kalır: sürüm eşitlemenin döngü korumasının
+// anahtarıdır, aynı commit'in yeniden dağıtımı yeni deneme hakkı alır (container'a geçmez).
+const appVersion = (process.env.APP_VERSION ?? '').trim();
+config.vars = { ...config.vars, APP_VERSION: appVersion, DEPLOY_ID: (process.env.DEPLOY_ID ?? '').trim() };
+for (const c of config.containers ?? []) c.image_vars = { ...(c.image_vars ?? {}), IMAGE_VERSION: appVersion };
 writeFileSync(join(root, 'wrangler.generated.jsonc'), `// scripts/prepare-config.mjs üretir; elle düzenlemeyin.\n${JSON.stringify(config, null, 2)}\n`);
 const v = config.vars;
 const iv = config.containers?.[0]?.image_vars ?? {};

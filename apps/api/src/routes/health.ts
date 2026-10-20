@@ -18,7 +18,10 @@
 // "AYAKTA MI" İLE "ÖLÇÜM" DE AYRI SİNYALLERDİR (denetim 2026-10-05 bulgu A-2). Bu uç KİMLİK DOĞRULAMASIZDIR ve
 // Worker'da parola kapısının dışındadır (deploy/cloudflare/src/access.ts HEALTH_PATHS): herkese açıktır.
 //   - SADE ALANLAR her isteğe yazılır: `ok`, `degraded`, `warnings`, `db`, `jobLagSec`, `stuckJobs`, `maxLagSec`,
-//     `time`. Dış izleme ve dağıtımın duman testi bunlara bakar (docs/15 §10, §12) — SÖZLEŞME, değişmez.
+//     `backupOk`, `time`. Dış izleme ve dağıtımın duman testi bunlara bakar (docs/15 §10, §12) — SÖZLEŞME; alan
+//     eklenebilir, var olanın anlamı değişmez. `backupOk` (son yedek turu başarılı mı) da bir SINIF bilgisidir: sayı ve
+//     an taşımaz. Worker'ın sürüm eşitlemesi container'ı SIGTERM'le yeniden başlatmadan önce buna bakar
+//     (deploy/cloudflare/src/surum-yenileme.ts): son tur başarısızsa kapanış yedeği de yazılamayabilir.
 //   - AYRINTILI ÖLÇÜMLER (`lastBackupAgeSec`, `diskFreePct`/`diskFreeMb`, `memUsedPct`/`memRssMb` ve bunların
 //     eşikleri) yalnız doğru `HEALTH_METRICS_TOKEN` başlığını taşıyan isteğe yazılır; belirteçsiz yanıtta bu
 //     alanlar HİÇ BULUNMAZ (`null` değil, yok). Gerekçe: bu sayılar altyapının iç durumudur ve saldırgana
@@ -46,6 +49,12 @@ const healthResponse = z.object({
   uptimeSec: z.number(),
   /** Çalışan sürüm (dağıtımın commit'i, APP_VERSION); dağıtım iş akışı yeni sürüm gelene kadar bekler. */
   version: z.string().nullable(),
+  /**
+   * İMAJA gömülü commit (Dockerfile ARG/ENV IMAGE_VERSION; Cloudflare imajında APP_VERSION ile aynı değer). APP_VERSION
+   * container'a başlarken ortamdan gelir ve imaj eski kalsa bile yeni SHA'yı gösterirdi; bu alan imajın kendisini
+   * kanıtlar. Cloudflare dağıtımının duman testi ve Worker'ın sürüm eşitlemesi ikisine birden bakar. Gömülmemişse null.
+   */
+  imageVersion: z.string().nullable(),
 });
 
 /**
@@ -68,6 +77,12 @@ const workerHealthResponse = z.object({
   /** 10 dk'dan uzun süredir `running` kalan iş sayısı. */
   stuckJobs: z.number().int().nullable(),
   maxLagSec: z.number().int(),
+  /**
+   * Son yedek turu başarılı mı (durum dosyasının `lastResult`/`consecutiveFailures`/`note`'u; `backupChainOkFrom`).
+   * Yaş eşiğinden (`backup_stale`, 900 sn) BAĞIMSIZDIR: ilk başarısız turda false olur. Dosya yok/bozuksa null.
+   * Uyarı ÜRETMEZ (tek başarısız tur nöbetçiyi uyandırmasın; o iş `backup_stale`'indir) ve `ok`'u etkilemez.
+   */
+  backupOk: z.boolean().nullable(),
   // ─── AYRINTILI ÖLÇÜMLER (yalnız `HEALTH_METRICS_TOKEN` başlığıyla) ────────────────────────────────────────
   // Hepsi `.optional()`: belirteçsiz yanıtta alan HİÇ BULUNMAZ. "Yok" ile "bilinmiyor" (`null`) bilerek
   // ayrıldı — `null` yazmak "ölçemedim" demektir ve nöbetçiyi yanlış yere bakmaya yollar.
@@ -232,13 +247,41 @@ export function backupAgeSecFrom(raw: string, nowMs: number = Date.now()): numbe
   return Math.max(0, Math.round(nowMs / 1000 - at));
 }
 
-async function readBackupAgeSec(env: Env): Promise<number | null> {
+/**
+ * Durum dosyasından "son yedek turu başarılı mı". Yaştan farklı soru: yaş ancak eşik (900 sn) dolunca uyarır, bu ise
+ * İLK başarısız turda false olur. Kurallar (yazan taraf entrypoint.sh `backup_state_write`):
+ *   - `note: yarim-geri-yukleme` (donmuş zincir) ya da `consecutiveFailures > 0` → false;
+ *   - `lastResult: ok` (yuklendi, degismedi, acilista-geri-yuklendi) ya da `bos` (taze açılış, gerçek veri yok:
+ *     kaybedilecek bir şey yok; veri gelince kapanış yedeği zinciri kendiliğinden açar) → true;
+ *   - `hata`, `atlandi` (kilit alınamadı: bir yedek uzun sürüyor) → false;
+ *   - bozuk JSON, `lastResult` yok (eski/VPS biçimi) ya da bilinmeyen değer → null (bilinmiyor).
+ */
+export function backupChainOkFrom(raw: string): boolean | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (parsed === null || typeof parsed !== 'object') return null;
+  const state = parsed as { lastResult?: unknown; consecutiveFailures?: unknown; note?: unknown };
+  if (typeof state.lastResult !== 'string') return null;
+  if (state.note === 'yarim-geri-yukleme') return false;
+  if (typeof state.consecutiveFailures === 'number' && state.consecutiveFailures > 0) return false;
+  if (state.lastResult === 'ok' || state.lastResult === 'bos') return true;
+  if (state.lastResult === 'hata' || state.lastResult === 'atlandi') return false;
+  return null;
+}
+
+/** Durum dosyasının iki okuması (yaş + son tur başarılı mı); dosya yok ya da okunamadıysa ikisi de null. */
+async function readBackupState(env: Env): Promise<{ ageSec: number | null; chainOk: boolean | null }> {
   try {
     const path = env.BACKUP_STATE_FILE || env.BACKUP_STATUS_FILE || BACKUP_STATE_FILE_DEFAULT;
-    return backupAgeSecFrom(await readFile(path, 'utf8'));
+    const raw = await readFile(path, 'utf8');
+    return { ageSec: backupAgeSecFrom(raw), chainOk: backupChainOkFrom(raw) };
   } catch {
-    // Dosya yok (ilk yedek turundan önce) ya da okunamadı: yedek yaşı bilinmiyor
-    return null;
+    // Dosya yok (ilk yedek turundan önce) ya da okunamadı: yedek durumu bilinmiyor
+    return { ageSec: null, chainOk: null };
   }
 }
 
@@ -377,6 +420,7 @@ const healthRoutes: FastifyPluginAsyncZod = async (app) => {
       time: new Date().toISOString(),
       uptimeSec: Math.round(process.uptime()),
       version: process.env.APP_VERSION || null,
+      imageVersion: process.env.IMAGE_VERSION || null,
     };
     return reply.status(db === 'up' ? 200 : 503).send(body);
   });
@@ -400,8 +444,8 @@ const healthRoutes: FastifyPluginAsyncZod = async (app) => {
     }
     // Eşikler her istekte ortamdan okunur: operatör bir eşiği kodu değiştirmeden (0 = kapalı) devre dışı bırakabilir.
     const limits = healthLimits();
-    const [lastBackupAgeSec, usage] = await Promise.all([readBackupAgeSec(process.env), readResources(process.env)]);
-    const resources: HealthResources = { lastBackupAgeSec, ...usage };
+    const [backup, usage] = await Promise.all([readBackupState(process.env), readResources(process.env)]);
+    const resources: HealthResources = { lastBackupAgeSec: backup.ageSec, ...usage };
     const warnings = resourceWarnings(resources, limits);
     // `ok` YALNIZ hizmet verilemiyorsa false: veritabanı düştü, kuyruk gecikti ya da iş takıldı. Yedek/disk/bellek
     // eşikleri buraya GİRMEZ (dosya başındaki gerekçe: duman testi bu uca bakıyor ve kırmızısı geri alma tetikliyor).
@@ -426,6 +470,7 @@ const healthRoutes: FastifyPluginAsyncZod = async (app) => {
       jobLagSec: lag,
       stuckJobs: stuck,
       maxLagSec: WORKER_MAX_LAG_SEC,
+      backupOk: backup.chainOk,
       ...(detailed
         ? {
             lastBackupAgeSec: resources.lastBackupAgeSec,

@@ -133,12 +133,16 @@ fetch_backup_retry() {
 }
 
 # PUT <yol> ← dosya. Geçici bir ağ hatası son yedeği kaybettirmesin diye 2 kez yeniden denenir (kapanışta bir
-# sonraki tur YOKTUR; --max-time her denemeye ayrı uygulanır).
+# sonraki tur YOKTUR; --max-time her denemeye ayrı uygulanır). $3 = yedeğin türü: kapanis (backup_now force: SIGTERM
+# ya da düşen süreç) | dongu. Worker bunu R2 nesnesinin üst verisine yazar; sürüm eşitleme kapanış yedeğinin gerçekten
+# indiğini YALNIZ bu işaretle kanıtlar (SIGTERM anında süren döngü yedeği de SIGTERM'den sonra inebilir;
+# deploy/cloudflare/src/access.ts BACKUP_TUR_HEADER).
 upload_backup() {
-  local path="$1" file="$2"
+  local path="$1" file="$2" tur="${3:-dongu}"
   [ -s "$file" ] || { log_error "boş yedek gönderilmedi ($path)"; return 1; }
   curl -fsS --max-time 300 --retry 2 --retry-delay 3 --retry-all-errors \
-    -X PUT --data-binary @"$file" -H 'content-type: application/octet-stream' "$BACKUP_BASE/$path" >/dev/null
+    -X PUT --data-binary @"$file" -H 'content-type: application/octet-stream' -H "x-yg-yedek-turu: $tur" \
+    "$BACKUP_BASE/$path" >/dev/null
 }
 
 # Değişiklik izi (yalnız karşılaştırma için; yedeğin kendisi pg_dump'tır). Veritabanı: kullanıcı tablolarındaki ekleme,
@@ -241,7 +245,9 @@ backup_unlock() {
 # yeniden yüklenir. Her döküm KENDİ mktemp dosyasına yazılır (0600; döküm kişisel veri içerir) ve R2'ye gitmeden ÖNCE
 # doğrulanır. Kilidi backup_now tutar; doğrudan çağrılmaz.
 backup_run() {
-  local force="${1:-}" dump="" tarball="" fp="" rows="" uploaded=0 failed=0
+  local force="${1:-}" dump="" tarball="" fp="" rows="" uploaded=0 failed=0 tur=dongu
+  # force yalnız kapanışta gelir (shutdown → backup_now force): yedek KAPANIŞ yedeği olarak işaretlenir
+  [ "$force" = force ] && tur=kapanis
   # Donmuş kip (yarım geri yükleme): satır sayısına BAKILMAZ, force da yazamaz. Elle müdahale edilip container yeni
   # bir diskle açılana kadar R2'deki iyi son.dump ve o günün kopyası korunur. Her turda loglanır ve durum dosyasına
   # işlenir. HABER YOLU: send_alert (açılışta bir kez) + bu [ERROR] satırı. Sağlık ucuna GÜVENİLMEZ: yedek yaşı
@@ -277,7 +283,7 @@ backup_run() {
     elif ! pg_restore --list "$dump" >/dev/null 2>&1; then
       log_error "döküm doğrulanamadı (pg_restore --list): R2'ye YAZILMADI, iyi yedek korundu"
       failed=1
-    elif upload_backup db "$dump"; then
+    elif upload_backup db "$dump" "$tur"; then
       LAST_DB_FP="$fp"
       uploaded=1
       log "veritabanı yedeği R2'ye yazıldı ($(du -h "$dump" | cut -f1))"
@@ -297,7 +303,7 @@ backup_run() {
     elif ! tar -tzf "$tarball" >/dev/null 2>&1; then
       log_error "görsel arşivi doğrulanamadı (tar -tzf): R2'ye YAZILMADI, iyi kopya korundu"
       failed=1
-    elif upload_backup uploads "$tarball"; then
+    elif upload_backup uploads "$tarball" "$tur"; then
       LAST_UPLOADS_FP="$fp"
       uploaded=1
     else

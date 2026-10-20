@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 import {
+  backupLatestKey,
+  epochPrefix,
   isDevToolsPath,
   isHealthPath,
   isNavigation,
@@ -102,6 +104,20 @@ test('yedek yolu: dönem container\'ın yolundan okunur, dönemsiz yol eski öne
   for (const p of ['/', '/x', '/e2', '/e2/x', '/ex/db', '/e1234567/db', '/../db', '/e2/../db', '/db/son.dump', '/E2/db']) {
     assert.equal(parseBackupPath(p), null, p);
   }
+});
+
+test('son yedek anahtarı: yedek işleyicisi ve sürüm eşitlemenin kapanış yedeği kanıtı AYNI anahtarı okur', () => {
+  assert.equal(epochPrefix('3'), 'e3/');
+  assert.equal(epochPrefix(''), '');
+  assert.equal(backupLatestKey('e3/', 'db'), 'e3/db/son.dump');
+  assert.equal(backupLatestKey('e3/', 'uploads'), 'e3/uploads/son.tar.gz');
+  assert.equal(backupLatestKey('', 'db'), 'db/son.dump');
+  // Container'ın yolundan çözülen önek ile Worker'ın döneminden kurulan önek aynı anahtarı verir
+  const hedef = parseBackupPath('/e3/db');
+  assert.equal(backupLatestKey(hedef.prefix, hedef.kind), backupLatestKey(epochPrefix(normalizeEpoch('3')), 'db'));
+  // handleBackup anahtarı elle kurmaz, bu tek kaynaktan alır (ikinci bir kopya ayrışırdı)
+  const index = readFileSync(new URL('../src/index.ts', import.meta.url), 'utf8');
+  assert.match(index, /const latestKey = backupLatestKey\(prefix, kind\);/);
 });
 
 test('gizli staging (DEPLOY_MODE=staging): sağlık uçları dışında her yol parolalı; canlı ortamda (alan adı kipi) parola yok', () => {

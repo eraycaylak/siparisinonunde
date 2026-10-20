@@ -66,7 +66,7 @@ düşer — o zaman tek haber kaynağı dış izlemenin 503'leri olur.
 | U-26 | `disk_low` | warning | Boş disk `HEALTH_MIN_DISK_FREE_PCT`'in (%15) altında. `/data` hem PostgreSQL verisini hem görselleri tutar | §2.6 | `curl -s /api/v1/health/worker` → `warnings`; `diskFreePct`, `diskFreeMb` **belirteçle** (§1 tablosu) ya da uyarının `data` gövdesinden | §2.6. Soğuma 30 dk |
 | U-27 | `memory_high` | critical | API sürecinin yığın kullanımı `HEALTH_MAX_MEM_USED_PCT`'i (%95) aştı: OOM'a yakın, süreç ölürse işler yarıda kalır (U-6 ile birlikte gelebilir) | §2.6 | `curl -s /api/v1/health/worker` → `warnings`; `memUsedPct`, `memRssMb` **belirteçle** (§1 tablosu) ya da uyarının `data` gövdesinden | §2.6. Soğuma 30 dk |
 
-> **Numaralar sabittir:** U-13…U-18 ve U-28 Worker uyarılarıdır (§1.2), U-23/U-24 container açılış uyarılarıdır (§1.3). Yeni türler bir sonraki boş numaradan (U-29) devam eder, böylece §2'deki atıflar kaymaz. **U-19…U-22 ortak numara ve panel akışı uyarılarıdır ve bugün CANLIDA üretilir** (`cron.waba_quota_watch` 5 dk, `services/messaging/send.ts`, `shared-router.ts`, `plugins/sse-limit.ts`); U-20/U-22 yalnız ortak numarada gerçek bir sağlayıcı bağlıyken ölçülür (`PLATFORM_WA_PROVIDER` mock ise ölçüm yok).
+> **Numaralar sabittir:** U-13…U-18, U-28 ve U-29/U-30 Worker uyarılarıdır (§1.2), U-23/U-24 container açılış uyarılarıdır (§1.3). Yeni türler bir sonraki boş numaradan (U-31) devam eder, böylece §2'deki atıflar kaymaz. **U-19…U-22 ortak numara ve panel akışı uyarılarıdır ve bugün CANLIDA üretilir** (`cron.waba_quota_watch` 5 dk, `services/messaging/send.ts`, `shared-router.ts`, `plugins/sse-limit.ts`); U-20/U-22 yalnız ortak numarada gerçek bir sağlayıcı bağlıyken ölçülür (`PLATFORM_WA_PROVIDER` mock ise ölçüm yok).
 
 ### 1.2 Worker uyarıları
 
@@ -79,6 +79,8 @@ düşer — o zaman tek haber kaynağı dış izlemenin 503'leri olur.
 | U-17 | `webhook_drain_reddedildi` | Container kaydı **kalıcı reddetti** (4xx) ya da kayıt okunamadı; kayıt silinmedi, yerinde duruyor | `ayrinti.durum`: `404` = webhook belirteci değişti · `401` = imza sırrı uyuşmuyor (U-2 ile aynı kök) | R2'de kayıt duruyor | Sırrı düzelt → `POST /__yg/webhook-drain` ile turu tetikle (docs/15 §13 sorun giderme) |
 | U-18 | `webhook_drain_hatasi` | Boşaltma turu geçici hata verdi; kayıtlar R2'de | Container hasta mı (U-13/U-14 ile birlikte gelir)? | R2 `e3/webhook-tampon/` kayıt sayısı azalıyor mu | Container düzelince kendiliğinden. **Soğuma yok**: her 5 dk tekrar uyarır |
 | U-28 | `yedek_eskidi` | Uyanık tutma turunun **yedek gözcüsü** yoklaması `/api/v1/health/worker`'da eşikten eski yedek gördü. U-25'in Worker kanalındaki ikizi: container'ın kendi uyarı yolu kurulu değilse ya da API uyarısı gitmiyorsa haber bu kanaldan gelir. `ayrinti.yasSn` / `ayrinti.esikSn` yedek yaşını ve eşiği saniye olarak taşır | §2.2 | `curl -s /api/v1/health/worker` → `warnings` içinde `backup_stale`; `lastBackupAgeSec` **belirteçle**. Worker belirteci yoksa uyarıda `yasSn`/`esikSn` BULUNMAZ (uydurulmaz) ve karar yine `warnings`'ten verilir — uyarının gelmesi için belirteç gerekmez | §2.2. Soğuma **1 saat** (damga Durable Object deposunda). Yedek yaşı okunamazsa (uç yanıt vermiyor, gövde bozuk) uyarı **üretilmez** — o durumun haberi U-13/U-14'tür |
+| U-29 | `container_surum_yenilendi` | **Bilgi.** Çalışan container eski sürümdeydi; Worker'ın sürüm eşitlemesi onu SIGTERM ile durdurdu, kapanışı bekledi ve yeni sürümle (ortam **ve** imaj) başlattı (`deploy/cloudflare/src/surum-yenileme.ts`). Her dağıtımda bir kez gelir. `ayrinti`: `eskiSurum`, `yeniSurum`, `kapanisSn`, `kapanisYedegi` (`goruldu` · `belirsiz` · `gorulmedi` · `bilinmiyor`) | `kapanisYedegi: goruldu` **ve** container günlüğünde `[baslat] kapanıyor` ile `kapandı` arasında `[ERROR]` yoksa bir şey yapma | `curl -s /api/v1/health \| jq '.version, .imageVersion'` = dağıtılan commit (ikisi de) | `goruldu` dışındaki her değer: §2.5 madde 4 |
+| U-30 | `container_surum_yenilenemedi` | Sürüm eşitleme yapılmadı ya da yarıda kaldı; container **eski sürümde** çalışmaya devam ediyor. `ayrinti.neden`: `yedek_basarisiz` / `yedek_eskimis` / `r2_yazilamiyor` (yedek zinciri ya da R2 sağlıksız, SIGTERM **gönderilmedi**; veri diskte güvende) · `durmadi` (SIGTERM'den 40 dk sonra hâlâ çalışıyor; destroy **yok**) · `sinyal_ulasmadi` (SIGTERM iki kez gönderildi, container hiç kapanmaya başlamadı) · `eski_imaj` (iki yeniden başlatmada da imaj güncellenmedi: ortam yeni, kod eski) · `deneme_hakki_doldu` / `baslatma_sonrasi_surum_farkli` | §2.5 | `wrangler tail` → `sürüm eşitleme:` satırları | §2.5. Dağıtım başına **bir kez** gelir; aynı commit'in yeniden dağıtımı (Run workflow, yeni `DEPLOY_ID`) yeni deneme hakkı alır |
 
 ### 1.3 Container (açılış) uyarıları
 
@@ -89,7 +91,7 @@ Bu iki tür container **açılırken** üretilir ve ikisi de aynı şeyi söyler
 | U-23 | `yarim_geri_yukleme` | critical | Açılışta "geri yükleme sürüyor" işareti bulundu: önceki açılışta `pg_restore` **yarıda kalmış**. Veritabanı yarım olabilir; **satır sayısı hiçbir şey kanıtlamaz**. R2'ye yazma container ömrü boyunca **donduruldu** (iyi `son.dump` + `gun-<0–6>.dump` korunuyor); geri yükleme **yeniden denenmez**, ama migration ve seed yarım şema üzerinde çalışır. Site eksik/boş görünebilir, migration yarım şemada patlarsa container çökme döngüsüne girer | **R2'ye dokunma.** `data.gercekVeriSatiri` ve `data.epoch`'u not et → §2.8 | `wrangler tail` → `YARIM GERİ YÜKLEME` satırı + her 2 dk `yedek zinciri DONDURULDU`; `/health/worker` `warnings` → `backup_stale` (sayı için belirteç) | §2.8: **yeni container başlat** (Actions > "Canlı ortam (Cloudflare)"). Temiz diskte işaret yoktur, R2'den tek seferde geri yüklenir |
 | U-24 | `geri_yukleme_izi_yazilamadi` | critical | İşaret **yazılamadı** (`PGDATA`'nın yanındaki birim yazılamıyor). Yarım geri yükleme korumasız kalmasın diye zincir önleyici olarak donduruldu — geri yükleme yine de yapıldı | Disk dolu mu / birim salt okunur mu: `/health/worker` `warnings` → `disk_low`; sayı için belirteç (§2.6) | `wrangler tail` → `geri yükleme izi yazılamadı` | Diski/birimi düzelt, yeniden dağıt. Zincir ancak temiz bir açılışta geri açılır |
 
-> **Numaralar sabittir:** U-23/U-24 container açılış uyarılarıdır; §1.1'deki sağlık eşiği türleri **U-25…U-27**, Worker'ın yedek gözcüsü **U-28**'dir (§1.2). Yeni türler U-29'dan devam eder.
+> **Numaralar sabittir:** U-23/U-24 container açılış uyarılarıdır; §1.1'deki sağlık eşiği türleri **U-25…U-27**, Worker'ın yedek gözcüsü **U-28**'dir, sürüm eşitleme **U-29/U-30**'dur (§1.2). Yeni türler U-31'den devam eder.
 
 ---
 
@@ -154,11 +156,49 @@ Bu iki tür container **açılırken** üretilir ve ikisi de aynı şeyi söyler
 1. Actions > "Canlı ortam (Cloudflare)" > başarısız çalıştırma > iş özeti. Üç ayrı durum:
    - **Kapı (testler) kırmızı** → hiç dağıtılmadı, canlı el değmemiş. Düzelt, yeniden push et.
    - **`wrangler deploy` kırmızı** → Worker sürümü yüklenmemiş olabilir; iş akışı yine `wrangler rollback` dener.
-   - **Duman testi kırmızı** → Worker canlıda değişmiş; otomatik geri alma çalışır (§3).
+   - **Duman testi kırmızı** → Worker canlıda değişmiş; otomatik geri alma çalışır (§3). Geri almadan **önce** iş özetine
+     **Container tanısı** yazılır: yanıt veren sürüm, container çalışma süresi, `wrangler containers list/info/instances`.
 2. İş özetindeki geri alma bloğunu oku: `wrangler rollback` **başarılı** mı, **BAŞARISIZ** mı?
 3. Başarısızsa (Durable Object sınıfı değişti, binding silindi) → §3'teki **tam geri alış**.
 4. `curl -s /api/v1/health | jq .version` → canlıdaki sürüm hangi commit?
 5. Kapatma: `/api/v1/health` 200 + beklenen `version` + `/api/v1/health/worker` 200. İş akışı özetinde `degraded` uyarısı varsa dağıtım sağlamdır, ayrı bir işletim sorunu vardır (§2.2 / §2.6).
+
+**"Yeni sürüm 30 dk içinde devreye girmedi" / "yeni ORTAMLA ama ESKİ İMAJLA" (container eski kaldı; U-30).**
+15.10.2026'dan beri yeni container'ı Cloudflare rollout'u değil Worker'ın 5 dakikalık **sürüm eşitlemesi** açar (docs/15
+§13). Akış: ilk tur uyumsuzluğu kaydeder (`gozlem`), en erken 4 dk sonraki tur yedek kapısını sorar, SIGTERM gönderir,
+çıkışı bekler ve yenisini başlatır; `version` **ve** `imageVersion` bu commit olunca biter. **Gizli staging'de sürüm
+eşitleme yoktur**: staging'i 30 dk kullanmadan bekleyip (container uyusun) iş akışını yeniden çalıştır.
+1. `npx wrangler tail siparisinonunde-dev` → `sürüm eşitleme:` satırlarını oku:
+   - `gozlem` / `yerlesme_bekleniyor` → bekle (bir sonraki tur SIGTERM gönderir).
+   - `ERTELENDİ (yedek_basarisiz | yedek_eskimis | r2_yazilamiyor)` → yedek zinciri ya da R2 sağlıksız. Yeniden
+     başlatmak son başarılı yedekten sonrasını kaybettirebilir; container bu yüzden **bilerek** durdurulmadı. **Önce
+     §2.2.** Zincir düzelince (`/api/v1/health/worker` `backupOk: true`) sonraki tur kendiliğinden devam eder.
+   - `ERTELENDİ (yedek_durumu_bilinmiyor)` / `surum_okunamadi` → container'ın API'si yanıt vermiyor ya da durum dosyası
+     yok (§2.1).
+   - `yedek kapısı SINIRLI` → çalışan API `backupOk`'u tanımıyor (bu değişiklikten önceki imaj; ilk dağıtım). Yalnız
+     `backup_stale` + R2 yoklaması denetlendi; bilgi satırıdır.
+   - `bekle_cikis` → container kapanıyor (kapanış yedeği sürüyor). Normalde saniyeler, en kötü ~34 dk. Bekle.
+   - `kapanis_bitti` → eski container çıktı, yenisini trafik açtı ama henüz sağlıklı değil: §2.1 (açılış/geri yükleme).
+2. `VAZGEÇİLDİ (durmadi)`: SIGTERM'den 40 dk sonra container hâlâ çalışıyor. Worker **bilerek** `destroy()` (SIGKILL)
+   çağırmaz, çünkü kapanış yedeğinin bittiği kanıtlanamaz. Container günlüğünde `[baslat] kapanıyor` satırından sonra
+   hangi adımda kaldığına bak (`yedek döngüsü … durmadı`, `veritabanı yedeği R2'ye yazıldı`, `kapandı`). `kapandı`
+   satırı geldiyse süreç çıkacaktır. `VAZGEÇİLDİ (sinyal_ulasmadi)`: `[baslat] kapanıyor` satırı **hiç** yoksa sinyal
+   container'a ulaşmamıştır; container eski sürümde sağlıklı çalışıyor. Her iki durumda da yeniden denemek için aynı
+   commit'i Run workflow ile yeniden dağıt: kayıt hedef commit + `DEPLOY_ID` (çalıştırma kimliği) ile anahtarlıdır,
+   yeni çalıştırma yeni deneme hakkı alır.
+3. `VAZGEÇİLDİ (eski_imaj)`: container iki kez yeniden başlatıldı; ortam yeni (`version` = commit) ama `imageVersion`
+   eski ya da yok — Cloudflare bu örneğe yeni imajı vermiyor (rollout takılı/bitmemiş). Kod **eski**, yeni migration ve
+   özellikler canlıda **yok**. `wrangler containers instances <uygulama-kimliği>` (iş özetindeki tanı bloğu) örneğin
+   uygulama sürümünü gösterir; Cloudflare tarafında rollout durumunu kontrol et, sonra yeniden dağıt. `VAZGEÇİLDİ
+   (deneme_hakki_doldu | baslatma_sonrasi_surum_farkli)`: yeniden başlatmalardan sonra sürüm yine farklı (ör. dağıtım
+   sırasında Worker iki kez değişti ya da `APP_VERSION` boş geldi); Run workflow ile yeniden dağıt.
+4. U-29 `kapanisYedegi` `goruldu` değilse: `gorulmedi` → çıkıştan sonra R2'deki `son.dump` SIGTERM'den önceye ait ya da
+   SIGTERM'den sonra inen tek döküm bir **döngü** yedeği (kapanış yedeği inmedi). `belirsiz` → SIGTERM'den sonra bir
+   döküm indi ama işaretsiz (bu değişiklikten önceki entrypoint; ilk dağıtım), kapanışınki olduğu kanıtlanamıyor.
+   `bilinmiyor` → R2 okunamadı. Hepsinde container günlüğünde `[baslat] kapanıyor` ile `kapandı` arasındaki
+   `[ERROR] … R2'ye yazılamadı` / `yedek kilidi … alınamadı` satırlarına bak: varsa son başarılı yedekle kapanış
+   arasındaki değişiklikler (normalde ≤ 2 dk) kayıptır (§4). `goruldu` da tek başına yeterli değildir: aynı aralıkta
+   `[ERROR]` yoksa tamamdır. Dağıtım `DATA_EPOCH`'u değiştirdiyse `gorulmedi` beklenir: eski container eski döneme yazar.
 
 ### 2.6 Veritabanı doldu / bellek (U-26 `disk_low`, U-27 `memory_high`; uç 200 + `degraded`)
 `/data` hem PostgreSQL verisini (`/data/pg`) hem görselleri (`/data/uploads`) tutar — `diskFreePct` ikisini birden ölçer.
@@ -174,7 +214,7 @@ Bu iki tür container **açılırken** üretilir ve ikisi de aynı şeyi söyler
 
 ### 2.7 Sertifika / alan adı sorunu
 1. `curl -sI https://yemekgelsin.net/` → TLS hatası mı, 5xx mi, Cloudflare hata sayfası mı?
-2. İlk dağıtımda Custom Domain'in DNS + sertifikası birkaç dakika sürer (duman testi 20 dk bekler).
+2. İlk dağıtımda Custom Domain'in DNS + sertifikası birkaç dakika sürer (duman testi 30 dk bekler).
 3. `"Özel alan adı kurulamadı … izni eksik"` → API token'ında Zone > Workers Routes > Edit ve Zone > Zone > Read
    yok (docs/15 §13 kurulum madde 2). Ekle, yeniden çalıştır.
 4. `@` / `www` için **elle eklenmiş** A/AAAA/CNAME kaydı Custom Domain'i engeller → DNS > Records'tan sil.
@@ -225,7 +265,7 @@ geri kalanı eksik), çok erken kesilmişse boş görünür. İki durumda da say
 | Katman | Nasıl geri alınır | Sınır |
 |---|---|---|
 | Worker sürümü | Otomatik: duman testi/dağıtım kırmızıysa iş akışı `npx wrangler rollback` çalıştırır | `rollback` **sürüm kimliği almaz** — "son sürümden öncekine" döner. `deploy` hiç sürüm yüklemeden patladıysa sağlam sürümü bir adım geriye almış olabilir; `npx wrangler versions list` ile doğrula |
-| Container imajı | **`wrangler rollback` imajı geri ALMAZ.** Tam geri alış: Actions > "Canlı ortam (Cloudflare)" > Run workflow > `ref` = çalışan son commit SHA'sı | O sürümün testleri de kapıdan geçer; imaj yeniden derlenir ve rollout edilir. Süre: yeni bir dağıtımın tamamı |
+| Container imajı | **`wrangler rollback` imajı geri ALMAZ.** Tam geri alış: Actions > "Canlı ortam (Cloudflare)" > Run workflow > `ref` = çalışan son commit SHA'sı | O sürümün testleri de kapıdan geçer; imaj yeniden derlenir ve container'ı Worker'ın sürüm eşitlemesi yeniler. Süre: yeni bir dağıtımın tamamı. **`ref`, sürüm eşitlemeyi içermeyen (20.10.2026'dan önceki, `deploy/cloudflare/src/surum-yenileme.ts` yok) bir commit olamaz:** o Worker container'ı yenilemez, duman testi düşer ve `rollback` bozuk sürüme döner; iş akışı bu yüzden canlıya dokunmadan durur. O durumda main'de `git revert` ile eski kodu taşıyan **yeni** bir commit oluşturup onu dağıt. Geri dönülen Worker sürümünde sürüm eşitleme varsa `rollback`'ten sonra container yeniden başlatılır: ortam (APP_VERSION) geri döner, **imaj dönmez** (`imageVersion` farklı kalır; en çok iki denemeden sonra `eski_imaj`) |
 | Veritabanı şeması | **Aşağı migration YOK.** Geri alınmaz; ileri düzeltme yazılır | Eski kod yeni şemayla çalışmıyorsa tek yol §4 (yedekten dönüş) |
 | Veri | §4 (yeni `DATA_EPOCH`) | Son yedekten sonraki siparişler kaybolur |
 
@@ -263,9 +303,9 @@ sayı ilk provada ölçülür ve buraya yazılır. Tahmin yazmayın, **ölçüp 
    `wrangler tail`'de `TAZE AÇILIŞ … yedek YOK` satırı **yok**.
 
 **Süre (B yolu, koddan türetilen sınırlar):** 1–2. adımlar elle indirme/yükleme (döküm boyutuna bağlı) · 3. adım
-bir tam dağıtım turudur ve duman testi yeni sürümü **en çok 20 dk** bekler · container açılışta yedeği çekemezse
+bir tam dağıtım turudur ve duman testi yeni sürümü **en çok 30 dk** bekler (yeni container'ı Worker'ın sürüm eşitlemesi ~6–13 dk içinde açar) · container açılışta yedeği çekemezse
 6 deneme yapar ve her denemeden sonra bekler (5+10+15+20+25+30 sn ≈ **105 sn**, `entrypoint.sh` `fetch_backup_retry`); yedek hiç yoksa "taze açılış"a düşer, ulaşılamıyorsa container yeniden başlar. Yani push'tan sonra
-**20 dakikadan uzun** sürüyorsa bir şey ters gitmiştir: `wrangler tail`'e bakın (§2.1).
+**30 dakikadan uzun** sürüyorsa bir şey ters gitmiştir: `wrangler tail`'e bakın (§2.1, §2.5).
 
 **Neyi kaybedersin:**
 

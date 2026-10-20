@@ -63,6 +63,24 @@ test('containerEnv canlı ortam: DEPLOY_ENV=production, DEV_TOOLS=0, 2FA zorunlu
   assert.equal(containerEnv('staging', { ...INPUTS, SEED_MODE: 'x' }, {}).SEED_MODE, 'demo');
 });
 
+test('containerEnv İMAJ kanıtını (IMAGE_VERSION) ve dağıtım kimliğini (DEPLOY_ID) container ortamına YAZMAZ', () => {
+  // IMAGE_VERSION imaja gömülüdür (Dockerfile ARG/ENV): ortamdan yazılsaydı imaj eski kalsa bile yeni SHA görünürdü ve
+  // sürüm eşitleme + duman testi eski kodu yeni sanardı. DEPLOY_ID yalnız Worker'ın döngü korumasının anahtarıdır.
+  for (const mode of ['domain', 'staging']) {
+    const env = containerEnv(mode, { ...INPUTS, IMAGE_VERSION: 'b'.repeat(40), DEPLOY_ID: '123-1' }, { PLATFORM_WA_PROVIDER: 'mock' });
+    assert.equal('IMAGE_VERSION' in env, false, `${mode}: IMAGE_VERSION ortama yazılmamalı`);
+    assert.equal('DEPLOY_ID' in env, false, `${mode}: DEPLOY_ID ortama yazılmamalı`);
+  }
+  // İmajın kendisi taşır: çalışma imajında ARG + ENV, wrangler image_vars'ı prepare-config yazar
+  const dockerfile = readFileSync(new URL('../Dockerfile', import.meta.url), 'utf8');
+  const runner = dockerfile.slice(dockerfile.lastIndexOf('FROM '));
+  assert.match(runner, /^ARG IMAGE_VERSION=$/m, 'çalışma imajında ARG IMAGE_VERSION olmalı');
+  assert.match(runner, /^ENV IMAGE_VERSION=\$\{IMAGE_VERSION\}$/m, 'çalışma imajında ENV IMAGE_VERSION olmalı');
+  const prepare = readFileSync(new URL('./prepare-config.mjs', import.meta.url), 'utf8');
+  assert.match(prepare, /image_vars = \{ \.\.\.\(c\.image_vars \?\? \{\}\), IMAGE_VERSION: appVersion \}/, 'prepare-config IMAGE_VERSION\'ı image_vars\'a APP_VERSION ile aynı değerle yazmalı');
+  assert.match(prepare, /DEPLOY_ID: \(process\.env\.DEPLOY_ID \?\? ''\)\.trim\(\)/, 'prepare-config DEPLOY_ID\'yi Worker vars\'ına yazmalı');
+});
+
 test('containerEnv gizli staging: DEPLOY_ENV=dev, simülatör açık, 2FA isteğe bağlı', () => {
   const env = containerEnv('staging', { ...INPUTS, SEED_MODE: 'demo' }, { PLATFORM_WA_PROVIDER: 'mock' });
   assert.equal(env.DEPLOY_ENV, 'dev');
@@ -244,6 +262,12 @@ const SCOPE_OUT = new Map([
     // kanalı) açık kalır. Yani kapsam dışı kalması bir arıza değil, kapalı varsayılandır.
     'ayrıntılı ölçüm belirteci: verilmezse ayrıntılar GİZLİ kalır (kapalı varsayılan). Açmak için: Worker secret' +
       ' + src/mode.ts PASSTHROUGH_KEYS\'e ekle + bu satırı SİL (15 §10)',
+  ],
+  [
+    'IMAGE_VERSION',
+    // Bilerek ortamdan GEÇMEZ: imajın kendisinin kanıtıdır (Dockerfile ARG/ENV ← wrangler image_vars). Worker onu
+    // envVars ile verseydi imaj eski kalsa bile yeni SHA'yı gösterirdi (src/surum-yenileme.ts guncelMi).
+    'imaja gömülü commit (Dockerfile ARG/ENV IMAGE_VERSION): containerEnv onu ASLA yazmaz, yoksa imaj kanıtı ezilir',
   ],
   ['SSE_MAX_PER_BRANCH', 'koddaki varsayılan sınır yeterli'],
   ['SSE_MAX_PER_TENANT', 'koddaki varsayılan sınır yeterli'],
